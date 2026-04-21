@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { 
-  TrendingUp, 
-  MessageSquare, 
-  Clock, 
-  ArrowRight, 
+import {
+  Clock,
+  ArrowRight,
   BarChart3,
   Users,
   Sparkles,

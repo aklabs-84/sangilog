@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
 import { 
-  ArrowLeft, User as UserIcon, BookOpen, Clock, Activity, 
-  Sparkles, FileText, ChevronRight, CheckCircle2 
+  ArrowLeft, User as UserIcon, BookOpen, Clock, Activity,
+  Sparkles, CheckCircle2
 } from 'lucide-react';
 import { geminiFlash } from '../lib/gemini';
 
@@ -216,7 +216,7 @@ ${activitiesContext}
           <div className="flex-1 space-y-8">
             {observations.length > 0 ? (
               <div className="relative border-l-2 border-neutral-100 ml-4 space-y-10 pb-8">
-                {observations.map((obs, idx) => (
+                {observations.map((obs) => (
                   <div key={obs.id} className="relative pl-8 group">
                     <div className="absolute left-[-9px] top-1 w-4 h-4 rounded-full bg-white border-4 border-primary group-hover:scale-125 group-hover:border-secondary transition-all shadow-sm" />
                     
