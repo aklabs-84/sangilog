@@ -14,8 +14,7 @@ import {
   Check,
   Pencil,
   X,
-  Save,
-  GraduationCap
+  Save
 } from 'lucide-react';
 
 interface HomeroomDashboardProps {

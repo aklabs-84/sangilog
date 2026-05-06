@@ -47,6 +47,24 @@ const ClassroomEntry = () => {
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').trim().toUpperCase().replace(/\s/g, '');
+    if (pasted.length === 0) return;
+    const newCodes = [...codes];
+    for (let i = 0; i < 6; i++) {
+      newCodes[i] = pasted[i] || '';
+    }
+    setCodes(newCodes);
+    // 마지막 채워진 칸으로 포커스 이동
+    const lastIndex = Math.min(pasted.length - 1, 5);
+    inputRefs.current[lastIndex]?.focus();
+    // 6자리 모두 채워지면 자동 검증
+    if (pasted.length >= 6) {
+      handleEntry(pasted.substring(0, 6));
+    }
+  };
+
   const handleEntry = async (forcedCode?: string) => {
     const fullCode = forcedCode || codes.join('');
     if (fullCode.length < 6) return;
@@ -155,12 +173,13 @@ const ClassroomEntry = () => {
               <div className="flex justify-between gap-2 px-2">
                 {codes.map((code, i) => (
                   <div key={i} className="flex-1">
-                    <input 
+                    <input
                       ref={el => { inputRefs.current[i] = el; }}
-                      type="text" 
+                      type="text"
                       value={code}
                       onChange={(e) => handleCodeChange(i, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(i, e)}
+                      onPaste={handlePaste}
                       maxLength={1}
                       className="w-full h-20 bg-surface-container rounded-2xl text-center text-3xl font-black text-primary focus:outline-none focus:ring-4 focus:ring-primary/20 focus:bg-white transition-all shadow-inner border border-transparent focus:border-primary/20"
                     />

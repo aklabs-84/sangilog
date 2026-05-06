@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  GraduationCap, 
-  User, 
-  Bell, 
-  MessageSquare, 
-  History, 
-  Trophy, 
-  Send, 
-  Save, 
+import {
+  GraduationCap,
+  User,
+  Bell,
+  MessageSquare,
+  History,
+  Trophy,
+  Send,
+  Save,
   Lightbulb,
   ArrowLeft,
   BookOpen,
@@ -17,7 +17,14 @@ import {
   CheckCircle2,
   Loader2,
   Clock,
-  FileText
+  FileText,
+  Paperclip,
+  Upload,
+  Download,
+  Pencil,
+  Trash2,
+  X,
+  File
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { geminiFlash } from '../lib/gemini';
@@ -28,7 +35,7 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'record' | 'history' | 'badges' | 'materials'>('record');
+  const [activeTab, setActiveTab] = useState<'record' | 'history' | 'badges' | 'materials' | 'files'>('record');
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [guidePrompt, setGuidePrompt] = useState<string>('');
@@ -38,6 +45,14 @@ const StudentLog = () => {
   // Resources State
   const [classResources, setClassResources] = useState<any[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(false);
+
+  // File Attachments State
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Form States
   const [title, setTitle] = useState('');
@@ -125,10 +140,115 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'record' | 'history' | 'badges' | 'materials') => {
+  const fetchAttachments = async () => {
+    if (!session?.student_id || !session?.class_id) return;
+    setAttachmentsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('student_attachments')
+        .select('*')
+        .eq('student_id', session.student_id)
+        .eq('class_id', session.class_id)
+        .order('created_at', { ascending: false });
+      if (!error && data) setAttachments(data);
+    } catch (err) {
+      console.error('Error fetching attachments:', err);
+    } finally {
+      setAttachmentsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !session?.student_id || !session?.class_id) return;
+
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_SIZE) {
+      alert('파일 크기는 10MB를 초과할 수 없습니다.');
+      e.target.value = '';
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const storagePath = `${session.student_id}/${session.class_id}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('student-attachments')
+        .upload(storagePath, file);
+      if (uploadError) throw uploadError;
+
+      const { error: dbError } = await supabase
+        .from('student_attachments')
+        .insert({
+          student_id: session.student_id,
+          class_id: session.class_id,
+          storage_path: storagePath,
+          display_name: file.name,
+          file_size: file.size,
+          file_type: file.type
+        });
+      if (dbError) throw dbError;
+
+      await fetchAttachments();
+    } catch (err: any) {
+      alert('업로드 중 오류: ' + err.message);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteAttachment = async (attachment: any) => {
+    if (!confirm(`"${attachment.display_name}" 파일을 삭제하시겠습니까?`)) return;
+    try {
+      await supabase.storage.from('student-attachments').remove([attachment.storage_path]);
+      await supabase.from('student_attachments').delete().eq('id', attachment.id);
+      setAttachments(prev => prev.filter(a => a.id !== attachment.id));
+    } catch (err: any) {
+      alert('삭제 중 오류: ' + err.message);
+    }
+  };
+
+  const handleDownloadAttachment = async (attachment: any) => {
+    const { data } = supabase.storage
+      .from('student-attachments')
+      .getPublicUrl(attachment.storage_path);
+    const link = document.createElement('a');
+    link.href = data.publicUrl;
+    link.download = attachment.display_name;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleRenameAttachment = async (id: string) => {
+    if (!renameValue.trim()) return;
+    try {
+      const { error } = await supabase
+        .from('student_attachments')
+        .update({ display_name: renameValue.trim() })
+        .eq('id', id);
+      if (error) throw error;
+      setAttachments(prev => prev.map(a => a.id === id ? { ...a, display_name: renameValue.trim() } : a));
+      setRenamingId(null);
+      setRenameValue('');
+    } catch (err: any) {
+      alert('이름 변경 중 오류: ' + err.message);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleTabChange = (tab: 'record' | 'history' | 'badges' | 'materials' | 'files') => {
     setActiveTab(tab);
     if (tab === 'history') fetchHistory();
     if (tab === 'materials') fetchResources();
+    if (tab === 'files') fetchAttachments();
   };
 
   const formatRelativeTime = (dateStr: string) => {
@@ -310,6 +430,7 @@ ${guidePrompt}
               {[
                 { key: 'record' as const, icon: MessageSquare, label: '관찰 기록' },
                 { key: 'history' as const, icon: History, label: '나의 기록' },
+                { key: 'files' as const, icon: Paperclip, label: '첨부 파일' },
                 { key: 'materials' as const, icon: BookOpen, label: '수업 자료' },
                 { key: 'badges' as const, icon: Trophy, label: '나의 배지' }
               ].map((tab) => (
@@ -574,6 +695,140 @@ ${guidePrompt}
                 )}
               </motion.div>
             )}
+            {/* ─── FILE ATTACHMENTS 탭 ─── */}
+            {activeTab === 'files' && (
+              <motion.div
+                key="files"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="p-12 space-y-8 min-h-[400px]"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                      <Paperclip size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black font-manrope">첨부 파일</h3>
+                      <p className="text-on-surface-variant text-sm font-bold mt-1">수업 관련 활동 파일을 업로드하고 관리하세요. (최대 10MB)</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="flex items-center gap-3 px-8 py-4 btn-gradient rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+                    {uploading ? '업로드 중...' : '파일 업로드'}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                </div>
+
+                {attachmentsLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 size={36} className="animate-spin text-primary" />
+                  </div>
+                ) : attachments.length > 0 ? (
+                  <div className="space-y-3">
+                    {attachments.map((att) => (
+                      <motion.div
+                        key={att.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="p-5 bg-surface-container-low rounded-3xl border border-surface-container hover:border-primary/20 transition-all group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                            <File size={22} />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            {renamingId === att.id ? (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={renameValue}
+                                  onChange={(e) => setRenameValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleRenameAttachment(att.id);
+                                    if (e.key === 'Escape') { setRenamingId(null); setRenameValue(''); }
+                                  }}
+                                  autoFocus
+                                  className="flex-1 px-4 py-2 bg-white rounded-xl text-sm font-bold border-2 border-primary/30 focus:outline-none focus:border-primary"
+                                />
+                                <button
+                                  onClick={() => handleRenameAttachment(att.id)}
+                                  className="p-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all"
+                                >
+                                  <CheckCircle2 size={16} />
+                                </button>
+                                <button
+                                  onClick={() => { setRenamingId(null); setRenameValue(''); }}
+                                  className="p-2 bg-surface-container text-on-surface-variant rounded-xl hover:bg-surface-container-high transition-all"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="font-black text-sm truncate group-hover:text-primary transition-colors">{att.display_name}</p>
+                                <p className="text-[11px] text-on-surface-variant font-bold mt-0.5">
+                                  {formatFileSize(att.file_size)} · {formatRelativeTime(att.created_at)}
+                                </p>
+                              </>
+                            )}
+                          </div>
+
+                          {renamingId !== att.id && (
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => handleDownloadAttachment(att)}
+                                title="다운로드"
+                                className="w-9 h-9 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all"
+                              >
+                                <Download size={16} />
+                              </button>
+                              <button
+                                onClick={() => { setRenamingId(att.id); setRenameValue(att.display_name); }}
+                                title="이름 변경"
+                                className="w-9 h-9 rounded-xl bg-surface-container hover:bg-secondary/10 hover:text-secondary flex items-center justify-center text-on-surface-variant transition-all"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAttachment(att)}
+                                title="삭제"
+                                className="w-9 h-9 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center py-24 space-y-4 border-2 border-dashed border-surface-container-highest rounded-3xl cursor-pointer hover:border-primary/30 hover:bg-primary/3 transition-all group"
+                  >
+                    <div className="w-20 h-20 bg-surface-container rounded-3xl flex items-center justify-center text-on-surface-variant/30 group-hover:text-primary/30 transition-colors">
+                      <Upload size={40} />
+                    </div>
+                    <p className="font-black text-lg opacity-40">업로드된 파일이 없습니다.</p>
+                    <p className="text-sm font-bold opacity-30">클릭하거나 위 버튼으로 파일을 업로드하세요.</p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {activeTab === 'badges' && (
               <motion.div
                 key="badges"
