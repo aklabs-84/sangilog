@@ -1,16 +1,20 @@
 import { motion } from 'framer-motion';
-import { 
-  Users, 
-  BookOpen, 
-  LayoutDashboard, 
-  Search, 
-  ArrowRight, 
+import { useState } from 'react';
+import {
+  Users,
+  BookOpen,
+  LayoutDashboard,
+  Search,
+  ArrowRight,
   Sparkles,
   CheckCircle2,
   ArrowLeftRight,
   UserPlus,
   Plus,
-  Check
+  Check,
+  Pencil,
+  X,
+  Save
 } from 'lucide-react';
 
 interface HomeroomDashboardProps {
@@ -28,6 +32,7 @@ interface HomeroomDashboardProps {
   onAddStudent: () => void;
   linkedClasses: any[];
   onSelectClass: (id: string) => void;
+  onEditStudent: (id: string, number: string, name: string) => Promise<void>;
 }
 
 const HomeroomDashboard = ({
@@ -44,13 +49,40 @@ const HomeroomDashboard = ({
   onSelectAll,
   onAddStudent,
   linkedClasses,
-  onSelectClass
+  onSelectClass,
+  onEditStudent
 }: HomeroomDashboardProps) => {
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
-  const filteredStudents = students.filter(s => 
-    s.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredStudents = students.filter(s =>
+    s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.number?.toString().includes(searchQuery.toLowerCase())
   );
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNumber, setEditNumber] = useState('');
+  const [editName, setEditName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleStartEdit = (e: React.MouseEvent, s: any) => {
+    e.stopPropagation();
+    setEditingId(s.id);
+    setEditNumber(s.number === '-' ? '' : s.number.toString());
+    setEditName(s.name);
+  };
+
+  const handleCancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(null);
+  };
+
+  const handleSaveEdit = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!editingId) return;
+    setSaving(true);
+    await onEditStudent(editingId, editNumber, editName);
+    setSaving(false);
+    setEditingId(null);
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -68,7 +100,7 @@ const HomeroomDashboard = ({
   };
 
   return (
-    <motion.div 
+    <motion.div
       variants={containerVariants}
       initial="hidden"
       animate="visible"
@@ -96,7 +128,7 @@ const HomeroomDashboard = ({
         </div>
 
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={onInviteTeachers}
             className="btn-vibrant group px-6 py-3.5 rounded-2xl font-black text-sm flex items-center gap-3 transition-all"
           >
@@ -138,8 +170,8 @@ const HomeroomDashboard = ({
           <div className="absolute -top-10 -right-10 text-primary/5 group-hover:scale-110 transition-all duration-1000"><Sparkles size={200} /></div>
           <div className="flex items-center justify-between relative z-10">
             <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent shadow-sm"><CheckCircle2 size={20} /></div>
-            <button 
-              onClick={onCopyCode} 
+            <button
+              onClick={onCopyCode}
               className="px-6 py-2.5 bg-on-surface text-surface rounded-xl text-[10px] font-black uppercase tracking-[0.12em] hover:bg-primary transition-all shadow-soft active:scale-95"
             >
               {copySuccess ? 'Copied! ✨' : `Code: ${classInfo.entry_code}`}
@@ -163,12 +195,12 @@ const HomeroomDashboard = ({
               <h4 className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-[0.2em]">Linked Subjects</h4>
               <span className="text-[9px] bg-secondary/10 text-secondary px-3 py-1 rounded-full font-black border border-secondary/20">{linkedClasses.length} Linked</span>
             </div>
-            
+
             <div className="space-y-3">
                {linkedClasses.length > 0 ? (
                  linkedClasses.map((linkedClass) => (
-                   <motion.div 
-                     key={linkedClass.id} 
+                   <motion.div
+                     key={linkedClass.id}
                      whileHover={{ x: 6, scale: 1.01 }}
                      whileTap={{ scale: 0.98 }}
                      onClick={() => onSelectClass(linkedClass.id)}
@@ -189,8 +221,8 @@ const HomeroomDashboard = ({
                    <p className="text-xs font-bold text-neutral-400">연동된 교과 수업이 없습니다.</p>
                  </div>
                )}
-               
-               <button 
+
+               <button
                 onClick={onInviteTeachers}
                 className="w-full p-6 border-2 border-dashed border-primary/10 rounded-2xl text-[10px] font-black text-primary/40 hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all mt-4 uppercase tracking-[0.2em] flex items-center justify-center gap-2 group"
                >
@@ -225,19 +257,19 @@ const HomeroomDashboard = ({
                 </h2>
                 <p className="text-xs font-bold text-on-surface-variant/60 ml-14">실시간 연동 데이터 기반 학생 프로필</p>
               </div>
-              
+
               <div className="flex items-center gap-4">
                  <div className="relative group flex-1 max-w-sm">
                    <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-primary transition-colors" />
-                   <input 
-                     type="text" 
-                     placeholder="학생 검색..." 
+                   <input
+                     type="text"
+                     placeholder="학생 검색..."
                      value={searchQuery}
                      onChange={e => setSearchQuery(e.target.value)}
-                     className="bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 text-sm font-bold text-neutral-900 outline-none pl-14 pr-8 py-4 rounded-2xl w-full transition-all placeholder:text-neutral-400 shadow-sm" 
+                     className="bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 text-sm font-bold text-neutral-900 outline-none pl-14 pr-8 py-4 rounded-2xl w-full transition-all placeholder:text-neutral-400 shadow-sm"
                    />
                  </div>
-                 <button 
+                 <button
                   onClick={onAddStudent}
                   className="btn-vibrant group flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-sm transition-all"
                  >
@@ -246,16 +278,16 @@ const HomeroomDashboard = ({
                  </button>
                </div>
            </div>
-           
+
            <div className="flex-1 overflow-x-auto custom-scrollbar bg-white rounded-3xl border border-neutral-100 shadow-sm overflow-hidden">
              <table className="w-full text-left border-collapse min-w-[700px]">
                <thead className="sticky top-0 z-10">
                  <tr className="bg-neutral-50 border-b border-neutral-100">
                    <th className="p-6 text-center w-16">
                      <label className="flex items-center justify-center cursor-pointer">
-                       <input 
-                         type="checkbox" 
-                         className="hidden" 
+                       <input
+                         type="checkbox"
+                         className="hidden"
                          checked={isAllSelected}
                          onChange={(e) => onSelectAll(e.target.checked)}
                        />
@@ -272,69 +304,129 @@ const HomeroomDashboard = ({
                </thead>
                <tbody className="divide-y divide-neutral-100">
                  {filteredStudents.length > 0 ? (
-                   filteredStudents.map((s) => (
-                     <motion.tr 
-                       key={s.id} 
-                       layout
-                       onClick={() => onNavigateToStudent(s.id)}
-                       className={`group hover:bg-neutral-50/50 transition-all cursor-pointer ${selectedIds.includes(s.id) ? 'bg-primary/[0.03]' : ''}`}
-                     >
-                       <td className="p-6 text-center" onClick={(e) => e.stopPropagation()}>
-                         <label className="flex items-center justify-center cursor-pointer">
-                           <input 
-                             type="checkbox" 
-                             className="hidden" 
-                             checked={selectedIds.includes(s.id)}
-                             onChange={() => onSelectStudentToggle(s.id)}
-                           />
-                           <div className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${selectedIds.includes(s.id) ? 'bg-primary border-primary' : 'border-neutral-300 group-hover:border-primary/40'}`}>
-                             {selectedIds.includes(s.id) && <Check size={14} className="text-white" strokeWidth={4} />}
-                           </div>
-                         </label>
-                       </td>
-                       <td className="p-6 font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg truncate w-20">{s.number.toString().padStart(2, '0')}</td>
-                       <td className="p-6">
-                         <div className="flex items-center gap-4">
-                           <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                             <Users size={18} strokeWidth={2.5} />
-                           </div>
-                           <div className="flex flex-col">
-                             <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
-                             <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="px-1.5 py-0.5 bg-primary/5 text-[8px] font-black text-primary/70 uppercase tracking-wider rounded border border-primary/10">{s.tag || '학생'}</span>
+                   filteredStudents.map((s) => {
+                     const isEditing = editingId === s.id;
+                     return (
+                       <motion.tr
+                         key={s.id}
+                         layout
+                         onClick={() => !isEditing && onNavigateToStudent(s.id)}
+                         className={`group hover:bg-neutral-50/50 transition-all ${isEditing ? 'bg-primary/[0.02] cursor-default' : 'cursor-pointer'} ${selectedIds.includes(s.id) ? 'bg-primary/[0.03]' : ''}`}
+                       >
+                         <td className="p-6 text-center" onClick={(e) => e.stopPropagation()}>
+                           <label className="flex items-center justify-center cursor-pointer">
+                             <input
+                               type="checkbox"
+                               className="hidden"
+                               checked={selectedIds.includes(s.id)}
+                               onChange={() => onSelectStudentToggle(s.id)}
+                             />
+                             <div className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${selectedIds.includes(s.id) ? 'bg-primary border-primary' : 'border-neutral-300 group-hover:border-primary/40'}`}>
+                               {selectedIds.includes(s.id) && <Check size={14} className="text-white" strokeWidth={4} />}
                              </div>
-                           </div>
-                         </div>
-                       </td>
-                       
-                       <td className="p-6 text-center">
-                           <div className="flex items-center justify-center gap-1.5 overflow-hidden">
-                             {linkedClasses.length > 0 ? (
-                               linkedClasses.map((linkedClass) => (
-                                 <div 
-                                   key={linkedClass.id} 
-                                   title={linkedClass.subject}
-                                   className="w-8 h-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center text-[10px] font-black text-on-surface-variant/40 group-hover:border-primary/20 group-hover:text-primary transition-all shadow-sm shrink-0"
-                                 >
-                                   {linkedClass.subject.charAt(0)}
-                                 </div>
-                               ))
-                             ) : (
-                               <span className="text-[10px] font-bold text-on-surface-variant/20 italic">No linked subjects</span>
-                             )}
-                           </div>
-                       </td>
+                           </label>
+                         </td>
 
-                       <td className="p-6 text-right pr-10">
-                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                           <div className="p-2 text-primary/40"><ArrowRight size={18} /></div>
-                         </div>
-                       </td>
-                     </motion.tr>
-                   ))
+                         {/* NO. 셀 */}
+                         <td className="p-6 w-24" onClick={(e) => isEditing && e.stopPropagation()}>
+                           {isEditing ? (
+                             <input
+                               type="text"
+                               value={editNumber}
+                               onChange={(e) => setEditNumber(e.target.value)}
+                               onClick={(e) => e.stopPropagation()}
+                               placeholder="번호"
+                               className="w-16 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
+                             />
+                           ) : (
+                             <span className="font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg">
+                               {s.number === '-' ? <span className="text-neutral-300 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
+                             </span>
+                           )}
+                         </td>
+
+                         {/* 학생 정보 셀 */}
+                         <td className="p-6" onClick={(e) => isEditing && e.stopPropagation()}>
+                           {isEditing ? (
+                             <input
+                               type="text"
+                               value={editName}
+                               onChange={(e) => setEditName(e.target.value)}
+                               onClick={(e) => e.stopPropagation()}
+                               placeholder="이름"
+                               className="w-40 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black focus:outline-none focus:border-primary"
+                             />
+                           ) : (
+                             <div className="flex items-center gap-4">
+                               <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                                 <Users size={18} strokeWidth={2.5} />
+                               </div>
+                               <div className="flex flex-col">
+                                 <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
+                                 <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="px-1.5 py-0.5 bg-primary/5 text-[8px] font-black text-primary/70 uppercase tracking-wider rounded border border-primary/10">{s.tag || '학생'}</span>
+                                 </div>
+                               </div>
+                             </div>
+                           )}
+                         </td>
+
+                         <td className="p-6 text-center">
+                             <div className="flex items-center justify-center gap-1.5 overflow-hidden">
+                               {linkedClasses.length > 0 ? (
+                                 linkedClasses.map((linkedClass) => (
+                                   <div
+                                     key={linkedClass.id}
+                                     title={linkedClass.subject}
+                                     className="w-8 h-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center text-[10px] font-black text-on-surface-variant/40 group-hover:border-primary/20 group-hover:text-primary transition-all shadow-sm shrink-0"
+                                   >
+                                     {linkedClass.subject.charAt(0)}
+                                   </div>
+                                 ))
+                               ) : (
+                                 <span className="text-[10px] font-bold text-on-surface-variant/20 italic">No linked subjects</span>
+                               )}
+                             </div>
+                         </td>
+
+                         {/* 관리 셀 */}
+                         <td className="p-6 text-right pr-10" onClick={(e) => e.stopPropagation()}>
+                           {isEditing ? (
+                             <div className="flex items-center justify-end gap-2">
+                               <button
+                                 onClick={handleSaveEdit}
+                                 disabled={saving}
+                                 className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50"
+                               >
+                                 <Save size={13} />
+                                 {saving ? '저장 중' : '저장'}
+                               </button>
+                               <button
+                                 onClick={handleCancelEdit}
+                                 className="p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-xl transition-all"
+                               >
+                                 <X size={16} />
+                               </button>
+                             </div>
+                           ) : (
+                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                               <button
+                                 onClick={(e) => handleStartEdit(e, s)}
+                                 className="p-2 text-neutral-400 hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
+                                 title="학생 정보 편집"
+                               >
+                                 <Pencil size={16} />
+                               </button>
+                               <div className="p-2 text-primary/40"><ArrowRight size={18} /></div>
+                             </div>
+                           )}
+                         </td>
+                       </motion.tr>
+                     );
+                   })
                  ) : (
                     <tr>
-                      <td colSpan={4} className="py-24 text-center">
+                      <td colSpan={5} className="py-24 text-center">
                         <div className="flex flex-col items-center justify-center text-on-surface-variant/20 gap-4">
                           <div className="p-6 bg-neutral-50 rounded-full shadow-inner"><Search size={40} /></div>
                           <p className="font-black text-xs tracking-widest uppercase">일치하는 학생이 없습니다</p>

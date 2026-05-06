@@ -627,6 +627,20 @@ const Classroom = () => {
     }
   };
 
+  const handleEditStudent = async (id: string, number: string, name: string) => {
+    if (!activeClassId) return;
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ student_number: number || null, full_name: name })
+        .eq('id', id);
+      if (error) throw error;
+      fetchStudents(activeClassId);
+    } catch (err) {
+      console.error('Error editing student:', err);
+    }
+  };
+
   const handleBulkRegister = async () => {
     if (!activeClassId || !bulkNames.trim()) return;
 
@@ -876,7 +890,7 @@ const Classroom = () => {
 
               {activeTab === 'list' && (
                 classInfo?.class_type === 'homeroom' ? (
-                  <HomeroomDashboard 
+                  <HomeroomDashboard
                     classInfo={classInfo}
                     students={sortedStudents}
                     onInviteTeachers={() => setIsInviteModalOpen(true)}
@@ -894,6 +908,7 @@ const Classroom = () => {
                     onAddStudent={() => setIsStudentModalOpen(true)}
                     linkedClasses={linkedClasses}
                     onSelectClass={setActiveClassId}
+                    onEditStudent={handleEditStudent}
                   />
                 ) : (
                   <SubjectDashboard 
