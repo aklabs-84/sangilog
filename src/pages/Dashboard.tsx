@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import {
   Clock,
@@ -7,7 +7,11 @@ import {
   BarChart3,
   Users,
   Sparkles,
-  GraduationCap
+  GraduationCap,
+  BellRing,
+  Check,
+  X,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
@@ -21,9 +25,13 @@ const Dashboard = () => {
   const [totalActivitiesCount, setTotalActivitiesCount] = useState(0);
   const [stats, setStats] = useState({ total: 0, inProgress: 0, completed: 0 });
   const [loading, setLoading] = useState(true);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
+  const [subjectInputs, setSubjectInputs] = useState<Record<string, string>>({});
+  const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchPendingInvitations();
   }, []);
 
   const fetchDashboardData = async () => {
@@ -160,12 +168,150 @@ const Dashboard = () => {
     }
   };
 
+  const fetchPendingInvitations = async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from('class_invitations')
+        .select(`
+          id,
+          source_class_id,
+          created_at,
+          sender:sender_id ( full_name ),
+          source_class:source_class_id ( name, subject )
+        `)
+        .eq('receiver_id', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (data) setPendingInvitations(data);
+    } catch (err) {
+      console.error('초대 조회 오류:', err);
+    }
+  };
+
+  const handleAcceptInvitation = async (inv: any) => {
+    const subject = subjectInputs[inv.id]?.trim();
+    if (!subject) {
+      alert('담당 과목명을 입력해주세요.');
+      return;
+    }
+    setInviteActionLoading(inv.id);
+    try {
+      const entryCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const { error: classError } = await supabase
+        .from('classes')
+        .insert({
+          teacher_id: user?.id,
+          name: inv.source_class?.name || '연동 학급',
+          subject: subject,
+          class_type: 'subject',
+          linked_class_id: inv.source_class_id,
+          entry_code: entryCode,
+          school_code: profile?.school_code || null,
+          student_guide_prompt: '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요.',
+          teacher_report_prompt: '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘.',
+          weekly_plan: []
+        });
+
+      if (classError) throw classError;
+
+      await supabase
+        .from('class_invitations')
+        .update({ status: 'accepted' })
+        .eq('id', inv.id);
+
+      setPendingInvitations(prev => prev.filter(i => i.id !== inv.id));
+      fetchDashboardData();
+    } catch (err: any) {
+      alert('수락 중 오류가 발생했습니다: ' + err.message);
+    } finally {
+      setInviteActionLoading(null);
+    }
+  };
+
+  const handleRejectInvitation = async (invId: string) => {
+    setInviteActionLoading(invId);
+    try {
+      await supabase
+        .from('class_invitations')
+        .update({ status: 'rejected' })
+        .eq('id', invId);
+      setPendingInvitations(prev => prev.filter(i => i.id !== invId));
+    } catch (err) {
+      console.error('거절 오류:', err);
+    } finally {
+      setInviteActionLoading(null);
+    }
+  };
+
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="space-y-10"
     >
+      {/* 교과 연동 초대 알림 */}
+      <AnimatePresence>
+        {pendingInvitations.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center gap-2 px-1">
+              <BellRing size={16} className="text-primary animate-pulse" />
+              <h3 className="text-sm font-black text-primary uppercase tracking-widest">교과 연동 초대 {pendingInvitations.length}건</h3>
+            </div>
+            {pendingInvitations.map((inv) => (
+              <motion.div
+                key={inv.id}
+                layout
+                exit={{ opacity: 0, height: 0 }}
+                className="surface-card p-6 border-l-4 border-primary shadow-ambient flex flex-col md:flex-row md:items-center gap-4"
+              >
+                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0">
+                  <BookOpen size={22} />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <p className="font-black text-base">
+                    <span className="text-primary">{inv.sender?.full_name} 선생님</span>이 학급 연동을 요청했습니다
+                  </p>
+                  <p className="text-xs font-bold text-on-surface-variant">
+                    학급: {inv.source_class?.name} · {new Date(inv.created_at).toLocaleDateString('ko-KR')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <input
+                    type="text"
+                    placeholder="담당 과목 입력 (예: 국어)"
+                    value={subjectInputs[inv.id] || ''}
+                    onChange={(e) => setSubjectInputs(prev => ({ ...prev, [inv.id]: e.target.value }))}
+                    className="px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 w-48 border border-surface-container-highest"
+                  />
+                  <button
+                    onClick={() => handleAcceptInvitation(inv)}
+                    disabled={inviteActionLoading === inv.id}
+                    className="flex items-center gap-1.5 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-black hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-primary/20"
+                  >
+                    <Check size={16} />
+                    수락
+                  </button>
+                  <button
+                    onClick={() => handleRejectInvitation(inv.id)}
+                    disabled={inviteActionLoading === inv.id}
+                    className="p-2.5 text-neutral-400 hover:text-error hover:bg-error/10 rounded-xl transition-all disabled:opacity-50"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Hero & Stats Grid */}
       <div className="grid grid-cols-12 gap-6">
         <div className="col-span-8 surface-zone p-10 flex flex-col justify-center relative overflow-hidden h-[340px]">
