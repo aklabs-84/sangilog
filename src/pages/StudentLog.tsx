@@ -171,7 +171,8 @@ const StudentLog = () => {
 
     setUploading(true);
     try {
-      const storagePath = `${session.student_id}/${session.class_id}/${Date.now()}_${file.name}`;
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : '';
+      const storagePath = `${session.student_id}/${session.class_id}/${Date.now()}${ext ? '.' + ext : ''}`;
       const { error: uploadError } = await supabase.storage
         .from('student-attachments')
         .upload(storagePath, file);
@@ -437,7 +438,7 @@ ${guidePrompt}
                 <button 
                   key={tab.key} 
                   onClick={() => handleTabChange(tab.key)}
-                  className={`flex items-center gap-3 px-8 py-3.5 rounded-xl text-[10px] font-black tracking-[0.1em] transition-all ${
+                  className={`flex items-center gap-2 px-5 py-3 rounded-xl text-[10px] font-black tracking-[0.05em] transition-all whitespace-nowrap ${
                     activeTab === tab.key ? 'bg-white text-primary shadow-md scale-105' : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
