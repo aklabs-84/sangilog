@@ -102,6 +102,7 @@ const HomeroomDashboard = ({
   };
 
   return (
+    <>
     <motion.div
       variants={containerVariants}
       initial="hidden"
@@ -444,6 +445,7 @@ const HomeroomDashboard = ({
     </motion.div>
 
     {/* 참여 코드 크게 보기 모달 */}
+
     <AnimatePresence>
       {showCodeModal && (
         <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/70 backdrop-blur-md">
@@ -486,6 +488,7 @@ const HomeroomDashboard = ({
         </div>
       )}
     </AnimatePresence>
+    </>
   );
 };
 
