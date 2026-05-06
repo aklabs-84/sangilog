@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
-import { 
+import {
   ArrowLeft, User as UserIcon, BookOpen, Clock, Activity,
-  Sparkles, CheckCircle2
+  Sparkles, CheckCircle2, ThumbsUp, Loader2
 } from 'lucide-react';
 import { geminiFlash } from '../lib/gemini';
 
@@ -18,6 +18,7 @@ const StudentView = () => {
   // AI Report States
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStudentData();
@@ -54,6 +55,25 @@ const StudentView = () => {
       console.error('Error fetching student integrated data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApprove = async (obsId: string) => {
+    setApprovingId(obsId);
+    try {
+      const { error } = await supabase
+        .from('observations')
+        .update({ status: 'approved' })
+        .eq('id', obsId);
+      if (!error) {
+        setObservations(prev =>
+          prev.map(o => o.id === obsId ? { ...o, status: 'approved' } : o)
+        );
+      }
+    } catch (err) {
+      console.error('승인 처리 오류:', err);
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -241,8 +261,30 @@ ${activitiesContext}
                     </div>
 
                     {obs.is_student_record && (
-                      <div className="mt-3 flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase tracking-widest">
-                        <CheckCircle2 size={12} /> Student Submitted
+                      <div className="mt-3 flex items-center justify-between">
+                        {obs.status === 'pending' ? (
+                          <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-500 uppercase tracking-widest bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                              <Clock size={11} /> 승인 대기
+                            </span>
+                            <button
+                              onClick={() => handleApprove(obs.id)}
+                              disabled={approvingId === obs.id}
+                              className="flex items-center gap-1.5 px-4 py-1.5 bg-secondary text-white rounded-lg text-[11px] font-black hover:bg-secondary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm"
+                            >
+                              {approvingId === obs.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <ThumbsUp size={12} />
+                              )}
+                              승인하기
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase tracking-widest">
+                            <CheckCircle2 size={12} /> Student Submitted · 승인 완료
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, User as UserIcon, BookOpen, Clock, Activity, FileText } from 'lucide-react';
+import { X, Sparkles, User as UserIcon, BookOpen, Clock, Activity, FileText, CheckCircle2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
@@ -25,7 +25,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId }: StudentDetailDrawer
           .from('students')
           .select(`
             *,
-            observations(id, content, activity_name, created_at)
+            observations(id, content, activity_name, created_at, is_student_record, status)
           `)
           .eq('id', studentId)
           .single();
@@ -162,9 +162,22 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId }: StudentDetailDrawer
                      <div className="space-y-3">
                        {student.observations.slice(0, 3).map((obs: any) => (
                          <div key={obs.id} className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100/50 hover:border-primary/20 transition-colors">
-                            <p className="text-[10px] font-bold text-on-surface-variant/40 mb-1">
-                              {new Date(obs.created_at).toLocaleDateString('ko-KR')}
-                            </p>
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-[10px] font-bold text-on-surface-variant/40">
+                                {new Date(obs.created_at).toLocaleDateString('ko-KR')}
+                              </p>
+                              {obs.is_student_record && (
+                                obs.status === 'pending' ? (
+                                  <span className="flex items-center gap-1 text-[9px] font-black text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                    <Clock size={9} /> 승인대기
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-[9px] font-black text-secondary bg-secondary/10 px-1.5 py-0.5 rounded-md">
+                                    <CheckCircle2 size={9} /> 승인완료
+                                  </span>
+                                )
+                              )}
+                            </div>
                             <p className="text-sm font-black text-on-surface/80">{obs.activity_name}</p>
                          </div>
                        ))}

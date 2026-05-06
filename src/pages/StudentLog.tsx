@@ -191,7 +191,7 @@ ${guidePrompt}
         }
       }
 
-      // 1. 활동 기록 저장 (observations)
+      // 1. 활동 기록 저장 (observations) - 교사 승인 대기 상태로 저장
       const { error: obsError } = await supabase
         .from('observations')
         .insert({
@@ -200,6 +200,7 @@ ${guidePrompt}
           activity_name: title,
           content: `${content}\n\n[배운 점 및 느낀 점]\n${feeling}`,
           is_student_record: true,
+          status: 'pending',
           category: session?.subject || '학생 제출'
         });
 
@@ -215,7 +216,7 @@ ${guidePrompt}
           type: 'student_submission'
         });
 
-      alert('활동 기록이 성공적으로 제출되었습니다! 선생님이 확인할 예정입니다.');
+      alert('제출 완료! 선생님 승인 후 최종 기록에 반영됩니다.');
       setTitle('');
       setContent('');
       setFeeling('');
@@ -480,7 +481,19 @@ ${guidePrompt}
                                 {formatRelativeTime(log.created_at)}
                               </p>
                             </div>
-                            <CheckCircle2 size={18} className="text-secondary opacity-60" />
+                            {log.status === 'pending' ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
+                                  <Clock size={14} className="text-amber-500" />
+                                </div>
+                                <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider">대기중</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center gap-1">
+                                <CheckCircle2 size={18} className="text-secondary" />
+                                <span className="text-[9px] font-black text-secondary uppercase tracking-wider">승인됨</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </motion.div>
