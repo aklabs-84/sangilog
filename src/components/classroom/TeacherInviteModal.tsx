@@ -37,7 +37,7 @@ const TeacherInviteModal = ({
   );
 
   const handleCopyLink = () => {
-    const inviteLink = `${window.location.origin}/classroom-entry?link_source=${classId}`;
+    const inviteLink = `${window.location.origin}/classroom?importId=${classId}`;
     navigator.clipboard.writeText(inviteLink);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
@@ -124,11 +124,11 @@ const TeacherInviteModal = ({
               <div className="space-y-8 pt-0 md:pt-0 border-t md:border-t-0 md:border-l border-surface-container-highest/50 pl-0 md:pl-10">
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-secondary uppercase tracking-widest flex items-center gap-2">
-                    <LinkIcon size={12} /> 초대 링크 직직접 전송
+                    <LinkIcon size={12} /> 교사 연동 링크 직접 전송
                   </label>
                   <p className="text-xs font-bold text-on-surface-variant leading-relaxed">
-                    단톡방이나 메신저로 링크를 전달하면 <br />
-                    교과 선생님들이 바로 연동할 수 있습니다.
+                    메신저로 링크를 전달하면 교과 선생님이 <br />
+                    대시보드에서 바로 학급을 연동할 수 있습니다.
                   </p>
                 </div>
 
@@ -144,7 +144,7 @@ const TeacherInviteModal = ({
                     {copySuccess ? '복사 완료!' : '초대 링크 복사하기'}
                   </button>
                   <p className="text-[10px] font-bold text-on-surface-variant opacity-40 text-center uppercase tracking-widest">
-                    Link expires with class archive
+                    교사 전용 링크 · 학생 입장 링크와 별도
                   </p>
                 </div>
               </div>
