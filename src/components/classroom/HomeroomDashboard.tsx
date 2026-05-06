@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import {
   Users,
@@ -14,7 +14,8 @@ import {
   Check,
   Pencil,
   X,
-  Save
+  Save,
+  GraduationCap
 } from 'lucide-react';
 
 interface HomeroomDashboardProps {
@@ -58,6 +59,7 @@ const HomeroomDashboard = ({
     s.number?.toString().includes(searchQuery.toLowerCase())
   );
 
+  const [showCodeModal, setShowCodeModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNumber, setEditNumber] = useState('');
   const [editName, setEditName] = useState('');
@@ -171,7 +173,7 @@ const HomeroomDashboard = ({
           <div className="flex items-center justify-between relative z-10">
             <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent shadow-sm"><CheckCircle2 size={20} /></div>
             <button
-              onClick={onCopyCode}
+              onClick={() => { onCopyCode(); setShowCodeModal(true); }}
               className="px-6 py-2.5 bg-on-surface text-surface rounded-xl text-[10px] font-black uppercase tracking-[0.12em] hover:bg-primary transition-all shadow-soft active:scale-95"
             >
               {copySuccess ? 'Copied! ✨' : `Code: ${classInfo.entry_code}`}
@@ -179,9 +181,9 @@ const HomeroomDashboard = ({
           </div>
           <div className="relative z-10 space-y-2 max-w-sm">
              <p className="text-sm font-bold text-on-surface leading-snug">
-               동료 교사에게 학급 코드를 공유하여 <span className="text-primary font-black underline decoration-primary/20 underline-offset-4">실시간 협업</span>을 시작하세요.
+               학생들에게 참여 코드를 공유하여 <span className="text-primary font-black underline decoration-primary/20 underline-offset-4">수업 기록</span>을 시작하세요.
              </p>
-             <p className="text-[10px] font-black text-on-surface-variant/50 tracking-[0.15em] uppercase">Collaboration Hub • Unified Data</p>
+             <p className="text-[10px] font-black text-on-surface-variant/50 tracking-[0.15em] uppercase">Student Entry Code • 학생 전용</p>
           </div>
         </motion.div>
       </div>
@@ -440,6 +442,50 @@ const HomeroomDashboard = ({
         </div>
       </section>
     </motion.div>
+
+    {/* 참여 코드 크게 보기 모달 */}
+    <AnimatePresence>
+      {showCodeModal && (
+        <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/70 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            className="relative bg-white rounded-[3rem] p-14 flex flex-col items-center gap-8 shadow-2xl max-w-sm w-full"
+          >
+            <button
+              onClick={() => setShowCodeModal(false)}
+              className="absolute top-6 right-6 p-2 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="space-y-2 text-center">
+              <p className="text-[11px] font-black text-primary uppercase tracking-[0.3em]">학생 참여 코드</p>
+              <p className="text-xs font-bold text-on-surface-variant">{classInfo.name}</p>
+            </div>
+
+            <div className="w-full py-8 bg-primary/5 rounded-3xl flex items-center justify-center border-2 border-dashed border-primary/20">
+              <p className="text-6xl font-black font-manrope tracking-[0.25em] text-primary select-all">
+                {classInfo.entry_code}
+              </p>
+            </div>
+
+            <p className="text-xs font-bold text-on-surface-variant text-center leading-relaxed">
+              학생들이 <span className="text-primary font-black">생기로그 → 수업 입장하기</span>에서<br />
+              위 코드를 입력하면 바로 참여할 수 있습니다.
+            </p>
+
+            <button
+              onClick={() => { onCopyCode(); }}
+              className="w-full py-4 btn-gradient rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-all"
+            >
+              {copySuccess ? '✨ 링크 복사 완료!' : '📋 학생 입장 링크 복사'}
+            </button>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
