@@ -21,6 +21,8 @@ import {
   Upload,
   Trash2,
   X,
+  Pencil,
+  Check,
   File,
   ClipboardList,
   AlertCircle,
@@ -42,6 +44,10 @@ const StudentLog = () => {
   const [activeTab, setActiveTab] = useState<'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit'>('record');
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editLogForm, setEditLogForm] = useState({ activity_name: '', content: '' });
+  const [savingLogId, setSavingLogId] = useState<string | null>(null);
+  const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [guidePrompt, setGuidePrompt] = useState<string>('');
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<{reason: string, guide: string} | null>(null);
@@ -169,6 +175,54 @@ const StudentLog = () => {
       console.error('Error fetching resources:', err);
     } finally {
       setResourcesLoading(false);
+    }
+  };
+
+  const handleStartEditLog = (log: any) => {
+    setEditingLogId(log.id);
+    setEditLogForm({ activity_name: log.activity_name || '', content: log.content || '' });
+  };
+
+  const handleCancelEditLog = () => {
+    setEditingLogId(null);
+    setEditLogForm({ activity_name: '', content: '' });
+  };
+
+  const handleSaveEditLog = async (logId: string) => {
+    if (!editLogForm.activity_name.trim()) {
+      showToast('활동 제목을 입력해주세요.', 'error'); return;
+    }
+    setSavingLogId(logId);
+    try {
+      const { error } = await supabase
+        .from('observations')
+        .update({ activity_name: editLogForm.activity_name.trim(), content: editLogForm.content.trim() })
+        .eq('id', logId);
+      if (error) throw error;
+      setHistoryLogs(prev => prev.map(l =>
+        l.id === logId ? { ...l, activity_name: editLogForm.activity_name.trim(), content: editLogForm.content.trim() } : l
+      ));
+      setEditingLogId(null);
+      showToast('수정되었습니다.');
+    } catch {
+      showToast('수정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSavingLogId(null);
+    }
+  };
+
+  const handleDeleteLog = async (logId: string) => {
+    if (!confirm('이 기록을 삭제하시겠습니까?')) return;
+    setDeletingLogId(logId);
+    try {
+      const { error } = await supabase.from('observations').delete().eq('id', logId);
+      if (error) throw error;
+      setHistoryLogs(prev => prev.filter(l => l.id !== logId));
+      showToast('삭제되었습니다.');
+    } catch {
+      showToast('삭제 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setDeletingLogId(null);
     }
   };
 
@@ -741,48 +795,116 @@ ${guidePrompt}
                   </div>
                 ) : historyLogs.length > 0 ? (
                   <div className="space-y-4">
-                    {historyLogs.map((log) => (
-                      <motion.div
-                        key={log.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="p-6 bg-surface-container-low rounded-3xl border border-surface-container hover:border-primary/20 transition-all group cursor-default"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-start gap-4 flex-1">
-                            <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-1">
-                              <FileText size={18} />
+                    {historyLogs.map((log) => {
+                      const isEditing = editingLogId === log.id;
+                      const isDeleting = deletingLogId === log.id;
+
+                      return (
+                        <motion.div
+                          key={log.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className={`rounded-3xl border transition-all group cursor-default ${
+                            isEditing
+                              ? 'p-6 border-primary/30 bg-primary/[0.02]'
+                              : 'p-6 bg-surface-container-low border-surface-container hover:border-primary/20'
+                          }`}
+                        >
+                          {isEditing ? (
+                            /* ── 인라인 수정 폼 ── */
+                            <div className="space-y-3">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-black text-primary uppercase tracking-widest">활동 제목 *</label>
+                                <input
+                                  type="text"
+                                  value={editLogForm.activity_name}
+                                  onChange={e => setEditLogForm(prev => ({ ...prev, activity_name: e.target.value }))}
+                                  className="w-full px-5 py-3 bg-white rounded-2xl font-bold text-sm border-2 border-primary/10 focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">활동 내용</label>
+                                <textarea
+                                  value={editLogForm.content}
+                                  onChange={e => setEditLogForm(prev => ({ ...prev, content: e.target.value }))}
+                                  rows={5}
+                                  className="w-full px-5 py-3 bg-white rounded-2xl font-medium text-sm leading-relaxed border-2 border-surface-container focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 resize-none transition-all"
+                                />
+                              </div>
+                              <div className="flex gap-3">
+                                <button
+                                  onClick={() => handleSaveEditLog(log.id)}
+                                  disabled={savingLogId === log.id}
+                                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-black text-xs hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm"
+                                >
+                                  {savingLogId === log.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                                  저장
+                                </button>
+                                <button
+                                  onClick={handleCancelEditLog}
+                                  className="flex items-center gap-2 px-5 py-2.5 bg-surface-container text-on-surface-variant rounded-xl font-black text-xs hover:bg-surface-container-high active:scale-95 transition-all"
+                                >
+                                  <X size={13} /> 취소
+                                </button>
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              <p className="font-black text-base group-hover:text-primary transition-colors">{log.activity_name}</p>
-                              <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{log.content}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0 text-right">
-                            <div className="space-y-1">
-                              <span className="text-[10px] font-black text-secondary uppercase tracking-widest bg-secondary/10 px-2 py-0.5 rounded-md block">{log.category}</span>
-                              <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 justify-end">
-                                <Clock size={10} />
-                                {formatRelativeTime(log.created_at)}
-                              </p>
-                            </div>
-                            {log.status === 'pending' ? (
-                              <div className="flex flex-col items-center gap-1">
-                                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
-                                  <Clock size={14} className="text-amber-500" />
+                          ) : (
+                            /* ── 일반 카드 ── */
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-4 flex-1 min-w-0">
+                                <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-1">
+                                  <FileText size={18} />
                                 </div>
-                                <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider">대기중</span>
+                                <div className="space-y-1 min-w-0">
+                                  <p className="font-black text-base group-hover:text-primary transition-colors">{log.activity_name}</p>
+                                  <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{log.content}</p>
+                                </div>
                               </div>
-                            ) : (
-                              <div className="flex flex-col items-center gap-1">
-                                <CheckCircle2 size={18} className="text-secondary" />
-                                <span className="text-[9px] font-black text-secondary uppercase tracking-wider">승인됨</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="text-right space-y-1">
+                                  <span className="text-[10px] font-black text-secondary uppercase tracking-widest bg-secondary/10 px-2 py-0.5 rounded-md block">{log.category}</span>
+                                  <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 justify-end">
+                                    <Clock size={10} />
+                                    {formatRelativeTime(log.created_at)}
+                                  </p>
+                                </div>
+                                {log.status === 'pending' ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
+                                      <Clock size={14} className="text-amber-500" />
+                                    </div>
+                                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider">대기중</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center gap-1">
+                                    <CheckCircle2 size={18} className="text-secondary" />
+                                    <span className="text-[9px] font-black text-secondary uppercase tracking-wider">승인됨</span>
+                                  </div>
+                                )}
+                                {/* 수정/삭제 버튼 */}
+                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => handleStartEditLog(log)}
+                                    title="수정"
+                                    className="w-7 h-7 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all"
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteLog(log.id)}
+                                    disabled={isDeleting}
+                                    title="삭제"
+                                    className="w-7 h-7 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all disabled:opacity-50"
+                                  >
+                                    {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                                  </button>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
