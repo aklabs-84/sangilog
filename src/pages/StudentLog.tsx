@@ -850,55 +850,57 @@ ${guidePrompt}
                             </div>
                           ) : (
                             /* ── 일반 카드 ── */
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-4 flex-1 min-w-0">
-                                <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-1">
-                                  <FileText size={18} />
+                            <div className="space-y-3">
+                              {/* 상단: 내용 + 상태 */}
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex items-start gap-4 flex-1 min-w-0">
+                                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-1">
+                                    <FileText size={18} />
+                                  </div>
+                                  <div className="space-y-1 min-w-0">
+                                    <p className="font-black text-base group-hover:text-primary transition-colors">{log.activity_name}</p>
+                                    <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{log.content}</p>
+                                  </div>
                                 </div>
-                                <div className="space-y-1 min-w-0">
-                                  <p className="font-black text-base group-hover:text-primary transition-colors">{log.activity_name}</p>
-                                  <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{log.content}</p>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="text-right space-y-1">
+                                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest bg-secondary/10 px-2 py-0.5 rounded-md block">{log.category}</span>
+                                    <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 justify-end">
+                                      <Clock size={10} />
+                                      {formatRelativeTime(log.created_at)}
+                                    </p>
+                                  </div>
+                                  {log.status === 'pending' ? (
+                                    <div className="flex flex-col items-center gap-1">
+                                      <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
+                                        <Clock size={14} className="text-amber-500" />
+                                      </div>
+                                      <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider">대기중</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center gap-1">
+                                      <CheckCircle2 size={18} className="text-secondary" />
+                                      <span className="text-[9px] font-black text-secondary uppercase tracking-wider">승인됨</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <div className="text-right space-y-1">
-                                  <span className="text-[10px] font-black text-secondary uppercase tracking-widest bg-secondary/10 px-2 py-0.5 rounded-md block">{log.category}</span>
-                                  <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 justify-end">
-                                    <Clock size={10} />
-                                    {formatRelativeTime(log.created_at)}
-                                  </p>
-                                </div>
-                                {log.status === 'pending' ? (
-                                  <div className="flex flex-col items-center gap-1">
-                                    <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
-                                      <Clock size={14} className="text-amber-500" />
-                                    </div>
-                                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider">대기중</span>
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-col items-center gap-1">
-                                    <CheckCircle2 size={18} className="text-secondary" />
-                                    <span className="text-[9px] font-black text-secondary uppercase tracking-wider">승인됨</span>
-                                  </div>
-                                )}
-                                {/* 수정/삭제 버튼 */}
-                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={() => handleStartEditLog(log)}
-                                    title="수정"
-                                    className="w-7 h-7 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all"
-                                  >
-                                    <Pencil size={13} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteLog(log.id)}
-                                    disabled={isDeleting}
-                                    title="삭제"
-                                    className="w-7 h-7 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all disabled:opacity-50"
-                                  >
-                                    {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                                  </button>
-                                </div>
+                              {/* 하단: 수정/삭제 버튼 (호버 시 표시) */}
+                              <div className="flex justify-end gap-2 pt-1 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleStartEditLog(log)}
+                                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all"
+                                >
+                                  <Pencil size={12} /> 수정
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteLog(log.id)}
+                                  disabled={isDeleting}
+                                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
+                                >
+                                  {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                  삭제
+                                </button>
                               </div>
                             </div>
                           )}
