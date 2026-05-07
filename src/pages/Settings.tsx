@@ -353,13 +353,22 @@ const Settings = () => {
           <div className={`w-32 h-32 rounded-3xl overflow-hidden shadow-lg border-4 border-surface-container-high transition-transform ${isEditing ? 'hover:scale-105' : ''} bg-surface-container flex items-center justify-center relative`}>
             {loading ? (
               <div className="w-full h-full animate-pulse bg-surface-container-highest" />
-            ) : (
-              <img 
-                src={isEditing ? editForm.avatar_url || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop" : profile?.avatar_url || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop"} 
-                alt="ProfileLarge" 
-                className={`w-full h-full object-cover transition-all ${isUploading ? 'blur-sm opacity-50' : ''}`}
-              />
-            )}
+            ) : (() => {
+              const avatarUrl = isEditing ? editForm.avatar_url : profile?.avatar_url;
+              const initial = (profile?.full_name || '?').charAt(0).toUpperCase();
+              return avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="ProfileLarge"
+                  className={`w-full h-full object-cover transition-all ${isUploading ? 'blur-sm opacity-50' : ''}`}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                  <span className="text-white text-4xl font-black">{initial}</span>
+                </div>
+              );
+            })()}
             
             {isEditing && !isUploading && (
               <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">

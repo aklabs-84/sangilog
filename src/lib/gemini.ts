@@ -1,4 +1,7 @@
-// Gemini API calls are proxied through /api/gemini (server-side key, never exposed to browser)
+// 프로덕션: /api/gemini 서버 프록시 사용 (키 노출 방지)
+// 개발(npm run dev): VITE_GEMINI_API_KEY로 직접 호출
+
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const SYSTEM_INSTRUCTIONS = {
   BASE: `
@@ -19,7 +22,55 @@ export const SYSTEM_INSTRUCTIONS = {
   `
 };
 
+function getModelId(model: 'pro' | 'flash') {
+  return model === 'pro' ? 'gemini-3.1-pro-preview' : 'gemini-3.1-flash-lite-preview';
+}
+
+async function callDirect(body: any): Promise<string> {
+  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  if (!apiKey) throw new Error('VITE_GEMINI_API_KEY가 .env에 없습니다.');
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const { mode, model = 'flash', prompt, systemInstruction, history, message, files } = body;
+  const generativeModel = genAI.getGenerativeModel({
+    model: getModelId(model),
+    generationConfig: model === 'pro'
+      ? { temperature: 0.7, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
+      : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 2048 },
+  });
+
+  if (mode === 'generate') {
+    const parts: any[] = [{ text: prompt ?? '' }];
+    if (files?.length) parts.push(...files);
+    const contentParts = systemInstruction ? [{ text: systemInstruction }, ...parts] : parts;
+    const { response } = await generativeModel.generateContent(contentParts);
+    return response.text();
+  }
+
+  if (mode === 'chat') {
+    const chat = generativeModel.startChat({
+      history: (history ?? []).map((h: any) => ({
+        role: h.role as 'user' | 'model',
+        parts: Array.isArray(h.parts) ? h.parts : [{ text: h.text ?? '' }],
+      })),
+      systemInstruction,
+    });
+    const promptParts: any[] = [{ text: message ?? '' }];
+    if (files?.length) promptParts.push(...files);
+    const { response } = await chat.sendMessage(promptParts);
+    return response.text();
+  }
+
+  throw new Error(`Unknown mode: ${mode}`);
+}
+
 async function callProxy(body: object): Promise<string> {
+  // 개발 환경: 브라우저에서 직접 Gemini 호출
+  if ((import.meta as any).env?.DEV) {
+    return callDirect(body);
+  }
+
+  // 프로덕션: 서버 프록시 사용
   const res = await fetch('/api/gemini', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -68,13 +119,41 @@ export async function fileToGenerativePart(file: File): Promise<{ inlineData: { 
 }
 
 export async function generateClassInsight(className: string, observations: any[]) {
-  const prompt = `
-    학급명: ${className}
-    최근 관찰 기록 데이터: ${JSON.stringify(observations.slice(0, 50))}
+  // 실제 데이터 기반 통계 추출
+  const total = observations.length;
+  const uniqueStudents = new Set(observations.map(o => o.student_id)).size;
+  const recentObs = observations
+    .slice()
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 20);
+  const activityCounts: Record<string, number> = {};
+  for (const o of observations) {
+    const name = o.activity_name || '기타';
+    activityCounts[name] = (activityCounts[name] || 0) + 1;
+  }
+  const topActivities = Object.entries(activityCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name, count]) => `"${name}" (${count}건)`)
+    .join(', ');
+  const pendingCount = observations.filter(o => o.status === 'pending').length;
+  const approvedCount = observations.filter(o => o.status === 'approved').length;
 
-    위 데이터를 바탕으로 우리 반의 최근 수업 분위기와 주요 활동 성과를 2문장 이내로 요약해줘.
-    매우 긍정적이고 분석적인 톤으로 작성해줘.
-    형식: "이번 주 학급 전체 데이터 분석 결과, [주요 성과]. 특히 [특이점]이 눈에 띄게 증가했습니다."
+  const prompt = `
+학급명: ${className}
+
+[실제 집계 데이터]
+- 전체 활동 기록 수: ${total}건
+- 참여 학생 수: ${uniqueStudents}명
+- 가장 많이 기록된 활동: ${topActivities || '데이터 없음'}
+- 승인 완료: ${approvedCount}건 / 승인 대기: ${pendingCount}건
+- 최근 20건 활동 내용 샘플: ${JSON.stringify(recentObs.map(o => ({ 활동: o.activity_name, 내용요약: (o.content || '').slice(0, 80) })))}
+
+[작성 지침]
+- 위 실제 수치와 활동명을 반드시 언급할 것 (추상적 표현 금지)
+- 예시처럼 구체적 숫자/활동명을 포함하여 2문장 이내로 작성
+- 예시: "${uniqueStudents}명의 학생이 '${Object.keys(activityCounts)[0] || '활동'}' 등 ${total}건의 기록을 제출했습니다. 특히 [구체적 활동명]에서 [구체적 특징]이 두드러졌습니다."
+- 클리셰 표현("논리적 분석력이 향상" 등) 사용 금지
   `;
   return callProxy({
     mode: 'generate',

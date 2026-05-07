@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Users,
   BookOpen,
@@ -14,7 +14,10 @@ import {
   Check,
   Pencil,
   X,
-  Save
+  Save,
+  Maximize2,
+  CheckCheck,
+  Clock as ClockIcon
 } from 'lucide-react';
 
 interface HomeroomDashboardProps {
@@ -33,6 +36,7 @@ interface HomeroomDashboardProps {
   linkedClasses: any[];
   onSelectClass: (id: string) => void;
   onEditStudent: (id: string, number: string, name: string) => Promise<void>;
+  onBulkApprove: () => void;
 }
 
 const HomeroomDashboard = ({
@@ -49,8 +53,9 @@ const HomeroomDashboard = ({
   onSelectAll,
   onAddStudent,
   linkedClasses,
-  onSelectClass,
-  onEditStudent
+  onSelectClass: _onSelectClass,
+  onEditStudent,
+  onBulkApprove
 }: HomeroomDashboardProps) => {
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
   const filteredStudents = students.filter(s =>
@@ -59,6 +64,16 @@ const HomeroomDashboard = ({
   );
 
   const [showCodeModal, setShowCodeModal] = useState(false);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setShowCodeModal(false); setShowFullscreen(false); }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+  const [showFullscreen, setShowFullscreen] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNumber, setEditNumber] = useState('');
   const [editName, setEditName] = useState('');
@@ -154,7 +169,11 @@ const HomeroomDashboard = ({
           </div>
         </motion.div>
 
-        <motion.div variants={itemVariants} className="layered-card p-6 flex flex-col justify-between min-h-[200px] group relative overflow-hidden">
+        <motion.div
+          variants={itemVariants}
+          onClick={() => setShowActivityModal(true)}
+          className="layered-card p-6 flex flex-col justify-between min-h-[200px] group relative overflow-hidden cursor-pointer hover:shadow-lg hover:border-secondary/30 transition-all"
+        >
           <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-secondary/5 rounded-full blur-3xl group-hover:bg-secondary/10 transition-colors" />
           <div className="flex items-center justify-between relative z-10">
             <div className="w-10 h-10 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary group-hover:scale-110 transition-transform shadow-sm"><BookOpen size={20} /></div>
@@ -165,6 +184,7 @@ const HomeroomDashboard = ({
               {students.filter(s => s.activity && s.activity !== '기록 없음').length}<span className="text-base ml-1.5 opacity-40">명</span>
             </h3>
             <p className="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wide">최근 활동 참여</p>
+            <p className="text-[9px] font-black text-secondary/40 mt-1 uppercase tracking-widest group-hover:text-secondary transition-colors">클릭하여 현황 보기 →</p>
           </div>
         </motion.div>
 
@@ -188,69 +208,9 @@ const HomeroomDashboard = ({
         </motion.div>
       </div>
 
-      {/* 3. Main Bento Content Section */}
-      <section className="grid grid-cols-1 xl:grid-cols-12 gap-6 px-4 pb-16">
-        {/* Left Column: Linked Subjects */}
-        <div className="xl:col-span-4 space-y-6">
-          <div className="layered-card p-8 space-y-8">
-            <div className="flex items-center justify-between px-1">
-              <h4 className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-[0.2em]">Linked Subjects</h4>
-              <span className="text-[9px] bg-secondary/10 text-secondary px-3 py-1 rounded-full font-black border border-secondary/20">{linkedClasses.length} Linked</span>
-            </div>
-
-            <div className="space-y-3">
-               {linkedClasses.length > 0 ? (
-                 linkedClasses.map((linkedClass) => (
-                   <motion.div
-                     key={linkedClass.id}
-                     whileHover={{ x: 6, scale: 1.01 }}
-                     whileTap={{ scale: 0.98 }}
-                     onClick={() => onSelectClass(linkedClass.id)}
-                     className="flex items-center justify-between p-4 bg-surface-container/30 rounded-2xl group hover:bg-white hover:shadow-soft transition-all cursor-pointer border border-transparent hover:border-primary/10 shadow-sm"
-                   >
-                     <div className="flex items-center gap-4">
-                       <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all"><BookOpen size={18} /></div>
-                       <div className="flex flex-col">
-                         <span className="text-lg font-black group-hover:text-primary transition-colors tracking-tight">{linkedClass.subject}</span>
-                         <span className="text-[9px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{linkedClass.teacher_profile?.full_name} 선생님</span>
-                       </div>
-                     </div>
-                     <ArrowRight size={16} className="text-primary opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
-                   </motion.div>
-                 ))
-               ) : (
-                 <div className="p-10 text-center border-2 border-dashed border-neutral-100 rounded-2xl">
-                   <p className="text-xs font-bold text-neutral-400">연동된 교과 수업이 없습니다.</p>
-                 </div>
-               )}
-
-               <button
-                onClick={onInviteTeachers}
-                className="w-full p-6 border-2 border-dashed border-primary/10 rounded-2xl text-[10px] font-black text-primary/40 hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all mt-4 uppercase tracking-[0.2em] flex items-center justify-center gap-2 group"
-               >
-                 <Plus size={16} className="group-hover:rotate-90 transition-transform duration-500" />
-                 <span>교과 연동 요청하기</span>
-               </button>
-            </div>
-          </div>
-
-          <div className="layered-card p-8 bg-gradient-to-br from-secondary/5 via-white to-white relative overflow-hidden group border-secondary/5">
-             <div className="absolute top-[-20%] right-[-10%] p-8 text-secondary/5 rotate-12 group-hover:rotate-45 transition-transform duration-1000"><Sparkles size={150} /></div>
-             <div className="flex items-center gap-3 mb-4 relative z-10">
-                <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-secondary"><Sparkles size={20} /></div>
-                <h5 className="text-[11px] font-black tracking-widest uppercase text-secondary">AI Smart Analytics</h5>
-             </div>
-             <p className="text-[13px] font-bold text-on-surface-variant leading-relaxed mb-6 relative z-10">
-                누적된 과목별 활동 성향을 AI가 분석하여, <span className="text-on-surface font-black">학생별 맞춤형 세특 초안</span>을 생성합니다.
-             </p>
-             <button className="w-full py-4 bg-white border border-secondary/20 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] text-secondary shadow-soft hover:bg-secondary hover:text-white transition-all relative z-10">
-                리포트 대시보드 열기
-             </button>
-          </div>
-        </div>
-
-        {/* Right Column: Student Data Center */}
-        <div className="xl:col-span-8 layered-card p-8 bg-white flex flex-col min-h-[700px]">
+      {/* 3. Student Data Center - Full Width */}
+      <section className="px-4 pb-16">
+        <div className="layered-card p-8 bg-white flex flex-col">
            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
               <div className="space-y-1">
                 <h2 className="text-2xl font-black flex items-center gap-4 tracking-tight">
@@ -272,6 +232,26 @@ const HomeroomDashboard = ({
                    />
                  </div>
                  <button
+                   onClick={() => setShowFullscreen(true)}
+                   className="p-4 rounded-2xl border-2 border-neutral-200 hover:border-primary/40 hover:bg-primary/5 text-neutral-400 hover:text-primary transition-all"
+                   title="전체화면으로 보기"
+                 >
+                   <Maximize2 size={18} />
+                 </button>
+                 {(() => {
+                   const pendingCount = students.reduce((acc, s) => acc + (s.pending_obs_ids?.length || 0), 0);
+                   return pendingCount > 0 ? (
+                     <button
+                       onClick={onBulkApprove}
+                       className="flex items-center gap-2 px-6 py-4 rounded-2xl font-black text-sm bg-amber-50 border-2 border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-all"
+                       title={`승인 대기 ${pendingCount}건 일괄 승인`}
+                     >
+                       <CheckCheck size={16} />
+                       <span>일괄 승인 ({pendingCount})</span>
+                     </button>
+                   ) : null;
+                 })()}
+                 <button
                   onClick={onAddStudent}
                   className="btn-vibrant group flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-sm transition-all"
                  >
@@ -281,7 +261,7 @@ const HomeroomDashboard = ({
                </div>
            </div>
 
-           <div className="flex-1 overflow-x-auto custom-scrollbar bg-white rounded-3xl border border-neutral-100 shadow-sm overflow-hidden">
+           <div className="overflow-x-auto bg-white rounded-3xl border border-neutral-100 shadow-sm">
              <table className="w-full text-left border-collapse min-w-[700px]">
                <thead className="sticky top-0 z-10">
                  <tr className="bg-neutral-50 border-b border-neutral-100">
@@ -443,49 +423,321 @@ const HomeroomDashboard = ({
       </section>
     </motion.div>
 
-    {/* 참여 코드 크게 보기 모달 */}
-
+    {/* 참여 코드 전체화면 모달 */}
     <AnimatePresence>
       {showCodeModal && (
-        <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/70 backdrop-blur-md">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.85 }}
-            className="relative bg-white rounded-[3rem] p-14 flex flex-col items-center gap-8 shadow-2xl max-w-sm w-full"
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[900] flex flex-col items-center justify-center bg-[#0a0a0f]"
+          onClick={() => setShowCodeModal(false)}
+        >
+          {/* 닫기 */}
+          <button
+            onClick={() => setShowCodeModal(false)}
+            className="absolute top-8 right-8 p-3 rounded-2xl text-white/30 hover:text-white hover:bg-white/10 transition-all z-10"
           >
-            <button
-              onClick={() => setShowCodeModal(false)}
-              className="absolute top-6 right-6 p-2 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all"
-            >
-              <X size={20} />
-            </button>
+            <X size={24} />
+          </button>
 
-            <div className="space-y-2 text-center">
-              <p className="text-[11px] font-black text-primary uppercase tracking-[0.3em]">학생 참여 코드</p>
-              <p className="text-xs font-bold text-on-surface-variant">{classInfo.name}</p>
+          <motion.div
+            initial={{ scale: 0.92, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.92, opacity: 0 }}
+            transition={{ type: 'spring', bounce: 0.25 }}
+            className="flex flex-col items-center gap-10 px-8 w-full max-w-3xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 상단 레이블 */}
+            <div className="text-center space-y-2">
+              <p className="text-xs font-black text-white/40 uppercase tracking-[0.5em]">학생 참여 코드</p>
+              <p className="text-white/70 font-bold text-lg">{classInfo.name}</p>
             </div>
 
-            <div className="w-full py-8 bg-primary/5 rounded-3xl flex items-center justify-center border-2 border-dashed border-primary/20">
-              <p className="text-6xl font-black font-manrope tracking-[0.25em] text-primary select-all">
+            {/* 코드 박스 — 진한 배경 + 노란색 코드 */}
+            <div className="w-full bg-[#111118] border-2 border-yellow-400/30 rounded-[2.5rem] py-16 px-10 flex items-center justify-center shadow-[0_0_80px_rgba(250,204,21,0.15)] overflow-hidden">
+              <p
+                className="font-black font-manrope text-yellow-300 select-all text-center leading-none w-full"
+                style={{ fontSize: 'clamp(3rem, 12vw, 7rem)', letterSpacing: '0.08em' }}
+              >
                 {classInfo.entry_code}
               </p>
             </div>
 
-            <p className="text-xs font-bold text-on-surface-variant text-center leading-relaxed">
-              학생들이 <span className="text-primary font-black">생기로그 → 수업 입장하기</span>에서<br />
+            {/* 안내 */}
+            <p className="text-white/40 font-bold text-sm text-center leading-relaxed">
+              학생들이 <span className="text-yellow-300 font-black">생기로그 → 수업 입장하기</span>에서<br />
               위 코드를 입력하면 바로 참여할 수 있습니다.
             </p>
 
+            {/* 버튼 */}
             <button
               onClick={() => { onCopyCode(); }}
-              className="w-full py-4 btn-gradient rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-all"
+              className="px-12 py-5 btn-gradient rounded-2xl font-black text-base flex items-center justify-center gap-3 shadow-2xl shadow-primary/30 active:scale-95 transition-all"
             >
               {copySuccess ? '✨ 링크 복사 완료!' : '📋 학생 입장 링크 복사'}
             </button>
+
+            <p className="text-white/15 text-[10px] font-bold uppercase tracking-widest">배경 클릭 또는 ESC로 닫기</p>
           </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    {/* 전체화면 학생 목록 모달 */}
+    <AnimatePresence>
+      {showFullscreen && (
+        <div className="fixed inset-0 z-[950] flex flex-col bg-white">
+          {/* Fullscreen Header */}
+          <div className="flex items-center justify-between px-10 py-6 border-b border-neutral-100 bg-white shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                <LayoutDashboard size={20} />
+              </div>
+              <div>
+                <h2 className="text-xl font-black tracking-tight">{classInfo?.name} — 학급 학생 목록</h2>
+                <p className="text-xs font-bold text-on-surface-variant/60">전체 {students.length}명</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <input
+                  type="text"
+                  placeholder="학생 검색..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="bg-neutral-50 border border-neutral-200 text-sm font-bold text-neutral-900 outline-none pl-10 pr-6 py-3 rounded-xl w-64 transition-all focus:border-primary/40"
+                />
+              </div>
+              <button
+                onClick={() => setShowFullscreen(false)}
+                className="p-3 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all"
+              >
+                <X size={22} />
+              </button>
+            </div>
+          </div>
+
+          {/* Fullscreen Table */}
+          <div className="flex-1 overflow-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 z-10 bg-neutral-50 border-b border-neutral-200">
+                <tr>
+                  <th className="px-8 py-5 text-[11px] font-black text-on-surface/60 uppercase tracking-widest w-20">NO.</th>
+                  <th className="px-8 py-5 text-[11px] font-black text-on-surface/60 uppercase tracking-widest">학생 이름</th>
+                  <th className="px-8 py-5 text-[11px] font-black text-on-surface/60 uppercase tracking-widest">최근 활동</th>
+                  <th className="px-8 py-5 text-[11px] font-black text-on-surface/60 uppercase tracking-widest">연동 과목</th>
+                  <th className="px-8 py-5 text-[11px] font-black text-on-surface/60 uppercase tracking-widest text-right">상세 보기</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {filteredStudents.map((s, _idx) => (
+                  <tr
+                    key={s.id}
+                    onClick={() => { onNavigateToStudent(s.id); setShowFullscreen(false); }}
+                    className="hover:bg-primary/[0.02] cursor-pointer transition-all group"
+                  >
+                    <td className="px-8 py-4">
+                      <span className="font-black text-on-surface-variant/30 text-base font-manrope">
+                        {s.number === '-' ? <span className="text-neutral-300 text-sm">-</span> : s.number.toString().padStart(2, '0')}
+                      </span>
+                    </td>
+                    <td className="px-8 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                          <Users size={16} strokeWidth={2.5} />
+                        </div>
+                        <span className="text-sm font-black group-hover:text-primary transition-colors">{s.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-4">
+                      {s.activity && s.activity !== '기록 없음' ? (
+                        <div className="flex items-center gap-2">
+                          <CheckCheck size={14} className="text-secondary shrink-0" />
+                          <span className="text-sm font-bold text-on-surface truncate max-w-[240px]">{s.activity}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-bold text-neutral-300 italic">기록 없음</span>
+                      )}
+                    </td>
+                    <td className="px-8 py-4">
+                      <div className="flex items-center gap-1.5">
+                        {linkedClasses.length > 0 ? (
+                          linkedClasses.map((lc) => (
+                            <div key={lc.id} title={lc.subject} className="w-7 h-7 rounded-lg border border-neutral-200 bg-white flex items-center justify-center text-[10px] font-black text-on-surface-variant/40 shadow-sm">
+                              {lc.subject.charAt(0)}
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-xs text-neutral-300">-</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-8 py-4 text-right">
+                      <ArrowRight size={16} className="text-primary/30 group-hover:text-primary ml-auto transition-colors" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Fullscreen Footer */}
+          <div className="px-10 py-4 border-t border-neutral-100 bg-neutral-50 flex items-center justify-between">
+            <p className="text-xs font-bold text-neutral-400">
+              전체 {students.length}명 중 {filteredStudents.length}명 표시
+              {searchQuery && ` — "${searchQuery}" 검색 결과`}
+            </p>
+            <button
+              onClick={() => setShowFullscreen(false)}
+              className="px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all"
+            >
+              닫기
+            </button>
+          </div>
         </div>
       )}
+    </AnimatePresence>
+
+    {/* 활동 참여 현황 모달 */}
+    <AnimatePresence>
+      {showActivityModal && (() => {
+        const submitted = students.filter(s => s.activity && s.activity !== '기록 없음');
+        const notSubmitted = students.filter(s => !s.activity || s.activity === '기록 없음');
+        return (
+          <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-10 py-7 border-b border-neutral-100">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-secondary uppercase tracking-[0.25em]">Activity Rate</p>
+                  <h3 className="text-2xl font-black tracking-tight">{classInfo?.name} 활동 참여 현황</h3>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-3 text-right">
+                    <div className="space-y-0.5">
+                      <p className="text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
+                      <p className="text-[9px] font-black text-secondary/60 uppercase tracking-widest">제출 완료</p>
+                    </div>
+                    <div className="w-px h-10 bg-neutral-100" />
+                    <div className="space-y-0.5">
+                      <p className="text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
+                      <p className="text-[9px] font-black text-amber-500/60 uppercase tracking-widest">미제출</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowActivityModal(false)}
+                    className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-hidden grid grid-cols-2 divide-x divide-neutral-100">
+                {/* 제출 완료 */}
+                <div className="flex flex-col overflow-hidden">
+                  <div className="px-8 py-4 bg-secondary/5 border-b border-secondary/10 flex items-center gap-2">
+                    <CheckCheck size={14} className="text-secondary" />
+                    <span className="text-[11px] font-black text-secondary uppercase tracking-widest">제출 완료 ({submitted.length}명)</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
+                    {submitted.length > 0 ? (
+                      submitted.map(s => (
+                        <div
+                          key={s.id}
+                          onClick={() => { onNavigateToStudent(s.id); setShowActivityModal(false); }}
+                          className="flex items-center gap-3 px-8 py-3 hover:bg-secondary/5 cursor-pointer transition-all group"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary shrink-0">
+                            <Users size={14} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black group-hover:text-secondary transition-colors">
+                              {s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
+                            </p>
+                            <p className="text-[10px] text-neutral-400 font-medium truncate">{s.activity}</p>
+                          </div>
+                          <CheckCircle2 size={14} className="text-secondary shrink-0" />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full py-10 text-neutral-300 gap-2">
+                        <CheckCheck size={32} />
+                        <p className="text-xs font-bold">제출한 학생이 없습니다</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 미제출 */}
+                <div className="flex flex-col overflow-hidden">
+                  <div className="px-8 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                    <ClockIcon size={14} className="text-amber-500" />
+                    <span className="text-[11px] font-black text-amber-600 uppercase tracking-widest">미제출 ({notSubmitted.length}명)</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
+                    {notSubmitted.length > 0 ? (
+                      notSubmitted.map(s => (
+                        <div
+                          key={s.id}
+                          onClick={() => { onNavigateToStudent(s.id); setShowActivityModal(false); }}
+                          className="flex items-center gap-3 px-8 py-3 hover:bg-amber-50 cursor-pointer transition-all group"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-400 shrink-0">
+                            <Users size={14} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black group-hover:text-amber-600 transition-colors">
+                              {s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
+                            </p>
+                            <p className="text-[10px] text-neutral-300 font-medium">기록 없음</p>
+                          </div>
+                          <ClockIcon size={14} className="text-amber-300 shrink-0" />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full py-10 text-neutral-300 gap-2">
+                        <ClockIcon size={32} />
+                        <p className="text-xs font-bold">모두 제출 완료!</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-10 py-5 border-t border-neutral-100 bg-neutral-50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-2 bg-neutral-100 rounded-full w-40 overflow-hidden">
+                    <div
+                      className="h-full bg-secondary rounded-full transition-all"
+                      style={{ width: students.length > 0 ? `${(submitted.length / students.length) * 100}%` : '0%' }}
+                    />
+                  </div>
+                  <span className="text-xs font-black text-on-surface-variant/60">
+                    참여율 {students.length > 0 ? Math.round((submitted.length / students.length) * 100) : 0}%
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowActivityModal(false)}
+                  className="px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all"
+                >
+                  닫기
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
     </AnimatePresence>
     </>
   );

@@ -11,7 +11,8 @@ import {
   BellRing,
   Check,
   X,
-  BookOpen
+  BookOpen,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +29,8 @@ const Dashboard = () => {
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [subjectInputs, setSubjectInputs] = useState<Record<string, string>>({});
   const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null);
+  const [showActivityChart, setShowActivityChart] = useState(false);
+  const [chartData, setChartData] = useState<{ daily: { label: string; count: number }[]; byClass: { name: string; count: number }[]; totalCount: number; uniqueStudents: number }>({ daily: [], byClass: [], totalCount: 0, uniqueStudents: 0 });
 
   useEffect(() => {
     fetchDashboardData();
@@ -127,15 +130,11 @@ const Dashboard = () => {
         }
       }
 
-      // 2. Fetch Recent Activities (Observations) filtering by teacher's students instead of just teacher_id
-      // This allows RLS to dynamically filter out unreadable records if RLS is strict, or show them if RLS permits homeroom teachers.
+      // 2. Fetch Recent Activities by teacher_id
       const { data: obsData } = await supabase
         .from('observations')
         .select('*, students!inner(full_name, class_id(name))')
-        .in('student_id', classes.length > 0 ? classes.map(c => c.id) : []) // Default fallback, but actually better to use studentIds here. Wait, studentIds is locally scoped. 
-        // Let's refetch or structure differently. I will just execute a broad query since studentIds is not available in outer scope easily if we didn't save it. 
-        // Actually I should just use `user_id` scope. But I'll use the same class_id approach.
-        .in('students.class_id', rawClassesData && rawClassesData.length > 0 ? rawClassesData.map(c => c.linked_class_id || c.id) : [])
+        .eq('teacher_id', user?.id)
         .order('created_at', { ascending: false })
         .limit(5);
 
@@ -166,6 +165,50 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchActivityChartData = async () => {
+    if (!user) return;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const { data } = await supabase
+      .from('observations')
+      .select('created_at, student_id, students!inner(class_id(name))')
+      .eq('teacher_id', user.id)
+      .gte('created_at', sevenDaysAgo.toISOString())
+      .order('created_at', { ascending: true });
+
+    if (!data) return;
+
+    // 일별 집계
+    const dayMap: Record<string, number> = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = `${d.getMonth() + 1}/${d.getDate()}`;
+      dayMap[key] = 0;
+    }
+    data.forEach(o => {
+      const d = new Date(o.created_at);
+      const key = `${d.getMonth() + 1}/${d.getDate()}`;
+      if (key in dayMap) dayMap[key]++;
+    });
+
+    // 클래스별 집계
+    const classMap: Record<string, number> = {};
+    data.forEach(o => {
+      const name = (o.students as any)?.class_id?.name || '기타';
+      classMap[name] = (classMap[name] || 0) + 1;
+    });
+
+    setChartData({
+      daily: Object.entries(dayMap).map(([label, count]) => ({ label, count })),
+      byClass: Object.entries(classMap).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })),
+      totalCount: data.length,
+      uniqueStudents: new Set(data.map(o => o.student_id)).size,
+    });
   };
 
   const fetchPendingInvitations = async () => {
@@ -325,7 +368,10 @@ const Dashboard = () => {
               학급 내 관찰 기록을 바탕으로 세밀하게 튜닝된 AI가 <br />
               학기말 리포트 초안을 정성스럽게 작성해 드립니다.
             </p>
-            <button className="btn-gradient px-8 py-3.5 rounded-xl font-bold flex items-center gap-2 w-fit">
+            <button
+              onClick={() => navigate('/ai-assistant')}
+              className="btn-gradient px-8 py-3.5 rounded-xl font-bold flex items-center gap-2 w-fit hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-primary/20"
+            >
               <Sparkles size={20} />
               AI 리포트 자동 생성
             </button>
@@ -485,32 +531,35 @@ const Dashboard = () => {
 
           <div className="flex items-center justify-between px-2 pt-4">
             <h2 className="text-2xl font-bold font-manrope">최근 학생 활동</h2>
-            <button className="p-2 rounded-lg hover:bg-surface-container-high transition-all text-on-surface-variant">
+            <button
+              onClick={() => { fetchActivityChartData(); setShowActivityChart(true); }}
+              title="활동 통계 보기"
+              className="p-2 rounded-lg hover:bg-surface-container-high transition-all text-on-surface-variant hover:text-primary"
+            >
               <BarChart3 size={18} />
             </button>
           </div>
-          <div className="surface-zone p-4 flex flex-col gap-3">
+          <div className="surface-zone p-4 flex flex-col gap-2">
             {loading ? (
-               [1, 2, 3].map(i => <div key={i} className="h-[80px] surface-card animate-pulse" />)
+               [1, 2, 3].map(i => <div key={i} className="h-16 surface-card animate-pulse rounded-2xl" />)
             ) : activities.length > 0 ? (
               activities.map((act) => (
-                <div key={act.id} className="surface-card p-5 shadow-sm hover:translate-x-1 transition-all cursor-pointer">
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant">
-                      <act.icon size={20} />
+                <div key={act.id} className="flex items-center gap-4 px-4 py-3.5 rounded-2xl hover:bg-white hover:shadow-sm transition-all cursor-pointer group border border-transparent hover:border-surface-container-high">
+                  <div className="w-9 h-9 rounded-xl bg-primary/8 flex items-center justify-center text-primary shrink-0">
+                    <act.icon size={16} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-sm font-bold truncate">{act.name}</span>
+                      <span className="text-[10px] font-black text-primary bg-primary/8 px-2 py-0.5 rounded-md shrink-0 truncate max-w-[120px]">{act.action}</span>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="text-sm font-bold">{act.name} {act.action}</h4>
-                        <p className="text-[10px] text-on-surface-variant">{act.time}</p>
-                      </div>
-                      <p className="text-[11px] text-on-surface-variant mb-2">{act.class} • 최근 활동 기록됨</p>
-                      {act.content && (
-                        <div className="bg-surface-container-low p-3 rounded-lg border-l-4 border-primary/20">
-                          <p className="text-[11px] text-on-surface italic leading-relaxed">"{act.content}"</p>
-                        </div>
-                      )}
-                    </div>
+                    {act.content && (
+                      <p className="text-[11px] text-on-surface-variant line-clamp-1 leading-snug">{act.content}</p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0 space-y-0.5">
+                    <p className="text-[10px] font-bold text-on-surface-variant/60 whitespace-nowrap">{act.time}</p>
+                    {act.class && <p className="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-wider">{act.class}</p>}
                   </div>
                 </div>
               ))
@@ -545,6 +594,112 @@ const Dashboard = () => {
           <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--color-primary)_0%,_transparent_70%)]" />
         </div>
       </div>
+      {/* Activity Chart Modal */}
+      <AnimatePresence>
+        {showActivityChart && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowActivityChart(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-8 overflow-y-auto max-h-[90vh]"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                    <TrendingUp size={20} className="text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black tracking-tight">활동 통계</h2>
+                    <p className="text-[11px] text-on-surface-variant/60 font-medium">최근 7일 기준</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowActivityChart(false)} className="w-8 h-8 rounded-xl hover:bg-surface-container flex items-center justify-center text-on-surface-variant">
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 gap-3 mb-8">
+                {[
+                  { label: '총 활동 기록', value: chartData.totalCount, unit: '건', color: 'bg-primary/10 text-primary' },
+                  { label: '참여 학생 수', value: chartData.uniqueStudents, unit: '명', color: 'bg-secondary/10 text-secondary' },
+                ].map((item) => (
+                  <div key={item.label} className="bg-surface-container-low rounded-2xl p-5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 mb-2">{item.label}</p>
+                    <p className="text-4xl font-black tracking-tighter">
+                      {item.value}
+                      <span className={`text-sm font-bold ml-1 ${item.color.split(' ')[1]}`}>{item.unit}</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Daily Bar Chart */}
+              <div className="mb-8">
+                <h3 className="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 mb-4">일별 활동 추이</h3>
+                {chartData.daily.length > 0 ? (
+                  <div className="flex items-end gap-2 h-32">
+                    {(() => {
+                      const max = Math.max(...chartData.daily.map(d => d.count), 1);
+                      return chartData.daily.map((d) => (
+                        <div key={d.label} className="flex-1 flex flex-col items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-on-surface-variant/70">{d.count > 0 ? d.count : ''}</span>
+                          <div className="w-full rounded-t-lg bg-primary/15 relative overflow-hidden" style={{ height: '88px' }}>
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{ height: `${(d.count / max) * 100}%` }}
+                              transition={{ duration: 0.5, delay: 0.1 }}
+                              className="absolute bottom-0 left-0 right-0 bg-primary rounded-t-lg"
+                            />
+                          </div>
+                          <span className="text-[9px] font-black text-on-surface-variant/50">{d.label}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  <div className="h-32 flex items-center justify-center text-sm text-on-surface-variant/40">데이터 없음</div>
+                )}
+              </div>
+
+              {/* By Class */}
+              {chartData.byClass.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 mb-4">클래스별 활동 수</h3>
+                  <div className="flex flex-col gap-3">
+                    {(() => {
+                      const max = Math.max(...chartData.byClass.map(c => c.count), 1);
+                      return chartData.byClass.map((c, i) => (
+                        <div key={c.name} className="flex items-center gap-3">
+                          <span className="text-[11px] font-bold text-on-surface-variant w-24 shrink-0 truncate">{c.name}</span>
+                          <div className="flex-1 bg-surface-container-low rounded-full h-2.5 overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${(c.count / max) * 100}%` }}
+                              transition={{ duration: 0.5, delay: 0.1 + i * 0.05 }}
+                              className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
+                            />
+                          </div>
+                          <span className="text-[11px] font-black text-primary w-8 text-right shrink-0">{c.count}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

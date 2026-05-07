@@ -13,7 +13,10 @@ import {
   GraduationCap,
   ChevronDown,
   Users,
-  BookOpen
+  BookOpen,
+  Link2,
+  ArrowRight,
+  Plus
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useSearchParams } from 'react-router-dom';
@@ -27,6 +30,7 @@ import AIInsightBanner from '../components/classroom/AIInsightBanner';
 import AIReportModal from '../components/classroom/AIReportModal';
 import AIChatModal from '../components/classroom/AIChatModal';
 import StudentDetailDrawer from '../components/classroom/StudentDetailDrawer';
+import UnitManager from '../components/classroom/UnitManager';
 
 const Classroom = () => {
   const { user, profile } = useAuth();
@@ -51,7 +55,7 @@ const Classroom = () => {
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'list' | 'ai'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'linked' | 'analytics' | 'units'>('list');
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
   
   // 아카이브 관련 상태
@@ -504,7 +508,7 @@ const Classroom = () => {
           avatar_url,
           created_at,
           memo,
-          observations(content, activity_name, created_at, teacher_id),
+          observations(id, content, activity_name, created_at, teacher_id, status),
           reports(is_published)
         `)
         .eq('class_id', targetClassId);
@@ -533,7 +537,8 @@ const Classroom = () => {
             status: report ? (report.is_published ? '발행됨' : '초안 완료') : (s.observations && s.observations.length > 0 ? '기록 제출됨' : '미작성'),
             created_at: new Date(s.created_at).getTime(),
             activity_time: latestObs ? new Date(latestObs.created_at).getTime() : 0,
-            all_observations: s.observations || [] // 360도 뷰용 전체 기록 보존
+            all_observations: s.observations || [],
+            pending_obs_ids: (s.observations || []).filter((o: any) => o.status === 'pending').map((o: any) => o.id)
           };
         });
         setStudents(formattedStudents);
@@ -694,6 +699,37 @@ const Classroom = () => {
     }
   };
 
+  const handleBulkApprove = async () => {
+    const pendingIds = students.flatMap(s => s.pending_obs_ids || []);
+    if (pendingIds.length === 0) {
+      showToast('승인 대기 중인 활동 기록이 없습니다.');
+      return;
+    }
+    if (!confirm(`이 반의 승인 대기 기록 ${pendingIds.length}건을 모두 승인하시겠습니까?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('observations')
+        .update({ status: 'approved' })
+        .in('id', pendingIds);
+
+      if (error) throw error;
+
+      setStudents(prev => prev.map(s => ({
+        ...s,
+        pending_obs_ids: [],
+        all_observations: s.all_observations.map((o: any) =>
+          s.pending_obs_ids?.includes(o.id) ? { ...o, status: 'approved' } : o
+        )
+      })));
+
+      showToast(`✅ ${pendingIds.length}건 일괄 승인 완료!`);
+    } catch (err) {
+      console.error(err);
+      showToast('일괄 승인 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleBulkDelete = async () => {
     const count = selectedStudentIds.length;
     if (count === 0) return;
@@ -797,7 +833,7 @@ const Classroom = () => {
   });
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] overflow-hidden relative bg-surface-container-low/20 rounded-[3rem] border border-white/40 shadow-2xl">
+    <div className="flex flex-col relative bg-surface-container-low/20 rounded-[3rem] border border-white/40 shadow-2xl">
       {/* 1. 상단 학급 선택기 (기존 사이드바에서 수평형으로 전환) */}
       <ClassSelector 
         classes={classes} 
@@ -816,7 +852,7 @@ const Classroom = () => {
       />
 
       {/* 2. 메인 대시보드 영역 (통합 스크롤) */}
-      <main className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden relative custom-scrollbar">
+      <main className="flex flex-col relative">
         <div className="fixed top-24 right-10 z-[200] flex flex-col gap-3 pointer-events-none">
           <AnimatePresence>
             {realtimeToasts.map((toast) => (
@@ -840,20 +876,25 @@ const Classroom = () => {
             <div className="p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[2.5rem] flex items-center border border-white/40 shadow-soft relative overflow-hidden">
               {[
                 { id: 'list', label: '전체 명단', icon: LayoutDashboard },
+                ...(classInfo?.class_type === 'homeroom' ? [
+                  { id: 'linked', label: 'Linked Subjects', icon: Link2 },
+                  { id: 'analytics', label: 'AI Smart Analytics', icon: Sparkles },
+                ] : []),
+                { id: 'units', label: '단원 관리', icon: BookOpen },
                 { id: 'ai', label: 'AI 분석 인사이트', icon: Sparkles }
               ].map((tab) => {
                 const isActive = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'list' | 'ai')}
+                    onClick={() => setActiveTab(tab.id as 'list' | 'ai' | 'linked' | 'analytics' | 'units')}
                     className={`
-                      relative z-10 flex items-center gap-3 px-10 py-4 rounded-[2rem] font-black text-sm transition-all duration-500 whitespace-nowrap
+                      relative z-10 flex items-center gap-3 px-8 py-4 rounded-[2rem] font-black text-sm transition-all duration-500 whitespace-nowrap
                       ${isActive ? 'text-surface' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/30'}
                     `}
                   >
                     {isActive && (
-                      <motion.div 
+                      <motion.div
                         layoutId="active-pill"
                         className="absolute inset-0 bg-on-surface rounded-[2rem] shadow-elevated -z-10"
                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
@@ -871,9 +912,97 @@ const Classroom = () => {
             <DashboardSkeleton />
           ) : (
             <>
+              {activeTab === 'linked' && classInfo && (
+                <div className="max-w-2xl mx-auto">
+                  <div className="layered-card p-10 space-y-8">
+                    <div className="flex items-center justify-between px-1">
+                      <h3 className="text-xl font-black tracking-tight">Linked Subjects</h3>
+                      <span className="text-[9px] bg-secondary/10 text-secondary px-3 py-1.5 rounded-full font-black border border-secondary/20">{linkedClasses.length} Linked</span>
+                    </div>
+                    <div className="space-y-3">
+                      {linkedClasses.length > 0 ? (
+                        linkedClasses.map((lc: any) => (
+                          <div
+                            key={lc.id}
+                            onClick={() => setActiveClassId(lc.id)}
+                            className="flex items-center justify-between p-5 bg-surface-container/30 rounded-2xl hover:bg-white hover:shadow-soft transition-all cursor-pointer border border-transparent hover:border-primary/10"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-primary"><BookOpen size={18} /></div>
+                              <div>
+                                <p className="text-base font-black">{lc.subject}</p>
+                                <p className="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">{lc.teacher_profile?.full_name} 선생님</p>
+                              </div>
+                            </div>
+                            <ArrowRight size={16} className="text-primary/40" />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-16 text-center border-2 border-dashed border-neutral-100 rounded-2xl">
+                          <p className="text-sm font-bold text-neutral-400">연동된 교과 수업이 없습니다.</p>
+                          <p className="text-xs text-neutral-300 mt-2">교과 선생님 초대 버튼으로 연동을 시작하세요.</p>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setIsInviteModalOpen(true)}
+                        className="w-full p-6 border-2 border-dashed border-primary/10 rounded-2xl text-[11px] font-black text-primary/40 hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all uppercase tracking-[0.2em] flex items-center justify-center gap-2 group"
+                      >
+                        <Plus size={16} className="group-hover:rotate-90 transition-transform duration-500" />
+                        교과 연동 요청하기
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'analytics' && classInfo && (
+                <div className="max-w-2xl mx-auto">
+                  <div className="layered-card p-10 bg-gradient-to-br from-secondary/5 via-white to-white relative overflow-hidden">
+                    <div className="absolute top-[-20%] right-[-10%] p-8 text-secondary/5 rotate-12"><Sparkles size={200} /></div>
+                    <div className="flex items-center gap-3 mb-6 relative z-10">
+                      <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-secondary"><Sparkles size={22} /></div>
+                      <div>
+                        <h3 className="text-xl font-black tracking-tight">AI Smart Analytics</h3>
+                        <p className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest">학생 맞춤형 세특 초안 생성</p>
+                      </div>
+                    </div>
+                    <p className="text-base font-bold text-on-surface-variant leading-relaxed mb-8 relative z-10">
+                      누적된 과목별 활동 성향을 AI가 분석하여, <span className="text-on-surface font-black">학생별 맞춤형 세특 초안</span>을 생성합니다.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4 mb-8 relative z-10">
+                      {[
+                        { label: '연동 과목', value: linkedClasses.length, unit: '개' },
+                        { label: '전체 학생', value: sortedStudents.length, unit: '명' },
+                      ].map(item => (
+                        <div key={item.label} className="bg-white/80 rounded-2xl p-5 border border-secondary/10">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-secondary/60 mb-1">{item.label}</p>
+                          <p className="text-3xl font-black">{item.value}<span className="text-sm ml-1 text-secondary/60">{item.unit}</span></p>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setIsAIReportOpen(true)}
+                      className="w-full py-5 bg-secondary text-white rounded-2xl text-sm font-black uppercase tracking-[0.15em] shadow-lg shadow-secondary/20 hover:scale-[1.02] active:scale-95 transition-all relative z-10 flex items-center justify-center gap-2"
+                    >
+                      <Sparkles size={18} />
+                      AI 분석 리포트 생성하기
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'units' && classInfo && (
+                <div className="max-w-3xl mx-auto">
+                  <UnitManager
+                    classId={activeClassId!}
+                    teacherId={user?.id || ''}
+                  />
+                </div>
+              )}
+
               {activeTab === 'ai' && classInfo && (
                 <div className="min-h-[600px] flex flex-col items-center justify-center">
-                  <AIInsightBanner 
+                  <AIInsightBanner
                     className={classInfo.name}
                     students={sortedStudents}
                     onOpenReport={() => setIsAIReportOpen(true)}
@@ -909,6 +1038,7 @@ const Classroom = () => {
                     linkedClasses={linkedClasses}
                     onSelectClass={setActiveClassId}
                     onEditStudent={handleEditStudent}
+                    onBulkApprove={handleBulkApprove}
                   />
                 ) : (
                   <SubjectDashboard 

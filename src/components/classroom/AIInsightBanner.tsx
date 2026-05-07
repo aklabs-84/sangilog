@@ -15,20 +15,26 @@ const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIIn
   const [loading, setLoading] = useState(true);
 
   const fetchInsight = async () => {
-    if (students.length === 0) {
-      setInsight('아직 분석할 데이터가 부족합니다. 학생들의 활동 기록을 추가해 주세요.');
+    const allObservations = students.flatMap(s => s.all_observations || []);
+
+    if (students.length === 0 || allObservations.length === 0) {
+      setInsight('아직 분석할 활동 기록이 없습니다. 학생들의 활동을 기록하면 AI가 학급 현황을 분석해드립니다.');
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const allObservations = students.flatMap(s => s.all_observations || []);
       const result = await generateClassInsight(className, allObservations);
       setInsight(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI Insight Error:', error);
-      setInsight('데이터 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      const isNetworkError = error?.message?.includes('404') || error?.message?.includes('JSON');
+      setInsight(
+        isNetworkError
+          ? 'AI 서버에 연결할 수 없습니다. vercel dev로 실행 중인지 확인하거나, 배포 환경에서 GEMINI_API_KEY를 설정해 주세요.'
+          : 'AI 분석 중 오류가 발생했습니다. 잠시 후 새로고침 버튼을 눌러 다시 시도해 주세요.'
+      );
     } finally {
       setLoading(false);
     }

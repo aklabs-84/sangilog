@@ -90,9 +90,9 @@ const ArchivePage = () => {
     }
   };
 
-  const filteredClasses = archivedClasses.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.subject.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredClasses = archivedClasses.filter(c =>
+    c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.subject || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const containerVariants = {
@@ -109,7 +109,7 @@ const ArchivePage = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] overflow-hidden relative bg-surface-container-low/20 rounded-[3rem] border border-white/40 shadow-2xl font-pretendard">
+    <div className="flex flex-col relative bg-surface-container-low/20 rounded-[3rem] border border-white/40 shadow-2xl font-pretendard">
       {/* Header */}
       <header className="w-full glass border-b border-white/10 px-8 py-6 shrink-0 z-50 shadow-soft backdrop-blur-2xl">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
@@ -146,7 +146,7 @@ const ArchivePage = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-8 md:p-12">
+      <main className="p-8 md:p-12">
         <div className="max-w-[1400px] mx-auto space-y-12">
           
           {/* Warning Banner */}
@@ -203,7 +203,7 @@ const ArchivePage = () => {
 
                   <div className="space-y-1 mb-8 relative z-10">
                     <h3 className="text-2xl font-black tracking-tight">{c.name}</h3>
-                    <p className="text-sm font-bold text-on-surface-variant/60">{c.subject}</p>
+                    <p className="text-sm font-bold text-on-surface-variant/60">{c.subject || '과목 미지정'}</p>
                   </div>
 
                   <div className="mt-auto flex items-center gap-3 relative z-10">

@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Sparkles, 
-  Search, 
-  RotateCw, 
-  ChevronDown, 
-  Check, 
-  Copy, 
-  Printer, 
-  Trash2, 
+import {
+  Sparkles,
+  Search,
+  RotateCw,
+  ChevronDown,
+  Check,
+  Copy,
+  Printer,
+  Trash2,
   Users,
   FileText,
-  ArrowRight
+  ArrowRight,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { geminiPro, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
@@ -27,6 +28,9 @@ const AIAssistant = () => {
   const [showDraft, setShowDraft] = useState(false);
   const [draftText, setDraftText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [obsCount, setObsCount] = useState(0);
+  const [recentObsTime, setRecentObsTime] = useState<string | null>(null);
+  const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isHomeroom = selectedClass?.class_type === 'homeroom';
@@ -35,6 +39,10 @@ const AIAssistant = () => {
     fetchInitialData();
   }, []);
 
+  useEffect(() => {
+    if (selectedClassId) fetchObsStats(selectedClassId);
+  }, [selectedClassId]);
+
   const fetchInitialData = async () => {
     setLoading(true);
     try {
@@ -42,7 +50,7 @@ const AIAssistant = () => {
         .from('classes')
         .select('*')
         .eq('teacher_id', user?.id);
-      
+
       if (classesData) {
         setClasses(classesData);
         if (classesData.length > 0) {
@@ -50,6 +58,15 @@ const AIAssistant = () => {
           fetchStudents(classesData[0].id);
         }
       }
+
+      // 저장된 AI 초안 조회
+      const { data: drafts } = await supabase
+        .from('ai_drafts')
+        .select('*')
+        .eq('teacher_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+      if (drafts) setSavedDrafts(drafts);
     } catch (error) {
       console.error('Error fetching initial data:', error);
     } finally {
@@ -61,7 +78,6 @@ const AIAssistant = () => {
     try {
       const cls = classes.find(c => c.id === classId);
       const targetClassId = cls?.linked_class_id || classId;
-
       const { data } = await supabase
         .from('students')
         .select('*')
@@ -72,40 +88,91 @@ const AIAssistant = () => {
     }
   };
 
+  const fetchObsStats = async (classId: string) => {
+    try {
+      const cls = classes.find(c => c.id === classId);
+      const targetClassId = cls?.linked_class_id || classId;
+
+      const { data: studentIds } = await supabase
+        .from('students')
+        .select('id')
+        .eq('class_id', targetClassId);
+
+      if (!studentIds || studentIds.length === 0) {
+        setObsCount(0);
+        setRecentObsTime(null);
+        return;
+      }
+
+      const ids = studentIds.map(s => s.id);
+      const { count, data: recent } = await supabase
+        .from('observations')
+        .select('created_at', { count: 'exact' })
+        .in('student_id', ids)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      setObsCount(count || 0);
+      if (recent && recent.length > 0) {
+        const d = new Date(recent[0].created_at);
+        const diff = Math.floor((Date.now() - d.getTime()) / 60000);
+        if (diff < 60) setRecentObsTime(`${diff}분 전`);
+        else if (diff < 1440) setRecentObsTime(`${Math.floor(diff / 60)}시간 전`);
+        else setRecentObsTime(`${Math.floor(diff / 1440)}일 전`);
+      } else {
+        setRecentObsTime(null);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
     setSelectedClassId(id);
     fetchStudents(id);
   };
 
-  const filteredStudents = students.filter(s => 
+  const filteredStudents = students.filter(s =>
     s.full_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleGenerate = async () => {
     if (!selectedClassId) return;
     setIsGenerating(true);
-    
+
     try {
       const cls = classes.find(c => c.id === selectedClassId);
       const targetClassId = cls?.linked_class_id || selectedClassId;
 
-      let query = supabase.from('observations').select(`
-        content,
-        activity_name,
-        students!inner(full_name)
-      `).eq('students.class_id', targetClassId);
+      const { data: studentIds } = await supabase
+        .from('students')
+        .select('id, full_name')
+        .eq('class_id', targetClassId)
+        .ilike('full_name', searchQuery ? `%${searchQuery}%` : '%');
 
-      if (searchQuery) {
-        query = query.ilike('students.full_name', `%${searchQuery}%`);
+      if (!studentIds || studentIds.length === 0) {
+        alert('선택한 학급에 학생이 없거나 검색 결과가 없습니다.');
+        setIsGenerating(false);
+        return;
       }
 
-      const { data: records, error } = await query;
+      const ids = studentIds.map(s => s.id);
+      const nameMap: Record<string, string> = {};
+      studentIds.forEach(s => { nameMap[s.id] = s.full_name; });
+
+      const { data: records, error } = await supabase
+        .from('observations')
+        .select('content, activity_name, student_id')
+        .in('student_id', ids);
+
       if (error) throw error;
 
       let recordsText = '';
       if (records && records.length > 0) {
-        recordsText = records.map(r => `[학생명: ${(r.students as any).full_name}]\n활동명: ${r.activity_name}\n내용: ${r.content}`).join('\n---\n');
+        recordsText = records
+          .map(r => `[학생명: ${nameMap[r.student_id] || '학생'}]\n활동명: ${r.activity_name}\n내용: ${r.content}`)
+          .join('\n---\n');
       } else {
         recordsText = "작성된 활동 기록이 없습니다.";
       }
@@ -131,7 +198,8 @@ ${recordsText}
 `;
 
       const result = await geminiPro.generateContent(fullPrompt);
-      setDraftText(result.response.text());
+      const text = result.response.text();
+      setDraftText(text);
       setShowDraft(true);
     } catch (err) {
       console.error(err);
@@ -155,8 +223,20 @@ ${recordsText}
     }
   };
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(draftText);
+  };
+
+  const handlePrint = () => {
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(`<pre style="font-family:sans-serif;line-height:1.8;white-space:pre-wrap">${draftText}</pre>`);
+      w.print();
+    }
+  };
+
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="space-y-10"
@@ -168,7 +248,7 @@ ${recordsText}
           {isHomeroom ? 'AI 종합 생기부/행특 초안 생성' : 'AI 교과 세특 초안 생성'}
         </h1>
         <p className="text-on-surface-variant text-base max-w-2xl leading-relaxed">
-          {isHomeroom 
+          {isHomeroom
             ? '다른 교과 선생님들의 세특과 반 활동 기록을 모아 학생의 종합적인 행동특성 및 종합의견을 작성합니다.'
             : '교실 활동 기록을 전문적인 과목별 생기부 문구로 변환합니다. AI가 작성한 초안을 검토하고 수정하여 완성하세요.'}
         </p>
@@ -182,12 +262,12 @@ ${recordsText}
               <Users size={24} className="text-primary" />
               대상 학급 선택
             </h2>
-            
+
             <div className="space-y-8">
               <div className="space-y-2">
                 <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider ml-1">대상 학급 선택</label>
                 <div className="relative group">
-                  <select 
+                  <select
                     value={selectedClassId}
                     onChange={handleClassChange}
                     className="w-full pl-4 pr-10 py-4 bg-surface-container rounded-xl text-sm font-bold appearance-none focus:ring-2 focus:ring-primary/20 transition-all"
@@ -210,8 +290,8 @@ ${recordsText}
                 <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider ml-1">학생 선택 (선택 사항)</label>
                 <div className="relative group">
                   <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors" />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="학생 이름 검색..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -221,16 +301,14 @@ ${recordsText}
                     <Users size={18} />
                   </div>
                 </div>
-                
+
                 {searchQuery && (
                   <div className="mt-2 bg-surface-container-low rounded-xl border border-surface-container-high max-h-40 overflow-y-auto shadow-sm">
                     {filteredStudents.length > 0 ? (
                       filteredStudents.map(s => (
-                        <button 
-                          key={s.id} 
-                          onClick={() => {
-                            setSearchQuery(s.full_name);
-                          }}
+                        <button
+                          key={s.id}
+                          onClick={() => setSearchQuery(s.full_name)}
                           className="w-full text-left px-4 py-3 hover:bg-surface-container text-xs font-bold transition-all border-b border-surface-container last:border-0"
                         >
                           {s.full_name} ({s.student_number || '번호 없음'})
@@ -243,20 +321,23 @@ ${recordsText}
                 )}
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl border border-surface-container-high transition-all hover:bg-surface-container">
+              {/* 관찰 기록 현황 - 실제 데이터 */}
+              <div className="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl border border-surface-container-high">
                 <div className="space-y-1">
-                  <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">관찰 기록 발견</p>
-                  <p className="text-xs text-on-surface-variant font-medium">최근 기록: 45분 전 "고전 산문 분석" 세션 중</p>
+                  <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">관찰 기록 현황</p>
+                  <p className="text-xs text-on-surface-variant font-medium">
+                    {recentObsTime ? `최근 기록: ${recentObsTime}` : '기록 없음'}
+                  </p>
                 </div>
-                <div className="px-3 py-1.5 bg-primary-container text-primary rounded-xl text-[11px] font-black tracking-tighter">
-                  24개 이벤트
+                <div className={`px-3 py-1.5 rounded-xl text-[11px] font-black tracking-tighter ${obsCount > 0 ? 'bg-primary-container text-primary' : 'bg-surface-container text-on-surface-variant/50'}`}>
+                  {obsCount}개 기록
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={handleGenerate}
-                disabled={isGenerating}
-                className="w-full btn-gradient py-5 rounded-2xl font-black text-base flex items-center justify-center gap-3 shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
+                disabled={isGenerating || obsCount === 0}
+                className="w-full btn-gradient py-5 rounded-2xl font-black text-base flex items-center justify-center gap-3 shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGenerating ? (
                   <RotateCw size={22} className="animate-spin" />
@@ -267,6 +348,9 @@ ${recordsText}
                   </>
                 )}
               </button>
+              {obsCount === 0 && (
+                <p className="text-center text-xs text-on-surface-variant/60">활동 기록을 먼저 등록해야 생성할 수 있습니다.</p>
+              )}
             </div>
           </div>
 
@@ -286,8 +370,9 @@ ${recordsText}
         {/* Right Output Area - Draft Editor */}
         <div className="col-span-12 lg:col-span-7">
           <AnimatePresence mode="wait">
-            {showDraft && (
-              <motion.div 
+            {showDraft ? (
+              <motion.div
+                key="draft"
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -30 }}
@@ -299,9 +384,16 @@ ${recordsText}
                     학생 기록 초안
                   </h2>
                   <div className="flex items-center gap-2">
-                    <button className="p-2.5 rounded-xl hover:bg-surface-container-high transition-all text-on-surface-variant"><Copy size={18} /></button>
-                    <button className="p-2.5 rounded-xl hover:bg-surface-container-high transition-all text-on-surface-variant"><Printer size={18} /></button>
-                    <button className="p-2.5 rounded-xl hover:bg-error-container text-error transition-all ml-2 font-bold px-4 flex items-center gap-2">
+                    <button onClick={handleCopy} className="p-2.5 rounded-xl hover:bg-surface-container-high transition-all text-on-surface-variant" title="복사">
+                      <Copy size={18} />
+                    </button>
+                    <button onClick={handlePrint} className="p-2.5 rounded-xl hover:bg-surface-container-high transition-all text-on-surface-variant" title="인쇄">
+                      <Printer size={18} />
+                    </button>
+                    <button
+                      onClick={() => { setShowDraft(false); setDraftText(''); }}
+                      className="p-2.5 rounded-xl hover:bg-red-50 text-red-400 transition-all ml-2 font-bold px-4 flex items-center gap-2"
+                    >
                       <Trash2 size={18} />
                       <span className="text-[11px]">삭제</span>
                     </button>
@@ -311,7 +403,7 @@ ${recordsText}
                 <div className="flex-1 p-10 space-y-10">
                   <div className="relative group flex-1">
                     <div className="absolute -left-6 top-0 w-1 h-full bg-primary/20 group-hover:bg-primary transition-colors rounded-full" />
-                    <textarea 
+                    <textarea
                       value={draftText}
                       onChange={(e) => setDraftText(e.target.value)}
                       className="w-full h-full min-h-[350px] p-4 text-base font-bold leading-relaxed bg-transparent resize-none focus:outline-none custom-scrollbar border border-transparent focus:border-primary/20 rounded-2xl"
@@ -338,18 +430,34 @@ ${recordsText}
                   </div>
                 </div>
 
-                <div className="p-8 border-t border-surface-container bg-surface-container-low/50 flex items-center justify-between rounded-b-3xl">
-                  <div className="flex items-center gap-4">
-                    <div className="flex -space-x-3">
-                      <img src="https://i.pravatar.cc/100?img=1" className="w-10 h-10 rounded-full border-2 border-surface" />
-                      <div className="w-10 h-10 rounded-full bg-primary-container text-primary flex items-center justify-center text-[11px] font-black border-2 border-surface shadow-sm">+2</div>
-                    </div>
-                    <p className="text-[12px] text-on-surface-variant font-medium max-w-[200px]">수학 및 영어 교과 담당 선생님과 공유됨</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <button className="px-6 py-3 font-bold text-sm text-on-surface-variant hover:text-on-surface transition-all">수정 사항 저장</button>
-                    <button className="px-8 py-3 bg-primary text-white font-bold text-sm rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all">기록 확정</button>
-                  </div>
+                <div className="p-8 border-t border-surface-container bg-surface-container-low/50 flex items-center justify-end gap-4 rounded-b-3xl">
+                  <button
+                    onClick={handleCopy}
+                    className="px-6 py-3 font-bold text-sm text-on-surface-variant hover:text-on-surface transition-all"
+                  >
+                    클립보드 복사
+                  </button>
+                  <button
+                    onClick={handlePrint}
+                    className="px-8 py-3 bg-primary text-white font-bold text-sm rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+                  >
+                    인쇄하기
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="surface-card shadow-ambient min-h-[400px] flex flex-col items-center justify-center gap-6 text-center p-16"
+              >
+                <div className="w-20 h-20 bg-primary/8 rounded-3xl flex items-center justify-center">
+                  <BookOpen size={36} className="text-primary/40" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-base font-black text-on-surface/60">아직 생성된 초안이 없습니다</p>
+                  <p className="text-sm text-on-surface-variant/50">학급과 학생을 선택한 뒤<br/>생성 버튼을 눌러주세요.</p>
                 </div>
               </motion.div>
             )}
@@ -357,32 +465,36 @@ ${recordsText}
         </div>
       </div>
 
-      {/* Bottom History Section */}
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold font-manrope px-2">최근 AI 초안</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            { tag: '학급 활동', title: '오전 성찰: 창의적 예술', time: '2시간 전', status: '검토 완료' },
-            { tag: '학생 성과', title: '개별 성취도: 김서진 학생', time: '어제', status: '검토 중', active: true },
-            { tag: '행동 특성', title: '모둠 역학: 프로젝트 알파', time: '10월 24일', status: '검토 완료' }
-          ].map((item, i) => (
-            <div key={i} className={`p-8 surface-card shadow-ambient hover:translate-y-[-4px] transition-all cursor-pointer border-t-4 ${item.active ? 'border-primary' : 'border-transparent'}`}>
-              <div className="flex items-center justify-between mb-6">
-                <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">{item.tag}</span>
-                <span className="text-[10px] font-bold text-on-surface-variant">{item.time}</span>
+      {/* Bottom History Section - 실제 저장된 초안 */}
+      {savedDrafts.length > 0 && (
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold font-manrope px-2">최근 AI 초안</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {savedDrafts.map((item, _i) => (
+              <div
+                key={item.id}
+                onClick={() => { setDraftText(item.content); setShowDraft(true); }}
+                className="p-8 surface-card shadow-ambient hover:translate-y-[-4px] transition-all cursor-pointer border-t-4 border-primary/20 hover:border-primary"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">{item.class_name || '학급'}</span>
+                  <span className="text-[10px] font-bold text-on-surface-variant">
+                    {new Date(item.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                <h3 className="text-sm font-bold mb-4 line-clamp-3 leading-snug text-on-surface-variant">{item.content?.slice(0, 80)}...</h3>
+                <div className="flex items-center justify-between mt-auto">
+                  <span className="flex items-center gap-2 text-[11px] font-bold text-primary">
+                    <Check size={14} />
+                    저장됨
+                  </span>
+                  <ArrowRight size={14} className="text-on-surface-variant/40" />
+                </div>
               </div>
-              <h3 className="text-lg font-bold mb-6 line-clamp-2 leading-tight">{item.title}</h3>
-              <div className="flex items-center justify-between mt-auto">
-                <span className="flex items-center gap-2 text-[11px] font-bold text-on-surface-variant">
-                  {item.status === '검토 완료' ? <Check size={14} className="text-primary" /> : <RotateCw size={14} className="text-on-surface-variant/40" />}
-                  {item.status}
-                </span>
-                <ArrowRight size={14} className="text-on-surface-variant/40" />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </motion.div>
   );
 };

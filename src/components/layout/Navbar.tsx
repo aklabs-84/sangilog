@@ -1,15 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Bell, Settings, Trash2 } from 'lucide-react';
+import { Bell, Settings, Trash2, Plus, GraduationCap } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
-interface NavbarProps {
-  isCollapsed?: boolean;
-}
-
-const Navbar = ({ isCollapsed }: NavbarProps) => {
+const Navbar = () => {
   const { user, profile } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -18,13 +14,12 @@ const Navbar = ({ isCollapsed }: NavbarProps) => {
   useEffect(() => {
     if (user) {
       fetchNotifications();
-      
-      // 실시간 알림 구독
+
       const subscription = supabase
         .channel('public:notifications')
-        .on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
           table: 'notifications',
           filter: `user_id=eq.${user.id}`
         }, () => {
@@ -93,25 +88,36 @@ const Navbar = ({ isCollapsed }: NavbarProps) => {
     return `${days}일 전`;
   };
 
+  const navItems = [
+    { label: '대시보드', path: '/' },
+    { label: '클래스룸', path: '/classroom' },
+    { label: 'AI 초안', path: '/ai-assistant' },
+    { label: '보고서', path: '/export' },
+    { label: '아카이브', path: '/archive' },
+  ];
+
   return (
-    <header className={`h-16 glass fixed top-3 right-4 ${isCollapsed ? 'left-[100px]' : 'left-[280px]'} z-50 px-6 flex items-center justify-between transition-all duration-300 ease-in-out rounded-2xl border border-white/40 shadow-soft`}>
+    <header className="h-16 glass fixed top-3 left-4 right-4 z-50 px-6 flex items-center justify-between rounded-2xl border border-white/40 shadow-soft">
+      {/* Left: Logo + Nav */}
       <div className="flex items-center gap-8">
-        <h2 className="text-xl font-black tracking-tightest leading-none gradient-text">생기로그</h2>
-        <nav className="flex items-center gap-6">
-          {[
-            { label: '대시보드', path: '/' },
-            { label: '클래스룸', path: '/classroom' },
-            { label: 'AI 초안', path: '/ai-assistant' },
-            { label: '보고서', path: '/export' },
-          ].map((tab) => (
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center text-white shadow-md shadow-primary/20">
+            <GraduationCap size={18} strokeWidth={2.5} />
+          </div>
+          <h2 className="text-base font-black tracking-tightest leading-none gradient-text">생기로그</h2>
+        </div>
+
+        <nav className="flex items-center gap-1">
+          {navItems.map((tab) => (
             <NavLink
               key={tab.path}
               to={tab.path}
+              end={tab.path === '/'}
               className={({ isActive }) => `
-                text-[13px] font-black transition-all relative py-2 uppercase tracking-[0.1em]
-                ${isActive 
-                  ? 'text-primary' 
-                  : 'text-on-surface-variant/60 hover:text-on-surface'}
+                px-4 py-2 rounded-xl text-[13px] font-black transition-all relative
+                ${isActive
+                  ? 'text-primary bg-primary/5'
+                  : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-white/60'}
               `}
             >
               {({ isActive }) => (
@@ -120,7 +126,7 @@ const Navbar = ({ isCollapsed }: NavbarProps) => {
                   {isActive && (
                     <motion.div
                       layoutId="activeTabGlow"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(var(--primary-rgb),0.4)]"
+                      className="absolute bottom-1 left-4 right-4 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(var(--primary-rgb),0.4)]"
                     />
                   )}
                 </>
@@ -130,15 +136,27 @@ const Navbar = ({ isCollapsed }: NavbarProps) => {
         </nav>
       </div>
 
-      <div className="flex items-center gap-4">
+      {/* Right: CTA + Utilities */}
+      <div className="flex items-center gap-3">
+        <NavLink
+          to="/activity-log"
+          className="flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-xl font-black text-xs shadow-md shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all"
+        >
+          <Plus size={15} strokeWidth={3} />
+          새 활동
+        </NavLink>
+
+        <div className="w-px h-6 bg-on-surface/5" />
+
+        {/* 알림 */}
         <div className="relative">
-          <button 
+          <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className={`w-10 h-10 rounded-xl hover:bg-white hover:shadow-soft transition-all relative flex items-center justify-center ${showNotifications ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40'}`}
+            className={`w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all relative flex items-center justify-center ${showNotifications ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40'}`}
           >
-            <Bell size={20} className={showNotifications ? 'animate-bounce' : ''} />
+            <Bell size={18} className={showNotifications ? 'animate-bounce' : ''} />
             {unreadCount > 0 && (
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-accent rounded-full border-2 border-white shadow-sm animate-pulse"></span>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full border-2 border-white shadow-sm animate-pulse" />
             )}
           </button>
 
@@ -153,7 +171,7 @@ const Navbar = ({ isCollapsed }: NavbarProps) => {
                 <div className="flex items-center justify-between mb-4 px-1">
                   <h3 className="font-black text-sm tracking-tightest">최근 시스템 알림</h3>
                   {notifications.length > 0 && (
-                    <button 
+                    <button
                       onClick={clearAll}
                       className="text-[10px] text-primary hover:text-secondary flex items-center gap-1.5 font-black uppercase tracking-widest transition-colors"
                     >
@@ -162,12 +180,12 @@ const Navbar = ({ isCollapsed }: NavbarProps) => {
                     </button>
                   )}
                 </div>
-                
+
                 <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
                   {notifications.length > 0 ? (
                     notifications.map((n) => (
-                      <div 
-                        key={n.id} 
+                      <div
+                        key={n.id}
                         onClick={() => markAsRead(n.id)}
                         className={`p-4 rounded-xl transition-all cursor-pointer border ${n.is_read ? 'bg-surface-container/30 border-transparent opacity-60' : 'bg-white border-primary/5 shadow-soft hover:border-primary/20 hover:scale-[1.01]'}`}
                       >
@@ -177,9 +195,7 @@ const Navbar = ({ isCollapsed }: NavbarProps) => {
                           </p>
                           {!n.is_read && <div className="w-2 h-2 bg-primary rounded-full mt-1.5 shrink-0 shadow-[0_0_8px_rgba(var(--primary-rgb),0.5)]" />}
                         </div>
-                        <div className="flex justify-between items-center mt-2">
-                          <p className="text-[9px] font-black text-primary/40 uppercase tracking-[0.2em]">{formatTime(n.created_at)}</p>
-                        </div>
+                        <p className="text-[9px] font-black text-primary/40 uppercase tracking-[0.2em] mt-2">{formatTime(n.created_at)}</p>
                       </div>
                     ))
                   ) : (
@@ -196,24 +212,48 @@ const Navbar = ({ isCollapsed }: NavbarProps) => {
           </AnimatePresence>
         </div>
 
-        <NavLink to="/settings" className="w-10 h-10 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary flex items-center justify-center">
-          <Settings size={20} />
+        <NavLink
+          to="/settings"
+          className="w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary flex items-center justify-center"
+        >
+          <Settings size={18} />
         </NavLink>
-        
-        <NavLink 
-          to="/settings" 
-          className="flex items-center gap-3 pl-4 border-l border-on-surface/5 ml-1 hover:bg-white hover:shadow-soft transition-all p-2 rounded-xl group active:scale-95 border border-transparent hover:border-white"
+
+        <NavLink
+          to="/settings"
+          className="flex items-center gap-2.5 pl-3 border-l border-on-surface/5 hover:bg-white hover:shadow-soft transition-all p-2 rounded-xl group active:scale-95"
         >
           <div className="text-right hidden sm:block">
-            <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] group-hover:text-secondary transition-colors leading-none mb-1">{profile?.role || 'Educator'}</p>
-            <p className="text-[13px] font-black group-hover:text-primary transition-colors tracking-tightest">{profile?.full_name || '사용자'}</p>
+            <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] group-hover:text-secondary transition-colors leading-none mb-0.5">
+              {profile?.role || 'Teacher'}
+            </p>
+            <p className="text-[12px] font-black group-hover:text-primary transition-colors tracking-tightest">
+              {profile?.full_name || '사용자'}
+            </p>
           </div>
-          <div className="w-10 h-10 rounded-xl overflow-hidden cursor-pointer group-hover:ring-2 group-hover:ring-primary/10 transition-all border border-white shadow-soft relative">
-            <img 
-              src={profile?.avatar_url || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop"} 
-              alt="Profile" 
-              className="w-full h-full object-cover"
-            />
+          <div className="w-9 h-9 rounded-xl overflow-hidden cursor-pointer group-hover:ring-2 group-hover:ring-primary/10 transition-all border border-white shadow-soft shrink-0">
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt="Profile"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent) {
+                    parent.classList.add('bg-gradient-to-br', 'from-primary', 'to-secondary', 'flex', 'items-center', 'justify-center');
+                    parent.innerHTML = `<span class="text-white text-xs font-black">${(profile?.full_name || '?').charAt(0).toUpperCase()}</span>`;
+                  }
+                }}
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                <span className="text-white text-xs font-black">
+                  {(profile?.full_name || '?').charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
           </div>
         </NavLink>
       </div>
