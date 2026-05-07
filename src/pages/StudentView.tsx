@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, User as UserIcon, BookOpen, Clock, Activity,
-  Sparkles, CheckCircle2, ThumbsUp, Loader2
+  Sparkles, CheckCircle2, ThumbsUp, Loader2, Pencil, Trash2,
+  Check, X
 } from 'lucide-react';
 import { geminiFlash } from '../lib/gemini';
 
@@ -14,11 +15,25 @@ const StudentView = () => {
   const [student, setStudent] = useState<any>(null);
   const [observations, setObservations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // AI Report States
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  // Edit / Delete States
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ activity_name: '', content: '', category: '' });
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Toast
+  const [toasts, setToasts] = useState<{ id: string; msg: string; type: 'success' | 'error' }[]>([]);
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    const tid = Date.now().toString();
+    setToasts(prev => [...prev, { id: tid, msg, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== tid)), 3500);
+  };
 
   useEffect(() => {
     fetchStudentData();
@@ -28,31 +43,23 @@ const StudentView = () => {
     if (!id) return;
     setLoading(true);
     try {
-      // 1. Fetch Student Profile
       const { data: studentData, error: studentError } = await supabase
         .from('students')
-        .select(`
-          *,
-          classes(name, subject, teacher_id)
-        `)
+        .select(`*, classes(name, subject, teacher_id)`)
         .eq('id', id)
         .single();
-      
       if (studentError) throw studentError;
       setStudent(studentData);
 
-      // 2. Fetch all observations across subjects
       const { data: obsData, error: obsError } = await supabase
         .from('observations')
         .select('*')
         .eq('student_id', id)
         .order('created_at', { ascending: false });
-
       if (obsError) throw obsError;
       setObservations(obsData || []);
-      
     } catch (error) {
-      console.error('Error fetching student integrated data:', error);
+      console.error('Error fetching student data:', error);
     } finally {
       setLoading(false);
     }
@@ -66,9 +73,7 @@ const StudentView = () => {
         .update({ status: 'approved' })
         .eq('id', obsId);
       if (!error) {
-        setObservations(prev =>
-          prev.map(o => o.id === obsId ? { ...o, status: 'approved' } : o)
-        );
+        setObservations(prev => prev.map(o => o.id === obsId ? { ...o, status: 'approved' } : o));
       }
     } catch (err) {
       console.error('승인 처리 오류:', err);
@@ -77,12 +82,70 @@ const StudentView = () => {
     }
   };
 
+  const handleStartEdit = (obs: any) => {
+    setEditingId(obs.id);
+    setEditForm({
+      activity_name: obs.activity_name || '',
+      content: obs.content || '',
+      category: obs.category || ''
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditForm({ activity_name: '', content: '', category: '' });
+  };
+
+  const handleSaveEdit = async (obsId: string) => {
+    if (!editForm.activity_name.trim()) {
+      showToast('활동 제목을 입력해주세요.', 'error');
+      return;
+    }
+    setSavingId(obsId);
+    try {
+      const { error } = await supabase
+        .from('observations')
+        .update({
+          activity_name: editForm.activity_name.trim(),
+          content: editForm.content.trim(),
+          category: editForm.category.trim() || null
+        })
+        .eq('id', obsId);
+      if (error) throw error;
+      setObservations(prev => prev.map(o =>
+        o.id === obsId
+          ? { ...o, activity_name: editForm.activity_name.trim(), content: editForm.content.trim(), category: editForm.category.trim() || o.category }
+          : o
+      ));
+      setEditingId(null);
+      showToast('수정되었습니다.');
+    } catch (err: any) {
+      showToast('수정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const handleDelete = async (obsId: string) => {
+    if (!confirm('이 기록을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.')) return;
+    setDeletingId(obsId);
+    try {
+      const { error } = await supabase.from('observations').delete().eq('id', obsId);
+      if (error) throw error;
+      setObservations(prev => prev.filter(o => o.id !== obsId));
+      showToast('삭제되었습니다.');
+    } catch (err: any) {
+      showToast('삭제 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const generateAIInsight = async () => {
     if (observations.length === 0) return;
     setIsGeneratingAI(true);
-    
     try {
-      const activitiesContext = observations.map(obs => 
+      const activitiesContext = observations.map(obs =>
         `[${obs.category || '일반'}] ${obs.activity_name}: ${obs.content}`
       ).join('\n---\n');
 
@@ -92,8 +155,8 @@ const StudentView = () => {
 
 ${activitiesContext}
 
-위 내용을 바탕으로 학생의 학습 성향, 주요 관심사, 역량(장점)을 3문장 이내로 요약해 주시고, 
-생활기록부에 들어갈 만한 "종합 세특 초안"을 1문단으로 작성해 주세요. 
+위 내용을 바탕으로 학생의 학습 성향, 주요 관심사, 역량(장점)을 3문장 이내로 요약해 주시고,
+생활기록부에 들어갈 만한 "종합 세특 초안"을 1문단으로 작성해 주세요.
 (HTML 형태의 마크다운 없이 순수 텍스트로, 내용은 전문적이고 긍정적인 어조로 작성)
       `;
 
@@ -116,18 +179,18 @@ ${activitiesContext}
   }
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="p-8 max-w-7xl mx-auto font-pretendard space-y-8 pb-20"
     >
-      {/* 1. Header Toolbar */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <button 
+        <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 px-4 py-2 hover:bg-surface-container rounded-xl text-on-surface-variant font-bold transition-all group"
         >
-          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> 
+          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
           돌아가기
         </button>
         <span className="px-4 py-1.5 bg-primary/10 text-primary rounded-full text-[11px] font-black uppercase tracking-widest border border-primary/20">
@@ -136,159 +199,229 @@ ${activitiesContext}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column: Profile & AI AI Insight */}
+        {/* Left: Profile & AI */}
         <div className="lg:col-span-4 space-y-8">
-          {/* Section: Profile */}
           <div className="surface-card p-8 shadow-ambient border border-white/60 text-center relative overflow-hidden group">
-             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-primary/10 to-secondary/10" />
-             <div className="relative z-10 flex flex-col items-center mt-8">
-               <div className="w-24 h-24 bg-white rounded-[2rem] shadow-md flex items-center justify-center text-primary mb-6 group-hover:scale-105 transition-transform">
-                 <UserIcon size={40} />
-               </div>
-               <h1 className="text-3xl font-black tracking-tight mb-2">{student?.full_name}</h1>
-               <p className="text-on-surface-variant font-bold text-sm mb-6 flex items-center gap-2 justify-center">
-                 <span>{student?.classes?.name || '소속 반 없음'}</span>
-                 <span className="w-1 h-1 rounded-full bg-neutral-300" />
-                 <span>{student?.student_number ? `${student.student_number}번` : '번호 없음'}</span>
-               </p>
-               <div className="flex gap-2">
-                 <span className="px-3 py-1 bg-surface-container text-[11px] font-black uppercase text-on-surface-variant rounded-lg border border-neutral-200">
-                   {student?.tag || '일반 학생'}
-                 </span>
-               </div>
-             </div>
-             
-             <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-surface-container/50 relative z-10">
-               <div className="text-center">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Total Records</p>
-                 <p className="text-2xl font-black text-on-surface">{observations.length}</p>
-               </div>
-               <div className="text-center">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Subjects</p>
-                 <p className="text-2xl font-black text-on-surface">
-                   {new Set(observations.map(o => o.category || '기본')).size}
-                 </p>
-               </div>
-             </div>
+            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-primary/10 to-secondary/10" />
+            <div className="relative z-10 flex flex-col items-center mt-8">
+              <div className="w-24 h-24 bg-white rounded-[2rem] shadow-md flex items-center justify-center text-primary mb-6 group-hover:scale-105 transition-transform">
+                <UserIcon size={40} />
+              </div>
+              <h1 className="text-3xl font-black tracking-tight mb-2">{student?.full_name}</h1>
+              <p className="text-on-surface-variant font-bold text-sm mb-6 flex items-center gap-2 justify-center">
+                <span>{student?.classes?.name || '소속 반 없음'}</span>
+                <span className="w-1 h-1 rounded-full bg-neutral-300" />
+                <span>{student?.student_number ? `${student.student_number}번` : '번호 없음'}</span>
+              </p>
+              <div className="flex gap-2">
+                <span className="px-3 py-1 bg-surface-container text-[11px] font-black uppercase text-on-surface-variant rounded-lg border border-neutral-200">
+                  {student?.tag || '일반 학생'}
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-surface-container/50 relative z-10">
+              <div className="text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Total Records</p>
+                <p className="text-2xl font-black text-on-surface">{observations.length}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Subjects</p>
+                <p className="text-2xl font-black text-on-surface">
+                  {new Set(observations.map(o => o.category || '기본')).size}
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Section: AI Insight Embedded */}
+          {/* AI Insight */}
           <div className="surface-card p-8 shadow-ambient bg-gradient-to-br from-primary/5 via-white to-secondary/5 border-primary/10 relative overflow-hidden">
-             <div className="absolute right-[-10%] top-[-10%] text-primary/5 rotate-12 pointer-events-none"><Sparkles size={120} /></div>
-             <div className="flex items-center gap-3 mb-6 relative z-10">
-                <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-primary">
-                  <Sparkles size={20} />
+            <div className="absolute right-[-10%] top-[-10%] text-primary/5 rotate-12 pointer-events-none"><Sparkles size={120} /></div>
+            <div className="flex items-center gap-3 mb-6 relative z-10">
+              <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-primary">
+                <Sparkles size={20} />
+              </div>
+              <h3 className="font-black text-lg text-primary tracking-tight">AI 통합 분석 리포트</h3>
+            </div>
+            <div className="relative z-10">
+              {aiInsight ? (
+                <div className="space-y-4">
+                  <p className="text-sm font-medium leading-relaxed text-on-surface/90 whitespace-pre-wrap">{aiInsight}</p>
+                  <button
+                    onClick={generateAIInsight}
+                    disabled={isGeneratingAI}
+                    className="text-[10px] font-black text-primary/40 hover:text-primary transition-colors uppercase tracking-widest underline underline-offset-4"
+                  >
+                    {isGeneratingAI ? '재분석 중...' : '다시 분석하기'}
+                  </button>
                 </div>
-                <h3 className="font-black text-lg text-primary tracking-tight">AI 통합 분석 리포트</h3>
-             </div>
-             
-             <div className="relative z-10">
-               {aiInsight ? (
-                 <div className="space-y-4">
-                   <p className="text-sm font-medium leading-relaxed text-on-surface/90 whitespace-pre-wrap">
-                     {aiInsight}
-                   </p>
-                   <button 
-                     onClick={generateAIInsight}
-                     disabled={isGeneratingAI}
-                     className="text-[10px] font-black text-primary/40 hover:text-primary transition-colors uppercase tracking-widest underline underline-offset-4"
-                   >
-                     {isGeneratingAI ? '재분석 중...' : '다시 분석하기'}
-                   </button>
-                 </div>
-               ) : (
-                 <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
-                   <p className="text-xs font-bold text-on-surface-variant/60">
-                     모든 과목의 활동 기록을 종합하여<br/>핵심 성향과 생기부 초안을 생성합니다.
-                   </p>
-                   <button 
-                     onClick={generateAIInsight}
-                     disabled={isGeneratingAI || observations.length === 0}
-                     className="w-full py-3.5 btn-gradient rounded-xl font-black text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
-                   >
-                     {isGeneratingAI ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                     ) : (
-                        <><Sparkles size={14} /> 종합 분석 시작</>
-                     )}
-                   </button>
-                   {observations.length === 0 && (
-                     <p className="text-[10px] text-error/60 mt-2 font-bold">기록이 최소 1개 이상 필요합니다.</p>
-                   )}
-                 </div>
-               )}
-             </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+                  <p className="text-xs font-bold text-on-surface-variant/60">
+                    모든 과목의 활동 기록을 종합하여<br />핵심 성향과 생기부 초안을 생성합니다.
+                  </p>
+                  <button
+                    onClick={generateAIInsight}
+                    disabled={isGeneratingAI || observations.length === 0}
+                    className="w-full py-3.5 btn-gradient rounded-xl font-black text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isGeneratingAI ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <><Sparkles size={14} /> 종합 분석 시작</>
+                    )}
+                  </button>
+                  {observations.length === 0 && (
+                    <p className="text-[10px] text-error/60 mt-2 font-bold">기록이 최소 1개 이상 필요합니다.</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Right Column: Timeline */}
+        {/* Right: Timeline */}
         <div className="lg:col-span-8 surface-card p-10 shadow-ambient border-white/60 min-h-[600px] flex flex-col">
           <div className="flex items-center justify-between border-b border-surface-container pb-6 mb-8">
             <h2 className="text-xl font-black flex items-center gap-3">
               <Activity size={24} className="text-primary" />
               과목 통합 활동 타임라인
             </h2>
-            <div className="flex items-center gap-2">
-              <div className="px-3 py-1.5 bg-neutral-100 rounded-lg text-xs font-bold text-neutral-500">최신순</div>
+            <div className="px-3 py-1.5 bg-neutral-100 rounded-lg text-xs font-bold text-neutral-500">
+              총 {observations.length}건
             </div>
           </div>
-          
+
           <div className="flex-1 space-y-8">
             {observations.length > 0 ? (
               <div className="relative border-l-2 border-neutral-100 ml-4 space-y-10 pb-8">
-                {observations.map((obs) => (
-                  <div key={obs.id} className="relative pl-8 group">
-                    <div className="absolute left-[-9px] top-1 w-4 h-4 rounded-full bg-white border-4 border-primary group-hover:scale-125 group-hover:border-secondary transition-all shadow-sm" />
-                    
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-3">
-                      <div>
-                        {/* Task: Use proper category mapping if needed */}
-                        <span className="inline-block px-2.5 py-1 bg-surface-container text-[10px] font-black uppercase text-on-surface-variant/60 rounded border border-neutral-200 mb-2 tracking-widest">
-                          {obs.category || '활동'}
-                        </span>
-                        <h4 className="text-lg font-black tracking-tight text-on-surface group-hover:text-primary transition-colors">
-                          {obs.activity_name}
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-on-surface-variant/40 shrink-0">
-                        <Clock size={12} />
-                        {new Date(obs.created_at).toLocaleDateString('ko-KR')}
-                      </div>
-                    </div>
-                    
-                    <div className="p-6 bg-neutral-50 rounded-2xl border border-neutral-100/50 text-sm font-medium text-on-surface/80 leading-relaxed group-hover:bg-primary/[0.02] group-hover:border-primary/10 transition-colors whitespace-pre-wrap">
-                      {obs.content}
-                    </div>
+                {observations.map((obs) => {
+                  const isEditing = editingId === obs.id;
+                  const isDeleting = deletingId === obs.id;
 
-                    {obs.is_student_record && (
-                      <div className="mt-3 flex items-center justify-between">
-                        {obs.status === 'pending' ? (
-                          <div className="flex items-center gap-3">
-                            <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-500 uppercase tracking-widest bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
-                              <Clock size={11} /> 승인 대기
-                            </span>
+                  return (
+                    <div key={obs.id} className="relative pl-8 group">
+                      <div className="absolute left-[-9px] top-1 w-4 h-4 rounded-full bg-white border-4 border-primary group-hover:scale-125 group-hover:border-secondary transition-all shadow-sm" />
+
+                      {isEditing ? (
+                        /* ── 인라인 수정 폼 ── */
+                        <div className="bg-primary/[0.03] border-2 border-primary/20 rounded-2xl p-5 space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="col-span-2 space-y-1">
+                              <label className="text-[10px] font-black text-primary uppercase tracking-widest">활동 제목 *</label>
+                              <input
+                                type="text"
+                                value={editForm.activity_name}
+                                onChange={e => setEditForm(prev => ({ ...prev, activity_name: e.target.value }))}
+                                className="w-full px-4 py-2.5 bg-white rounded-xl text-sm font-bold border-2 border-primary/10 focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">카테고리</label>
+                              <input
+                                type="text"
+                                value={editForm.category}
+                                onChange={e => setEditForm(prev => ({ ...prev, category: e.target.value }))}
+                                placeholder="예: 국어, 수학..."
+                                className="w-full px-4 py-2.5 bg-white rounded-xl text-sm font-bold border-2 border-surface-container focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">활동 내용</label>
+                            <textarea
+                              value={editForm.content}
+                              onChange={e => setEditForm(prev => ({ ...prev, content: e.target.value }))}
+                              rows={5}
+                              className="w-full px-4 py-3 bg-white rounded-xl text-sm font-medium leading-relaxed border-2 border-surface-container focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 resize-none transition-all"
+                            />
+                          </div>
+                          <div className="flex gap-3 pt-1">
                             <button
-                              onClick={() => handleApprove(obs.id)}
-                              disabled={approvingId === obs.id}
-                              className="flex items-center gap-1.5 px-4 py-1.5 bg-secondary text-white rounded-lg text-[11px] font-black hover:bg-secondary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm"
+                              onClick={() => handleSaveEdit(obs.id)}
+                              disabled={savingId === obs.id}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-black text-xs hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm"
                             >
-                              {approvingId === obs.id ? (
-                                <Loader2 size={12} className="animate-spin" />
-                              ) : (
-                                <ThumbsUp size={12} />
-                              )}
-                              승인하기
+                              {savingId === obs.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                              저장
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-surface-container text-on-surface-variant rounded-xl font-black text-xs hover:bg-surface-container-high active:scale-95 transition-all"
+                            >
+                              <X size={13} /> 취소
                             </button>
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase tracking-widest">
-                            <CheckCircle2 size={12} /> Student Submitted · 승인 완료
+                        </div>
+                      ) : (
+                        /* ── 일반 카드 ── */
+                        <>
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-3">
+                            <div>
+                              <span className="inline-block px-2.5 py-1 bg-surface-container text-[10px] font-black uppercase text-on-surface-variant/60 rounded border border-neutral-200 mb-2 tracking-widest">
+                                {obs.category || '활동'}
+                              </span>
+                              <h4 className="text-lg font-black tracking-tight text-on-surface group-hover:text-primary transition-colors">
+                                {obs.activity_name}
+                              </h4>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="flex items-center gap-1 text-[11px] font-bold text-on-surface-variant/40">
+                                <Clock size={12} />
+                                {new Date(obs.created_at).toLocaleDateString('ko-KR')}
+                              </span>
+                              {/* 수정/삭제 버튼: 호버 시 표시 */}
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleStartEdit(obs)}
+                                  title="수정"
+                                  className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(obs.id)}
+                                  disabled={isDeleting}
+                                  title="삭제"
+                                  className="w-7 h-7 rounded-lg bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all disabled:opacity-50"
+                                >
+                                  {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+
+                          <div className="p-6 bg-neutral-50 rounded-2xl border border-neutral-100/50 text-sm font-medium text-on-surface/80 leading-relaxed group-hover:bg-primary/[0.02] group-hover:border-primary/10 transition-colors whitespace-pre-wrap">
+                            {obs.content}
+                          </div>
+
+                          {obs.is_student_record && (
+                            <div className="mt-3 flex items-center justify-between">
+                              {obs.status === 'pending' ? (
+                                <div className="flex items-center gap-3">
+                                  <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-500 uppercase tracking-widest bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                                    <Clock size={11} /> 승인 대기
+                                  </span>
+                                  <button
+                                    onClick={() => handleApprove(obs.id)}
+                                    disabled={approvingId === obs.id}
+                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-secondary text-white rounded-lg text-[11px] font-black hover:bg-secondary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm"
+                                  >
+                                    {approvingId === obs.id ? <Loader2 size={12} className="animate-spin" /> : <ThumbsUp size={12} />}
+                                    승인하기
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase tracking-widest">
+                                  <CheckCircle2 size={12} /> Student Submitted · 승인 완료
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center space-y-6 text-on-surface-variant/40 py-20">
@@ -297,12 +430,32 @@ ${activitiesContext}
                 </div>
                 <div className="text-center">
                   <p className="text-lg font-black tracking-tight text-on-surface-variant/60">활동 기록이 없습니다.</p>
-                  <p className="text-xs font-bold mt-2">학생이 활동을 등록하거나 선생님이 관찰 내용을 작성하면<br/>여기에 타임라인으로 표시됩니다.</p>
+                  <p className="text-xs font-bold mt-2">학생이 활동을 등록하거나 선생님이 관찰 내용을 작성하면<br />여기에 타임라인으로 표시됩니다.</p>
                 </div>
               </div>
             )}
           </div>
         </div>
+      </div>
+
+      {/* Toast Notifications */}
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[2000] flex flex-col gap-3 items-center pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className={`px-8 py-4 rounded-2xl shadow-2xl text-sm font-black flex items-center gap-3 pointer-events-auto ${
+                toast.type === 'error' ? 'bg-error text-white' : 'bg-neutral-900 text-white'
+              }`}
+            >
+              <div className={`w-2 h-2 rounded-full ${toast.type === 'error' ? 'bg-white/60' : 'bg-primary animate-pulse'}`} />
+              {toast.msg}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </motion.div>
   );
