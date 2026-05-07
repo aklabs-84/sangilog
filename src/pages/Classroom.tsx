@@ -34,7 +34,7 @@ import UnitManager from '../components/classroom/UnitManager';
 
 const Classroom = () => {
   const { user, profile } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [activeClassId, setActiveClassId] = useState<string | null>(searchParams.get('id'));
@@ -115,6 +115,13 @@ const Classroom = () => {
       setSelectedStudentIds([]); // 학급 변경 시 선택 초기화
     }
   }, [user]);
+
+  // activeClassId가 바뀔 때마다 URL에 동기화 → 뒤로가기 시 선택 클래스 복원
+  useEffect(() => {
+    if (activeClassId) {
+      setSearchParams({ id: activeClassId }, { replace: true });
+    }
+  }, [activeClassId]);
 
   useEffect(() => {
     if (profile?.school_name) {
