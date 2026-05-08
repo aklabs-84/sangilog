@@ -754,7 +754,7 @@ ${guidePrompt}
           <div className="border-b border-surface-container bg-surface-container-low/20">
             {/* 탭 목록 — 가로 스크롤 */}
             <div className="px-6 pt-5 pb-3 overflow-x-auto scrollbar-hide">
-              <div className="flex bg-surface-container p-1.5 rounded-2xl shadow-inner border border-surface-container-highest/20 w-fit">
+              <div className="flex gap-1 bg-surface-container p-2 rounded-2xl shadow-inner border border-surface-container-highest/20 w-fit">
                 {[
                   { key: 'record' as const,      icon: MessageSquare, label: '관찰 기록',   active: 'bg-violet-500 text-white shadow-violet-200' },
                   { key: 'history' as const,      icon: History,       label: '나의 기록',   active: 'bg-blue-500 text-white shadow-blue-200' },
@@ -767,7 +767,7 @@ ${guidePrompt}
                   <button
                     key={tab.key}
                     onClick={() => handleTabChange(tab.key)}
-                    className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black tracking-[0.03em] transition-all whitespace-nowrap shadow-sm ${
+                    className={`relative flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black tracking-[0.03em] transition-all whitespace-nowrap shadow-sm ${
                       activeTab === tab.key
                         ? `${tab.active} scale-105`
                         : 'text-on-surface-variant hover:text-on-surface hover:bg-white/60'
