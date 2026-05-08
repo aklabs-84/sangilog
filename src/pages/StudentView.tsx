@@ -27,6 +27,7 @@ const StudentView = () => {
   const [resultsLoading, setResultsLoading] = useState(false);
   const [studentSuggestions, setStudentSuggestions] = useState<any[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [selectedResult, setSelectedResult] = useState<any>(null);
 
   // Edit / Delete States
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -521,7 +522,8 @@ ${activitiesContext}
               return (
                 <div
                   key={r.id}
-                  className="p-5 rounded-2xl border-2 border-surface-container bg-surface-container-low hover:border-primary/20 transition-all group"
+                  onClick={() => setSelectedResult({ ...r, publicUrl, cfg })}
+                  className="p-5 rounded-2xl border-2 border-surface-container bg-surface-container-low hover:border-primary/30 hover:shadow-md transition-all group cursor-pointer"
                 >
                   <div className="flex items-start gap-4">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cfg.color}`}>
@@ -529,35 +531,29 @@ ${activitiesContext}
                     </div>
                     <div className="flex-1 min-w-0 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {r.title && <p className="font-black text-sm">{r.title}</p>}
+                        {r.title && <p className="font-black text-sm group-hover:text-primary transition-colors">{r.title}</p>}
                         <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>
                           {cfg.label}
                         </span>
                       </div>
 
                       {r.text_content && (
-                        <p className="text-xs font-medium text-on-surface/80 leading-relaxed line-clamp-3 whitespace-pre-wrap">
+                        <p className="text-xs font-medium text-on-surface/80 leading-relaxed line-clamp-2 whitespace-pre-wrap">
                           {r.text_content}
                         </p>
                       )}
 
                       {r.link_url && (
-                        <a
-                          href={r.link_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 truncate"
-                        >
+                        <p className="text-xs font-bold text-blue-500 flex items-center gap-1 truncate">
                           <ExternalLink size={11} />{r.link_url}
-                        </a>
+                        </p>
                       )}
 
                       {r.result_type === 'image' && publicUrl && (
                         <img
                           src={publicUrl}
                           alt={r.title || '이미지'}
-                          className="max-h-32 rounded-xl object-cover mt-1 cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => window.open(publicUrl, '_blank')}
+                          className="max-h-24 rounded-xl object-cover mt-1"
                         />
                       )}
 
@@ -572,17 +568,9 @@ ${activitiesContext}
                         <Clock size={10} />{formatRelativeTime(r.created_at)}
                       </p>
                     </div>
-
-                    {/* 다운로드 버튼 */}
-                    {(r.result_type === 'image' || r.result_type === 'file') && r.storage_path && (
-                      <button
-                        onClick={() => handleDownloadResult(r)}
-                        title="다운로드"
-                        className="w-8 h-8 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all opacity-0 group-hover:opacity-100 shrink-0"
-                      >
-                        <Upload size={14} className="rotate-180" />
-                      </button>
-                    )}
+                    <div className="w-6 h-6 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant/40 group-hover:text-primary group-hover:bg-primary/10 transition-all shrink-0 mt-1">
+                      <ExternalLink size={12} />
+                    </div>
                   </div>
                 </div>
               );
@@ -631,6 +619,109 @@ ${activitiesContext}
           </div>
         )}
       </div>
+
+      {/* ─── 결과 상세 모달 ─── */}
+      <AnimatePresence>
+        {selectedResult && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-hidden"
+            >
+              {/* 모달 헤더 */}
+              <div className="flex items-start justify-between p-8 pb-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedResult.title && (
+                      <h3 className="text-xl font-black tracking-tight">{selectedResult.title}</h3>
+                    )}
+                    <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${selectedResult.cfg.color}`}>
+                      {selectedResult.cfg.label}
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-bold text-on-surface-variant/50 flex items-center gap-1">
+                    <Clock size={11} />{new Date(selectedResult.created_at).toLocaleString('ko-KR')}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedResult(null)}
+                  className="p-2 rounded-xl hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-all shrink-0 ml-4"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* 모달 내용 */}
+              <div className="px-8 pb-8 space-y-4 max-h-[65vh] overflow-y-auto">
+                {selectedResult.text_content && (
+                  <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-100">
+                    <p className="text-sm font-medium text-on-surface leading-relaxed whitespace-pre-wrap">
+                      {selectedResult.text_content}
+                    </p>
+                  </div>
+                )}
+
+                {selectedResult.link_url && (
+                  <a
+                    href={selectedResult.link_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100 hover:border-blue-300 transition-colors group"
+                  >
+                    <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-500 shrink-0">
+                      <Link2 size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-0.5">링크</p>
+                      <p className="text-sm font-bold text-blue-500 group-hover:underline truncate">{selectedResult.link_url}</p>
+                    </div>
+                    <ExternalLink size={16} className="text-blue-400 shrink-0" />
+                  </a>
+                )}
+
+                {selectedResult.result_type === 'image' && selectedResult.publicUrl && (
+                  <div className="space-y-3">
+                    <img
+                      src={selectedResult.publicUrl}
+                      alt={selectedResult.title || '이미지'}
+                      className="w-full rounded-2xl object-contain border border-neutral-100 cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => window.open(selectedResult.publicUrl, '_blank')}
+                    />
+                    <button
+                      onClick={() => handleDownloadResult(selectedResult)}
+                      className="w-full py-3 flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-black text-sm rounded-xl border border-emerald-200 transition-all"
+                    >
+                      <Upload size={16} className="rotate-180" /> 이미지 다운로드
+                    </button>
+                  </div>
+                )}
+
+                {selectedResult.result_type === 'file' && (
+                  <div className="flex items-center gap-4 p-5 bg-amber-50 rounded-2xl border border-amber-100">
+                    <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-500 shrink-0">
+                      <File size={22} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-sm text-on-surface">{selectedResult.display_name}</p>
+                      {selectedResult.file_size && (
+                        <p className="text-xs font-bold text-amber-500 mt-0.5">{formatFileSize(selectedResult.file_size)}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleDownloadResult(selectedResult)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl transition-all shadow-sm"
+                    >
+                      <Upload size={14} className="rotate-180" /> 다운로드
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Toast Notifications */}
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[2000] flex flex-col gap-3 items-center pointer-events-none">

@@ -515,7 +515,7 @@ const Classroom = () => {
           avatar_url,
           created_at,
           memo,
-          observations(id, content, activity_name, created_at, teacher_id, status),
+          observations(id, student_id, content, activity_name, created_at, teacher_id, status),
           reports(is_published)
         `)
         .eq('class_id', targetClassId);
