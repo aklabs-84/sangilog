@@ -751,49 +751,55 @@ ${guidePrompt}
           className="surface-card rounded-[3.5rem] shadow-ambient overflow-hidden border border-surface-container-highest"
         >
           {/* Tab Bar */}
-          <div className="p-6 border-b border-surface-container bg-surface-container-low/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex bg-surface-container p-2 rounded-2xl shadow-inner border border-surface-container-highest/20 w-fit">
-              {[
-                { key: 'record' as const, icon: MessageSquare, label: '관찰 기록' },
-                { key: 'history' as const, icon: History, label: '나의 기록' },
-                { key: 'unit' as const, icon: ClipboardList, label: '단원 마무리', badge: unitPendingCount },
-                { key: 'results' as const, icon: FolderOpen, label: '결과 제출' },
-                { key: 'materials' as const, icon: BookOpen, label: '수업 자료' },
-                { key: 'badges' as const, icon: Trophy, label: '나의 배지' },
-                { key: 'suggestions' as const, icon: Megaphone, label: '건의사항' }
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => handleTabChange(tab.key)}
-                  className={`relative flex items-center gap-2 px-5 py-3 rounded-xl text-[10px] font-black tracking-[0.05em] transition-all whitespace-nowrap ${
-                    activeTab === tab.key ? 'bg-white text-primary shadow-md scale-105' : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  <tab.icon size={16} />
-                  {tab.label}
-                  {'badge' in tab && (tab as any).badge > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-error text-white rounded-full text-[8px] font-black flex items-center justify-center">
-                      {(tab as any).badge}
-                    </span>
-                  )}
-                </button>
-              ))}
+          <div className="border-b border-surface-container bg-surface-container-low/20">
+            {/* 탭 목록 — 가로 스크롤 */}
+            <div className="px-6 pt-5 pb-3 overflow-x-auto scrollbar-hide">
+              <div className="flex bg-surface-container p-1.5 rounded-2xl shadow-inner border border-surface-container-highest/20 w-fit">
+                {[
+                  { key: 'record' as const,      icon: MessageSquare, label: '관찰 기록',   active: 'bg-violet-500 text-white shadow-violet-200' },
+                  { key: 'history' as const,      icon: History,       label: '나의 기록',   active: 'bg-blue-500 text-white shadow-blue-200' },
+                  { key: 'unit' as const,         icon: ClipboardList, label: '단원 마무리', active: 'bg-amber-500 text-white shadow-amber-200', badge: unitPendingCount },
+                  { key: 'results' as const,      icon: FolderOpen,    label: '결과 제출',   active: 'bg-emerald-500 text-white shadow-emerald-200' },
+                  { key: 'materials' as const,    icon: BookOpen,      label: '수업 자료',   active: 'bg-cyan-500 text-white shadow-cyan-200' },
+                  { key: 'badges' as const,       icon: Trophy,        label: '나의 배지',   active: 'bg-yellow-400 text-white shadow-yellow-200' },
+                  { key: 'suggestions' as const,  icon: Megaphone,     label: '건의사항',    active: 'bg-rose-500 text-white shadow-rose-200' }
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => handleTabChange(tab.key)}
+                    className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black tracking-[0.03em] transition-all whitespace-nowrap shadow-sm ${
+                      activeTab === tab.key
+                        ? `${tab.active} scale-105`
+                        : 'text-on-surface-variant hover:text-on-surface hover:bg-white/60'
+                    }`}
+                  >
+                    <tab.icon size={15} />
+                    {tab.label}
+                    {'badge' in tab && (tab as any).badge > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-error text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                        {(tab as any).badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
+            {/* 관찰 기록 탭 액션 버튼 — 별도 행 */}
             {activeTab === 'record' && (
-              <div className="flex items-center gap-6">
-                <button className="px-10 py-5 text-sm font-black text-on-surface-variant hover:text-on-surface transition-all flex items-center gap-3 opacity-60 hover:opacity-100 whitespace-nowrap">
-                  <Save size={20} />
+              <div className="px-6 pb-4 flex items-center justify-end gap-4">
+                <button className="flex items-center gap-2 px-5 py-2.5 text-sm font-black text-on-surface-variant hover:text-on-surface transition-all opacity-60 hover:opacity-100 rounded-xl hover:bg-surface-container whitespace-nowrap">
+                  <Save size={16} />
                   임시 저장
                 </button>
-                <button 
+                <button
                   onClick={handleSubmit}
                   disabled={submitting}
-                  className="px-14 py-5 btn-gradient rounded-[1.25rem] font-black text-lg shadow-xl shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-3 group relative overflow-hidden disabled:opacity-50"
+                  className="flex items-center gap-2.5 px-8 py-3 btn-gradient rounded-2xl font-black text-sm shadow-lg shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all group disabled:opacity-50 whitespace-nowrap"
                 >
-                  {submitting ? <Loader2 className="animate-spin" /> : (
+                  {submitting ? <Loader2 size={16} className="animate-spin" /> : (
                     <>
-                      <Send size={20} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                      <Send size={16} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                       활동 기록 제출하기
                     </>
                   )}
