@@ -30,7 +30,8 @@ import {
   AlignLeft,
   Link2,
   ImageIcon,
-  ExternalLink
+  ExternalLink,
+  Megaphone
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { geminiFlash } from '../lib/gemini';
@@ -41,7 +42,7 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit'>('record');
+  const [activeTab, setActiveTab] = useState<'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions'>('record');
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
@@ -85,6 +86,16 @@ const StudentLog = () => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [feeling, setFeeling] = useState('');
+
+  // Suggestions State
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionContent, setSuggestionContent] = useState('');
+  const [suggestionSubmitting, setSuggestionSubmitting] = useState(false);
+  const [editingSuggestionId, setEditingSuggestionId] = useState<string | null>(null);
+  const [editSuggestionContent, setEditSuggestionContent] = useState('');
+  const [savingSuggestionId, setSavingSuggestionId] = useState<string | null>(null);
+  const [deletingSuggestionId, setDeletingSuggestionId] = useState<string | null>(null);
 
   // Unit Submission States
   const [pendingUnits, setPendingUnits] = useState<any[]>([]);
@@ -455,12 +466,115 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit') => {
+  const fetchSuggestions = async () => {
+    if (!session?.student_id || !session?.class_id) return;
+    setSuggestionsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('student_suggestions')
+        .select('*')
+        .eq('student_id', session.student_id)
+        .eq('class_id', session.class_id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      if (data) setSuggestions(data);
+    } catch (err) {
+      console.error('Error fetching suggestions:', err);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  const handleSubmitSuggestion = async () => {
+    if (!suggestionContent.trim()) {
+      showToast('건의사항 내용을 입력해주세요.', 'error'); return;
+    }
+    if (!session?.student_id || !session?.class_id || !teacherId) return;
+    setSuggestionSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('student_suggestions')
+        .insert({
+          student_id: session.student_id,
+          class_id: session.class_id,
+          teacher_id: teacherId,
+          student_name: session.student_name,
+          content: suggestionContent.trim()
+        });
+      if (error) throw error;
+
+      await supabase.from('notifications').insert({
+        user_id: teacherId,
+        title: `💬 ${session.student_name}이(가) 건의사항을 등록했습니다`,
+        content: suggestionContent.trim().slice(0, 80),
+        type: 'student_submission'
+      });
+
+      setSuggestionContent('');
+      showToast('건의사항이 등록되었습니다! ✅');
+      await fetchSuggestions();
+    } catch {
+      showToast('등록 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSuggestionSubmitting(false);
+    }
+  };
+
+  const handleStartEditSuggestion = (s: any) => {
+    setEditingSuggestionId(s.id);
+    setEditSuggestionContent(s.content);
+  };
+
+  const handleCancelEditSuggestion = () => {
+    setEditingSuggestionId(null);
+    setEditSuggestionContent('');
+  };
+
+  const handleSaveEditSuggestion = async (id: string) => {
+    if (!editSuggestionContent.trim()) {
+      showToast('내용을 입력해주세요.', 'error'); return;
+    }
+    setSavingSuggestionId(id);
+    try {
+      const { error } = await supabase
+        .from('student_suggestions')
+        .update({ content: editSuggestionContent.trim() })
+        .eq('id', id);
+      if (error) throw error;
+      setSuggestions(prev => prev.map(s =>
+        s.id === id ? { ...s, content: editSuggestionContent.trim() } : s
+      ));
+      setEditingSuggestionId(null);
+      showToast('수정되었습니다.');
+    } catch {
+      showToast('수정 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSavingSuggestionId(null);
+    }
+  };
+
+  const handleDeleteSuggestion = async (id: string) => {
+    if (!confirm('이 건의사항을 삭제하시겠습니까?')) return;
+    setDeletingSuggestionId(id);
+    try {
+      const { error } = await supabase.from('student_suggestions').delete().eq('id', id);
+      if (error) throw error;
+      setSuggestions(prev => prev.filter(s => s.id !== id));
+      showToast('삭제되었습니다.');
+    } catch {
+      showToast('삭제 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setDeletingSuggestionId(null);
+    }
+  };
+
+  const handleTabChange = (tab: 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions') => {
     setActiveTab(tab);
     if (tab === 'history') fetchHistory();
     if (tab === 'materials') fetchResources();
     if (tab === 'results') fetchResults();
     if (tab === 'unit') fetchPendingUnits();
+    if (tab === 'suggestions') fetchSuggestions();
   };
 
   const formatRelativeTime = (dateStr: string) => {
@@ -645,7 +759,8 @@ ${guidePrompt}
                 { key: 'unit' as const, icon: ClipboardList, label: '단원 마무리', badge: unitPendingCount },
                 { key: 'results' as const, icon: FolderOpen, label: '결과 제출' },
                 { key: 'materials' as const, icon: BookOpen, label: '수업 자료' },
-                { key: 'badges' as const, icon: Trophy, label: '나의 배지' }
+                { key: 'badges' as const, icon: Trophy, label: '나의 배지' },
+                { key: 'suggestions' as const, icon: Megaphone, label: '건의사항' }
               ].map((tab) => (
                 <button
                   key={tab.key}
@@ -1516,6 +1631,149 @@ ${guidePrompt}
                 <Trophy size={64} />
                 <p className="font-black text-xl">뱃지 시스템 준비 중</p>
                 <p className="text-sm font-bold text-on-surface-variant">활동 기록을 계속 제출하면 곧 뱃지를 획득할 수 있습니다!</p>
+              </motion.div>
+            )}
+
+            {/* ─── 건의사항 탭 ─── */}
+            {activeTab === 'suggestions' && (
+              <motion.div
+                key="suggestions"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="p-12 space-y-10 min-h-[400px]"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                    <Megaphone size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black font-manrope">건의사항</h3>
+                    <p className="text-on-surface-variant text-sm font-bold mt-1">
+                      선생님께 자유롭게 의견이나 건의사항을 전달하세요.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 입력 폼 */}
+                <div className="space-y-4">
+                  <textarea
+                    value={suggestionContent}
+                    onChange={e => setSuggestionContent(e.target.value)}
+                    placeholder="수업 방식, 과제, 환경 등 자유롭게 의견을 작성해 주세요. 선생님께 전달됩니다."
+                    rows={5}
+                    className="w-full p-6 bg-neutral-100 rounded-[2rem] text-sm font-bold leading-relaxed focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all"
+                  />
+                  <button
+                    onClick={handleSubmitSuggestion}
+                    disabled={suggestionSubmitting || !suggestionContent.trim()}
+                    className="w-full py-5 btn-gradient rounded-[1.25rem] font-black text-lg shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {suggestionSubmitting
+                      ? <Loader2 size={20} className="animate-spin" />
+                      : <><Send size={20} /> 건의사항 전달하기</>
+                    }
+                  </button>
+                </div>
+
+                {/* 내가 보낸 건의사항 목록 */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pt-4 border-t border-surface-container">
+                    <h4 className="font-black text-base">내가 보낸 건의사항</h4>
+                    <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">
+                      {suggestions.length}개
+                    </span>
+                  </div>
+
+                  {suggestionsLoading ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 size={28} className="animate-spin text-primary" />
+                    </div>
+                  ) : suggestions.length === 0 ? (
+                    <div className="flex flex-col items-center py-16 space-y-3 opacity-30">
+                      <Megaphone size={48} />
+                      <p className="font-black">아직 등록한 건의사항이 없습니다.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {suggestions.map(s => {
+                        const isEditing = editingSuggestionId === s.id;
+                        const isDeleting = deletingSuggestionId === s.id;
+
+                        return (
+                          <motion.div
+                            key={s.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className={`rounded-3xl border transition-all group cursor-default ${
+                              isEditing
+                                ? 'p-6 border-primary/30 bg-primary/[0.02]'
+                                : 'p-6 bg-surface-container-low border-surface-container hover:border-primary/20'
+                            }`}
+                          >
+                            {isEditing ? (
+                              <div className="space-y-3">
+                                <textarea
+                                  value={editSuggestionContent}
+                                  onChange={e => setEditSuggestionContent(e.target.value)}
+                                  rows={4}
+                                  className="w-full px-5 py-3 bg-white rounded-2xl font-medium text-sm leading-relaxed border-2 border-surface-container focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 resize-none transition-all"
+                                />
+                                <div className="flex gap-3">
+                                  <button
+                                    onClick={() => handleSaveEditSuggestion(s.id)}
+                                    disabled={savingSuggestionId === s.id}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-black text-xs hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm"
+                                  >
+                                    {savingSuggestionId === s.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                                    저장
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEditSuggestion}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-surface-container text-on-surface-variant rounded-xl font-black text-xs hover:bg-surface-container-high active:scale-95 transition-all"
+                                  >
+                                    <X size={13} /> 취소
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="flex items-start gap-4">
+                                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                                    <MessageSquare size={18} />
+                                  </div>
+                                  <div className="flex-1 min-w-0 space-y-1">
+                                    <p className="text-sm font-medium text-on-surface leading-relaxed">{s.content}</p>
+                                    <p className="text-[10px] font-bold text-on-surface-variant/50 flex items-center gap-1">
+                                      <Clock size={10} />
+                                      {formatRelativeTime(s.created_at)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => handleStartEditSuggestion(s)}
+                                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all"
+                                  >
+                                    <Pencil size={12} /> 수정
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSuggestion(s.id)}
+                                    disabled={isDeleting}
+                                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
+                                  >
+                                    {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                    삭제
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

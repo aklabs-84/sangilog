@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, User as UserIcon, BookOpen, Clock, Activity,
   Sparkles, CheckCircle2, ThumbsUp, Loader2, Pencil, Trash2,
-  Check, X
+  Check, X, FolderOpen, AlignLeft, Link2, ImageIcon, File,
+  Upload, ExternalLink, Megaphone, MessageSquare
 } from 'lucide-react';
 import { geminiFlash } from '../lib/gemini';
 
@@ -20,6 +21,12 @@ const StudentView = () => {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  // Results & Suggestions States
+  const [results, setResults] = useState<any[]>([]);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [studentSuggestions, setStudentSuggestions] = useState<any[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   // Edit / Delete States
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -63,6 +70,46 @@ const StudentView = () => {
     } finally {
       setLoading(false);
     }
+
+    // results & suggestions 병렬 조회
+    setResultsLoading(true);
+    setSuggestionsLoading(true);
+    const [resResult, sugResult] = await Promise.all([
+      supabase.from('student_results').select('*').eq('student_id', id).order('created_at', { ascending: false }),
+      supabase.from('student_suggestions').select('*').eq('student_id', id).order('created_at', { ascending: false })
+    ]);
+    if (!resResult.error) setResults(resResult.data || []);
+    setResultsLoading(false);
+    if (!sugResult.error) setStudentSuggestions(sugResult.data || []);
+    setSuggestionsLoading(false);
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const formatRelativeTime = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const min = Math.floor(diff / 60000);
+    const hour = Math.floor(min / 60);
+    const day = Math.floor(hour / 24);
+    if (min < 1) return '방금 전';
+    if (min < 60) return `${min}분 전`;
+    if (hour < 24) return `${hour}시간 전`;
+    return `${day}일 전`;
+  };
+
+  const handleDownloadResult = (result: any) => {
+    const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
+    const link = document.createElement('a');
+    link.href = data.publicUrl;
+    link.download = result.display_name || 'download';
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleApprove = async (obsId: string) => {
@@ -436,6 +483,153 @@ ${activitiesContext}
             )}
           </div>
         </div>
+      </div>
+
+      {/* ─── 결과 제출 목록 ─── */}
+      <div className="surface-card p-8 shadow-ambient border border-white/60">
+        <div className="flex items-center justify-between mb-6 pb-5 border-b border-surface-container">
+          <h2 className="text-xl font-black flex items-center gap-3">
+            <FolderOpen size={22} className="text-primary" />
+            결과 제출 목록
+          </h2>
+          <span className="px-3 py-1.5 bg-neutral-100 rounded-lg text-xs font-bold text-neutral-500">
+            총 {results.length}건
+          </span>
+        </div>
+
+        {resultsLoading ? (
+          <div className="flex justify-center py-10"><Loader2 size={28} className="animate-spin text-primary" /></div>
+        ) : results.length === 0 ? (
+          <div className="flex flex-col items-center py-12 space-y-3 opacity-30">
+            <FolderOpen size={48} />
+            <p className="font-black">제출된 결과물이 없습니다.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {results.map(r => {
+              const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+                text:  { icon: <AlignLeft size={16} />,  color: 'text-primary bg-primary/10',       label: '텍스트' },
+                link:  { icon: <Link2 size={16} />,      color: 'text-blue-500 bg-blue-50',         label: '링크' },
+                image: { icon: <ImageIcon size={16} />,  color: 'text-emerald-500 bg-emerald-50',   label: '이미지' },
+                file:  { icon: <File size={16} />,       color: 'text-amber-500 bg-amber-50',       label: '파일' }
+              };
+              const cfg = typeConfig[r.result_type] || typeConfig.file;
+              const publicUrl = r.storage_path
+                ? supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data.publicUrl
+                : null;
+
+              return (
+                <div
+                  key={r.id}
+                  className="p-5 rounded-2xl border-2 border-surface-container bg-surface-container-low hover:border-primary/20 transition-all group"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cfg.color}`}>
+                      {cfg.icon}
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {r.title && <p className="font-black text-sm">{r.title}</p>}
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>
+                          {cfg.label}
+                        </span>
+                      </div>
+
+                      {r.text_content && (
+                        <p className="text-xs font-medium text-on-surface/80 leading-relaxed line-clamp-3 whitespace-pre-wrap">
+                          {r.text_content}
+                        </p>
+                      )}
+
+                      {r.link_url && (
+                        <a
+                          href={r.link_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 truncate"
+                        >
+                          <ExternalLink size={11} />{r.link_url}
+                        </a>
+                      )}
+
+                      {r.result_type === 'image' && publicUrl && (
+                        <img
+                          src={publicUrl}
+                          alt={r.title || '이미지'}
+                          className="max-h-32 rounded-xl object-cover mt-1 cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => window.open(publicUrl, '_blank')}
+                        />
+                      )}
+
+                      {r.result_type === 'file' && (
+                        <p className="text-xs font-bold text-amber-600 flex items-center gap-1">
+                          <File size={11} />{r.display_name}
+                          {r.file_size ? ` (${formatFileSize(r.file_size)})` : ''}
+                        </p>
+                      )}
+
+                      <p className="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1">
+                        <Clock size={10} />{formatRelativeTime(r.created_at)}
+                      </p>
+                    </div>
+
+                    {/* 다운로드 버튼 */}
+                    {(r.result_type === 'image' || r.result_type === 'file') && r.storage_path && (
+                      <button
+                        onClick={() => handleDownloadResult(r)}
+                        title="다운로드"
+                        className="w-8 h-8 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                      >
+                        <Upload size={14} className="rotate-180" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ─── 건의사항 ─── */}
+      <div className="surface-card p-8 shadow-ambient border border-white/60">
+        <div className="flex items-center justify-between mb-6 pb-5 border-b border-surface-container">
+          <h2 className="text-xl font-black flex items-center gap-3">
+            <Megaphone size={22} className="text-primary" />
+            건의사항
+          </h2>
+          <span className="px-3 py-1.5 bg-neutral-100 rounded-lg text-xs font-bold text-neutral-500">
+            총 {studentSuggestions.length}건
+          </span>
+        </div>
+
+        {suggestionsLoading ? (
+          <div className="flex justify-center py-10"><Loader2 size={28} className="animate-spin text-primary" /></div>
+        ) : studentSuggestions.length === 0 ? (
+          <div className="flex flex-col items-center py-12 space-y-3 opacity-30">
+            <Megaphone size={48} />
+            <p className="font-black">등록된 건의사항이 없습니다.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {studentSuggestions.map(s => (
+              <div
+                key={s.id}
+                className="flex items-start gap-4 p-5 rounded-2xl border border-surface-container bg-surface-container-low hover:border-primary/20 transition-all"
+              >
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                  <MessageSquare size={16} />
+                </div>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <p className="text-sm font-medium text-on-surface leading-relaxed">{s.content}</p>
+                  <p className="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1">
+                    <Clock size={10} />{formatRelativeTime(s.created_at)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Toast Notifications */}

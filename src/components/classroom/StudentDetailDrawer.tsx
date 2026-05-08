@@ -1,5 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, User as UserIcon, BookOpen, Clock, Activity, FileText, CheckCircle2 } from 'lucide-react';
+import {
+  X, Sparkles, User as UserIcon, BookOpen, Clock, Activity, FileText, CheckCircle2,
+  FolderOpen, AlignLeft, Link2, ImageIcon, File, Upload, ExternalLink, Megaphone, MessageSquare, Loader2
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
@@ -14,24 +17,54 @@ interface StudentDetailDrawerProps {
 const StudentDetailDrawer = ({ isOpen, onClose, studentId }: StudentDetailDrawerProps) => {
   const [student, setStudent] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const navigate = useNavigate();
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleDownloadResult = (result: any) => {
+    const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
+    const link = document.createElement('a');
+    link.href = data.publicUrl;
+    link.download = result.display_name || 'download';
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   useEffect(() => {
     const fetchStudentDetail = async () => {
       if (!studentId || !isOpen) return;
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('students')
-          .select(`
-            *,
-            observations(id, content, activity_name, created_at, is_student_record, status)
-          `)
-          .eq('id', studentId)
-          .single();
+        const [studentRes, resultsRes, suggestionsRes] = await Promise.all([
+          supabase
+            .from('students')
+            .select(`*, observations(id, content, activity_name, created_at, is_student_record, status)`)
+            .eq('id', studentId)
+            .single(),
+          supabase
+            .from('student_results')
+            .select('*')
+            .eq('student_id', studentId)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('student_suggestions')
+            .select('*')
+            .eq('student_id', studentId)
+            .order('created_at', { ascending: false })
+        ]);
 
-        if (error) throw error;
-        setStudent(data);
+        if (studentRes.error) throw studentRes.error;
+        setStudent(studentRes.data);
+        if (!resultsRes.error) setResults(resultsRes.data || []);
+        if (!suggestionsRes.error) setSuggestions(suggestionsRes.data || []);
       } catch (err) {
         console.error('Error fetching student detail for drawer:', err);
       } finally {
@@ -187,6 +220,128 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId }: StudentDetailDrawer
                         <p className="text-xs font-bold text-neutral-400">최근 활동 기록이 없습니다.</p>
                      </div>
                    )}
+                </div>
+
+                {/* 결과 제출 목록 */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
+                      <FolderOpen size={14} /> 결과 제출
+                    </h4>
+                    <span className="text-[10px] font-black text-on-surface-variant/50 bg-surface-container px-2 py-0.5 rounded-md">
+                      {results.length}건
+                    </span>
+                  </div>
+
+                  {loading ? (
+                    <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-primary" /></div>
+                  ) : results.length === 0 ? (
+                    <div className="p-4 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
+                      <p className="text-xs font-bold text-neutral-400">제출된 결과물이 없습니다.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {results.map(r => {
+                        const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+                          text:  { icon: <AlignLeft size={13} />,  color: 'text-primary bg-primary/10',     label: '텍스트' },
+                          link:  { icon: <Link2 size={13} />,      color: 'text-blue-500 bg-blue-50',       label: '링크' },
+                          image: { icon: <ImageIcon size={13} />,  color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
+                          file:  { icon: <File size={13} />,       color: 'text-amber-500 bg-amber-50',     label: '파일' }
+                        };
+                        const cfg = typeConfig[r.result_type] || typeConfig.file;
+                        const publicUrl = r.storage_path
+                          ? supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data.publicUrl
+                          : null;
+
+                        return (
+                          <div key={r.id} className="p-3.5 bg-white rounded-xl border border-neutral-100 hover:border-primary/20 transition-colors group">
+                            <div className="flex items-start gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cfg.color}`}>
+                                {cfg.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                  {r.title && <span className="font-black text-xs text-on-surface">{r.title}</span>}
+                                  <span className={`text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${cfg.color}`}>
+                                    {cfg.label}
+                                  </span>
+                                </div>
+                                {r.text_content && (
+                                  <p className="text-[11px] font-medium text-on-surface/70 line-clamp-2 leading-relaxed">{r.text_content}</p>
+                                )}
+                                {r.link_url && (
+                                  <a href={r.link_url} target="_blank" rel="noopener noreferrer"
+                                    className="text-[11px] font-bold text-blue-500 hover:underline flex items-center gap-1 truncate">
+                                    <ExternalLink size={10} />{r.link_url}
+                                  </a>
+                                )}
+                                {r.result_type === 'image' && publicUrl && (
+                                  <img
+                                    src={publicUrl}
+                                    alt={r.title || '이미지'}
+                                    className="max-h-20 rounded-lg object-cover mt-1.5 cursor-pointer hover:opacity-80"
+                                    onClick={() => window.open(publicUrl, '_blank')}
+                                  />
+                                )}
+                                {r.result_type === 'file' && (
+                                  <p className="text-[11px] font-bold text-amber-600 flex items-center gap-1 mt-0.5">
+                                    <File size={10} />{r.display_name}
+                                    {r.file_size ? ` (${formatFileSize(r.file_size)})` : ''}
+                                  </p>
+                                )}
+                              </div>
+                              {(r.result_type === 'image' || r.result_type === 'file') && r.storage_path && (
+                                <button
+                                  onClick={() => handleDownloadResult(r)}
+                                  title="다운로드"
+                                  className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                >
+                                  <Upload size={12} className="rotate-180" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 건의사항 */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
+                      <Megaphone size={14} /> 건의사항
+                    </h4>
+                    <span className="text-[10px] font-black text-on-surface-variant/50 bg-surface-container px-2 py-0.5 rounded-md">
+                      {suggestions.length}건
+                    </span>
+                  </div>
+
+                  {loading ? (
+                    <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-primary" /></div>
+                  ) : suggestions.length === 0 ? (
+                    <div className="p-4 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
+                      <p className="text-xs font-bold text-neutral-400">등록된 건의사항이 없습니다.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {suggestions.map(s => (
+                        <div key={s.id} className="flex items-start gap-3 p-3.5 bg-white rounded-xl border border-neutral-100 hover:border-primary/20 transition-colors">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                            <MessageSquare size={13} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-medium text-on-surface/80 leading-relaxed line-clamp-3">{s.content}</p>
+                            <p className="text-[9px] font-bold text-on-surface-variant/40 mt-1 flex items-center gap-1">
+                              <Clock size={9} />
+                              {new Date(s.created_at).toLocaleDateString('ko-KR')}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}
