@@ -33,3 +33,6 @@ Docs/
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright MCP (자동 생성 로그/스크린샷)
+.playwright-mcp/
