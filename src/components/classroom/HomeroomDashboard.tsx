@@ -17,8 +17,13 @@ import {
   Save,
   Maximize2,
   CheckCheck,
-  Clock as ClockIcon
+  Clock as ClockIcon,
+  BarChart2,
+  ChevronDown,
+  ChevronUp,
+  Trash2
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface HomeroomDashboardProps {
   classInfo: any;
@@ -36,6 +41,7 @@ interface HomeroomDashboardProps {
   linkedClasses: any[];
   onSelectClass: (id: string) => void;
   onEditStudent: (id: string, number: string, name: string) => Promise<void>;
+  onDeleteStudent: (id: string) => void;
   onBulkApprove: () => void;
 }
 
@@ -55,6 +61,7 @@ const HomeroomDashboard = ({
   linkedClasses,
   onSelectClass: _onSelectClass,
   onEditStudent,
+  onDeleteStudent,
   onBulkApprove
 }: HomeroomDashboardProps) => {
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
@@ -74,6 +81,52 @@ const HomeroomDashboard = ({
   }, []);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
+
+  // ── 날짜별 제출 통계 ──
+  const [showStats, setShowStats] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [selectedStatsDate, setSelectedStatsDate] = useState<string | null>(null);
+  const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string}>>([]);
+  const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string}>>([]);
+  const [rawSuggestions, setRawSuggestions] = useState<Array<{created_at: string, student_id: string}>>([]);
+
+  const toDate = (d: string) => new Date(d).toISOString().slice(0, 10);
+
+  // 데이터 있는 날짜 목록 (내림차순, 최대 14일)
+  const statsDates = [...new Set([
+    ...rawObs.map(r => toDate(r.created_at)),
+    ...rawResults.map(r => toDate(r.created_at)),
+    ...rawSuggestions.map(r => toDate(r.created_at))
+  ])].sort((a, b) => b.localeCompare(a)).slice(0, 14);
+
+  // 선택 날짜 기준 student_id Set
+  const obsOnDate    = new Set(rawObs.filter(r => toDate(r.created_at) === selectedStatsDate).map(r => r.student_id));
+  const resultsOnDate = new Set(rawResults.filter(r => toDate(r.created_at) === selectedStatsDate).map(r => r.student_id));
+  const suggestOnDate = new Set(rawSuggestions.filter(r => toDate(r.created_at) === selectedStatsDate).map(r => r.student_id));
+
+  useEffect(() => {
+    const fetchActivityStats = async () => {
+      if (!classInfo?.id || students.length === 0) return;
+      setStatsLoading(true);
+      try {
+        const studentIds = students.map((s: any) => s.id);
+        const [obsRes, resultsRes, suggestRes] = await Promise.all([
+          supabase.from('observations').select('created_at, student_id').in('student_id', studentIds).eq('is_student_record', true),
+          supabase.from('student_results').select('created_at, student_id').eq('class_id', classInfo.id),
+          supabase.from('student_suggestions').select('created_at, student_id').eq('class_id', classInfo.id)
+        ]);
+        setRawObs(obsRes.data || []);
+        setRawResults(resultsRes.data || []);
+        setRawSuggestions(suggestRes.data || []);
+      } catch (err) {
+        console.error('fetchActivityStats error:', err);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    fetchActivityStats();
+  }, [classInfo?.id, students.length]);
+  const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNumber, setEditNumber] = useState('');
   const [editName, setEditName] = useState('');
@@ -261,6 +314,90 @@ const HomeroomDashboard = ({
                </div>
            </div>
 
+           {/* ── 날짜별 제출 현황 통계 ── */}
+           <div className="mb-6 rounded-2xl border border-neutral-100 bg-neutral-50/60 overflow-hidden">
+             <button
+               onClick={() => setShowStats(v => !v)}
+               className="w-full flex items-center justify-between px-6 py-4 hover:bg-neutral-100/60 transition-colors"
+             >
+               <div className="flex items-center gap-3">
+                 <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                   <BarChart2 size={14} />
+                 </div>
+                 <span className="text-sm font-black text-on-surface">날짜별 제출 현황</span>
+                 {statsDates.length > 0 && (
+                   <span className="text-[10px] font-bold text-on-surface-variant/50 bg-white px-2 py-0.5 rounded-md border border-neutral-200">
+                     최근 {statsDates.length}일
+                   </span>
+                 )}
+                 {selectedStatsDate && (
+                   <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
+                     {(() => { const [, m, d] = selectedStatsDate.split('-'); return `${parseInt(m)}월 ${parseInt(d)}일 선택됨`; })()}
+                   </span>
+                 )}
+               </div>
+               {showStats ? <ChevronUp size={16} className="text-on-surface-variant/40" /> : <ChevronDown size={16} className="text-on-surface-variant/40" />}
+             </button>
+
+             {showStats && (
+               <div className="px-6 pb-5">
+                 {statsLoading ? (
+                   <div className="flex items-center justify-center py-6 text-on-surface-variant/40">
+                     <span className="text-xs font-bold">불러오는 중...</span>
+                   </div>
+                 ) : statsDates.length === 0 ? (
+                   <div className="text-center py-6 text-on-surface-variant/30">
+                     <p className="text-xs font-black">제출된 데이터가 없습니다.</p>
+                   </div>
+                 ) : (
+                   <div className="space-y-4">
+                     {/* 날짜 칩 */}
+                     <div className="flex items-center gap-2 flex-wrap">
+                       {statsDates.map(date => {
+                         const [, m, d] = date.split('-');
+                         const label = `${parseInt(m)}/${parseInt(d)}`;
+                         const isSelected = selectedStatsDate === date;
+                         return (
+                           <button
+                             key={date}
+                             onClick={() => setSelectedStatsDate(isSelected ? null : date)}
+                             className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border ${
+                               isSelected
+                                 ? 'bg-primary text-white border-primary shadow-sm'
+                                 : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'
+                             }`}
+                           >
+                             {label}
+                           </button>
+                         );
+                       })}
+                     </div>
+
+                     {/* 선택 날짜 카테고리 요약 */}
+                     {selectedStatsDate ? (
+                       <div className="flex items-center gap-3 flex-wrap">
+                         {[
+                           { label: '📝 활동 기록', count: obsOnDate.size, colorClass: 'bg-violet-50 border-violet-100 text-violet-700' },
+                           { label: '📁 결과 제출', count: resultsOnDate.size, colorClass: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
+                           { label: '💬 건의사항', count: suggestOnDate.size, colorClass: 'bg-rose-50 border-rose-100 text-rose-700' },
+                         ].map(({ label, count, colorClass }) => (
+                           <div key={label} className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black ${colorClass}`}>
+                             <span>{label}</span>
+                             <span className="text-base font-black">{count}</span>
+                             <span className="font-bold opacity-60">명</span>
+                           </div>
+                         ))}
+                         <p className="text-[10px] font-bold text-on-surface-variant/40 ml-1">아래 표에서 제출 현황을 확인하세요</p>
+                       </div>
+                     ) : (
+                       <p className="text-[11px] font-bold text-on-surface-variant/40">날짜를 선택하면 해당일 제출 현황이 아래 표에 표시됩니다.</p>
+                     )}
+                   </div>
+                 )}
+               </div>
+             )}
+           </div>
+
            <div className="overflow-x-auto bg-white rounded-3xl border border-neutral-100 shadow-sm">
              <table className="w-full text-left border-collapse min-w-[700px]">
                <thead className="sticky top-0 z-10">
@@ -281,6 +418,12 @@ const HomeroomDashboard = ({
                    <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">NO.</th>
                    <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">학생 정보</th>
                    <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">연동 과목</th>
+                   <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">승인</th>
+                   {selectedStatsDate && (
+                     <th className="p-6 text-[13px] font-black text-primary/80 uppercase tracking-widest text-center">
+                       {(() => { const [, m, d] = selectedStatsDate.split('-'); return `${parseInt(m)}/${parseInt(d)} 제출`; })()}
+                     </th>
+                   )}
                    <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-12">관리</th>
                  </tr>
                </thead>
@@ -371,6 +514,37 @@ const HomeroomDashboard = ({
                              </div>
                          </td>
 
+                         {/* 승인 셀 */}
+                         <td className="p-6 text-center">
+                           {(!s.activity || s.activity === '기록 없음') ? (
+                             <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
+                           ) : (s.pending_obs_ids?.length > 0) ? (
+                             <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200">승인 대기</span>
+                           ) : (
+                             <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20">승인 완료</span>
+                           )}
+                         </td>
+
+                         {/* 날짜별 제출 현황 셀 */}
+                         {selectedStatsDate && (
+                           <td className="p-6 text-center">
+                             <div className="flex items-center justify-center gap-1 flex-wrap">
+                               {obsOnDate.has(s.id) && (
+                                 <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-violet-50 text-violet-600 border border-violet-100 whitespace-nowrap">📝활동</span>
+                               )}
+                               {resultsOnDate.has(s.id) && (
+                                 <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁결과</span>
+                               )}
+                               {suggestOnDate.has(s.id) && (
+                                 <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-rose-50 text-rose-600 border border-rose-100 whitespace-nowrap">💬건의</span>
+                               )}
+                               {!obsOnDate.has(s.id) && !resultsOnDate.has(s.id) && !suggestOnDate.has(s.id) && (
+                                 <span className="text-neutral-300 font-bold text-sm">—</span>
+                               )}
+                             </div>
+                           </td>
+                         )}
+
                          {/* 관리 셀 */}
                          <td className="p-6 text-right pr-10" onClick={(e) => e.stopPropagation()}>
                            {isEditing ? (
@@ -391,7 +565,7 @@ const HomeroomDashboard = ({
                                </button>
                              </div>
                            ) : (
-                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
                                <button
                                  onClick={(e) => handleStartEdit(e, s)}
                                  className="p-2 text-neutral-400 hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
@@ -399,7 +573,20 @@ const HomeroomDashboard = ({
                                >
                                  <Pencil size={16} />
                                </button>
-                               <div className="p-2 text-primary/40"><ArrowRight size={18} /></div>
+                               <button
+                                 onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }}
+                                 className="p-2 text-neutral-400 hover:text-error hover:bg-error/10 rounded-xl transition-all"
+                                 title="학생 삭제"
+                               >
+                                 <Trash2 size={16} />
+                               </button>
+                               <button
+                                 onClick={(e) => { e.stopPropagation(); onNavigateToStudent(s.id); }}
+                                 className="p-2 text-primary/40 hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
+                                 title="상세 보기"
+                               >
+                                 <ArrowRight size={18} />
+                               </button>
                              </div>
                            )}
                          </td>
@@ -408,7 +595,7 @@ const HomeroomDashboard = ({
                    })
                  ) : (
                     <tr>
-                      <td colSpan={5} className="py-24 text-center">
+                      <td colSpan={selectedStatsDate ? 7 : 6} className="py-24 text-center">
                         <div className="flex flex-col items-center justify-center text-on-surface-variant/20 gap-4">
                           <div className="p-6 bg-neutral-50 rounded-full shadow-inner"><Search size={40} /></div>
                           <p className="font-black text-xs tracking-widest uppercase">일치하는 학생이 없습니다</p>
@@ -604,15 +791,43 @@ const HomeroomDashboard = ({
     {/* 활동 참여 현황 모달 */}
     <AnimatePresence>
       {showActivityModal && (() => {
-        const submitted = students.filter(s => s.activity && s.activity !== '기록 없음');
-        const notSubmitted = students.filter(s => !s.activity || s.activity === '기록 없음');
+        // 전체 날짜 추출 (중복 제거, 최신순)
+        const allDates = [...new Set(
+          students.flatMap(s => (s.all_observations || []).map((o: any) =>
+            new Date(o.created_at).toISOString().slice(0, 10)
+          ))
+        )].sort((a, b) => b.localeCompare(a));
+
+        const formatDate = (iso: string) => {
+          const d = new Date(iso);
+          return `${d.getMonth() + 1}/${d.getDate()}`;
+        };
+
+        const submitted = selectedActivityDate
+          ? students.filter(s =>
+              (s.all_observations || []).some((o: any) =>
+                new Date(o.created_at).toISOString().slice(0, 10) === selectedActivityDate
+              )
+            )
+          : students.filter(s => s.activity && s.activity !== '기록 없음');
+
+        const notSubmitted = students.filter(s => !submitted.includes(s));
+
+        const getActivityLabel = (s: any) => {
+          if (!selectedActivityDate) return s.activity;
+          const obs = (s.all_observations || []).find((o: any) =>
+            new Date(o.created_at).toISOString().slice(0, 10) === selectedActivityDate
+          );
+          return obs?.activity_name || s.activity;
+        };
+
         return (
           <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden"
+              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
             >
               {/* Modal Header */}
               <div className="flex items-center justify-between px-10 py-7 border-b border-neutral-100">
@@ -633,13 +848,42 @@ const HomeroomDashboard = ({
                     </div>
                   </div>
                   <button
-                    onClick={() => setShowActivityModal(false)}
+                    onClick={() => { setShowActivityModal(false); setSelectedActivityDate(null); }}
                     className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all"
                   >
                     <X size={20} />
                   </button>
                 </div>
               </div>
+
+              {/* 날짜 필터 칩 */}
+              {allDates.length > 0 && (
+                <div className="px-10 py-3 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                  <button
+                    onClick={() => setSelectedActivityDate(null)}
+                    className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
+                      selectedActivityDate === null
+                        ? 'bg-secondary text-white border-secondary shadow-sm'
+                        : 'bg-white text-neutral-400 border-neutral-200 hover:border-secondary/40'
+                    }`}
+                  >
+                    전체
+                  </button>
+                  {allDates.map(date => (
+                    <button
+                      key={date}
+                      onClick={() => setSelectedActivityDate(date)}
+                      className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
+                        selectedActivityDate === date
+                          ? 'bg-secondary text-white border-secondary shadow-sm'
+                          : 'bg-white text-neutral-400 border-neutral-200 hover:border-secondary/40'
+                      }`}
+                    >
+                      {formatDate(date)}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Modal Body */}
               <div className="flex-1 overflow-hidden grid grid-cols-2 divide-x divide-neutral-100">
@@ -654,7 +898,7 @@ const HomeroomDashboard = ({
                       submitted.map(s => (
                         <div
                           key={s.id}
-                          onClick={() => { onNavigateToStudent(s.id); setShowActivityModal(false); }}
+                          onClick={() => { onNavigateToStudent(s.id); setShowActivityModal(false); setSelectedActivityDate(null); }}
                           className="flex items-center gap-3 px-8 py-3 hover:bg-secondary/5 cursor-pointer transition-all group"
                         >
                           <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary shrink-0">
@@ -664,7 +908,7 @@ const HomeroomDashboard = ({
                             <p className="text-sm font-black group-hover:text-secondary transition-colors">
                               {s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
-                            <p className="text-[10px] text-neutral-400 font-medium truncate">{s.activity}</p>
+                            <p className="text-[10px] text-neutral-400 font-medium truncate">{getActivityLabel(s)}</p>
                           </div>
                           <CheckCircle2 size={14} className="text-secondary shrink-0" />
                         </div>
@@ -689,7 +933,7 @@ const HomeroomDashboard = ({
                       notSubmitted.map(s => (
                         <div
                           key={s.id}
-                          onClick={() => { onNavigateToStudent(s.id); setShowActivityModal(false); }}
+                          onClick={() => { onNavigateToStudent(s.id); setShowActivityModal(false); setSelectedActivityDate(null); }}
                           className="flex items-center gap-3 px-8 py-3 hover:bg-amber-50 cursor-pointer transition-all group"
                         >
                           <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-400 shrink-0">
@@ -728,7 +972,7 @@ const HomeroomDashboard = ({
                   </span>
                 </div>
                 <button
-                  onClick={() => setShowActivityModal(false)}
+                  onClick={() => { setShowActivityModal(false); setSelectedActivityDate(null); }}
                   className="px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all"
                 >
                   닫기

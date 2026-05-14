@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Bell, Settings, Trash2, Plus, GraduationCap } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -8,6 +8,11 @@ import { useAuth } from '../../lib/auth';
 const Navbar = () => {
   const { user, profile } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false); // avatar_url 바뀌면 에러 상태 초기화
+  }, [profile?.avatar_url]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -58,6 +63,11 @@ const Navbar = () => {
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
     }
+  };
+
+  const handleNotificationClick = (n: any) => {
+    markAsRead(n.id);
+    setShowNotifications(false);
   };
 
   const clearAll = async () => {
@@ -182,23 +192,42 @@ const Navbar = () => {
                 </div>
 
                 <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
-                  {notifications.length > 0 ? (
-                    notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        onClick={() => markAsRead(n.id)}
-                        className={`p-4 rounded-xl transition-all cursor-pointer border ${n.is_read ? 'bg-surface-container/30 border-transparent opacity-60' : 'bg-white border-primary/5 shadow-soft hover:border-primary/20 hover:scale-[1.01]'}`}
-                      >
+                  {notifications.length > 0 ? notifications.map((n) => {
+                    const dest: string | null = n.link ||
+                      ((n.type === 'student_submission' || n.type === 'result_submission') ? '/classroom' : null);
+                    const baseClass = `p-4 rounded-xl transition-all border block ${
+                      n.is_read
+                        ? 'bg-surface-container/30 border-transparent opacity-60'
+                        : `bg-white border-primary/5 shadow-soft hover:border-primary/20 hover:scale-[1.01] ${dest ? 'cursor-pointer' : 'cursor-default'}`
+                    }`;
+                    const content = (
+                      <>
                         <div className="flex items-start justify-between gap-3">
                           <p className={`text-sm tracking-tight leading-snug ${n.is_read ? 'font-medium' : 'font-black text-on-surface'}`}>
                             {n.title}
                           </p>
                           {!n.is_read && <div className="w-2 h-2 bg-primary rounded-full mt-1.5 shrink-0 shadow-[0_0_8px_rgba(var(--primary-rgb),0.5)]" />}
                         </div>
-                        <p className="text-[9px] font-black text-primary/40 uppercase tracking-[0.2em] mt-2">{formatTime(n.created_at)}</p>
+                        {n.content && <p className="text-[11px] font-medium text-on-surface-variant/60 mt-1 leading-snug line-clamp-1">{n.content}</p>}
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-[9px] font-black text-primary/40 uppercase tracking-[0.2em]">{formatTime(n.created_at)}</p>
+                          {dest && !n.is_read && <span className="text-[9px] font-black text-primary/50 uppercase tracking-widest">바로가기 →</span>}
+                        </div>
+                      </>
+                    );
+                    if (dest) {
+                      return (
+                        <Link key={n.id} to={dest} className={baseClass} onClick={() => handleNotificationClick(n)}>
+                          {content}
+                        </Link>
+                      );
+                    }
+                    return (
+                      <div key={n.id} onClick={() => handleNotificationClick(n)} className={baseClass}>
+                        {content}
                       </div>
-                    ))
-                  ) : (
+                    );
+                  }) : (
                     <div className="py-12 text-center space-y-3">
                       <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mx-auto opacity-40">
                         <Bell size={32} className="text-primary" />
@@ -232,20 +261,12 @@ const Navbar = () => {
             </p>
           </div>
           <div className="w-9 h-9 rounded-xl overflow-hidden cursor-pointer group-hover:ring-2 group-hover:ring-primary/10 transition-all border border-white shadow-soft shrink-0">
-            {profile?.avatar_url ? (
+            {profile?.avatar_url && !avatarError ? (
               <img
                 src={profile.avatar_url}
                 alt="Profile"
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.classList.add('bg-gradient-to-br', 'from-primary', 'to-secondary', 'flex', 'items-center', 'justify-center');
-                    parent.innerHTML = `<span class="text-white text-xs font-black">${(profile?.full_name || '?').charAt(0).toUpperCase()}</span>`;
-                  }
-                }}
+                onError={() => setAvatarError(true)}
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">

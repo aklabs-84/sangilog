@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Sparkles, User as UserIcon, BookOpen, Clock, Activity, FileText, CheckCircle2,
-  FolderOpen, AlignLeft, Link2, ImageIcon, File, Upload, ExternalLink, Megaphone, MessageSquare, Loader2
+  FolderOpen, AlignLeft, Link2, ImageIcon, File, Upload, ExternalLink, Megaphone, MessageSquare, Loader2,
+  Reply, Send
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -19,7 +20,37 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId }: StudentDetailDrawer
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [replyingId, setReplyingId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [savingReplyId, setSavingReplyId] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const handleSaveReply = async (suggestionId: string) => {
+    if (!replyText.trim()) return;
+    setSavingReplyId(suggestionId);
+    try {
+      const { error } = await supabase
+        .from('student_suggestions')
+        .update({
+          teacher_reply: replyText.trim(),
+          replied_at: new Date().toISOString(),
+          is_reply_read: false
+        })
+        .eq('id', suggestionId);
+      if (error) throw error;
+      setSuggestions(prev => prev.map(s =>
+        s.id === suggestionId
+          ? { ...s, teacher_reply: replyText.trim(), replied_at: new Date().toISOString(), is_reply_read: false }
+          : s
+      ));
+      setReplyingId(null);
+      setReplyText('');
+    } catch (err) {
+      console.error('Reply save error:', err);
+    } finally {
+      setSavingReplyId(null);
+    }
+  };
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -326,20 +357,89 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId }: StudentDetailDrawer
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {suggestions.map(s => (
-                        <div key={s.id} className="flex items-start gap-3 p-3.5 bg-white rounded-xl border border-neutral-100 hover:border-primary/20 transition-colors">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                            <MessageSquare size={13} />
+                      {suggestions.map(s => {
+                        const isReplying = replyingId === s.id;
+                        return (
+                          <div key={s.id} className="rounded-xl border border-neutral-100 bg-white overflow-hidden">
+                            {/* 학생 건의 내용 */}
+                            <div className="flex items-start gap-3 p-3.5">
+                              <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-400 shrink-0">
+                                <MessageSquare size={13} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-medium text-on-surface/80 leading-relaxed">{s.content}</p>
+                                <p className="text-[9px] font-bold text-on-surface-variant/40 mt-1 flex items-center gap-1">
+                                  <Clock size={9} />
+                                  {new Date(s.created_at).toLocaleDateString('ko-KR')}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* 답변 영역 */}
+                            {isReplying ? (
+                              <div className="border-t border-neutral-100 bg-primary/[0.02] p-3.5 space-y-2">
+                                <textarea
+                                  value={replyText}
+                                  onChange={e => setReplyText(e.target.value)}
+                                  rows={3}
+                                  autoFocus
+                                  placeholder="학생에게 전달할 답변을 입력하세요..."
+                                  className="w-full px-3 py-2 bg-white rounded-xl text-xs font-medium border border-neutral-200 focus:border-primary/40 focus:outline-none resize-none transition-all"
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleSaveReply(s.id)}
+                                    disabled={savingReplyId === s.id || !replyText.trim()}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-[10px] font-black hover:bg-primary/80 disabled:opacity-50 transition-all"
+                                  >
+                                    {savingReplyId === s.id ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+                                    답변 저장
+                                  </button>
+                                  <button
+                                    onClick={() => { setReplyingId(null); setReplyText(''); }}
+                                    className="px-3 py-1.5 text-neutral-400 rounded-lg text-[10px] font-black hover:bg-neutral-100 transition-all"
+                                  >
+                                    취소
+                                  </button>
+                                </div>
+                              </div>
+                            ) : s.teacher_reply ? (
+                              <div className="border-t border-primary/10 bg-primary/[0.03] p-3.5">
+                                <div className="flex items-start gap-2">
+                                  <div className="w-6 h-6 rounded-md bg-primary/15 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                                    <Reply size={11} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[9px] font-black text-primary uppercase tracking-wider mb-1">선생님 답변</p>
+                                    <p className="text-[11px] font-medium text-on-surface/80 leading-relaxed">{s.teacher_reply}</p>
+                                    {s.replied_at && (
+                                      <p className="text-[9px] font-bold text-on-surface-variant/30 mt-1 flex items-center gap-1">
+                                        <Clock size={9} />
+                                        {new Date(s.replied_at).toLocaleDateString('ko-KR')}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => { setReplyingId(s.id); setReplyText(s.teacher_reply); }}
+                                    className="text-[9px] font-black text-primary/50 hover:text-primary transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-primary/10"
+                                  >
+                                    수정
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="border-t border-neutral-100 px-3.5 py-2.5">
+                                <button
+                                  onClick={() => { setReplyingId(s.id); setReplyText(''); }}
+                                  className="text-[10px] font-black text-primary/60 hover:text-primary flex items-center gap-1.5 transition-colors"
+                                >
+                                  <Reply size={11} /> 답변 작성
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-medium text-on-surface/80 leading-relaxed line-clamp-3">{s.content}</p>
-                            <p className="text-[9px] font-bold text-on-surface-variant/40 mt-1 flex items-center gap-1">
-                              <Clock size={9} />
-                              {new Date(s.created_at).toLocaleDateString('ko-KR')}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

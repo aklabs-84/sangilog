@@ -1,20 +1,25 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Users, 
-  Grid, 
-  List, 
-  Search, 
-  QrCode, 
-  BookOpen, 
-  Download, 
-  Plus, 
-  Key, 
-  Pencil, 
-  Trash2, 
+import {
+  Users,
+  Grid,
+  List,
+  Search,
+  QrCode,
+  BookOpen,
+  Download,
+  Plus,
+  Key,
+  Pencil,
+  Trash2,
   ArrowRight,
   ArrowLeftRight,
   Link as LinkIcon,
-  Check
+  Check,
+  X,
+  CheckCheck,
+  CheckCircle2,
+  Clock as ClockIcon
 } from 'lucide-react';
 
 interface SubjectDashboardProps {
@@ -64,11 +69,14 @@ const SubjectDashboard = ({
   onSelectStudent,
   onSelectAll
 }: SubjectDashboardProps) => {
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
-  const filteredStudents = students.filter(s => 
-    s.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredStudents = students.filter(s =>
+    s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.number?.toString().includes(searchQuery.toLowerCase())
   );
+  const activeStudents = students.filter(s => s.activity && s.status !== '미작성');
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -84,7 +92,8 @@ const SubjectDashboard = ({
   };
 
   return (
-    <motion.div 
+    <>
+    <motion.div
       variants={containerVariants}
       initial="hidden"
       animate="visible"
@@ -123,7 +132,46 @@ const SubjectDashboard = ({
         </div>
       </header>
 
-      {/* 2. Strategy & Search Bento Bar */}
+      {/* 2. Stats Cards */}
+      <section className="px-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Total Students */}
+          <div className="layered-card bg-white/80 rounded-3xl p-8 flex items-start gap-6 shadow-soft border border-white/60">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Users size={26} className="text-primary/60" strokeWidth={1.8} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant/40">Total Students</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-4xl font-black tracking-tight font-manrope">{students.length}</span>
+                <span className="text-base font-bold text-on-surface-variant/60">명</span>
+              </div>
+              <span className="text-xs font-bold text-on-surface-variant/50 mt-0.5">전체 등록 인원</span>
+            </div>
+          </div>
+
+          {/* Activity Rate */}
+          <div
+            onClick={() => setShowActivityModal(true)}
+            className="layered-card bg-white/80 rounded-3xl p-8 flex items-start gap-6 shadow-soft border border-white/60 cursor-pointer hover:border-secondary/30 hover:bg-secondary/5 transition-all group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-secondary/10 flex items-center justify-center shrink-0">
+              <BookOpen size={26} className="text-secondary/70" strokeWidth={1.8} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant/40">Activity Rate</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-4xl font-black tracking-tight font-manrope">{activeStudents.length}</span>
+                <span className="text-base font-bold text-on-surface-variant/60">명</span>
+              </div>
+              <span className="text-xs font-bold text-on-surface-variant/50 mt-0.5">최근 활동 참여</span>
+              <span className="text-[10px] font-black text-secondary/60 group-hover:text-secondary transition-colors mt-1">클릭하여 현황 보기 →</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. Strategy & Search Bento Bar */}
       <section className="px-4">
         <div className="glass p-3 rounded-[2.5rem] border border-white/60 shadow-soft flex flex-wrap items-center gap-4">
           <div className="relative flex-1 min-w-[280px] group">
@@ -159,7 +207,7 @@ const SubjectDashboard = ({
         </div>
       </section>
       
-      {/* 3. Student Content Area */}
+      {/* 4. Student Content Area */}
       <section className="px-2 pb-20">
         {students.length === 0 ? (
           <div className="py-32 flex flex-col items-center justify-center space-y-8 layered-card rounded-[3rem] border-dashed border-primary/20 bg-gradient-to-br from-white via-white to-primary/5">
@@ -212,6 +260,7 @@ const SubjectDashboard = ({
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">학생 정보</th>
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">활동 및 관찰 기록</th>
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">진행 상태</th>
+                        <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">승인</th>
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-12">관리</th>
                       </tr>
                     </thead>
@@ -257,11 +306,20 @@ const SubjectDashboard = ({
                           </td>
                           <td className="p-6 text-center">
                             <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${
-                              s.status === '발행됨' ? 'bg-secondary/5 text-secondary border-secondary/20' : 
+                              s.status === '발행됨' ? 'bg-secondary/5 text-secondary border-secondary/20' :
                               s.status === '미작성' ? 'bg-neutral-50 text-on-surface-variant/30 border-neutral-200' : 'bg-primary/5 text-primary border-primary/20'
                             }`}>
                               {s.status}
                             </span>
+                          </td>
+                          <td className="p-6 text-center">
+                            {s.status === '미작성' ? (
+                              <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
+                            ) : (s.pending_obs_ids?.length > 0) ? (
+                              <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200">승인 대기</span>
+                            ) : (
+                              <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20">승인 완료</span>
+                            )}
                           </td>
                           <td className="p-6 text-right pr-10">
                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
@@ -331,6 +389,196 @@ const SubjectDashboard = ({
         )}
       </section>
     </motion.div>
+
+    {/* 활동 참여 현황 모달 */}
+    <AnimatePresence>
+      {showActivityModal && (() => {
+        // 전체 날짜 추출 (중복 제거, 최신순)
+        const allDates = [...new Set(
+          students.flatMap(s => (s.all_observations || []).map((o: any) =>
+            new Date(o.created_at).toISOString().slice(0, 10)
+          ))
+        )].sort((a, b) => b.localeCompare(a));
+
+        const formatDate = (iso: string) => {
+          const d = new Date(iso);
+          return `${d.getMonth() + 1}/${d.getDate()}`;
+        };
+
+        // 날짜 선택 여부에 따라 필터
+        const submitted = selectedActivityDate
+          ? students.filter(s =>
+              (s.all_observations || []).some((o: any) =>
+                new Date(o.created_at).toISOString().slice(0, 10) === selectedActivityDate
+              )
+            )
+          : students.filter(s => s.activity && s.activity !== '기록 없음');
+
+        const notSubmitted = students.filter(s => !submitted.includes(s));
+
+        const getActivityLabel = (s: any) => {
+          if (!selectedActivityDate) return s.activity;
+          const obs = (s.all_observations || []).find((o: any) =>
+            new Date(o.created_at).toISOString().slice(0, 10) === selectedActivityDate
+          );
+          return obs?.activity_name || s.activity;
+        };
+
+        return (
+          <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-10 py-7 border-b border-neutral-100">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-secondary uppercase tracking-[0.25em]">Activity Rate</p>
+                  <h3 className="text-2xl font-black tracking-tight">{classInfo?.name} 활동 참여 현황</h3>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-3 text-right">
+                    <div className="space-y-0.5">
+                      <p className="text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
+                      <p className="text-[9px] font-black text-secondary/60 uppercase tracking-widest">제출 완료</p>
+                    </div>
+                    <div className="w-px h-10 bg-neutral-100" />
+                    <div className="space-y-0.5">
+                      <p className="text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
+                      <p className="text-[9px] font-black text-amber-500/60 uppercase tracking-widest">미제출</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setShowActivityModal(false); setSelectedActivityDate(null); }}
+                    className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 날짜 필터 칩 */}
+              {allDates.length > 0 && (
+                <div className="px-10 py-3 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                  <button
+                    onClick={() => setSelectedActivityDate(null)}
+                    className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
+                      selectedActivityDate === null
+                        ? 'bg-secondary text-white border-secondary shadow-sm'
+                        : 'bg-white text-neutral-400 border-neutral-200 hover:border-secondary/40'
+                    }`}
+                  >
+                    전체
+                  </button>
+                  {allDates.map(date => (
+                    <button
+                      key={date}
+                      onClick={() => setSelectedActivityDate(date)}
+                      className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
+                        selectedActivityDate === date
+                          ? 'bg-secondary text-white border-secondary shadow-sm'
+                          : 'bg-white text-neutral-400 border-neutral-200 hover:border-secondary/40'
+                      }`}
+                    >
+                      {formatDate(date)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-hidden grid grid-cols-2 divide-x divide-neutral-100">
+                {/* 제출 완료 */}
+                <div className="flex flex-col overflow-hidden">
+                  <div className="px-8 py-4 bg-secondary/5 border-b border-secondary/10 flex items-center gap-2">
+                    <CheckCheck size={14} className="text-secondary" />
+                    <span className="text-[11px] font-black text-secondary uppercase tracking-widest">제출 완료 ({submitted.length}명)</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
+                    {submitted.length > 0 ? (
+                      submitted.map(s => (
+                        <div key={s.id} className="flex items-center gap-3 px-8 py-3 hover:bg-secondary/5 transition-all group">
+                          <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary shrink-0">
+                            <Users size={14} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black group-hover:text-secondary transition-colors">
+                              {s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
+                            </p>
+                            <p className="text-[10px] text-neutral-400 font-medium truncate">{getActivityLabel(s)}</p>
+                          </div>
+                          <CheckCircle2 size={14} className="text-secondary shrink-0" />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full py-10 text-neutral-300 gap-2">
+                        <CheckCheck size={32} />
+                        <p className="text-xs font-bold">제출한 학생이 없습니다</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 미제출 */}
+                <div className="flex flex-col overflow-hidden">
+                  <div className="px-8 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                    <ClockIcon size={14} className="text-amber-500" />
+                    <span className="text-[11px] font-black text-amber-600 uppercase tracking-widest">미제출 ({notSubmitted.length}명)</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
+                    {notSubmitted.length > 0 ? (
+                      notSubmitted.map(s => (
+                        <div key={s.id} className="flex items-center gap-3 px-8 py-3 hover:bg-amber-50 transition-all group">
+                          <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-400 shrink-0">
+                            <Users size={14} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black group-hover:text-amber-600 transition-colors">
+                              {s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
+                            </p>
+                            <p className="text-[10px] text-neutral-300 font-medium">기록 없음</p>
+                          </div>
+                          <ClockIcon size={14} className="text-amber-300 shrink-0" />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full py-10 text-neutral-300 gap-2">
+                        <ClockIcon size={32} />
+                        <p className="text-xs font-bold">모두 제출 완료!</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-10 py-5 border-t border-neutral-100 bg-neutral-50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-2 bg-neutral-100 rounded-full w-40 overflow-hidden">
+                    <div
+                      className="h-full bg-secondary rounded-full transition-all"
+                      style={{ width: students.length > 0 ? `${(submitted.length / students.length) * 100}%` : '0%' }}
+                    />
+                  </div>
+                  <span className="text-xs font-black text-on-surface-variant/60">
+                    참여율 {students.length > 0 ? Math.round((submitted.length / students.length) * 100) : 0}%
+                  </span>
+                </div>
+                <button
+                  onClick={() => { setShowActivityModal(false); setSelectedActivityDate(null); }}
+                  className="px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all"
+                >
+                  닫기
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+    </AnimatePresence>
+    </>
   );
 };
 

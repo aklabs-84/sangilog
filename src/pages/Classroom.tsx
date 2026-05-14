@@ -123,6 +123,28 @@ const Classroom = () => {
     }
   }, [activeClassId]);
 
+  // 알림에서 student_id 파라미터로 진입한 경우 → 학급 전환 + 드로어 자동 오픈
+  useEffect(() => {
+    const studentId = searchParams.get('student_id');
+    if (!studentId) return;
+
+    const urlClassId = searchParams.get('id');
+    // 현재 열린 학급과 다른 학급이면 전환
+    if (urlClassId && urlClassId !== activeClassId) {
+      setActiveClassId(urlClassId);
+    }
+
+    setDetailedStudentId(studentId);
+    setIsDrawerOpen(true);
+
+    // URL에서 student_id 제거
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete('student_id');
+      return next;
+    }, { replace: true });
+  }, [searchParams.get('student_id')]);
+
   useEffect(() => {
     if (profile?.school_name) {
       fetchSchoolTeachers();
@@ -1045,6 +1067,7 @@ const Classroom = () => {
                     linkedClasses={linkedClasses}
                     onSelectClass={setActiveClassId}
                     onEditStudent={handleEditStudent}
+                    onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
                     onBulkApprove={handleBulkApprove}
                   />
                 ) : (

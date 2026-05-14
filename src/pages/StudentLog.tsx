@@ -60,18 +60,19 @@ const StudentLog = () => {
   // Result Submission State
   const [results, setResults] = useState<any[]>([]);
   const [resultsLoading, setResultsLoading] = useState(false);
-  const [resultType, setResultType] = useState<'text' | 'link' | 'image' | 'file'>('text');
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [resultTitle, setResultTitle] = useState('');
   const [resultText, setResultText] = useState('');
   const [resultUrl, setResultUrl] = useState('');
   const [resultSubmitting, setResultSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [resultImageFile, setResultImageFile] = useState<File | null>(null);
+  const [resultFileUpload, setResultFileUpload] = useState<File | null>(null);
+  const resultImageInputRef = useRef<HTMLInputElement | null>(null);
   const resultFileInputRef = useRef<HTMLInputElement | null>(null);
   const [editingResult, setEditingResult] = useState<any>(null);
-  const [resultsPage, setResultsPage] = useState(1);
-  const RESULTS_PER_PAGE = 5;
   const resultFormRef = useRef<HTMLDivElement | null>(null);
+  const [filterWeek, setFilterWeek] = useState<number | null>(null);
 
   // Toast State
   const [toasts, setToasts] = useState<{id: string; msg: string; type: 'success' | 'error'}[]>([]);
@@ -96,6 +97,7 @@ const StudentLog = () => {
   const [editSuggestionContent, setEditSuggestionContent] = useState('');
   const [savingSuggestionId, setSavingSuggestionId] = useState<string | null>(null);
   const [deletingSuggestionId, setDeletingSuggestionId] = useState<string | null>(null);
+  const [unreadReplyCount, setUnreadReplyCount] = useState(0);
 
   // Unit Submission States
   const [pendingUnits, setPendingUnits] = useState<any[]>([]);
@@ -116,7 +118,19 @@ const StudentLog = () => {
     const parsed = JSON.parse(sessionData);
     setSession(parsed);
     fetchClassDetails(parsed.class_id);
+    fetchUnreadReplyCount(parsed.student_id, parsed.class_id);
   }, []);
+
+  const fetchUnreadReplyCount = async (studentId: string, classId: string) => {
+    const { count } = await supabase
+      .from('student_suggestions')
+      .select('*', { count: 'exact', head: true })
+      .eq('student_id', studentId)
+      .eq('class_id', classId)
+      .eq('is_reply_read', false)
+      .not('teacher_reply', 'is', null);
+    if (count !== null) setUnreadReplyCount(count);
+  };
 
   const fetchClassDetails = async (classId: string) => {
     try {
@@ -255,108 +269,128 @@ const StudentLog = () => {
     }
   };
 
-  const handleResultFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const MAX_SIZE = 20 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
-      alert('파일 크기는 20MB를 초과할 수 없습니다.');
-      e.target.value = '';
-      return;
-    }
-    setSelectedFile(file);
-    if (resultType === 'image' && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setImagePreview(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setImagePreview(null);
-    }
+    if (file.size > 20 * 1024 * 1024) { alert('파일 크기는 20MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
+    setResultImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { alert('파일 크기는 20MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
+    setResultFileUpload(file);
+  };
+
+  const resetResultForm = () => {
+    setResultTitle(''); setResultText(''); setResultUrl('');
+    setResultImageFile(null); setResultFileUpload(null); setImagePreview(null);
+    setEditingResult(null);
+    if (resultImageInputRef.current) resultImageInputRef.current.value = '';
+    if (resultFileInputRef.current) resultFileInputRef.current.value = '';
+  };
+
+  const uploadFile = async (file: File, type: 'image' | 'file') => {
+    const ext = file.name.split('.').pop() || '';
+    const path = `results/${session.student_id}/${type}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('student-attachments').upload(path, file);
+    if (error) throw error;
+    return { path, displayName: file.name, fileSize: file.size, fileType: file.type };
   };
 
   const handleSubmitResult = async () => {
     if (!session?.student_id || !session?.class_id) return;
 
-    if (resultType === 'text' && !resultText.trim()) {
-      showToast('내용을 입력해주세요.', 'error'); return;
+    // 수정 모드: 단일 항목 업데이트
+    if (editingResult) {
+      const type = editingResult.result_type;
+      if (type === 'text' && !resultText.trim()) { showToast('내용을 입력해주세요.', 'error'); return; }
+      if (type === 'link' && !resultUrl.trim()) { showToast('링크를 입력해주세요.', 'error'); return; }
+      setResultSubmitting(true);
+      try {
+        let payload: any = { title: resultTitle.trim() || null };
+        if (type === 'text') payload.text_content = resultText.trim();
+        if (type === 'link') payload.link_url = resultUrl.trim();
+        if (type === 'image' && resultImageFile) {
+          if (editingResult.storage_path) await supabase.storage.from('student-attachments').remove([editingResult.storage_path]);
+          const up = await uploadFile(resultImageFile, 'image');
+          payload = { ...payload, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType };
+        }
+        if (type === 'file' && resultFileUpload) {
+          if (editingResult.storage_path) await supabase.storage.from('student-attachments').remove([editingResult.storage_path]);
+          const up = await uploadFile(resultFileUpload, 'file');
+          payload = { ...payload, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType };
+        }
+        const { error } = await supabase.from('student_results').update(payload).eq('id', editingResult.id);
+        if (error) throw error;
+        resetResultForm();
+        await fetchResults();
+        showToast('수정되었습니다! ✅');
+      } catch { showToast('오류가 발생했습니다.', 'error'); }
+      finally { setResultSubmitting(false); }
+      return;
     }
-    if (resultType === 'link' && !resultUrl.trim()) {
-      showToast('링크를 입력해주세요.', 'error'); return;
+
+    // 신규 제출 모드
+    const hasText = resultText.trim() !== '';
+    const hasLink = resultUrl.trim() !== '';
+    const hasImage = resultImageFile !== null;
+    const hasFile = resultFileUpload !== null;
+    if (!hasText && !hasLink && !hasImage && !hasFile) {
+      showToast('하나 이상의 항목을 입력해주세요.', 'error'); return;
     }
-    if ((resultType === 'image' || resultType === 'file') && !editingResult && !selectedFile) {
-      showToast('파일을 선택해주세요.', 'error'); return;
+    if (!selectedWeek) {
+      showToast('주차를 선택해주세요.', 'error'); return;
     }
 
     setResultSubmitting(true);
     try {
-      let storagePath: string | null = editingResult?.storage_path || null;
-      let displayName: string | null = editingResult?.display_name || null;
-      let fileSize: number | null = editingResult?.file_size || null;
-      let fileType: string | null = editingResult?.file_type || null;
+      const groupId = crypto.randomUUID();
+      const base = { student_id: session.student_id, class_id: session.class_id, week_number: selectedWeek, submission_group: groupId, title: resultTitle.trim() || null };
+      const rows: any[] = [];
 
-      if ((resultType === 'image' || resultType === 'file') && selectedFile) {
-        if (editingResult?.storage_path) {
-          await supabase.storage.from('student-attachments').remove([editingResult.storage_path]);
-        }
-        const ext = selectedFile.name.split('.').pop() || '';
-        storagePath = `results/${session.student_id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from('student-attachments')
-          .upload(storagePath, selectedFile);
-        if (uploadError) throw uploadError;
-        displayName = selectedFile.name;
-        fileSize = selectedFile.size;
-        fileType = selectedFile.type;
+      if (hasText) rows.push({ ...base, result_type: 'text', text_content: resultText.trim() });
+      if (hasLink) rows.push({ ...base, result_type: 'link', link_url: resultUrl.trim() });
+      if (hasImage) {
+        const up = await uploadFile(resultImageFile!, 'image');
+        rows.push({ ...base, result_type: 'image', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
+      }
+      if (hasFile) {
+        const up = await uploadFile(resultFileUpload!, 'file');
+        rows.push({ ...base, result_type: 'file', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
       }
 
-      const payload = {
-        result_type: resultType,
-        title: resultTitle.trim() || null,
-        text_content: resultType === 'text' ? resultText.trim() : null,
-        link_url: resultType === 'link' ? resultUrl.trim() : null,
-        storage_path: storagePath,
-        display_name: displayName,
-        file_size: fileSize,
-        file_type: fileType
-      };
+      const { error } = await supabase.from('student_results').insert(rows);
+      if (error) throw error;
 
-      if (editingResult) {
-        const { error } = await supabase.from('student_results').update(payload).eq('id', editingResult.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('student_results').insert({
-          ...payload,
-          student_id: session.student_id,
-          class_id: session.class_id
+      if (teacherId) {
+        await supabase.from('notifications').insert({
+          user_id: teacherId,
+          title: `📁 ${session.student_name}이(가) ${selectedWeek}주차 결과를 제출했습니다`,
+          content: `${rows.map((r: any) => r.result_type).join('·')} — ${session.class_name}`,
+          type: 'result_submission',
+          link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`
         });
-        if (error) throw error;
       }
 
-      setEditingResult(null);
-      setResultTitle('');
-      setResultText('');
-      setResultUrl('');
-      setSelectedFile(null);
-      setImagePreview(null);
-      setResultsPage(1);
-      if (resultFileInputRef.current) resultFileInputRef.current.value = '';
+      resetResultForm();
       await fetchResults();
-      showToast(editingResult ? '수정되었습니다! ✅' : '결과물이 제출되었습니다! ✅');
-    } catch (err: any) {
-      showToast('오류가 발생했습니다.', 'error');
-    } finally {
-      setResultSubmitting(false);
-    }
+      showToast(`${selectedWeek}주차 결과물이 제출되었습니다! ✅`);
+    } catch { showToast('오류가 발생했습니다.', 'error'); }
+    finally { setResultSubmitting(false); }
   };
 
   const handleEditResult = (result: any) => {
     setEditingResult(result);
-    setResultType(result.result_type);
     setResultTitle(result.title || '');
     setResultText(result.text_content || '');
     setResultUrl(result.link_url || '');
-    setSelectedFile(null);
-    setImagePreview(null);
+    setResultImageFile(null); setResultFileUpload(null); setImagePreview(null);
+    if (resultImageInputRef.current) resultImageInputRef.current.value = '';
     if (resultFileInputRef.current) resultFileInputRef.current.value = '';
     resultFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -477,7 +511,19 @@ const StudentLog = () => {
         .eq('class_id', session.class_id)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      if (data) setSuggestions(data);
+      if (data) {
+        setSuggestions(data);
+        // 읽지 않은 답변이 있으면 읽음 처리
+        const unreadIds = data
+          .filter(s => s.teacher_reply && !s.is_reply_read)
+          .map(s => s.id);
+        if (unreadIds.length > 0) {
+          await supabase.from('student_suggestions')
+            .update({ is_reply_read: true })
+            .in('id', unreadIds);
+          setUnreadReplyCount(0);
+        }
+      }
     } catch (err) {
       console.error('Error fetching suggestions:', err);
     } finally {
@@ -507,7 +553,8 @@ const StudentLog = () => {
         user_id: teacherId,
         title: `💬 ${session.student_name}이(가) 건의사항을 등록했습니다`,
         content: suggestionContent.trim().slice(0, 80),
-        type: 'student_submission'
+        type: 'student_submission',
+        link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`
       });
 
       setSuggestionContent('');
@@ -659,7 +706,8 @@ ${guidePrompt}
           user_id: teacherId,
           title: `📝 ${session.student_name}이(가) 활동을 제출했습니다`,
           content: `"${title}" — ${session.class_name}`,
-          type: 'student_submission'
+          type: 'student_submission',
+          link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`
         });
 
       showToast('제출 완료! 선생님 승인 후 최종 기록에 반영됩니다. ✅');
@@ -752,36 +800,52 @@ ${guidePrompt}
         >
           {/* Tab Bar */}
           <div className="border-b border-surface-container bg-surface-container-low/20">
-            {/* 탭 목록 — 가로 스크롤 */}
-            <div className="px-6 pt-5 pb-3 overflow-x-auto scrollbar-hide">
-              <div className="flex gap-1 bg-surface-container p-2 rounded-2xl shadow-inner border border-surface-container-highest/20 w-fit">
+            {/* 탭 그리드 */}
+            <div className="px-6 pt-5 pb-4">
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                 {[
-                  { key: 'record' as const,      icon: MessageSquare, label: '관찰 기록',   active: 'bg-violet-500 text-white shadow-violet-200' },
-                  { key: 'history' as const,      icon: History,       label: '나의 기록',   active: 'bg-blue-500 text-white shadow-blue-200' },
-                  { key: 'unit' as const,         icon: ClipboardList, label: '단원 마무리', active: 'bg-amber-500 text-white shadow-amber-200', badge: unitPendingCount },
-                  { key: 'results' as const,      icon: FolderOpen,    label: '결과 제출',   active: 'bg-emerald-500 text-white shadow-emerald-200' },
-                  { key: 'materials' as const,    icon: BookOpen,      label: '수업 자료',   active: 'bg-cyan-500 text-white shadow-cyan-200' },
-                  { key: 'badges' as const,       icon: Trophy,        label: '나의 배지',   active: 'bg-yellow-400 text-white shadow-yellow-200' },
-                  { key: 'suggestions' as const,  icon: Megaphone,     label: '건의사항',    active: 'bg-rose-500 text-white shadow-rose-200' }
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => handleTabChange(tab.key)}
-                    className={`relative flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black tracking-[0.03em] transition-all whitespace-nowrap shadow-sm ${
-                      activeTab === tab.key
-                        ? `${tab.active} scale-105`
-                        : 'text-on-surface-variant hover:text-on-surface hover:bg-white/60'
-                    }`}
-                  >
-                    <tab.icon size={15} />
-                    {tab.label}
-                    {'badge' in tab && (tab as any).badge > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-error text-white rounded-full text-[8px] font-black flex items-center justify-center">
-                        {(tab as any).badge}
+                  { key: 'record' as const,      icon: MessageSquare, label: '관찰 기록',   desc: '오늘 활동 제출',    activeIcon: 'bg-violet-100 text-violet-600', activeBg: 'bg-violet-50 border-violet-300', activeText: 'text-violet-700' },
+                  { key: 'history' as const,      icon: History,       label: '나의 기록',   desc: '내 기록 이력',      activeIcon: 'bg-blue-100 text-blue-600',    activeBg: 'bg-blue-50 border-blue-300',    activeText: 'text-blue-700' },
+                  { key: 'unit' as const,         icon: ClipboardList, label: '단원 마무리', desc: '단원 서식 작성',    activeIcon: 'bg-amber-100 text-amber-600', activeBg: 'bg-amber-50 border-amber-300',  activeText: 'text-amber-700', badge: unitPendingCount },
+                  { key: 'results' as const,      icon: FolderOpen,    label: '결과 제출',   desc: '결과물 올리기',     activeIcon: 'bg-emerald-100 text-emerald-600', activeBg: 'bg-emerald-50 border-emerald-300', activeText: 'text-emerald-700' },
+                  { key: 'materials' as const,    icon: BookOpen,      label: '수업 자료',   desc: '선생님 공유 자료',  activeIcon: 'bg-cyan-100 text-cyan-600',   activeBg: 'bg-cyan-50 border-cyan-300',    activeText: 'text-cyan-700' },
+                  { key: 'badges' as const,       icon: Trophy,        label: '나의 배지',   desc: '획득 배지 확인',    activeIcon: 'bg-yellow-100 text-yellow-600', activeBg: 'bg-yellow-50 border-yellow-300', activeText: 'text-yellow-700' },
+                  { key: 'suggestions' as const,  icon: Megaphone,     label: '건의사항',    desc: '선생님께 의견',     activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-rose-50 border-rose-300',    activeText: 'text-rose-700', badge: unreadReplyCount }
+                ].map((tab) => {
+                  const isActive = activeTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => handleTabChange(tab.key)}
+                      className={`relative flex flex-col items-center gap-1.5 px-2 py-3 rounded-2xl border-2 transition-all group ${
+                        isActive
+                          ? `${tab.activeBg} shadow-sm scale-[1.03]`
+                          : 'bg-white/40 border-transparent hover:bg-white/80 hover:border-surface-container-highest/30 hover:scale-[1.02]'
+                      }`}
+                    >
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                        isActive ? tab.activeIcon : 'bg-surface-container text-on-surface-variant/60 group-hover:bg-surface-container-high group-hover:text-on-surface'
+                      }`}>
+                        <tab.icon size={18} />
+                      </div>
+                      <span className={`text-[11px] font-black leading-tight text-center transition-colors ${
+                        isActive ? tab.activeText : 'text-on-surface-variant/70 group-hover:text-on-surface'
+                      }`}>
+                        {tab.label}
                       </span>
-                    )}
-                  </button>
-                ))}
+                      <span className={`text-[9px] font-bold leading-tight text-center hidden sm:block transition-colors ${
+                        isActive ? `${tab.activeText} opacity-70` : 'text-on-surface-variant/40 group-hover:text-on-surface-variant'
+                      }`}>
+                        {tab.desc}
+                      </span>
+                      {'badge' in tab && (tab as any).badge > 0 && (
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-error text-white rounded-full text-[9px] font-black flex items-center justify-center shadow-sm">
+                          {(tab as any).badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1120,284 +1184,308 @@ ${guidePrompt}
                   <div>
                     <h3 className="text-2xl font-black font-manrope">결과 제출</h3>
                     <p className="text-on-surface-variant text-sm font-bold mt-1">
-                      수업 결과물을 텍스트·링크·이미지·파일로 제출하세요.
+                      주차를 선택하고 텍스트·링크·이미지·파일을 한 번에 제출하세요.
                     </p>
                   </div>
                 </div>
 
-                {/* 타입 선택 */}
-                <div className="grid grid-cols-4 gap-3">
-                  {[
-                    { key: 'text' as const, icon: AlignLeft, label: '텍스트', color: 'text-primary', bg: 'bg-primary/10', activeBg: 'bg-primary', border: 'border-primary' },
-                    { key: 'link' as const, icon: Link2, label: '링크', color: 'text-blue-500', bg: 'bg-blue-50', activeBg: 'bg-blue-500', border: 'border-blue-500' },
-                    { key: 'image' as const, icon: ImageIcon, label: '이미지', color: 'text-emerald-500', bg: 'bg-emerald-50', activeBg: 'bg-emerald-500', border: 'border-emerald-500' },
-                    { key: 'file' as const, icon: File, label: '파일', color: 'text-amber-500', bg: 'bg-amber-50', activeBg: 'bg-amber-500', border: 'border-amber-500' }
-                  ].map(t => (
-                    <button
-                      key={t.key}
-                      onClick={() => { setResultType(t.key); setSelectedFile(null); setImagePreview(null); if (resultFileInputRef.current) resultFileInputRef.current.value = ''; }}
-                      className={`flex flex-col items-center gap-3 py-5 rounded-2xl border-2 font-black text-sm transition-all ${
-                        resultType === t.key
-                          ? `${t.activeBg} text-white border-transparent shadow-lg scale-[1.03]`
-                          : `${t.bg} ${t.color} border-transparent hover:border-current/20`
-                      }`}
-                    >
-                      <t.icon size={22} />
-                      {t.label}
-                    </button>
-                  ))}
+                {/* ── 주차 선택 ── */}
+                <div ref={resultFormRef} className="space-y-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">주차 선택 *</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(classResources.length > 0
+                      ? classResources.map((r: any) => ({ week: r.week, label: `${r.week}주차${r.topic ? `: ${r.topic}` : ''}` }))
+                      : Array.from({ length: 16 }, (_, i) => ({ week: i + 1, label: `${i + 1}주차` }))
+                    ).map(({ week, label }) => (
+                      <button
+                        key={week}
+                        onClick={() => setSelectedWeek(week)}
+                        className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${
+                          selectedWeek === week
+                            ? 'bg-primary text-white border-primary shadow-md'
+                            : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                {/* 수정 중 배너 */}
+                {/* ── 수정 중 배너 ── */}
                 {editingResult && (
                   <div className="flex items-center justify-between px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
-                    <p className="text-sm font-black text-amber-700">수정 중 — 변경 후 제출하세요</p>
-                    <button
-                      onClick={() => { setEditingResult(null); setResultTitle(''); setResultText(''); setResultUrl(''); setSelectedFile(null); setImagePreview(null); }}
-                      className="text-xs font-black text-amber-500 hover:text-amber-700 flex items-center gap-1"
-                    >
+                    <p className="text-sm font-black text-amber-700">
+                      {editingResult.result_type === 'text' ? '텍스트' : editingResult.result_type === 'link' ? '링크' : editingResult.result_type === 'image' ? '이미지' : '파일'} 항목 수정 중
+                    </p>
+                    <button onClick={resetResultForm} className="text-xs font-black text-amber-500 hover:text-amber-700 flex items-center gap-1">
                       <X size={14} /> 취소
                     </button>
                   </div>
                 )}
 
-                {/* 입력 폼 */}
-                <div ref={resultFormRef} className="space-y-4">
+                {/* ── 통합 입력 폼 ── */}
+                <div className="space-y-4 bg-surface-container-low rounded-3xl p-6 border border-surface-container">
                   <input
                     type="text"
                     value={resultTitle}
                     onChange={e => setResultTitle(e.target.value)}
                     placeholder="제목 (선택사항)"
-                    className="w-full px-6 py-4 bg-neutral-100 rounded-2xl font-bold text-base focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 transition-all"
+                    className="w-full px-5 py-3.5 bg-white rounded-2xl font-bold text-sm focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 transition-all"
                   />
 
-                  {resultType === 'text' && (
-                    <textarea
-                      value={resultText}
-                      onChange={e => setResultText(e.target.value)}
-                      placeholder="수업 결과물 내용을 자유롭게 작성하세요..."
-                      rows={6}
-                      className="w-full p-6 bg-neutral-100 rounded-2xl font-bold text-sm leading-relaxed focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all"
-                    />
-                  )}
-
-                  {resultType === 'link' && (
-                    <input
-                      type="url"
-                      value={resultUrl}
-                      onChange={e => setResultUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="w-full px-6 py-4 bg-neutral-100 rounded-2xl font-bold text-sm focus:outline-none focus:ring-4 focus:ring-blue-100 border-2 border-transparent focus:border-blue-300 transition-all"
-                    />
-                  )}
-
-                  {resultType === 'image' && (
-                    <div
-                      onClick={() => resultFileInputRef.current?.click()}
-                      className="border-2 border-dashed border-emerald-200 rounded-2xl p-8 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-all text-center group"
-                    >
-                      {imagePreview ? (
-                        <div className="relative">
-                          <img src={imagePreview} alt="preview" className="max-h-48 mx-auto rounded-xl object-contain" />
-                          <p className="text-xs font-bold text-emerald-600 mt-3">{selectedFile?.name}</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto group-hover:bg-emerald-200 transition-colors">
-                            <ImageIcon size={28} className="text-emerald-500" />
-                          </div>
-                          <p className="font-black text-emerald-600">이미지 선택하기</p>
-                          <p className="text-xs font-bold text-emerald-400">JPG, PNG, GIF, WEBP (최대 20MB)</p>
-                        </div>
-                      )}
+                  {/* 텍스트 */}
+                  {(!editingResult || editingResult.result_type === 'text') && (
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2 text-[11px] font-black text-primary/70 uppercase tracking-widest">
+                        <AlignLeft size={13} /> 텍스트
+                      </label>
+                      <textarea
+                        value={resultText}
+                        onChange={e => setResultText(e.target.value)}
+                        placeholder="수업 내용, 느낀 점 등을 자유롭게 작성하세요..."
+                        rows={4}
+                        className="w-full p-5 bg-white rounded-2xl font-bold text-sm leading-relaxed focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all"
+                      />
                     </div>
                   )}
 
-                  {resultType === 'file' && (
-                    <div
-                      onClick={() => resultFileInputRef.current?.click()}
-                      className="border-2 border-dashed border-amber-200 rounded-2xl p-8 cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 transition-all text-center group"
-                    >
-                      {selectedFile ? (
-                        <div className="flex items-center justify-center gap-4">
-                          <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                            <File size={22} className="text-amber-500" />
-                          </div>
-                          <div className="text-left">
-                            <p className="font-black text-sm">{selectedFile.name}</p>
-                            <p className="text-xs font-bold text-amber-500 mt-0.5">{formatFileSize(selectedFile.size)}</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto group-hover:bg-amber-200 transition-colors">
-                            <Upload size={28} className="text-amber-500" />
-                          </div>
-                          <p className="font-black text-amber-600">파일 선택하기</p>
-                          <p className="text-xs font-bold text-amber-400">모든 파일 형식 (최대 20MB)</p>
-                        </div>
-                      )}
+                  {/* 링크 */}
+                  {(!editingResult || editingResult.result_type === 'link') && (
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2 text-[11px] font-black text-blue-500/80 uppercase tracking-widest">
+                        <Link2 size={13} /> 링크
+                      </label>
+                      <input
+                        type="url"
+                        value={resultUrl}
+                        onChange={e => setResultUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full px-5 py-3.5 bg-white rounded-2xl font-bold text-sm focus:outline-none focus:ring-4 focus:ring-blue-100 border-2 border-transparent focus:border-blue-300 transition-all"
+                      />
                     </div>
                   )}
 
-                  <input
-                    ref={resultFileInputRef}
-                    type="file"
-                    className="hidden"
-                    accept={resultType === 'image' ? 'image/*' : '*'}
-                    onChange={handleResultFileSelect}
-                  />
+                  {/* 이미지 */}
+                  {(!editingResult || editingResult.result_type === 'image') && (
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2 text-[11px] font-black text-emerald-600/80 uppercase tracking-widest">
+                        <ImageIcon size={13} /> 이미지
+                      </label>
+                      <div
+                        onClick={() => resultImageInputRef.current?.click()}
+                        className="border-2 border-dashed border-emerald-200 rounded-2xl p-6 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-all text-center group"
+                      >
+                        {imagePreview ? (
+                          <div>
+                            <img src={imagePreview} alt="preview" className="max-h-36 mx-auto rounded-xl object-contain" />
+                            <p className="text-xs font-bold text-emerald-600 mt-2">{resultImageFile?.name}</p>
+                          </div>
+                        ) : editingResult?.result_type === 'image' && editingResult.storage_path ? (
+                          <p className="text-xs font-bold text-emerald-600">현재 파일 유지 (새 파일 선택 시 교체)</p>
+                        ) : (
+                          <div className="flex items-center justify-center gap-3">
+                            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
+                              <ImageIcon size={20} className="text-emerald-500" />
+                            </div>
+                            <div className="text-left">
+                              <p className="font-black text-emerald-600 text-sm">이미지 선택</p>
+                              <p className="text-xs font-bold text-emerald-400">JPG, PNG, GIF, WEBP (최대 20MB)</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <input ref={resultImageInputRef} type="file" className="hidden" accept="image/*" onChange={handleImageFileSelect} />
+                    </div>
+                  )}
 
-                  <button
-                    onClick={handleSubmitResult}
-                    disabled={resultSubmitting}
-                    className="w-full py-5 btn-gradient rounded-[1.25rem] font-black text-lg shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                  >
-                    {resultSubmitting ? <Loader2 size={20} className="animate-spin" /> : editingResult ? <><Send size={20} /> 수정 완료</>  : <><Send size={20} /> 결과 제출하기</>}
-                  </button>
+                  {/* 파일 */}
+                  {(!editingResult || editingResult.result_type === 'file') && (
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2 text-[11px] font-black text-amber-600/80 uppercase tracking-widest">
+                        <File size={13} /> 파일
+                      </label>
+                      <div
+                        onClick={() => resultFileInputRef.current?.click()}
+                        className="border-2 border-dashed border-amber-200 rounded-2xl p-6 cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 transition-all group"
+                      >
+                        {resultFileUpload ? (
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                              <File size={18} className="text-amber-500" />
+                            </div>
+                            <div>
+                              <p className="font-black text-sm">{resultFileUpload.name}</p>
+                              <p className="text-xs font-bold text-amber-500">{formatFileSize(resultFileUpload.size)}</p>
+                            </div>
+                          </div>
+                        ) : editingResult?.result_type === 'file' && editingResult.storage_path ? (
+                          <p className="text-xs font-bold text-amber-600 text-center">현재 파일 유지 (새 파일 선택 시 교체)</p>
+                        ) : (
+                          <div className="flex items-center justify-center gap-3">
+                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center group-hover:bg-amber-200 transition-colors">
+                              <Upload size={18} className="text-amber-500" />
+                            </div>
+                            <div>
+                              <p className="font-black text-amber-600 text-sm">파일 선택</p>
+                              <p className="text-xs font-bold text-amber-400">모든 파일 형식 (최대 20MB)</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <input ref={resultFileInputRef} type="file" className="hidden" accept="*" onChange={handleUploadFileSelect} />
+                    </div>
+                  )}
                 </div>
 
-                {/* 제출 목록 */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between pt-4 border-t border-surface-container">
+                <button
+                  onClick={handleSubmitResult}
+                  disabled={resultSubmitting}
+                  className="w-full py-5 btn-gradient rounded-[1.25rem] font-black text-lg shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {resultSubmitting ? <Loader2 size={20} className="animate-spin" /> : editingResult ? <><Send size={20} /> 수정 완료</> : <><Send size={20} /> {selectedWeek ? `${selectedWeek}주차 결과 제출` : '결과 제출하기'}</>}
+                </button>
+
+                {/* ── 제출 내역 (주차별) ── */}
+                <div className="space-y-4 pt-4 border-t border-surface-container">
+                  <div className="flex items-center justify-between">
                     <h4 className="font-black text-base">제출 내역</h4>
                     <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">{results.length}개</span>
                   </div>
 
                   {resultsLoading ? (
-                    <div className="flex justify-center py-10">
-                      <Loader2 size={28} className="animate-spin text-primary" />
-                    </div>
+                    <div className="flex justify-center py-10"><Loader2 size={28} className="animate-spin text-primary" /></div>
                   ) : results.length === 0 ? (
                     <div className="flex flex-col items-center py-16 space-y-3 opacity-30">
                       <FolderOpen size={48} />
                       <p className="font-black">아직 제출한 결과물이 없습니다.</p>
                     </div>
-                  ) : (
-                    <>
-                      <div className="space-y-3">
-                        {results
-                          .slice((resultsPage - 1) * RESULTS_PER_PAGE, resultsPage * RESULTS_PER_PAGE)
-                          .map(r => {
-                            const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
-                              text: { icon: <AlignLeft size={16} />, color: 'text-primary bg-primary/10', label: '텍스트' },
-                              link: { icon: <Link2 size={16} />, color: 'text-blue-500 bg-blue-50', label: '링크' },
-                              image: { icon: <ImageIcon size={16} />, color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
-                              file: { icon: <File size={16} />, color: 'text-amber-500 bg-amber-50', label: '파일' }
-                            };
-                            const cfg = typeConfig[r.result_type] || typeConfig.file;
-                            const publicUrl = r.storage_path
-                              ? supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data.publicUrl
-                              : null;
-                            const isEditing = editingResult?.id === r.id;
+                  ) : (() => {
+                    const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+                      text:  { icon: <AlignLeft size={15} />,  color: 'text-primary bg-primary/10',     label: '텍스트' },
+                      link:  { icon: <Link2 size={15} />,      color: 'text-blue-500 bg-blue-50',       label: '링크' },
+                      image: { icon: <ImageIcon size={15} />,  color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
+                      file:  { icon: <File size={15} />,       color: 'text-amber-500 bg-amber-50',     label: '파일' }
+                    };
+                    // 주차별 그룹핑 (week_number 없으면 0으로)
+                    const grouped: Record<number, any[]> = {};
+                    results.forEach(r => {
+                      const w = r.week_number ?? 0;
+                      if (!grouped[w]) grouped[w] = [];
+                      grouped[w].push(r);
+                    });
+                    const weeks = Object.keys(grouped).map(Number).sort((a, b) => b - a);
+                    const visibleWeeks = filterWeek === null ? weeks : weeks.filter(w => w === filterWeek);
 
+                    return (
+                      <div className="space-y-5">
+                        {/* 주차 필터 칩 */}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => setFilterWeek(null)}
+                            className={`px-4 py-1.5 rounded-xl text-xs font-black border-2 transition-all ${
+                              filterWeek === null
+                                ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                                : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
+                            }`}
+                          >
+                            전체 <span className="opacity-60 font-bold">({results.length})</span>
+                          </button>
+                          {weeks.map(w => {
+                            const topic = classResources.find((r: any) => r.week === w)?.topic;
+                            const chipLabel = w === 0 ? '미지정' : topic ? `${w}주차 · ${topic}` : `${w}주차`;
                             return (
-                              <motion.div
-                                key={r.id}
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className={`p-5 rounded-2xl border-2 transition-all group ${
-                                  isEditing
-                                    ? 'border-amber-300 bg-amber-50/50'
-                                    : 'border-surface-container bg-surface-container-low hover:border-primary/20'
+                              <button
+                                key={w}
+                                onClick={() => setFilterWeek(w)}
+                                className={`px-4 py-1.5 rounded-xl text-xs font-black border-2 transition-all ${
+                                  filterWeek === w
+                                    ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                                    : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
                                 }`}
                               >
-                                <div className="flex items-start gap-4">
-                                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cfg.color}`}>
-                                    {cfg.icon}
-                                  </div>
-                                  <div className="flex-1 min-w-0 space-y-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      {r.title && <p className="font-black text-sm">{r.title}</p>}
-                                      <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>{cfg.label}</span>
-                                      {isEditing && <span className="text-[9px] font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">수정 중</span>}
-                                    </div>
-                                    {r.text_content && <p className="text-xs font-bold text-on-surface-variant line-clamp-2 leading-relaxed">{r.text_content}</p>}
-                                    {r.link_url && (
-                                      <a href={r.link_url} target="_blank" rel="noopener noreferrer"
-                                        className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 truncate">
-                                        <ExternalLink size={11} />{r.link_url}
-                                      </a>
-                                    )}
-                                    {r.result_type === 'image' && publicUrl && (
-                                      <img src={publicUrl} alt={r.title || '이미지'} className="max-h-24 rounded-xl object-cover mt-2 cursor-pointer" onClick={() => window.open(publicUrl, '_blank')} />
-                                    )}
-                                    {r.result_type === 'file' && (
-                                      <p className="text-xs font-bold text-amber-600 flex items-center gap-1">
-                                        <File size={11} />{r.display_name} {r.file_size ? `(${formatFileSize(r.file_size)})` : ''}
-                                      </p>
-                                    )}
-                                    <p className="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1">
-                                      <Clock size={10} />{formatRelativeTime(r.created_at)}
-                                    </p>
-                                  </div>
-
-                                  {/* 액션 버튼 */}
-                                  <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {(r.result_type === 'image' || r.result_type === 'file') && r.storage_path && (
-                                      <button
-                                        onClick={() => handleDownloadResult(r)}
-                                        title="다운로드"
-                                        className="w-8 h-8 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all"
-                                      >
-                                        <Upload size={13} className="rotate-180" />
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => handleEditResult(r)}
-                                      title="수정"
-                                      className="w-8 h-8 rounded-xl bg-surface-container hover:bg-amber-100 hover:text-amber-600 flex items-center justify-center text-on-surface-variant transition-all"
-                                    >
-                                      <FileText size={13} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteResult(r)}
-                                      title="삭제"
-                                      className="w-8 h-8 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all"
-                                    >
-                                      <Trash2 size={13} />
-                                    </button>
-                                  </div>
-                                </div>
-                              </motion.div>
+                                {chipLabel} <span className="opacity-60 font-bold">({grouped[w].length})</span>
+                              </button>
                             );
                           })}
-                      </div>
-
-                      {/* 페이지네이션 */}
-                      {results.length > RESULTS_PER_PAGE && (
-                        <div className="flex items-center justify-center gap-3 pt-2">
-                          <button
-                            onClick={() => setResultsPage(p => Math.max(1, p - 1))}
-                            disabled={resultsPage === 1}
-                            className="px-4 py-2 rounded-xl bg-surface-container font-black text-sm text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 transition-all"
-                          >
-                            이전
-                          </button>
-                          {Array.from({ length: Math.ceil(results.length / RESULTS_PER_PAGE) }, (_, i) => i + 1).map(p => (
-                            <button
-                              key={p}
-                              onClick={() => setResultsPage(p)}
-                              className={`w-9 h-9 rounded-xl font-black text-sm transition-all ${
-                                resultsPage === p
-                                  ? 'bg-primary text-white shadow-md'
-                                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                              }`}
-                            >
-                              {p}
-                            </button>
-                          ))}
-                          <button
-                            onClick={() => setResultsPage(p => Math.min(Math.ceil(results.length / RESULTS_PER_PAGE), p + 1))}
-                            disabled={resultsPage === Math.ceil(results.length / RESULTS_PER_PAGE)}
-                            className="px-4 py-2 rounded-xl bg-surface-container font-black text-sm text-on-surface-variant hover:bg-surface-container-high disabled:opacity-30 transition-all"
-                          >
-                            다음
-                          </button>
                         </div>
-                      )}
-                    </>
-                  )}
+
+                        {visibleWeeks.map(week => {
+                          const weekLabel = week === 0 ? '주차 미지정'
+                            : classResources.find((r: any) => r.week === week)?.topic
+                              ? `${week}주차 — ${classResources.find((r: any) => r.week === week).topic}`
+                              : `${week}주차`;
+                          const weekItems = grouped[week];
+                          return (
+                            <div key={week} className="space-y-3">
+                              <div className="flex items-center gap-3">
+                                <span className="px-3 py-1 bg-primary/10 text-primary text-[11px] font-black rounded-lg">{weekLabel}</span>
+                                <span className="text-[10px] font-bold text-on-surface-variant/40">{weekItems.length}개 항목</span>
+                              </div>
+                              <div className="space-y-2 pl-1">
+                                {weekItems.map(r => {
+                                  const cfg = typeConfig[r.result_type] || typeConfig.file;
+                                  const publicUrl = r.storage_path
+                                    ? supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data.publicUrl
+                                    : null;
+                                  const isEditing = editingResult?.id === r.id;
+                                  return (
+                                    <motion.div
+                                      key={r.id}
+                                      initial={{ opacity: 0, y: 6 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      className={`p-4 rounded-2xl border-2 transition-all group ${isEditing ? 'border-amber-300 bg-amber-50/50' : 'border-surface-container bg-white hover:border-primary/20'}`}
+                                    >
+                                      <div className="flex items-start gap-3">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cfg.color}`}>{cfg.icon}</div>
+                                        <div className="flex-1 min-w-0 space-y-1">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            {r.title && <p className="font-black text-sm">{r.title}</p>}
+                                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>{cfg.label}</span>
+                                            {isEditing && <span className="text-[9px] font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded-md">수정 중</span>}
+                                          </div>
+                                          {r.text_content && <p className="text-xs font-bold text-on-surface-variant line-clamp-2 leading-relaxed">{r.text_content}</p>}
+                                          {r.link_url && (
+                                            <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 truncate">
+                                              <ExternalLink size={11} />{r.link_url}
+                                            </a>
+                                          )}
+                                          {r.result_type === 'image' && publicUrl && (
+                                            <img src={publicUrl} alt={r.title || '이미지'} className="max-h-24 rounded-xl object-cover mt-1 cursor-pointer" onClick={() => window.open(publicUrl, '_blank')} />
+                                          )}
+                                          {r.result_type === 'file' && (
+                                            <p className="text-xs font-bold text-amber-600 flex items-center gap-1">
+                                              <File size={11} />{r.display_name} {r.file_size ? `(${formatFileSize(r.file_size)})` : ''}
+                                            </p>
+                                          )}
+                                          <p className="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1">
+                                            <Clock size={10} />{formatRelativeTime(r.created_at)}
+                                          </p>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          {(r.result_type === 'image' || r.result_type === 'file') && r.storage_path && (
+                                            <button onClick={() => handleDownloadResult(r)} title="다운로드" className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all">
+                                              <Upload size={12} className="rotate-180" />
+                                            </button>
+                                          )}
+                                          <button onClick={() => handleEditResult(r)} title="수정" className="w-7 h-7 rounded-lg bg-surface-container hover:bg-amber-100 hover:text-amber-600 flex items-center justify-center text-on-surface-variant transition-all">
+                                            <FileText size={12} />
+                                          </button>
+                                          <button onClick={() => handleDeleteResult(r)} title="삭제" className="w-7 h-7 rounded-lg bg-surface-container hover:bg-error/10 hover:text-error flex items-center justify-center text-on-surface-variant transition-all">
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               </motion.div>
             )}
@@ -1745,7 +1833,7 @@ ${guidePrompt}
                             ) : (
                               <div className="space-y-3">
                                 <div className="flex items-start gap-4">
-                                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                                  <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
                                     <MessageSquare size={18} />
                                   </div>
                                   <div className="flex-1 min-w-0 space-y-1">
@@ -1756,6 +1844,28 @@ ${guidePrompt}
                                     </p>
                                   </div>
                                 </div>
+
+                                {/* 선생님 답변 버블 */}
+                                {s.teacher_reply ? (
+                                  <div className="ml-14 p-4 rounded-2xl bg-primary/5 border border-primary/10 space-y-1">
+                                    <p className="text-[9px] font-black text-primary uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                      <span className="w-4 h-4 rounded-md bg-primary/20 flex items-center justify-center text-primary">↩</span>
+                                      선생님 답변
+                                    </p>
+                                    <p className="text-sm font-medium text-on-surface leading-relaxed">{s.teacher_reply}</p>
+                                    {s.replied_at && (
+                                      <p className="text-[9px] font-bold text-on-surface-variant/30 flex items-center gap-1">
+                                        <Clock size={9} /> {formatRelativeTime(s.replied_at)}
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="ml-14 px-4 py-2.5 rounded-xl bg-surface-container border border-dashed border-surface-container-highest flex items-center gap-2">
+                                    <Clock size={12} className="text-on-surface-variant/30" />
+                                    <p className="text-[11px] font-bold text-on-surface-variant/40">답변 대기 중</p>
+                                  </div>
+                                )}
+
                                 <div className="flex justify-end gap-2 pt-1 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
                                     onClick={() => handleStartEditSuggestion(s)}
