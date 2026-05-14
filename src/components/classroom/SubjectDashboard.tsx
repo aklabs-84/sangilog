@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
@@ -19,8 +19,12 @@ import {
   X,
   CheckCheck,
   CheckCircle2,
-  Clock as ClockIcon
+  Clock as ClockIcon,
+  BarChart2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface SubjectDashboardProps {
   classInfo: any;
@@ -71,6 +75,50 @@ const SubjectDashboard = ({
 }: SubjectDashboardProps) => {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
+
+  // 날짜별 제출 통계
+  const [showStats, setShowStats] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [selectedStatsDate, setSelectedStatsDate] = useState<string | null>(null);
+  const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string}>>([]);
+  const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string}>>([]);
+  const [rawSuggestions, setRawSuggestions] = useState<Array<{created_at: string, student_id: string}>>([]);
+
+  const toDate = (d: string) => new Date(d).toISOString().slice(0, 10);
+
+  const statsDates = [...new Set([
+    ...rawObs.map(r => toDate(r.created_at)),
+    ...rawResults.map(r => toDate(r.created_at)),
+    ...rawSuggestions.map(r => toDate(r.created_at))
+  ])].sort((a, b) => b.localeCompare(a)).slice(0, 14);
+
+  const obsOnDate     = new Set(rawObs.filter(r => toDate(r.created_at) === selectedStatsDate).map(r => r.student_id));
+  const resultsOnDate = new Set(rawResults.filter(r => toDate(r.created_at) === selectedStatsDate).map(r => r.student_id));
+  const suggestOnDate = new Set(rawSuggestions.filter(r => toDate(r.created_at) === selectedStatsDate).map(r => r.student_id));
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!classInfo?.id || students.length === 0) return;
+      setStatsLoading(true);
+      try {
+        const studentIds = students.map((s: any) => s.id);
+        const [obsRes, resultsRes, suggestRes] = await Promise.all([
+          supabase.from('observations').select('created_at, student_id').in('student_id', studentIds).eq('is_student_record', true),
+          supabase.from('student_results').select('created_at, student_id').eq('class_id', classInfo.id),
+          supabase.from('student_suggestions').select('created_at, student_id').eq('class_id', classInfo.id)
+        ]);
+        setRawObs(obsRes.data || []);
+        setRawResults(resultsRes.data || []);
+        setRawSuggestions(suggestRes.data || []);
+      } catch (err) {
+        console.error('fetchStats error:', err);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    fetchStats();
+  }, [classInfo?.id, students.length]);
+
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
   const filteredStudents = students.filter(s =>
     s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -207,7 +255,89 @@ const SubjectDashboard = ({
         </div>
       </section>
       
-      {/* 4. Student Content Area */}
+      {/* 4. 날짜별 제출 현황 통계 */}
+      <section className="px-4">
+        <div className="rounded-2xl border border-neutral-100 bg-neutral-50/60 overflow-hidden">
+          <button
+            onClick={() => setShowStats(v => !v)}
+            className="w-full flex items-center justify-between px-6 py-4 hover:bg-neutral-100/60 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                <BarChart2 size={14} />
+              </div>
+              <span className="text-sm font-black text-on-surface">날짜별 제출 현황</span>
+              {statsDates.length > 0 && (
+                <span className="text-[10px] font-bold text-on-surface-variant/50 bg-white px-2 py-0.5 rounded-md border border-neutral-200">
+                  최근 {statsDates.length}일
+                </span>
+              )}
+              {selectedStatsDate && (
+                <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
+                  {(() => { const [, m, d] = selectedStatsDate.split('-'); return `${parseInt(m)}월 ${parseInt(d)}일 선택됨`; })()}
+                </span>
+              )}
+            </div>
+            {showStats ? <ChevronUp size={16} className="text-on-surface-variant/40" /> : <ChevronDown size={16} className="text-on-surface-variant/40" />}
+          </button>
+
+          {showStats && (
+            <div className="px-6 pb-5">
+              {statsLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <span className="text-xs font-bold text-on-surface-variant/40">불러오는 중...</span>
+                </div>
+              ) : statsDates.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-xs font-black text-on-surface-variant/30">제출된 데이터가 없습니다.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {statsDates.map(date => {
+                      const [, m, d] = date.split('-');
+                      const isSelected = selectedStatsDate === date;
+                      return (
+                        <button
+                          key={date}
+                          onClick={() => setSelectedStatsDate(isSelected ? null : date)}
+                          className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border ${
+                            isSelected
+                              ? 'bg-primary text-white border-primary shadow-sm'
+                              : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'
+                          }`}
+                        >
+                          {parseInt(m)}/{parseInt(d)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedStatsDate ? (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {[
+                        { label: '📝 활동 기록', count: obsOnDate.size,     colorClass: 'bg-violet-50 border-violet-100 text-violet-700' },
+                        { label: '📁 결과 제출', count: resultsOnDate.size, colorClass: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
+                        { label: '💬 건의사항',  count: suggestOnDate.size, colorClass: 'bg-rose-50 border-rose-100 text-rose-700' },
+                      ].map(({ label, count, colorClass }) => (
+                        <div key={label} className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black ${colorClass}`}>
+                          <span>{label}</span>
+                          <span className="text-base font-black">{count}</span>
+                          <span className="font-bold opacity-60">명</span>
+                        </div>
+                      ))}
+                      <p className="text-[10px] font-bold text-on-surface-variant/40 ml-1">아래 표에서 제출 현황을 확인하세요</p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] font-bold text-on-surface-variant/40">날짜를 선택하면 해당일 제출 현황이 아래 표에 표시됩니다.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 5. Student Content Area */}
       <section className="px-2 pb-20">
         {students.length === 0 ? (
           <div className="py-32 flex flex-col items-center justify-center space-y-8 layered-card rounded-[3rem] border-dashed border-primary/20 bg-gradient-to-br from-white via-white to-primary/5">
@@ -261,6 +391,11 @@ const SubjectDashboard = ({
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">활동 및 관찰 기록</th>
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">진행 상태</th>
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">승인</th>
+                        {selectedStatsDate && (
+                          <th className="p-6 text-[13px] font-black text-primary/80 uppercase tracking-widest text-center">
+                            {(() => { const [, m, d] = selectedStatsDate.split('-'); return `${parseInt(m)}/${parseInt(d)} 제출`; })()}
+                          </th>
+                        )}
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-12">관리</th>
                       </tr>
                     </thead>
@@ -321,11 +456,31 @@ const SubjectDashboard = ({
                               <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20">승인 완료</span>
                             )}
                           </td>
-                          <td className="p-6 text-right pr-10">
-                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                              <button onClick={(e) => { e.stopPropagation(); onEditStudent(s); }} className="p-2 hover:bg-primary/10 text-primary/40 hover:text-primary transition-all rounded-lg"><Pencil size={14} /></button>
-                              <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-error/30 hover:text-error transition-all rounded-lg"><Trash2 size={14} /></button>
-                              <div className="ml-2 p-2 text-primary/20"><ArrowRight size={16} /></div>
+                          {/* 날짜별 제출 현황 셀 */}
+                          {selectedStatsDate && (
+                            <td className="p-6 text-center">
+                              <div className="flex items-center justify-center gap-1 flex-wrap">
+                                {obsOnDate.has(s.id) && (
+                                  <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-violet-50 text-violet-600 border border-violet-100 whitespace-nowrap">📝활동</span>
+                                )}
+                                {resultsOnDate.has(s.id) && (
+                                  <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁결과</span>
+                                )}
+                                {suggestOnDate.has(s.id) && (
+                                  <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-rose-50 text-rose-600 border border-rose-100 whitespace-nowrap">💬건의</span>
+                                )}
+                                {!obsOnDate.has(s.id) && !resultsOnDate.has(s.id) && !suggestOnDate.has(s.id) && (
+                                  <span className="text-neutral-300 font-bold text-sm">—</span>
+                                )}
+                              </div>
+                            </td>
+                          )}
+
+                          <td className="p-6 text-right pr-10" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              <button onClick={(e) => { e.stopPropagation(); onEditStudent(s); }} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg" title="편집"><Pencil size={14} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-neutral-400 hover:text-error transition-all rounded-lg" title="삭제"><Trash2 size={14} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }} className="p-2 hover:bg-primary/10 text-primary/40 hover:text-primary transition-all rounded-lg" title="상세 보기"><ArrowRight size={16} /></button>
                             </div>
                           </td>
                         </motion.tr>
