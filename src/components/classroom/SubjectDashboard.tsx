@@ -529,10 +529,10 @@ const SubjectDashboard = ({
                        }`}>
                          {s.status}
                        </span>
-                       <ArrowRight size={20} className="text-primary opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
+                       <ArrowRight size={20} className="text-primary transition-all" />
                     </div>
 
-                    <div className="absolute top-6 left-6 flex flex-col gap-3 opacity-0 group-hover:opacity-100 transition-all -translate-x-4 group-hover:translate-x-0">
+                    <div className="absolute top-6 left-6 flex flex-col gap-3">
                        <button onClick={(e) => { e.stopPropagation(); onEditStudent(s); }} className="w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl shadow-md flex items-center justify-center text-on-surface-variant/40 transition-all hover:scale-110"><Pencil size={16} /></button>
                        <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="w-10 h-10 bg-white hover:bg-error hover:text-white rounded-xl shadow-md flex items-center justify-center text-error/30 transition-all hover:scale-110"><Trash2 size={16} /></button>
                     </div>

@@ -565,7 +565,7 @@ const HomeroomDashboard = ({
                                </button>
                              </div>
                            ) : (
-                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                             <div className="flex items-center justify-end gap-1">
                                <button
                                  onClick={(e) => handleStartEdit(e, s)}
                                  className="p-2 text-neutral-400 hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
