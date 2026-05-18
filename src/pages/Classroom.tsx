@@ -125,7 +125,27 @@ const Classroom = () => {
     }
   }, [activeClassId]);
 
-  // 알림 바로가기 클릭 → sessionStorage로 학급 전환 + 드로어 자동 오픈
+  // 알림 바로가기: 이미 해당 클래스룸에 있는 경우 → 커스텀 이벤트로 직접 drawer 오픈
+  useEffect(() => {
+    const openFromStorage = () => {
+      const raw = sessionStorage.getItem('notif_open_student');
+      if (!raw) return;
+      try {
+        const { studentId } = JSON.parse(raw);
+        sessionStorage.removeItem('notif_open_student');
+        if (!studentId) return;
+        setDetailedStudentId(studentId);
+        setIsDrawerOpen(true);
+      } catch {
+        sessionStorage.removeItem('notif_open_student');
+      }
+    };
+
+    window.addEventListener('notif_open_student', openFromStorage);
+    return () => window.removeEventListener('notif_open_student', openFromStorage);
+  }, []);
+
+  // 알림 바로가기: 다른 페이지/클래스에서 navigate로 진입한 경우 → location.key 변화로 처리
   useEffect(() => {
     const raw = sessionStorage.getItem('notif_open_student');
     if (!raw) return;

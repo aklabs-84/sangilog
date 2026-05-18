@@ -82,9 +82,20 @@ const Navbar = () => {
       const studentId = url.searchParams.get('student_id');
 
       if (classId && studentId) {
-        // sessionStorage로 drawer 오픈 요청을 저장 (같은 URL 재방문 시에도 확실히 동작)
-        sessionStorage.setItem('notif_open_student', JSON.stringify({ studentId, classId, ts: Date.now() }));
-        navigate(`/classroom?id=${classId}`);
+        sessionStorage.setItem('notif_open_student', JSON.stringify({ studentId, classId }));
+
+        const currentParams = new URLSearchParams(window.location.search);
+        const isAlreadyOnClass =
+          window.location.pathname === '/classroom' &&
+          currentParams.get('id') === classId;
+
+        if (isAlreadyOnClass) {
+          // 이미 해당 클래스룸에 있음 → navigate 없이 이벤트로 직접 drawer 오픈
+          window.dispatchEvent(new CustomEvent('notif_open_student'));
+        } else {
+          // 다른 페이지/클래스 → navigate 후 location.key 변화로 처리
+          navigate(`/classroom?id=${classId}`);
+        }
       } else {
         navigate(dest);
       }
