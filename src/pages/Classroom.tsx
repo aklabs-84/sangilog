@@ -1100,7 +1100,7 @@ const Classroom = () => {
                     onExport={handleExportCSV}
                     onAddStudent={() => setIsStudentModalOpen(true)}
                     onLinkClass={() => setIsLinkModalOpen(true)}
-                    onEditStudent={() => {}}
+                    onEditStudent={handleEditStudent}
                     onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
                     onNavigateAI={(id) => {
                       setDetailedStudentId(id);

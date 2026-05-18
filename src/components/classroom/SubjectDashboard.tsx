@@ -25,7 +25,8 @@ import {
   ChevronUp,
   KeyRound,
   Eye,
-  EyeOff
+  EyeOff,
+  Save
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -41,7 +42,7 @@ interface SubjectDashboardProps {
   onExport: () => void;
   onAddStudent: () => void;
   onLinkClass: () => void;
-  onEditStudent: (student: any) => void;
+  onEditStudent: (id: string, number: string, name: string) => Promise<void>;
   onDeleteStudent: (id: string) => void;
   onNavigateAI: (studentId: string) => void;
   sortConfig: { key: string, direction: 'asc' | 'desc' };
@@ -83,6 +84,31 @@ const SubjectDashboard = ({
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
   const [pinPopupId, setPinPopupId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNumber, setEditNumber] = useState('');
+  const [editName, setEditName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleStartEdit = (e: React.MouseEvent, s: any) => {
+    e.stopPropagation();
+    setEditingId(s.id);
+    setEditNumber(s.number === '-' ? '' : s.number.toString());
+    setEditName(s.name);
+  };
+
+  const handleCancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(null);
+  };
+
+  const handleSaveEdit = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!editingId) return;
+    setSaving(true);
+    await onEditStudent(editingId, editNumber, editName);
+    setSaving(false);
+    setEditingId(null);
+  };
 
   // 날짜별 제출 통계
   const [showStats, setShowStats] = useState(true);
@@ -420,12 +446,14 @@ const SubjectDashboard = ({
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-neutral-100">
-                      {filteredStudents.map((s) => (
-                        <motion.tr 
-                          key={s.id} 
-                          layout 
-                          onClick={() => onNavigateAI(s.id)}
-                          className={`group hover:bg-neutral-50/50 transition-all cursor-pointer ${selectedIds.includes(s.id) ? 'bg-primary/[0.03]' : ''}`}
+                      {filteredStudents.map((s) => {
+                        const isEditing = editingId === s.id;
+                        return (
+                        <motion.tr
+                          key={s.id}
+                          layout
+                          onClick={() => !isEditing && onNavigateAI(s.id)}
+                          className={`group hover:bg-neutral-50/50 transition-all ${isEditing ? 'bg-primary/[0.02] cursor-default' : 'cursor-pointer'} ${selectedIds.includes(s.id) ? 'bg-primary/[0.03]' : ''}`}
                         >
                           <td className="p-6 text-center" onClick={(e) => e.stopPropagation()}>
                             <label className="flex items-center justify-center cursor-pointer">
@@ -440,8 +468,33 @@ const SubjectDashboard = ({
                               </div>
                             </label>
                           </td>
-                          <td className="p-6 font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg truncate w-20">{s.number.toString().padStart(2, '0')}</td>
-                          <td className="p-6">
+                          <td className="p-6 w-24" onClick={(e) => isEditing && e.stopPropagation()}>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editNumber}
+                                onChange={(e) => setEditNumber(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="번호"
+                                className="w-16 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
+                              />
+                            ) : (
+                              <span className="font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg">
+                                {s.number === '-' ? <span className="text-neutral-300 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-6" onClick={(e) => isEditing && e.stopPropagation()}>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="이름"
+                                className="w-40 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black focus:outline-none focus:border-primary"
+                              />
+                            ) : (
                             <div className="flex items-center gap-4">
                               <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
                                 <Users size={20} strokeWidth={2.5} />
@@ -451,6 +504,7 @@ const SubjectDashboard = ({
                                 <span className="text-[10px] font-bold text-on-surface-variant/40">{s.tag || '학생'}</span>
                               </div>
                             </div>
+                            )}
                           </td>
                           <td className="p-6">
                              <div className="max-w-[400px]">
@@ -497,8 +551,26 @@ const SubjectDashboard = ({
                           )}
 
                           <td className="p-6 text-right pr-10" onClick={(e) => e.stopPropagation()}>
+                            {isEditing ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={handleSaveEdit}
+                                  disabled={saving}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50"
+                                >
+                                  <Save size={13} />
+                                  {saving ? '저장 중' : '저장'}
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="p-2 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded-xl transition-all"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            ) : (
                             <div className="flex items-center justify-end gap-1">
-                              <button onClick={(e) => { e.stopPropagation(); onEditStudent(s); }} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg" title="편집"><Pencil size={14} /></button>
+                              <button onClick={(e) => handleStartEdit(e, s)} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg" title="편집"><Pencil size={14} /></button>
                               <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-neutral-400 hover:text-error transition-all rounded-lg" title="삭제"><Trash2 size={14} /></button>
                               {/* PIN 보기 */}
                               <div className="relative">
@@ -522,9 +594,11 @@ const SubjectDashboard = ({
                               <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-amber-50 text-neutral-400 hover:text-amber-500 transition-all rounded-lg" title="PIN 초기화"><KeyRound size={14} /></button>
                               <button onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }} className="p-2 hover:bg-primary/10 text-primary/40 hover:text-primary transition-all rounded-lg" title="상세 보기"><ArrowRight size={16} /></button>
                             </div>
+                            )}
                           </td>
                         </motion.tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
