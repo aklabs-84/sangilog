@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Trash2,
   Key,
   X,
@@ -16,7 +16,8 @@ import {
   BookOpen,
   Link2,
   ArrowRight,
-  Plus
+  Plus,
+  ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -31,6 +32,7 @@ import AIReportModal from '../components/classroom/AIReportModal';
 import AIChatModal from '../components/classroom/AIChatModal';
 import StudentDetailDrawer from '../components/classroom/StudentDetailDrawer';
 import UnitManager from '../components/classroom/UnitManager';
+import AttendanceTab from '../components/classroom/AttendanceTab';
 
 const Classroom = () => {
   const { user, profile } = useAuth();
@@ -57,7 +59,7 @@ const Classroom = () => {
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'linked' | 'analytics' | 'units'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance'>('list');
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
   
   // 아카이브 관련 상태
@@ -964,13 +966,14 @@ const Classroom = () => {
                   { id: 'analytics', label: 'AI Smart Analytics', icon: Sparkles },
                 ] : []),
                 { id: 'units', label: '단원 관리', icon: BookOpen },
+                { id: 'attendance', label: '출석 체크', icon: ClipboardList },
                 { id: 'ai', label: 'AI 분석 인사이트', icon: Sparkles }
               ].map((tab) => {
                 const isActive = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'list' | 'ai' | 'linked' | 'analytics' | 'units')}
+                    onClick={() => setActiveTab(tab.id as 'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance')}
                     className={`
                       relative z-10 flex items-center gap-3 px-8 py-4 rounded-[2rem] font-black text-sm transition-all duration-500 whitespace-nowrap
                       ${isActive ? 'text-surface' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/30'}
@@ -1080,6 +1083,12 @@ const Classroom = () => {
                     classId={activeClassId!}
                     teacherId={user?.id || ''}
                   />
+                </div>
+              )}
+
+              {activeTab === 'attendance' && classInfo && (
+                <div className="max-w-4xl mx-auto">
+                  <AttendanceTab classId={activeClassId!} students={sortedStudents} />
                 </div>
               )}
 
