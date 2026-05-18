@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Bell, Settings, Trash2, Plus, GraduationCap } from 'lucide-react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
 const Navbar = () => {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
@@ -68,6 +69,28 @@ const Navbar = () => {
   const handleNotificationClick = (n: any) => {
     markAsRead(n.id);
     setShowNotifications(false);
+  };
+
+  const handleNotificationNavigate = (n: any, e: React.MouseEvent) => {
+    e.preventDefault();
+    markAsRead(n.id);
+    setShowNotifications(false);
+
+    if (!n.link) return;
+
+    try {
+      const url = new URL(n.link, window.location.origin);
+      const classId = url.searchParams.get('id');
+      const studentId = url.searchParams.get('student_id');
+
+      if (classId && studentId) {
+        navigate(`/classroom?id=${classId}`, { state: { openStudentId: studentId, openClassId: classId } });
+      } else {
+        navigate(n.link);
+      }
+    } catch {
+      navigate(n.link);
+    }
   };
 
   const clearAll = async () => {
@@ -215,17 +238,14 @@ const Navbar = () => {
                         </div>
                       </>
                     );
-                    if (dest) {
-                      return (
-                        <Link key={n.id} to={dest} className={baseClass} onClick={() => handleNotificationClick(n)}>
-                          {content}
-                        </Link>
-                      );
-                    }
                     return (
-                      <div key={n.id} onClick={() => handleNotificationClick(n)} className={baseClass}>
+                      <button
+                        key={n.id}
+                        className={`w-full text-left ${baseClass}`}
+                        onClick={(e) => dest ? handleNotificationNavigate(n, e) : handleNotificationClick(n)}
+                      >
                         {content}
-                      </div>
+                      </button>
                     );
                   }) : (
                     <div className="py-12 text-center space-y-3">

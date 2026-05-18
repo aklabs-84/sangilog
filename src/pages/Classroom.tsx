@@ -19,7 +19,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
@@ -34,6 +34,8 @@ import UnitManager from '../components/classroom/UnitManager';
 
 const Classroom = () => {
   const { user, profile } = useAuth();
+  const location = useLocation();
+  const navigateTo = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
@@ -123,13 +125,30 @@ const Classroom = () => {
     }
   }, [activeClassId]);
 
-  // 알림에서 student_id 파라미터로 진입한 경우 → 학급 전환 + 드로어 자동 오픈
+  // 알림 navigate state로 진입한 경우 → 학급 전환 + 드로어 자동 오픈 (navigate + state 방식)
+  useEffect(() => {
+    const state = location.state as { openStudentId?: string; openClassId?: string } | null;
+    if (!state?.openStudentId) return;
+
+    const { openStudentId, openClassId } = state;
+
+    if (openClassId && openClassId !== activeClassId) {
+      setActiveClassId(openClassId);
+    }
+
+    setDetailedStudentId(openStudentId);
+    setIsDrawerOpen(true);
+
+    // state 초기화 (뒤로가기 시 재오픈 방지)
+    navigateTo(location.pathname + location.search, { replace: true, state: {} });
+  }, [location.key]);
+
+  // 알림에서 student_id URL 파라미터로 진입한 경우 (하위 호환)
   useEffect(() => {
     const studentId = searchParams.get('student_id');
     if (!studentId) return;
 
     const urlClassId = searchParams.get('id');
-    // 현재 열린 학급과 다른 학급이면 전환
     if (urlClassId && urlClassId !== activeClassId) {
       setActiveClassId(urlClassId);
     }
@@ -137,7 +156,6 @@ const Classroom = () => {
     setDetailedStudentId(studentId);
     setIsDrawerOpen(true);
 
-    // URL에서 student_id 제거
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.delete('student_id');
