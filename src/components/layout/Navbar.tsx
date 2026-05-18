@@ -71,25 +71,25 @@ const Navbar = () => {
     setShowNotifications(false);
   };
 
-  const handleNotificationNavigate = (n: any, e: React.MouseEvent) => {
+  const handleNotificationNavigate = (n: any, e: React.MouseEvent, dest: string) => {
     e.preventDefault();
     markAsRead(n.id);
     setShowNotifications(false);
 
-    if (!n.link) return;
-
     try {
-      const url = new URL(n.link, window.location.origin);
+      const url = new URL(dest, window.location.origin);
       const classId = url.searchParams.get('id');
       const studentId = url.searchParams.get('student_id');
 
       if (classId && studentId) {
-        navigate(`/classroom?id=${classId}`, { state: { openStudentId: studentId, openClassId: classId } });
+        // sessionStorage로 drawer 오픈 요청을 저장 (같은 URL 재방문 시에도 확실히 동작)
+        sessionStorage.setItem('notif_open_student', JSON.stringify({ studentId, classId, ts: Date.now() }));
+        navigate(`/classroom?id=${classId}`);
       } else {
-        navigate(n.link);
+        navigate(dest);
       }
     } catch {
-      navigate(n.link);
+      navigate(dest);
     }
   };
 
@@ -242,7 +242,7 @@ const Navbar = () => {
                       <button
                         key={n.id}
                         className={`w-full text-left ${baseClass}`}
-                        onClick={(e) => dest ? handleNotificationNavigate(n, e) : handleNotificationClick(n)}
+                        onClick={(e) => dest ? handleNotificationNavigate(n, e, dest) : handleNotificationClick(n)}
                       >
                         {content}
                       </button>

@@ -125,22 +125,25 @@ const Classroom = () => {
     }
   }, [activeClassId]);
 
-  // 알림 navigate state로 진입한 경우 → 학급 전환 + 드로어 자동 오픈 (navigate + state 방식)
+  // 알림 바로가기 클릭 → sessionStorage로 학급 전환 + 드로어 자동 오픈
   useEffect(() => {
-    const state = location.state as { openStudentId?: string; openClassId?: string } | null;
-    if (!state?.openStudentId) return;
+    const raw = sessionStorage.getItem('notif_open_student');
+    if (!raw) return;
 
-    const { openStudentId, openClassId } = state;
+    try {
+      const { studentId, classId } = JSON.parse(raw);
+      sessionStorage.removeItem('notif_open_student');
 
-    if (openClassId && openClassId !== activeClassId) {
-      setActiveClassId(openClassId);
+      if (!studentId) return;
+
+      if (classId && classId !== activeClassId) {
+        setActiveClassId(classId);
+      }
+      setDetailedStudentId(studentId);
+      setIsDrawerOpen(true);
+    } catch {
+      sessionStorage.removeItem('notif_open_student');
     }
-
-    setDetailedStudentId(openStudentId);
-    setIsDrawerOpen(true);
-
-    // state 초기화 (뒤로가기 시 재오픈 방지)
-    navigateTo(location.pathname + location.search, { replace: true, state: {} });
   }, [location.key]);
 
   // 알림에서 student_id URL 파라미터로 진입한 경우 (하위 호환)
