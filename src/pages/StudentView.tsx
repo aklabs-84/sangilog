@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -13,6 +13,8 @@ import { geminiFlash } from '../lib/gemini';
 const StudentView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { state: locationState } = useLocation();
+  const fromClassId: string | undefined = locationState?.fromClassId;
   const [student, setStudent] = useState<any>(null);
   const [observations, setObservations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -286,7 +288,7 @@ ${activitiesContext}
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => fromClassId ? navigate(`/classroom?id=${fromClassId}`) : navigate(-1)}
           className="flex items-center gap-2 px-4 py-2 hover:bg-surface-container rounded-xl text-on-surface-variant font-bold transition-all group"
         >
           <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
@@ -298,16 +300,17 @@ ${activitiesContext}
           const currentIdx = classmates.findIndex(s => s.id === id);
           const prev = currentIdx > 0 ? classmates[currentIdx - 1] : null;
           const next = currentIdx < classmates.length - 1 ? classmates[currentIdx + 1] : null;
+          const label = (s: typeof prev) => s ? [s.student_number ? `${s.student_number}번` : null, s.full_name].filter(Boolean).join(' ') : '';
           return (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => prev && navigate(`/student-view/${prev.id}`)}
+                onClick={() => prev && navigate(`/student-view/${prev.id}`, { state: { fromClassId } })}
                 disabled={!prev}
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 hover:border-primary/40 hover:bg-primary/5 hover:text-primary rounded-xl text-sm font-black transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                title={prev ? `${prev.student_number}번 ${prev.full_name}` : ''}
+                title={label(prev)}
               >
                 <ArrowLeft size={15} />
-                {prev ? `${prev.student_number}번 ${prev.full_name}` : '이전 학생'}
+                {prev ? label(prev) : '이전 학생'}
               </button>
 
               <span className="text-[11px] font-black text-on-surface-variant/40 px-2">
@@ -315,12 +318,12 @@ ${activitiesContext}
               </span>
 
               <button
-                onClick={() => next && navigate(`/student-view/${next.id}`)}
+                onClick={() => next && navigate(`/student-view/${next.id}`, { state: { fromClassId } })}
                 disabled={!next}
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 hover:border-primary/40 hover:bg-primary/5 hover:text-primary rounded-xl text-sm font-black transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                title={next ? `${next.student_number}번 ${next.full_name}` : ''}
+                title={label(next)}
               >
-                {next ? `${next.student_number}번 ${next.full_name}` : '다음 학생'}
+                {next ? label(next) : '다음 학생'}
                 <ArrowLeft size={15} className="rotate-180" />
               </button>
             </div>

@@ -13,9 +13,10 @@ interface StudentDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   studentId: string | null;
+  fromClassId?: string;
 }
 
-const StudentDetailDrawer = ({ isOpen, onClose, studentId }: StudentDetailDrawerProps) => {
+const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: StudentDetailDrawerProps) => {
   const [student, setStudent] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
@@ -108,7 +109,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId }: StudentDetailDrawer
 
   const handleNavigateToFullPage = () => {
     if (studentId) {
-      navigate(`/student-view/${studentId}`);
+      navigate(`/student-view/${studentId}`, { state: { fromClassId } });
       onClose();
     }
   };

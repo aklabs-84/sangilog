@@ -1175,13 +1175,14 @@ const Classroom = () => {
         students={students}
       />
 
-      <StudentDetailDrawer 
+      <StudentDetailDrawer
         isOpen={isDrawerOpen}
         onClose={() => {
           setIsDrawerOpen(false);
           setDetailedStudentId(null);
         }}
         studentId={detailedStudentId}
+        fromClassId={activeClassId || undefined}
       />
 
       <AnimatePresence>
