@@ -288,7 +288,7 @@ ${activitiesContext}
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <button
-          onClick={() => fromClassId ? navigate(`/classroom?id=${fromClassId}`) : navigate(-1)}
+          onClick={() => navigate(`/classroom?id=${fromClassId || student?.class_id}`)}
           className="flex items-center gap-2 px-4 py-2 hover:bg-surface-container rounded-xl text-on-surface-variant font-bold transition-all group"
         >
           <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
