@@ -176,9 +176,17 @@ const ClassroomEntry = () => {
       const confirm = pinConfirmDigits.join('');
       if (pin !== confirm) { setPinError('PIN이 일치하지 않습니다. 다시 확인해주세요.'); return; }
       setPinLoading(true);
-      const { error } = await supabase.from('students').update({ pin }).eq('id', selectedStudent!.id);
+      const { data: saved, error } = await supabase
+        .from('students')
+        .update({ pin })
+        .eq('id', selectedStudent!.id)
+        .select('pin');
       setPinLoading(false);
-      if (error) { setPinError('저장 중 오류가 발생했습니다.'); return; }
+      if (error) { setPinError(`저장 실패: ${error.message}`); return; }
+      if (!saved || saved.length === 0) {
+        setPinError('PIN 저장에 실패했습니다. 선생님께 문의하세요.');
+        return;
+      }
       enterSession();
       return;
     }

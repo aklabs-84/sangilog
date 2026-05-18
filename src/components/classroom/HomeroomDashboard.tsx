@@ -22,7 +22,9 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
-  KeyRound
+  KeyRound,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -134,6 +136,7 @@ const HomeroomDashboard = ({
   const [editNumber, setEditNumber] = useState('');
   const [editName, setEditName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pinPopupId, setPinPopupId] = useState<string | null>(null);
 
   const handleStartEdit = (e: React.MouseEvent, s: any) => {
     e.stopPropagation();
@@ -583,6 +586,24 @@ const HomeroomDashboard = ({
                                >
                                  <Trash2 size={16} />
                                </button>
+                               <div className="relative">
+                                 <button
+                                   onClick={(e) => { e.stopPropagation(); setPinPopupId(pinPopupId === s.id ? null : s.id); }}
+                                   className="p-2 text-neutral-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                                   title="PIN 보기"
+                                 >
+                                   {pinPopupId === s.id ? <EyeOff size={14} /> : <Eye size={14} />}
+                                 </button>
+                                 {pinPopupId === s.id && (
+                                   <div className="absolute right-0 bottom-9 z-50 bg-neutral-900 text-white rounded-xl px-4 py-2.5 shadow-xl whitespace-nowrap">
+                                     <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-1">PIN</p>
+                                     <p className="text-lg font-black tracking-widest font-manrope">
+                                       {s.pin ?? <span className="text-neutral-500 text-sm">미설정</span>}
+                                     </p>
+                                     <div className="absolute bottom-[-5px] right-4 w-2.5 h-2.5 bg-neutral-900 rotate-45" />
+                                   </div>
+                                 )}
+                               </div>
                                <button
                                  onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }}
                                  className="p-2 text-neutral-400 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all"

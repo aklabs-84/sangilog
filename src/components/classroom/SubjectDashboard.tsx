@@ -23,7 +23,9 @@ import {
   BarChart2,
   ChevronDown,
   ChevronUp,
-  KeyRound
+  KeyRound,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -80,6 +82,7 @@ const SubjectDashboard = ({
 }: SubjectDashboardProps) => {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
+  const [pinPopupId, setPinPopupId] = useState<string | null>(null);
 
   // 날짜별 제출 통계
   const [showStats, setShowStats] = useState(true);
@@ -497,6 +500,25 @@ const SubjectDashboard = ({
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={(e) => { e.stopPropagation(); onEditStudent(s); }} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg" title="편집"><Pencil size={14} /></button>
                               <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-neutral-400 hover:text-error transition-all rounded-lg" title="삭제"><Trash2 size={14} /></button>
+                              {/* PIN 보기 */}
+                              <div className="relative">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setPinPopupId(pinPopupId === s.id ? null : s.id); }}
+                                  className="p-2 hover:bg-violet-50 text-neutral-400 hover:text-violet-500 transition-all rounded-lg"
+                                  title="PIN 보기"
+                                >
+                                  {pinPopupId === s.id ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
+                                {pinPopupId === s.id && (
+                                  <div className="absolute right-0 bottom-9 z-50 bg-neutral-900 text-white rounded-xl px-4 py-2.5 shadow-xl whitespace-nowrap">
+                                    <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-1">PIN</p>
+                                    <p className="text-lg font-black tracking-widest font-manrope">
+                                      {s.pin ?? <span className="text-neutral-500 text-sm">미설정</span>}
+                                    </p>
+                                    <div className="absolute bottom-[-5px] right-4 w-2.5 h-2.5 bg-neutral-900 rotate-45" />
+                                  </div>
+                                )}
+                              </div>
                               <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-amber-50 text-neutral-400 hover:text-amber-500 transition-all rounded-lg" title="PIN 초기화"><KeyRound size={14} /></button>
                               <button onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }} className="p-2 hover:bg-primary/10 text-primary/40 hover:text-primary transition-all rounded-lg" title="상세 보기"><ArrowRight size={16} /></button>
                             </div>

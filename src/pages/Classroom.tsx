@@ -537,6 +537,7 @@ const Classroom = () => {
           avatar_url,
           created_at,
           memo,
+          pin,
           observations(id, student_id, content, activity_name, created_at, teacher_id, status),
           reports(is_published)
         `)
@@ -560,6 +561,7 @@ const Classroom = () => {
             number: s.student_number || '-',
             tag: s.tag === '일반' ? '학생' : (s.tag || '학생'),
             memo: s.memo || '',
+            pin: s.pin || null,
             avatar: s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.full_name)}&background=random`,
             activity: latestObs ? latestObs.activity_name : '기록 없음',
             time: latestObs ? new Date(latestObs.created_at).toLocaleDateString('ko-KR') : '-',
