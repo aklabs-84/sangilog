@@ -273,8 +273,8 @@ const ClassroomEntry = () => {
               </p>
             </div>
           </motion.div>
-        ) : (
-          <motion.div 
+        ) : step === 2 ? (
+          <motion.div
             key="step2"
             initial={{ opacity: 0, x: 20, scale: 0.95 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
