@@ -29,6 +29,9 @@ const StudentView = () => {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [selectedResult, setSelectedResult] = useState<any>(null);
 
+  // Classmates navigation
+  const [classmates, setClassmates] = useState<{ id: string; full_name: string; student_number: string | null }[]>([]);
+
   // Reply States
   const [replyingId, setReplyingId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -78,6 +81,7 @@ const StudentView = () => {
   };
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
     fetchStudentData();
   }, [id]);
 
@@ -92,6 +96,19 @@ const StudentView = () => {
         .single();
       if (studentError) throw studentError;
       setStudent(studentData);
+
+      // 같은 반 학생 목록 조회 (번호순)
+      const { data: classmatesData } = await supabase
+        .from('students')
+        .select('id, full_name, student_number')
+        .eq('class_id', studentData.class_id)
+        .order('student_number', { ascending: true });
+      const sorted = (classmatesData || []).slice().sort((a: any, b: any) => {
+        const na = parseInt(a.student_number) || 0;
+        const nb = parseInt(b.student_number) || 0;
+        return na - nb;
+      });
+      setClassmates(sorted);
 
       const { data: obsData, error: obsError } = await supabase
         .from('observations')
@@ -267,7 +284,7 @@ ${activitiesContext}
       className="p-8 max-w-7xl mx-auto font-pretendard space-y-8 pb-20"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 px-4 py-2 hover:bg-surface-container rounded-xl text-on-surface-variant font-bold transition-all group"
@@ -275,6 +292,41 @@ ${activitiesContext}
           <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
           돌아가기
         </button>
+
+        {/* 학생 네비게이션 */}
+        {classmates.length > 1 && (() => {
+          const currentIdx = classmates.findIndex(s => s.id === id);
+          const prev = currentIdx > 0 ? classmates[currentIdx - 1] : null;
+          const next = currentIdx < classmates.length - 1 ? classmates[currentIdx + 1] : null;
+          return (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => prev && navigate(`/student-view/${prev.id}`)}
+                disabled={!prev}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 hover:border-primary/40 hover:bg-primary/5 hover:text-primary rounded-xl text-sm font-black transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                title={prev ? `${prev.student_number}번 ${prev.full_name}` : ''}
+              >
+                <ArrowLeft size={15} />
+                {prev ? `${prev.student_number}번 ${prev.full_name}` : '이전 학생'}
+              </button>
+
+              <span className="text-[11px] font-black text-on-surface-variant/40 px-2">
+                {currentIdx + 1} / {classmates.length}
+              </span>
+
+              <button
+                onClick={() => next && navigate(`/student-view/${next.id}`)}
+                disabled={!next}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 hover:border-primary/40 hover:bg-primary/5 hover:text-primary rounded-xl text-sm font-black transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                title={next ? `${next.student_number}번 ${next.full_name}` : ''}
+              >
+                {next ? `${next.student_number}번 ${next.full_name}` : '다음 학생'}
+                <ArrowLeft size={15} className="rotate-180" />
+              </button>
+            </div>
+          );
+        })()}
+
         <span className="px-4 py-1.5 bg-primary/10 text-primary rounded-full text-[11px] font-black uppercase tracking-widest border border-primary/20">
           Integrated Student Record
         </span>

@@ -48,6 +48,7 @@ interface SubjectDashboardProps {
   selectedIds: string[];
   onSelectStudent: (id: string) => void;
   onSelectAll: (isSelect: boolean) => void;
+  onBulkApprove: () => void;
 }
 
 const SubjectDashboard = ({
@@ -71,7 +72,8 @@ const SubjectDashboard = ({
   copySuccess,
   selectedIds,
   onSelectStudent,
-  onSelectAll
+  onSelectAll,
+  onBulkApprove
 }: SubjectDashboardProps) => {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
@@ -119,6 +121,7 @@ const SubjectDashboard = ({
     fetchStats();
   }, [classInfo?.id, students.length]);
 
+  const pendingCount = students.reduce((acc, s) => acc + (s.pending_obs_ids?.length || 0), 0);
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
   const filteredStudents = students.filter(s =>
     s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -247,6 +250,17 @@ const SubjectDashboard = ({
                <Download size={18} />
             </button>
           </div>
+
+          {pendingCount > 0 && (
+            <button
+              onClick={onBulkApprove}
+              className="px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-3 shadow-soft bg-amber-500 hover:bg-amber-600 text-white transition-all active:scale-95"
+            >
+              <CheckCheck size={18} strokeWidth={2.5} />
+              <span>전체 승인</span>
+              <span className="bg-white/30 text-white text-[10px] font-black px-2 py-0.5 rounded-lg">{pendingCount}건</span>
+            </button>
+          )}
 
           <button onClick={onAddStudent} className="btn-vibrant px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-3 shadow-soft">
             <Plus size={18} strokeWidth={3} />

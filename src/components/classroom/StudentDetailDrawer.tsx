@@ -219,13 +219,25 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId }: StudentDetailDrawer
 
                 {/* Recent Activity Mini List */}
                 <div className="space-y-4">
-                   <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
-                      <Clock size={14} /> Recent Activities
-                   </h4>
+                   <button
+                     onClick={handleNavigateToFullPage}
+                     className="w-full flex items-center justify-between group"
+                   >
+                     <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2 group-hover:text-primary transition-colors">
+                       <Clock size={14} /> Recent Activities
+                     </h4>
+                     <span className="text-[10px] font-black text-primary/50 group-hover:text-primary transition-colors flex items-center gap-1">
+                       전체 보기 →
+                     </span>
+                   </button>
                    {student?.observations?.length > 0 ? (
                      <div className="space-y-3">
                        {student.observations.slice(0, 3).map((obs: any) => (
-                         <div key={obs.id} className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100/50 hover:border-primary/20 transition-colors">
+                         <div
+                           key={obs.id}
+                           onClick={handleNavigateToFullPage}
+                           className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100/50 hover:border-primary/20 hover:bg-primary/[0.02] transition-colors cursor-pointer"
+                         >
                             <div className="flex items-center justify-between mb-1">
                               <p className="text-[10px] font-bold text-on-surface-variant/40">
                                 {new Date(obs.created_at).toLocaleDateString('ko-KR')}

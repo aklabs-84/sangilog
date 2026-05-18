@@ -1071,7 +1071,7 @@ const Classroom = () => {
                     onBulkApprove={handleBulkApprove}
                   />
                 ) : (
-                  <SubjectDashboard 
+                  <SubjectDashboard
                     classInfo={classInfo}
                     students={sortedStudents}
                     viewMode={viewMode}
@@ -1099,6 +1099,7 @@ const Classroom = () => {
                     selectedIds={selectedStudentIds}
                     onSelectStudent={handleSelectStudent}
                     onSelectAll={handleSelectAll}
+                    onBulkApprove={handleBulkApprove}
                   />
                 )
               )}
