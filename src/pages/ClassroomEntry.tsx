@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect } from 'react';
-import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, CheckCircle2, Key } from 'lucide-react';
+import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, CheckCircle2, Key, ShieldCheck, KeyRound } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -19,6 +19,14 @@ const ClassroomEntry = () => {
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // PIN 관련 상태
+  const [pinDigits, setPinDigits] = useState(['', '', '', '']);
+  const [pinConfirmDigits, setPinConfirmDigits] = useState(['', '', '', '']);
+  const [pinError, setPinError] = useState('');
+  const [pinLoading, setPinLoading] = useState(false);
+  const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const pinConfirmRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     const codeParam = searchParams.get('code');
@@ -120,17 +128,69 @@ const ClassroomEntry = () => {
 
   const handleFinalEnter = () => {
     if (!selectedStudent || !targetClass) return;
-    
-    // 세션에 정보 저장 (학생용 간이 인증 역할)
+    setPinDigits(['', '', '', '']);
+    setPinConfirmDigits(['', '', '', '']);
+    setPinError('');
+    setStep(3);
+  };
+
+  const handlePinDigitChange = (
+    idx: number, val: string,
+    digits: string[], setDigits: (d: string[]) => void,
+    refs: React.MutableRefObject<(HTMLInputElement | null)[]>
+  ) => {
+    if (!/^\d*$/.test(val)) return;
+    const next = [...digits];
+    next[idx] = val.slice(-1);
+    setDigits(next);
+    if (val && idx < 3) refs.current[idx + 1]?.focus();
+  };
+
+  const handlePinKeyDown = (
+    idx: number, e: React.KeyboardEvent,
+    digits: string[], setDigits: (d: string[]) => void,
+    refs: React.MutableRefObject<(HTMLInputElement | null)[]>
+  ) => {
+    if (e.key === 'Backspace' && !digits[idx] && idx > 0) {
+      refs.current[idx - 1]?.focus();
+    }
+  };
+
+  const enterSession = () => {
     sessionStorage.setItem('student_session', JSON.stringify({
-      student_id: selectedStudent.id,
-      student_name: selectedStudent.full_name,
-      class_id: targetClass.id,
-      class_name: targetClass.name,
-      subject: targetClass.subject
+      student_id: selectedStudent!.id,
+      student_name: selectedStudent!.full_name,
+      class_id: targetClass!.id,
+      class_name: targetClass!.name,
+      subject: targetClass!.subject
     }));
-    
     navigate('/student-log');
+  };
+
+  const handlePinSubmit = async () => {
+    const pin = pinDigits.join('');
+    if (pin.length < 4) { setPinError('4자리 PIN을 모두 입력해주세요.'); return; }
+
+    // PIN 미설정 → 새로 설정
+    if (!selectedStudent?.pin) {
+      const confirm = pinConfirmDigits.join('');
+      if (pin !== confirm) { setPinError('PIN이 일치하지 않습니다. 다시 확인해주세요.'); return; }
+      setPinLoading(true);
+      const { error } = await supabase.from('students').update({ pin }).eq('id', selectedStudent!.id);
+      setPinLoading(false);
+      if (error) { setPinError('저장 중 오류가 발생했습니다.'); return; }
+      enterSession();
+      return;
+    }
+
+    // PIN 확인
+    if (pin !== selectedStudent.pin) {
+      setPinError('PIN이 올바르지 않습니다. 다시 시도해주세요.');
+      setPinDigits(['', '', '', '']);
+      setTimeout(() => pinRefs.current[0]?.focus(), 50);
+      return;
+    }
+    enterSession();
   };
 
   const filteredStudents = students.filter(s => 
@@ -267,19 +327,117 @@ const ClassroomEntry = () => {
             </div>
 
             <div className="flex gap-4">
-              <button 
+              <button
                 onClick={() => setStep(1)}
                 className="flex-1 py-5 bg-surface-container rounded-2xl font-black text-on-surface-variant hover:bg-surface-container-high transition-all"
               >
                 뒤로가기
               </button>
-              <button 
+              <button
                 onClick={handleFinalEnter}
                 disabled={!selectedStudent}
                 className="flex-[2] btn-gradient py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
               >
                 <span>학습 기록하기</span>
                 <ArrowRight size={24} />
+              </button>
+            </div>
+          </motion.div>
+        ) : (
+          /* ── Step 3: PIN 설정 / 확인 ── */
+          <motion.div
+            key="step3"
+            initial={{ opacity: 0, x: 20, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            className="w-full max-w-[520px] glass rounded-[3rem] shadow-ambient p-12 relative z-10 border border-white/20 space-y-8 text-center"
+          >
+            <div className="space-y-3">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner text-white"
+                style={{ background: selectedStudent?.pin ? 'var(--color-primary)' : 'var(--color-secondary)' }}
+              >
+                {selectedStudent?.pin ? <KeyRound size={30} /> : <ShieldCheck size={30} />}
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-[0.3em]"
+                style={{ color: selectedStudent?.pin ? 'var(--color-primary)' : 'var(--color-secondary)' }}
+              >
+                {selectedStudent?.pin ? 'PIN Verification' : 'Set Your PIN'}
+              </p>
+              <h2 className="text-3xl font-black font-manrope">
+                {selectedStudent?.pin ? 'PIN 입력' : '개인 PIN 설정'}
+              </h2>
+              <p className="text-on-surface-variant font-medium text-sm">
+                {selectedStudent?.pin
+                  ? `${selectedStudent?.full_name}님, PIN 4자리를 입력하세요.`
+                  : '처음 방문이군요! 앞으로 사용할 PIN 4자리를 설정해주세요.'}
+              </p>
+            </div>
+
+            {/* PIN 입력 */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">
+                {selectedStudent?.pin ? 'PIN' : '새 PIN'}
+              </p>
+              <div className="flex justify-center gap-3">
+                {pinDigits.map((d, i) => (
+                  <input
+                    key={i}
+                    ref={el => { pinRefs.current[i] = el; }}
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={d}
+                    onChange={e => { setPinError(''); handlePinDigitChange(i, e.target.value, pinDigits, setPinDigits, pinRefs); }}
+                    onKeyDown={e => handlePinKeyDown(i, e, pinDigits, setPinDigits, pinRefs)}
+                    className="w-16 h-16 bg-surface-container rounded-2xl text-center text-2xl font-black focus:outline-none focus:ring-4 focus:ring-primary/20 focus:bg-white transition-all shadow-inner border border-transparent focus:border-primary/20"
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* PIN 확인 (설정 시만) */}
+            {!selectedStudent?.pin && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">PIN 확인</p>
+                <div className="flex justify-center gap-3">
+                  {pinConfirmDigits.map((d, i) => (
+                    <input
+                      key={i}
+                      ref={el => { pinConfirmRefs.current[i] = el; }}
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={d}
+                      onChange={e => { setPinError(''); handlePinDigitChange(i, e.target.value, pinConfirmDigits, setPinConfirmDigits, pinConfirmRefs); }}
+                      onKeyDown={e => handlePinKeyDown(i, e, pinConfirmDigits, setPinConfirmDigits, pinConfirmRefs)}
+                      className="w-16 h-16 bg-surface-container rounded-2xl text-center text-2xl font-black focus:outline-none focus:ring-4 focus:ring-secondary/20 focus:bg-white transition-all shadow-inner border border-transparent focus:border-secondary/20"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pinError && (
+              <p className="text-error text-sm font-black">{pinError}</p>
+            )}
+
+            <div className="flex gap-4 pt-2">
+              <button
+                onClick={() => { setStep(2); setPinError(''); }}
+                className="flex-1 py-4 bg-surface-container rounded-2xl font-black text-on-surface-variant hover:bg-surface-container-high transition-all"
+              >
+                뒤로가기
+              </button>
+              <button
+                onClick={handlePinSubmit}
+                disabled={pinLoading}
+                className="flex-[2] btn-gradient py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {pinLoading ? <Loader2 className="animate-spin" size={22} /> : (
+                  <>
+                    <span>{selectedStudent?.pin ? '입장하기' : 'PIN 설정 후 입장'}</span>
+                    <ArrowRight size={22} />
+                  </>
+                )}
               </button>
             </div>
           </motion.div>

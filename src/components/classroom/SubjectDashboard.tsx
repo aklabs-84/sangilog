@@ -22,7 +22,8 @@ import {
   Clock as ClockIcon,
   BarChart2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  KeyRound
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -49,6 +50,7 @@ interface SubjectDashboardProps {
   onSelectStudent: (id: string) => void;
   onSelectAll: (isSelect: boolean) => void;
   onBulkApprove: () => void;
+  onResetPin: (id: string) => void;
 }
 
 const SubjectDashboard = ({
@@ -73,7 +75,8 @@ const SubjectDashboard = ({
   selectedIds,
   onSelectStudent,
   onSelectAll,
-  onBulkApprove
+  onBulkApprove,
+  onResetPin
 }: SubjectDashboardProps) => {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
@@ -494,6 +497,7 @@ const SubjectDashboard = ({
                             <div className="flex items-center justify-end gap-1">
                               <button onClick={(e) => { e.stopPropagation(); onEditStudent(s); }} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg" title="편집"><Pencil size={14} /></button>
                               <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-neutral-400 hover:text-error transition-all rounded-lg" title="삭제"><Trash2 size={14} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-amber-50 text-neutral-400 hover:text-amber-500 transition-all rounded-lg" title="PIN 초기화"><KeyRound size={14} /></button>
                               <button onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }} className="p-2 hover:bg-primary/10 text-primary/40 hover:text-primary transition-all rounded-lg" title="상세 보기"><ArrowRight size={16} /></button>
                             </div>
                           </td>

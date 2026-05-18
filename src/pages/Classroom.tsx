@@ -780,6 +780,17 @@ const Classroom = () => {
     }
   };
 
+  const handleResetPin = async (studentId: string) => {
+    if (!confirm('이 학생의 PIN을 초기화하시겠습니까? 학생이 다음 접속 시 새 PIN을 설정하게 됩니다.')) return;
+    try {
+      const { error } = await supabase.from('students').update({ pin: null }).eq('id', studentId);
+      if (error) throw error;
+      showToast('PIN이 초기화되었습니다. 🔑');
+    } catch (err) {
+      showToast('PIN 초기화 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleDeleteStudent = async (studentId: string, studentName: string) => {
     if (!confirm(`"${studentName}" 학생의 정보를 삭제하시겠습니까? 기록된 모든 데이터가 사라집니다.`)) return;
     try {
@@ -1069,6 +1080,7 @@ const Classroom = () => {
                     onEditStudent={handleEditStudent}
                     onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
                     onBulkApprove={handleBulkApprove}
+                    onResetPin={handleResetPin}
                   />
                 ) : (
                   <SubjectDashboard
@@ -1100,6 +1112,7 @@ const Classroom = () => {
                     onSelectStudent={handleSelectStudent}
                     onSelectAll={handleSelectAll}
                     onBulkApprove={handleBulkApprove}
+                    onResetPin={handleResetPin}
                   />
                 )
               )}

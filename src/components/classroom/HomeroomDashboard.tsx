@@ -21,7 +21,8 @@ import {
   BarChart2,
   ChevronDown,
   ChevronUp,
-  Trash2
+  Trash2,
+  KeyRound
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -43,6 +44,7 @@ interface HomeroomDashboardProps {
   onEditStudent: (id: string, number: string, name: string) => Promise<void>;
   onDeleteStudent: (id: string) => void;
   onBulkApprove: () => void;
+  onResetPin: (id: string) => void;
 }
 
 const HomeroomDashboard = ({
@@ -62,7 +64,8 @@ const HomeroomDashboard = ({
   onSelectClass: _onSelectClass,
   onEditStudent,
   onDeleteStudent,
-  onBulkApprove
+  onBulkApprove,
+  onResetPin
 }: HomeroomDashboardProps) => {
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
   const filteredStudents = students.filter(s =>
@@ -579,6 +582,13 @@ const HomeroomDashboard = ({
                                  title="학생 삭제"
                                >
                                  <Trash2 size={16} />
+                               </button>
+                               <button
+                                 onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }}
+                                 className="p-2 text-neutral-400 hover:text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
+                                 title="PIN 초기화"
+                               >
+                                 <KeyRound size={16} />
                                </button>
                                <button
                                  onClick={(e) => { e.stopPropagation(); onNavigateToStudent(s.id); }}
