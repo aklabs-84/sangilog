@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, RotateCcw, Maximize2, Minimize2, Volume2, VolumeX, Plus, Minus, BellOff, X
 } from 'lucide-react';
-import { useTimer, playAlarm } from '../../lib/timerContext';
+import { useTimer } from '../../lib/timerContext';
 
 const PRESETS = [
   { label: '준비', minutes: 1, seconds: 0, emoji: '✋' },
@@ -17,24 +17,6 @@ const PRESETS = [
 const CIRCLE_RADIUS = 120;
 const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
-function playBeep(audioCtx: AudioContext, freq: number, duration: number, delay = 0) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.frequency.value = freq;
-  osc.type = 'sine';
-  gain.gain.setValueAtTime(0.3, audioCtx.currentTime + delay);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
-  osc.start(audioCtx.currentTime + delay);
-  osc.stop(audioCtx.currentTime + delay + duration);
-}
-
-function playAlarm(audioCtx: AudioContext) {
-  playBeep(audioCtx, 880, 0.2, 0);
-  playBeep(audioCtx, 880, 0.2, 0.25);
-  playBeep(audioCtx, 1100, 0.4, 0.5);
-}
 
 interface TimerDisplayProps {
   totalSeconds: number;
