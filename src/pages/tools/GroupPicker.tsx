@@ -189,13 +189,9 @@ const GroupPicker = () => {
   return (
     <>
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-black gradient-text">랜덤 조 뽑기</h2>
-            <p className="text-sm text-on-surface-variant mt-0.5">학생들을 랜덤으로 조를 나눠 공개합니다</p>
-          </div>
-          {showResult && (
+        {/* 발표 모드 버튼 */}
+        {showResult && (
+          <div className="flex justify-end">
             <button
               onClick={() => setPresentMode(true)}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/90 transition-all shadow-md"
@@ -203,8 +199,8 @@ const GroupPicker = () => {
               <Maximize2 size={16} />
               발표 모드
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* LEFT: 학생 목록 */}
