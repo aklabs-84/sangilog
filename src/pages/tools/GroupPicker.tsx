@@ -276,7 +276,9 @@ const GroupPicker = () => {
                 <input
                   value={newStudentName}
                   onChange={(e) => setNewStudentName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addSingleStudent()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) addSingleStudent();
+                  }}
                   placeholder="이름 입력 후 Enter"
                   className="flex-1 px-3 py-2 rounded-xl border border-white/40 bg-surface-container-low/50 text-sm font-bold focus:outline-none focus:border-primary/40 transition-all"
                 />
@@ -597,9 +599,10 @@ const GroupPicker = () => {
                 <h1 className="text-3xl font-black text-white">🎯 조 편성 결과</h1>
                 <button
                   onClick={() => setPresentMode(false)}
-                  className="p-3 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 text-white hover:bg-white/30 transition-all font-black text-sm border border-white/30"
                 >
-                  <Minimize2 size={22} />
+                  <Minimize2 size={18} />
+                  발표 종료
                 </button>
               </div>
 
