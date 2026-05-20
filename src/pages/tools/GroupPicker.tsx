@@ -58,7 +58,7 @@ const GroupPicker = () => {
 
   const fetchClasses = async () => {
     const { data } = await supabase
-      .from('classrooms')
+      .from('classes')
       .select('id, name, class_type')
       .eq('teacher_id', user!.id)
       .eq('is_archived', false)
@@ -71,14 +71,15 @@ const GroupPicker = () => {
     setClassDropdownOpen(false);
     const { data } = await supabase
       .from('students')
-      .select('id, name, number')
-      .eq('classroom_id', classId)
-      .eq('is_approved', true)
-      .order('number', { ascending: true });
+      .select('id, full_name, student_number')
+      .eq('class_id', classId)
+      .order('student_number', { ascending: true });
     if (data) {
       const merged = [...students];
       data.forEach((s) => {
-        if (!merged.find((m) => m.id === s.id)) merged.push(s);
+        if (!merged.find((m) => m.id === s.id)) {
+          merged.push({ id: s.id, name: s.full_name, number: s.student_number ?? '' });
+        }
       });
       setStudents(merged);
     }
