@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft } from 'lucide-react';
 import GroupPicker from './tools/GroupPicker';
+import ClassTimer from './tools/ClassTimer';
 
 interface Tool {
   id: string;
@@ -27,8 +28,8 @@ const tools: Tool[] = [
     icon: <Timer size={28} />,
     label: '수업 타이머',
     description: '발표 시간 제한, 쉬는 시간 등 다양한 타이머를 설정합니다',
-    badge: '준비 중',
-    available: false,
+    available: true,
+    component: <ClassTimer />,
   },
   {
     id: 'random-pick',
