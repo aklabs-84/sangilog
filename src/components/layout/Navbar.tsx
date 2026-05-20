@@ -135,6 +135,7 @@ const Navbar = () => {
   const navItems = [
     { label: '대시보드', path: '/' },
     { label: '클래스룸', path: '/classroom' },
+    { label: '수업 도구', path: '/teaching-tools' },
     { label: 'AI 초안', path: '/ai-assistant' },
     { label: '보고서', path: '/export' },
     { label: '아카이브', path: '/archive' },

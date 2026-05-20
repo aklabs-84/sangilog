@@ -12,6 +12,7 @@ import ClassroomEntry from './pages/ClassroomEntry';
 import StudentLog from './pages/StudentLog';
 import Archive from './pages/Archive';
 import StudentView from './pages/StudentView';
+import TeachingTools from './pages/TeachingTools';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -68,6 +69,7 @@ function App() {
                 <Route path="export" element={<Export />} />
                 <Route path="archive" element={<Archive />} />
                 <Route path="activity-log" element={<ActivityLog />} />
+                <Route path="teaching-tools" element={<TeachingTools />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="help" element={<Help />} />
               </Route>
