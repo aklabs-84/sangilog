@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, RotateCcw, Maximize2, Minimize2, Volume2, VolumeX, Plus, Minus, BellOff, X
 } from 'lucide-react';
+import { useTimer, playAlarm } from '../../lib/timerContext';
 
 const PRESETS = [
   { label: '준비', minutes: 1, seconds: 0, emoji: '✋' },
@@ -430,100 +431,23 @@ const FullscreenTimer = ({
 // ─── 메인 타이머 ─────────────────────────────────────────────────────────────
 
 const ClassTimer = () => {
-  const [totalSeconds, setTotalSeconds] = useState(3 * 60);
-  const [remainingSeconds, setRemainingSeconds] = useState(3 * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isFinished, setIsFinished] = useState(false);
-  const [isAlarming, setIsAlarming] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [presentMode, setPresentMode] = useState(false);
+  const {
+    totalSeconds, remainingSeconds, isRunning, isFinished, isAlarming, soundEnabled,
+    setIsTimerPageVisible, toggle, reset, applyTime, stopAlarm, toggleSound,
+  } = useTimer();
 
+  const [presentMode, setPresentMode] = useState(false);
   const [customMinutes, setCustomMinutes] = useState(3);
   const [customSeconds, setCustomSeconds] = useState(0);
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const alarmIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-
-  const getAudioCtx = () => {
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = new AudioContext();
-    }
-    return audioCtxRef.current;
-  };
-
-  const stop = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = null;
-  }, []);
-
-  const stopAlarm = useCallback(() => {
-    if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
-    alarmIntervalRef.current = null;
-    setIsAlarming(false);
-  }, []);
-
-  const startAlarm = useCallback(() => {
-    const ctx = getAudioCtx();
-    playAlarm(ctx);
-    setIsAlarming(true);
-    alarmIntervalRef.current = setInterval(() => {
-      playAlarm(getAudioCtx());
-    }, 2500);
-  }, []);
-
+  // 이 페이지가 마운트되어 있는 동안 플로팅 위젯 숨김
   useEffect(() => {
-    if (!isRunning) return;
+    setIsTimerPageVisible(true);
+    return () => setIsTimerPageVisible(false);
+  }, [setIsTimerPageVisible]);
 
-    intervalRef.current = setInterval(() => {
-      setRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          stop();
-          setIsRunning(false);
-          setIsFinished(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return stop;
-  }, [isRunning, stop]);
-
-  // 타이머 종료 시 알람 시작
-  useEffect(() => {
-    if (isFinished && soundEnabled) {
-      startAlarm();
-    }
-  // startAlarm은 종료 시점에만 실행되어야 하므로 isFinished 변화에만 반응
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFinished]);
-
-  // 컴포넌트 언마운트 시 알람 정리
-  useEffect(() => {
-    return () => stopAlarm();
-  }, [stopAlarm]);
-
-  const handleToggle = () => {
-    if (isFinished) return;
-    setIsRunning((v) => !v);
-  };
-
-  const handleReset = () => {
-    stop();
-    stopAlarm();
-    setIsRunning(false);
-    setIsFinished(false);
-    setRemainingSeconds(totalSeconds);
-  };
-
-  const applyTime = (mins: number, secs: number) => {
-    const total = mins * 60 + secs;
-    stop();
-    setIsRunning(false);
-    setIsFinished(false);
-    setTotalSeconds(total);
-    setRemainingSeconds(total);
+  const handleApplyTime = (mins: number, secs: number) => {
+    applyTime(mins, secs);
     setCustomMinutes(mins);
     setCustomSeconds(secs);
   };
@@ -531,36 +455,31 @@ const ClassTimer = () => {
   const adjustMinutes = (delta: number) => {
     const next = Math.max(0, Math.min(99, customMinutes + delta));
     setCustomMinutes(next);
-    applyTime(next, customSeconds);
+    handleApplyTime(next, customSeconds);
   };
 
   const adjustSeconds = (delta: number) => {
     let s = customSeconds + delta;
     let m = customMinutes;
     if (s >= 60) { s -= 60; m = Math.min(99, m + 1); }
-    if (s < 0) { s += 60; m = Math.max(0, m - 1); }
+    if (s < 0)  { s += 60; m = Math.max(0, m - 1); }
     setCustomSeconds(s);
     setCustomMinutes(m);
-    applyTime(m, s);
+    handleApplyTime(m, s);
   };
 
   const timerProps = {
-    totalSeconds,
-    remainingSeconds,
-    isRunning,
-    isFinished,
-    isAlarming,
-    soundEnabled,
-    onToggle: handleToggle,
-    onReset: handleReset,
+    totalSeconds, remainingSeconds, isRunning, isFinished, isAlarming, soundEnabled,
+    onToggle: toggle,
+    onReset: reset,
     onStopAlarm: stopAlarm,
-    onSoundToggle: () => setSoundEnabled((v) => !v),
+    onSoundToggle: toggleSound,
   };
 
   return (
     <>
       <div className="max-w-2xl mx-auto space-y-6">
-        {/* Presets */}
+        {/* 프리셋 */}
         <div className="glass rounded-2xl p-5 border border-white/40">
           <p className="text-xs font-black text-on-surface-variant mb-3 uppercase tracking-widest">프리셋</p>
           <div className="flex flex-wrap gap-2">
@@ -570,7 +489,7 @@ const ClassTimer = () => {
               return (
                 <button
                   key={p.label}
-                  onClick={() => applyTime(p.minutes, p.seconds)}
+                  onClick={() => handleApplyTime(p.minutes, p.seconds)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all border ${
                     isActive
                       ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
@@ -588,25 +507,17 @@ const ClassTimer = () => {
           </div>
         </div>
 
-        {/* Custom time + Timer display */}
+        {/* 시간 직접 입력 + 타이머 표시 */}
         <div className="glass rounded-2xl p-6 border border-white/40 flex flex-col items-center gap-6">
-          {/* Custom input */}
           <div className="flex items-center gap-4">
-            {/* Minutes */}
+            {/* 분 */}
             <div className="flex flex-col items-center gap-1">
               <button onClick={() => adjustMinutes(1)} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center justify-center">
                 <Plus size={14} strokeWidth={3} />
               </button>
               <input
-                type="number"
-                min={0}
-                max={99}
-                value={customMinutes}
-                onChange={(e) => {
-                  const v = Math.max(0, Math.min(99, Number(e.target.value)));
-                  setCustomMinutes(v);
-                  applyTime(v, customSeconds);
-                }}
+                type="number" min={0} max={99} value={customMinutes}
+                onChange={(e) => { const v = Math.max(0, Math.min(99, Number(e.target.value))); setCustomMinutes(v); handleApplyTime(v, customSeconds); }}
                 className="w-16 text-center text-2xl font-black rounded-xl border border-white/40 bg-surface-container-low/50 py-2 focus:outline-none focus:border-primary/40"
               />
               <button onClick={() => adjustMinutes(-1)} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center justify-center">
@@ -617,21 +528,14 @@ const ClassTimer = () => {
 
             <span className="text-3xl font-black text-on-surface-variant mt-1">:</span>
 
-            {/* Seconds */}
+            {/* 초 */}
             <div className="flex flex-col items-center gap-1">
               <button onClick={() => adjustSeconds(10)} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center justify-center">
                 <Plus size={14} strokeWidth={3} />
               </button>
               <input
-                type="number"
-                min={0}
-                max={59}
-                value={customSeconds}
-                onChange={(e) => {
-                  const v = Math.max(0, Math.min(59, Number(e.target.value)));
-                  setCustomSeconds(v);
-                  applyTime(customMinutes, v);
-                }}
+                type="number" min={0} max={59} value={customSeconds}
+                onChange={(e) => { const v = Math.max(0, Math.min(59, Number(e.target.value))); setCustomSeconds(v); handleApplyTime(customMinutes, v); }}
                 className="w-16 text-center text-2xl font-black rounded-xl border border-white/40 bg-surface-container-low/50 py-2 focus:outline-none focus:border-primary/40"
               />
               <button onClick={() => adjustSeconds(-10)} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center justify-center">
@@ -641,21 +545,13 @@ const ClassTimer = () => {
             </div>
           </div>
 
-          {/* Timer circle + controls */}
-          <TimerDisplay
-            {...timerProps}
-            onPresentMode={() => setPresentMode(true)}
-          />
+          <TimerDisplay {...timerProps} onPresentMode={() => setPresentMode(true)} />
         </div>
       </div>
 
-      {/* 전체화면 발표 모드 — Portal */}
+      {/* 전체화면 — Portal */}
       {createPortal(
-        <FullscreenTimer
-          {...timerProps}
-          visible={presentMode}
-          onClose={() => setPresentMode(false)}
-        />,
+        <FullscreenTimer {...timerProps} visible={presentMode} onClose={() => setPresentMode(false)} />,
         document.body
       )}
     </>

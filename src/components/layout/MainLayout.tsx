@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
+import FloatingTimer from '../FloatingTimer';
 
 const MainLayout = () => {
   return (
@@ -10,6 +11,7 @@ const MainLayout = () => {
           <Outlet />
         </div>
       </main>
+      <FloatingTimer />
     </div>
   );
 };

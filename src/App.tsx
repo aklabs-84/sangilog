@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
+import { TimerProvider } from './lib/timerContext';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
@@ -42,6 +43,7 @@ const Help = () => <div className="p-10 font-manrope text-2xl font-bold">Help Ce
 function App() {
   return (
     <AuthProvider>
+      <TimerProvider>
       <div className="relative min-h-screen bg-surface overflow-hidden">
         {/* Global Background Glow Effects */}
         <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
@@ -78,6 +80,7 @@ function App() {
           </div>
         </BrowserRouter>
       </div>
+      </TimerProvider>
     </AuthProvider>
   );
 }
