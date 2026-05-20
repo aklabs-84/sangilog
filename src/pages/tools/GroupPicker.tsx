@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, Trash2, Shuffle, ChevronDown, X,
   Maximize2, Minimize2, Crown, RefreshCw, Check,
-  UserPlus, Download
+  UserPlus
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -55,6 +56,14 @@ const GroupPicker = () => {
   useEffect(() => {
     if (user) fetchClasses();
   }, [user]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPresentMode(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const fetchClasses = async () => {
     const { data } = await supabase
@@ -581,71 +590,75 @@ const GroupPicker = () => {
         </AnimatePresence>
       </div>
 
-      {/* 발표 모드 */}
-      <AnimatePresence>
-        {presentMode && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-auto"
-          >
-            <div className="min-h-screen p-8 flex flex-col">
-              <div className="flex items-center justify-between mb-8">
-                <h1 className="text-3xl font-black text-white">🎯 조 편성 결과</h1>
-                <button
-                  onClick={() => setPresentMode(false)}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 text-white hover:bg-white/30 transition-all font-black text-sm border border-white/30"
-                >
-                  <Minimize2 size={18} />
-                  발표 종료
-                </button>
-              </div>
-
-              <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 content-start">
-                {groups.map((group) => (
-                  <motion.div
-                    key={group.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: group.id * 0.1 }}
-                    className="bg-white/10 backdrop-blur rounded-3xl p-6 border border-white/20 space-y-4"
+      {/* 발표 모드 — portal로 document.body에 직접 마운트해 stacking context 문제 우회 */}
+      {createPortal(
+        <AnimatePresence>
+          {presentMode && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ position: 'fixed', inset: 0, zIndex: 9999, overflowY: 'auto' }}
+              className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
+            >
+              <div className="min-h-screen p-8 flex flex-col">
+                <div className="flex items-center justify-between mb-8">
+                  <h1 className="text-3xl font-black text-white">🎯 조 편성 결과</h1>
+                  <button
+                    onClick={() => setPresentMode(false)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 text-white hover:bg-white/30 transition-all font-black text-sm border border-white/30"
                   >
-                    <div className="text-center">
-                      <div className="text-5xl mb-2">
-                        {['🔵', '🔴', '🟢', '🟡', '🟣', '🟠', '⚫', '⚪'][group.id % 8]}
-                      </div>
-                      <h4 className="font-black text-white text-2xl">{group.name}</h4>
-                      <p className="text-white/50 text-sm">{group.members.length}명</p>
-                    </div>
+                    <Minimize2 size={18} />
+                    발표 종료 (ESC)
+                  </button>
+                </div>
 
-                    <div className="space-y-2">
-                      {group.members.map((member) => (
-                        <div
-                          key={member.id}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${
-                            group.leader?.id === member.id
-                              ? 'bg-amber-500/20 border border-amber-500/40'
-                              : 'bg-white/10'
-                          }`}
-                        >
-                          {group.leader?.id === member.id && (
-                            <Crown size={14} className="text-amber-400 shrink-0" />
-                          )}
-                          <span className="font-bold text-white text-base">{member.name}</span>
-                          {group.leader?.id === member.id && (
-                            <span className="ml-auto text-[10px] text-amber-400 font-black shrink-0">조장</span>
-                          )}
+                <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 content-start">
+                  {groups.map((group) => (
+                    <motion.div
+                      key={group.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: group.id * 0.1 }}
+                      className="bg-white/10 backdrop-blur rounded-3xl p-6 border border-white/20 space-y-4"
+                    >
+                      <div className="text-center">
+                        <div className="text-5xl mb-2">
+                          {['🔵', '🔴', '🟢', '🟡', '🟣', '🟠', '⚫', '⚪'][group.id % 8]}
                         </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                ))}
+                        <h4 className="font-black text-white text-2xl">{group.name}</h4>
+                        <p className="text-white/50 text-sm">{group.members.length}명</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        {group.members.map((member) => (
+                          <div
+                            key={member.id}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${
+                              group.leader?.id === member.id
+                                ? 'bg-amber-500/20 border border-amber-500/40'
+                                : 'bg-white/10'
+                            }`}
+                          >
+                            {group.leader?.id === member.id && (
+                              <Crown size={14} className="text-amber-400 shrink-0" />
+                            )}
+                            <span className="font-bold text-white text-base">{member.name}</span>
+                            {group.leader?.id === member.id && (
+                              <span className="ml-auto text-[10px] text-amber-400 font-black shrink-0">조장</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 };
