@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, RotateCcw, Maximize2, Minimize2, Volume2, VolumeX, Plus, Minus, BellOff
+  Play, Pause, RotateCcw, Maximize2, Minimize2, Volume2, VolumeX, Plus, Minus, BellOff, X
 } from 'lucide-react';
 
 const PRESETS = [
@@ -197,6 +198,236 @@ const TimerDisplay = ({
     </div>
   );
 };
+
+// ─── 전체화면 타이머 ──────────────────────────────────────────────────────────
+
+const FLOATING_ITEMS = ['⏰', '✨', '💫', '⭐', '🌟', '🎯', '💡', '🔔'];
+
+interface FullscreenTimerProps {
+  visible: boolean;
+  totalSeconds: number;
+  remainingSeconds: number;
+  isRunning: boolean;
+  isFinished: boolean;
+  isAlarming: boolean;
+  soundEnabled: boolean;
+  onClose: () => void;
+  onToggle: () => void;
+  onReset: () => void;
+  onStopAlarm: () => void;
+  onSoundToggle: () => void;
+}
+
+const FullscreenTimer = ({
+  visible, totalSeconds, remainingSeconds, isRunning, isFinished, isAlarming,
+  soundEnabled, onClose, onToggle, onReset, onStopAlarm, onSoundToggle,
+}: FullscreenTimerProps) => {
+  const progress = totalSeconds > 0 ? remainingSeconds / totalSeconds : 1;
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+  const isUrgent = !isFinished && progress <= 0.2;
+  const isMid = !isFinished && progress > 0.2 && progress <= 0.5;
+
+  const bgClass = isFinished
+    ? 'from-red-950 via-red-900 to-slate-900'
+    : isUrgent
+    ? 'from-slate-900 via-red-950 to-orange-950'
+    : isMid
+    ? 'from-slate-900 via-amber-950 to-slate-900'
+    : 'from-slate-900 via-indigo-950 to-emerald-950';
+
+  const accentColor = isFinished || isUrgent ? '#ef4444' : isMid ? '#f59e0b' : '#22c55e';
+
+  const radius = 160;
+  const circ = 2 * Math.PI * radius;
+  const dashOffset = circ * (1 - progress);
+
+  // body 잠금 + ESC
+  useEffect(() => {
+    if (!visible) return;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [visible, onClose]);
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ opacity: 0, scale: 1.04 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.96 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
+          className={`bg-gradient-to-br ${bgClass} flex flex-col items-center justify-center overflow-hidden`}
+        >
+          {/* 떠다니는 이모지 파티클 */}
+          {FLOATING_ITEMS.map((emoji, i) => (
+            <motion.div
+              key={i}
+              className="absolute text-2xl pointer-events-none select-none"
+              style={{ left: `${10 + (i * 12) % 80}%`, top: `${5 + (i * 17) % 85}%` }}
+              animate={{
+                y: [0, -24, 0],
+                x: [0, i % 2 === 0 ? 10 : -10, 0],
+                opacity: [0.15, 0.35, 0.15],
+                scale: [0.8, 1.1, 0.8],
+              }}
+              transition={{
+                duration: 3 + i * 0.5,
+                repeat: Infinity,
+                delay: i * 0.4,
+                ease: 'easeInOut',
+              }}
+            >
+              {emoji}
+            </motion.div>
+          ))}
+
+          {/* 닫기 버튼 */}
+          <div className="absolute top-6 right-6 flex items-center gap-3">
+            <button
+              onClick={onSoundToggle}
+              className="w-10 h-10 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all flex items-center justify-center"
+            >
+              {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            </button>
+            <button
+              onClick={onClose}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 text-white hover:bg-white/25 transition-all font-black text-sm border border-white/20"
+            >
+              <X size={16} />
+              전체화면 종료 (ESC)
+            </button>
+          </div>
+
+          {/* 라벨 */}
+          <motion.p
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-white/40 text-xs font-black uppercase tracking-[0.3em] mb-10"
+          >
+            수업 타이머
+          </motion.p>
+
+          {/* 원형 타이머 */}
+          <motion.div
+            className="relative"
+            animate={isUrgent && isRunning ? { scale: [1, 1.015, 1] } : { scale: 1 }}
+            transition={{ duration: 0.8, repeat: Infinity }}
+          >
+            <svg width="380" height="380" className="-rotate-90">
+              <circle cx="190" cy="190" r={radius} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="14" />
+              <motion.circle
+                cx="190" cy="190" r={radius}
+                fill="none"
+                stroke={accentColor}
+                strokeWidth="14"
+                strokeLinecap="round"
+                strokeDasharray={circ}
+                strokeDashoffset={dashOffset}
+                filter={`drop-shadow(0 0 12px ${accentColor}88)`}
+                style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.6s ease' }}
+              />
+            </svg>
+
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+              <AnimatePresence mode="wait">
+                {isFinished ? (
+                  <motion.div
+                    key="done"
+                    animate={{ scale: [1, 1.08, 1], opacity: [1, 0.6, 1] }}
+                    transition={{ duration: 0.7, repeat: Infinity }}
+                    className="text-7xl font-black text-red-400"
+                  >
+                    종료!
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="time"
+                    className="text-8xl font-black tabular-nums text-white"
+                    style={{ textShadow: `0 0 40px ${accentColor}66` }}
+                  >
+                    {timeStr}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <p className="text-white/40 text-sm font-bold tracking-widest">
+                {isRunning ? '진행 중' : isFinished ? '' : remainingSeconds === totalSeconds ? '시작 전' : '일시정지'}
+              </p>
+            </div>
+          </motion.div>
+
+          {/* 알림 끄기 버튼 */}
+          <AnimatePresence>
+            {isAlarming && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0, scale: [1, 1.04, 1] }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ scale: { repeat: Infinity, duration: 0.6 } }}
+                onClick={onStopAlarm}
+                className="mt-8 flex items-center gap-2 px-8 py-4 rounded-2xl bg-red-500 text-white font-black text-base shadow-lg shadow-red-500/40 hover:bg-red-400 transition-all active:scale-95"
+              >
+                <BellOff size={20} />
+                알림 끄기
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          {/* 컨트롤 버튼 */}
+          {!isAlarming && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="flex items-center gap-5 mt-10"
+            >
+              <button
+                onClick={onReset}
+                className="w-14 h-14 rounded-2xl bg-white/10 text-white hover:bg-white/20 transition-all flex items-center justify-center"
+              >
+                <RotateCcw size={22} />
+              </button>
+
+              <motion.button
+                onClick={onToggle}
+                disabled={isFinished}
+                whileTap={{ scale: 0.93 }}
+                className={`w-24 h-24 rounded-3xl flex items-center justify-center text-white transition-all shadow-2xl ${
+                  isRunning
+                    ? 'bg-amber-500 hover:bg-amber-400 shadow-amber-500/40'
+                    : isFinished
+                    ? 'bg-white/10 cursor-not-allowed'
+                    : 'bg-primary hover:bg-primary/80 shadow-primary/40'
+                }`}
+              >
+                {isRunning
+                  ? <Pause size={36} strokeWidth={2.5} />
+                  : <Play size={36} strokeWidth={2.5} />}
+              </motion.button>
+
+              <button
+                onClick={onSoundToggle}
+                className="w-14 h-14 rounded-2xl bg-white/10 text-white hover:bg-white/20 transition-all flex items-center justify-center"
+              >
+                {soundEnabled ? <Volume2 size={22} /> : <VolumeX size={22} />}
+              </button>
+            </motion.div>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// ─── 메인 타이머 ─────────────────────────────────────────────────────────────
 
 const ClassTimer = () => {
   const [totalSeconds, setTotalSeconds] = useState(3 * 60);
@@ -418,34 +649,15 @@ const ClassTimer = () => {
         </div>
       </div>
 
-      {/* 발표 모드 */}
-      <AnimatePresence>
-        {presentMode && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className={`fixed inset-0 z-[100] flex flex-col items-center justify-center transition-colors duration-700 ${
-              isFinished
-                ? 'bg-red-950'
-                : remainingSeconds / totalSeconds > 0.5
-                ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950'
-                : remainingSeconds / totalSeconds > 0.2
-                ? 'bg-gradient-to-br from-slate-900 via-amber-950 to-slate-900'
-                : 'bg-gradient-to-br from-slate-900 via-red-950 to-slate-900'
-            }`}
-          >
-            <div className="flex flex-col items-center gap-4 mb-6">
-              <p className="text-white/40 text-sm font-black uppercase tracking-widest">수업 타이머</p>
-            </div>
-            <TimerDisplay
-              {...timerProps}
-              presentMode
-              onExitPresent={() => setPresentMode(false)}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* 전체화면 발표 모드 — Portal */}
+      {createPortal(
+        <FullscreenTimer
+          {...timerProps}
+          visible={presentMode}
+          onClose={() => setPresentMode(false)}
+        />,
+        document.body
+      )}
     </>
   );
 };
