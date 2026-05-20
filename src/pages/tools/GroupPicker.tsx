@@ -65,6 +65,16 @@ const GroupPicker = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  // 발표 모드일 때 body 스크롤 잠금
+  useEffect(() => {
+    if (presentMode) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [presentMode]);
+
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')

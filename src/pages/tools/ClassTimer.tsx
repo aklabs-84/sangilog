@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, RotateCcw, Maximize2, Minimize2, Volume2, VolumeX, Plus, Minus
+  Play, Pause, RotateCcw, Maximize2, Minimize2, Volume2, VolumeX, Plus, Minus, BellOff
 } from 'lucide-react';
 
 const PRESETS = [
@@ -39,18 +39,20 @@ interface TimerDisplayProps {
   remainingSeconds: number;
   isRunning: boolean;
   isFinished: boolean;
+  isAlarming: boolean;
   soundEnabled: boolean;
   presentMode?: boolean;
   onToggle: () => void;
   onReset: () => void;
   onSoundToggle: () => void;
+  onStopAlarm: () => void;
   onPresentMode?: () => void;
   onExitPresent?: () => void;
 }
 
 const TimerDisplay = ({
-  totalSeconds, remainingSeconds, isRunning, isFinished, soundEnabled, presentMode,
-  onToggle, onReset, onSoundToggle, onPresentMode, onExitPresent,
+  totalSeconds, remainingSeconds, isRunning, isFinished, isAlarming, soundEnabled, presentMode,
+  onToggle, onReset, onSoundToggle, onStopAlarm, onPresentMode, onExitPresent,
 }: TimerDisplayProps) => {
   const progress = totalSeconds > 0 ? remainingSeconds / totalSeconds : 1;
   const dashOffset = CIRCLE_CIRCUMFERENCE * (1 - progress);
@@ -119,8 +121,25 @@ const TimerDisplay = ({
         </div>
       </div>
 
+      {/* 알림 끄기 버튼 — 알람 울리는 중일 때만 표시 */}
+      {isAlarming && (
+        <motion.button
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ repeat: Infinity, duration: 0.6 }}
+          onClick={onStopAlarm}
+          className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 shadow-lg ${
+            presentMode
+              ? 'bg-red-500 text-white hover:bg-red-400'
+              : 'bg-red-500 text-white hover:bg-red-600 shadow-red-200'
+          }`}
+        >
+          <BellOff size={18} />
+          알림 끄기
+        </motion.button>
+      )}
+
       {/* Controls */}
-      <div className={`flex items-center gap-4 ${presentMode ? 'mt-16' : ''}`}>
+      <div className={`flex items-center gap-4 ${presentMode ? 'mt-8' : ''}`}>
         <button
           onClick={onSoundToggle}
           className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${
@@ -184,6 +203,7 @@ const ClassTimer = () => {
   const [remainingSeconds, setRemainingSeconds] = useState(3 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+  const [isAlarming, setIsAlarming] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [presentMode, setPresentMode] = useState(false);
 
@@ -191,6 +211,7 @@ const ClassTimer = () => {
   const [customSeconds, setCustomSeconds] = useState(0);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const alarmIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   const getAudioCtx = () => {
@@ -205,6 +226,21 @@ const ClassTimer = () => {
     intervalRef.current = null;
   }, []);
 
+  const stopAlarm = useCallback(() => {
+    if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
+    alarmIntervalRef.current = null;
+    setIsAlarming(false);
+  }, []);
+
+  const startAlarm = useCallback(() => {
+    const ctx = getAudioCtx();
+    playAlarm(ctx);
+    setIsAlarming(true);
+    alarmIntervalRef.current = setInterval(() => {
+      playAlarm(getAudioCtx());
+    }, 2500);
+  }, []);
+
   useEffect(() => {
     if (!isRunning) return;
 
@@ -214,7 +250,6 @@ const ClassTimer = () => {
           stop();
           setIsRunning(false);
           setIsFinished(true);
-          if (soundEnabled) playAlarm(getAudioCtx());
           return 0;
         }
         return prev - 1;
@@ -222,7 +257,21 @@ const ClassTimer = () => {
     }, 1000);
 
     return stop;
-  }, [isRunning, soundEnabled, stop]);
+  }, [isRunning, stop]);
+
+  // 타이머 종료 시 알람 시작
+  useEffect(() => {
+    if (isFinished && soundEnabled) {
+      startAlarm();
+    }
+  // startAlarm은 종료 시점에만 실행되어야 하므로 isFinished 변화에만 반응
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFinished]);
+
+  // 컴포넌트 언마운트 시 알람 정리
+  useEffect(() => {
+    return () => stopAlarm();
+  }, [stopAlarm]);
 
   const handleToggle = () => {
     if (isFinished) return;
@@ -231,6 +280,7 @@ const ClassTimer = () => {
 
   const handleReset = () => {
     stop();
+    stopAlarm();
     setIsRunning(false);
     setIsFinished(false);
     setRemainingSeconds(totalSeconds);
@@ -268,9 +318,11 @@ const ClassTimer = () => {
     remainingSeconds,
     isRunning,
     isFinished,
+    isAlarming,
     soundEnabled,
     onToggle: handleToggle,
     onReset: handleReset,
+    onStopAlarm: stopAlarm,
     onSoundToggle: () => setSoundEnabled((v) => !v),
   };
 
