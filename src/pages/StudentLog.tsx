@@ -77,6 +77,7 @@ const StudentLog = () => {
   const [editingResult, setEditingResult] = useState<any>(null);
   const resultFormRef = useRef<HTMLDivElement | null>(null);
   const [filterWeek, setFilterWeek] = useState<number | null>(null);
+  const [detailItem, setDetailItem] = useState<any>(null);
 
   // Toast State
   const [toasts, setToasts] = useState<{id: string; msg: string; type: 'success' | 'error'}[]>([]);
@@ -1198,10 +1199,11 @@ ${guidePrompt}
                               key={`obs-${log.id}`}
                               initial={{ opacity: 0, x: -10 }}
                               animate={{ opacity: 1, x: 0 }}
-                              className={`rounded-3xl border transition-all group cursor-default ${
+                              onClick={() => { if (!isEditing) setDetailItem(log); }}
+                              className={`rounded-3xl border transition-all group ${
                                 isEditing
-                                  ? 'p-6 border-primary/30 bg-primary/[0.02]'
-                                  : 'p-6 bg-surface-container-low border-surface-container hover:border-violet-200'
+                                  ? 'p-6 border-primary/30 bg-primary/[0.02] cursor-default'
+                                  : 'p-6 bg-surface-container-low border-surface-container hover:border-violet-200 cursor-pointer'
                               }`}
                             >
                               {isEditing ? (
@@ -1285,11 +1287,11 @@ ${guidePrompt}
                                     </div>
                                   </div>
                                   <div className="flex justify-end gap-2 pt-1 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => handleStartEditLog(log)}
+                                    <button onClick={(e) => { e.stopPropagation(); handleStartEditLog(log); }}
                                       className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all">
                                       <Pencil size={12} /> 수정
                                     </button>
-                                    <button onClick={() => handleDeleteLog(log.id)} disabled={isDeleting}
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteLog(log.id); }} disabled={isDeleting}
                                       className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all disabled:opacity-50">
                                       {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} 삭제
                                     </button>
@@ -1311,7 +1313,8 @@ ${guidePrompt}
                             key={`result-${r.id}`}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="p-6 bg-surface-container-low border border-surface-container hover:border-emerald-200 rounded-3xl transition-all group"
+                            onClick={() => setDetailItem(r)}
+                            className="p-6 bg-surface-container-low border border-surface-container hover:border-emerald-200 rounded-3xl transition-all group cursor-pointer"
                           >
                             <div className="flex items-start gap-4">
                               <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 mt-1">
@@ -1342,13 +1345,13 @@ ${guidePrompt}
                             {/* 수정/삭제 버튼 */}
                             <div className="flex justify-end gap-2 pt-3 mt-2 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
-                                onClick={() => { handleEditResult(r); handleTabChange('results'); }}
+                                onClick={(e) => { e.stopPropagation(); handleEditResult(r); handleTabChange('results'); }}
                                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all"
                               >
                                 <Pencil size={12} /> 수정
                               </button>
                               <button
-                                onClick={() => handleDeleteResult(r)}
+                                onClick={(e) => { e.stopPropagation(); handleDeleteResult(r); }}
                                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all"
                               >
                                 <Trash2 size={12} /> 삭제
@@ -2254,6 +2257,187 @@ ${guidePrompt}
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* 상세 보기 모달 */}
+      <AnimatePresence>
+        {detailItem && (() => {
+          const isObs = detailItem._kind === 'obs' || !detailItem._kind;
+          const weeklyPlan: {week: number; topic: string}[] = classResources || [];
+          const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+
+          let weekLabel: string | null = null;
+          if (isObs) {
+            const matched = weeklyPlan.find(p => norm(p.topic) === norm(detailItem.activity_name || ''));
+            if (matched) weekLabel = `${matched.week}주차 · ${matched.topic}`;
+          } else if (detailItem.week_number) {
+            const topic = weeklyPlan.find(p => p.week === detailItem.week_number)?.topic;
+            weekLabel = topic ? `${detailItem.week_number}주차 · ${topic}` : `${detailItem.week_number}주차`;
+          }
+
+          const imagePublicUrl = !isObs && (detailItem.result_type === 'image' || detailItem.submission_type === 'image') && detailItem.storage_path
+            ? supabase.storage.from('student-attachments').getPublicUrl(detailItem.storage_path).data.publicUrl
+            : null;
+
+          return (
+            <div
+              className="fixed inset-0 z-[1100] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-slate-900/60 backdrop-blur-md"
+              onClick={() => setDetailItem(null)}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 60 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 60 }}
+                transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                onClick={e => e.stopPropagation()}
+                className="w-full sm:max-w-lg bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              >
+                {/* 헤더 */}
+                <div className={`px-8 pt-8 pb-6 shrink-0 ${isObs ? 'bg-violet-50 border-b border-violet-100' : 'bg-emerald-50 border-b border-emerald-100'}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-2 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isObs ? (
+                          <span className="text-[10px] font-black text-violet-600 bg-white border border-violet-200 px-2.5 py-1 rounded-lg">📝 관찰 기록</span>
+                        ) : (
+                          <span className="text-[10px] font-black text-emerald-600 bg-white border border-emerald-200 px-2.5 py-1 rounded-lg">📁 결과 제출</span>
+                        )}
+                        {weekLabel && (
+                          <span className="text-[10px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-lg">{weekLabel}</span>
+                        )}
+                      </div>
+                      <p className="font-black text-xl leading-tight">
+                        {isObs ? detailItem.activity_name : (detailItem.title || '제목 없음')}
+                      </p>
+                      <p className="text-xs text-on-surface-variant font-bold flex items-center gap-1">
+                        <Clock size={11} />
+                        {new Date(detailItem.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setDetailItem(null)}
+                      className="w-9 h-9 rounded-xl bg-white/80 hover:bg-white flex items-center justify-center text-on-surface-variant shrink-0 transition-all border border-black/5"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 본문 */}
+                <div className="px-8 py-6 overflow-y-auto flex-1 space-y-5">
+                  {isObs ? (
+                    <>
+                      {detailItem.category && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">카테고리</p>
+                          <p className="text-sm font-bold">{detailItem.category}</p>
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">활동 내용</p>
+                        <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{detailItem.content || '내용 없음'}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">상태</p>
+                        {detailItem.status === 'pending' ? (
+                          <span className="flex items-center gap-1 text-xs font-black text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                            <Clock size={11} /> 승인 대기중
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-xs font-black text-secondary bg-secondary/10 border border-secondary/20 px-2.5 py-1 rounded-lg">
+                            <CheckCircle2 size={11} /> 승인됨
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {(detailItem.result_type === 'text' || detailItem.submission_type === 'text') && detailItem.text_content && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
+                          <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap bg-surface-container rounded-2xl px-5 py-4">{detailItem.text_content}</p>
+                        </div>
+                      )}
+                      {(detailItem.result_type === 'link' || detailItem.submission_type === 'link') && detailItem.link_url && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">링크</p>
+                          <a
+                            href={detailItem.link_url.startsWith('http') ? detailItem.link_url : `https://${detailItem.link_url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 border border-blue-200 px-5 py-4 rounded-2xl hover:bg-blue-100 transition-all break-all"
+                          >
+                            <ExternalLink size={14} className="shrink-0" />
+                            {detailItem.link_url}
+                          </a>
+                        </div>
+                      )}
+                      {(detailItem.result_type === 'image' || detailItem.submission_type === 'image') && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
+                          {imagePublicUrl ? (
+                            <img
+                              src={imagePublicUrl}
+                              alt={detailItem.display_name || '제출 이미지'}
+                              className="w-full rounded-2xl object-contain max-h-[50vh] border border-surface-container bg-surface-container"
+                            />
+                          ) : (
+                            <p className="text-sm text-on-surface-variant">{detailItem.display_name}</p>
+                          )}
+                        </div>
+                      )}
+                      {(detailItem.result_type === 'file' || detailItem.submission_type === 'file') && detailItem.display_name && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">파일</p>
+                          <div className="flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 px-5 py-4 rounded-2xl">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <File size={18} className="text-amber-600 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-black truncate">{detailItem.display_name}</p>
+                                {detailItem.file_size && <p className="text-xs text-on-surface-variant font-bold">{(detailItem.file_size / 1024).toFixed(1)} KB</p>}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleDownloadResult(detailItem)}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black hover:bg-amber-600 transition-all shrink-0"
+                            >
+                              <ExternalLink size={12} /> 다운로드
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* 하단 액션 */}
+                <div className="px-8 pb-8 pt-4 border-t border-surface-container shrink-0 flex gap-3">
+                  <button
+                    onClick={() => setDetailItem(null)}
+                    className="flex-1 py-3.5 rounded-2xl bg-surface-container text-on-surface-variant font-black text-sm hover:bg-surface-container-high transition-all"
+                  >
+                    닫기
+                  </button>
+                  {isObs ? (
+                    <button
+                      onClick={() => { handleStartEditLog(detailItem); setDetailItem(null); }}
+                      className="flex items-center justify-center gap-2 flex-1 py-3.5 rounded-2xl bg-primary text-white font-black text-sm hover:bg-primary/80 transition-all"
+                    >
+                      <Pencil size={14} /> 수정하기
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { handleEditResult(detailItem); handleTabChange('results'); setDetailItem(null); }}
+                      className="flex items-center justify-center gap-2 flex-1 py-3.5 rounded-2xl bg-primary text-white font-black text-sm hover:bg-primary/80 transition-all"
+                    >
+                      <Pencil size={14} /> 수정하기
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );
