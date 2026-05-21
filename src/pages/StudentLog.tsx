@@ -622,7 +622,7 @@ const StudentLog = () => {
 
   const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions') => {
     setActiveTab(tab);
-    if (tab === 'history') fetchHistory();
+    if (tab === 'history') { fetchHistory(); fetchResults(); }
     if (tab === 'materials') fetchResources();
     if (tab === 'results') fetchResults();
     if (tab === 'unit') fetchPendingUnits();
