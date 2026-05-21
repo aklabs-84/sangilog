@@ -31,7 +31,9 @@ import {
   Link2,
   ImageIcon,
   ExternalLink,
-  Megaphone
+  Megaphone,
+  LayoutDashboard,
+  ArrowRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { geminiFlash } from '../lib/gemini';
@@ -42,7 +44,9 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions'>('record');
+  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions'>('home');
+  const [selectedHomeWeek, setSelectedHomeWeek] = useState<number | null>(null);
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
@@ -615,7 +619,7 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions') => {
+  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions') => {
     setActiveTab(tab);
     if (tab === 'history') fetchHistory();
     if (tab === 'materials') fetchResources();
@@ -802,15 +806,16 @@ ${guidePrompt}
           <div className="border-b border-surface-container bg-surface-container-low/20">
             {/* 탭 그리드 */}
             <div className="px-6 pt-5 pb-4">
-              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
                 {[
-                  { key: 'record' as const,      icon: MessageSquare, label: '관찰 기록',   desc: '오늘 활동 제출',    activeIcon: 'bg-violet-100 text-violet-600', activeBg: 'bg-violet-50 border-violet-300', activeText: 'text-violet-700' },
-                  { key: 'history' as const,      icon: History,       label: '나의 기록',   desc: '내 기록 이력',      activeIcon: 'bg-blue-100 text-blue-600',    activeBg: 'bg-blue-50 border-blue-300',    activeText: 'text-blue-700' },
-                  { key: 'unit' as const,         icon: ClipboardList, label: '단원 마무리', desc: '단원 서식 작성',    activeIcon: 'bg-amber-100 text-amber-600', activeBg: 'bg-amber-50 border-amber-300',  activeText: 'text-amber-700', badge: unitPendingCount },
-                  { key: 'results' as const,      icon: FolderOpen,    label: '결과 제출',   desc: '결과물 올리기',     activeIcon: 'bg-emerald-100 text-emerald-600', activeBg: 'bg-emerald-50 border-emerald-300', activeText: 'text-emerald-700' },
-                  { key: 'materials' as const,    icon: BookOpen,      label: '수업 자료',   desc: '선생님 공유 자료',  activeIcon: 'bg-cyan-100 text-cyan-600',   activeBg: 'bg-cyan-50 border-cyan-300',    activeText: 'text-cyan-700' },
-                  { key: 'badges' as const,       icon: Trophy,        label: '나의 배지',   desc: '획득 배지 확인',    activeIcon: 'bg-yellow-100 text-yellow-600', activeBg: 'bg-yellow-50 border-yellow-300', activeText: 'text-yellow-700' },
-                  { key: 'suggestions' as const,  icon: Megaphone,     label: '건의사항',    desc: '선생님께 의견',     activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-rose-50 border-rose-300',    activeText: 'text-rose-700', badge: unreadReplyCount }
+                  { key: 'home' as const,         icon: LayoutDashboard, label: '홈',         desc: '오늘 할 일',        activeIcon: 'bg-primary/10 text-primary',   activeBg: 'bg-primary/5 border-primary/30', activeText: 'text-primary' },
+                  { key: 'record' as const,        icon: MessageSquare,   label: '관찰 기록',  desc: '오늘 활동 제출',   activeIcon: 'bg-violet-100 text-violet-600', activeBg: 'bg-violet-50 border-violet-300', activeText: 'text-violet-700' },
+                  { key: 'history' as const,       icon: History,         label: '나의 기록',  desc: '내 기록 이력',     activeIcon: 'bg-blue-100 text-blue-600',    activeBg: 'bg-blue-50 border-blue-300',    activeText: 'text-blue-700' },
+                  { key: 'unit' as const,          icon: ClipboardList,   label: '단원 마무리',desc: '단원 서식 작성',   activeIcon: 'bg-amber-100 text-amber-600', activeBg: 'bg-amber-50 border-amber-300',  activeText: 'text-amber-700', badge: unitPendingCount },
+                  { key: 'results' as const,       icon: FolderOpen,      label: '결과 제출',  desc: '결과물 올리기',    activeIcon: 'bg-emerald-100 text-emerald-600', activeBg: 'bg-emerald-50 border-emerald-300', activeText: 'text-emerald-700' },
+                  { key: 'materials' as const,     icon: BookOpen,        label: '수업 자료',  desc: '선생님 공유 자료', activeIcon: 'bg-cyan-100 text-cyan-600',   activeBg: 'bg-cyan-50 border-cyan-300',    activeText: 'text-cyan-700' },
+                  { key: 'badges' as const,        icon: Trophy,          label: '나의 배지',  desc: '획득 배지 확인',   activeIcon: 'bg-yellow-100 text-yellow-600', activeBg: 'bg-yellow-50 border-yellow-300', activeText: 'text-yellow-700' },
+                  { key: 'suggestions' as const,   icon: Megaphone,       label: '건의사항',   desc: '선생님께 의견',    activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-rose-50 border-rose-300',    activeText: 'text-rose-700', badge: unreadReplyCount }
                 ].map((tab) => {
                   const isActive = activeTab === tab.key;
                   return (
@@ -874,6 +879,158 @@ ${guidePrompt}
 
           {/* Tab Contents */}
           <AnimatePresence mode="wait">
+            {/* ─── 홈 탭 ─── */}
+            {activeTab === 'home' && (() => {
+              const weeklyPlan: {week: number; topic: string}[] = classResources as {week: number; topic: string}[];
+              const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+
+              // 기본 선택 주차: 마지막 주차
+              const displayWeek = selectedHomeWeek ?? (weeklyPlan.length > 0 ? weeklyPlan[weeklyPlan.length - 1].week : null);
+              const weekInfo = weeklyPlan.find(p => p.week === displayWeek);
+
+              // 완료 여부
+              const obsSubmitted = displayWeek !== null && weekInfo
+                ? historyLogs.some(l => norm(l.activity_name || '') === norm(weekInfo.topic))
+                : false;
+              const resultSubmitted = displayWeek !== null
+                ? results.some(r => r.week_number === displayWeek)
+                : false;
+
+              const steps = [
+                {
+                  step: 1,
+                  label: '관찰 기록 작성',
+                  desc: '수업에서 한 활동, 배운 점, 느낀 점을 기록하세요',
+                  done: obsSubmitted,
+                  tab: 'record' as const,
+                  color: 'violet',
+                },
+                {
+                  step: 2,
+                  label: '결과물 제출',
+                  desc: '만든 결과물을 텍스트·이미지·링크·파일로 올리세요',
+                  done: resultSubmitted,
+                  tab: 'results' as const,
+                  color: 'emerald',
+                },
+              ];
+
+              return (
+                <motion.div key="home" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  className="p-6 md:p-8 space-y-6">
+
+                  {/* 인사 */}
+                  <div>
+                    <p className="text-sm font-bold text-on-surface-variant/60">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} · {session?.class_name}</p>
+                    <h2 className="text-2xl font-black mt-0.5">안녕하세요, {session?.student_name}님! 👋</h2>
+                  </div>
+
+                  {/* 주차 선택 */}
+                  {weeklyPlan.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-black text-on-surface-variant/50 uppercase tracking-widest">주차 선택</p>
+                      <div className="flex flex-wrap gap-2">
+                        {weeklyPlan.map(p => {
+                          const isActive = p.week === displayWeek;
+                          const wObs = historyLogs.some(l => norm(l.activity_name || '') === norm(p.topic));
+                          const wRes = results.some(r => r.week_number === p.week);
+                          const allDone = wObs && wRes;
+                          return (
+                            <button
+                              key={p.week}
+                              onClick={() => setSelectedHomeWeek(p.week)}
+                              className={`relative flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-black border-2 transition-all ${
+                                isActive ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-neutral-500 border-neutral-200 hover:border-primary/40 hover:text-primary'
+                              }`}
+                            >
+                              {allDone && <CheckCircle2 size={14} className={isActive ? 'text-white/80' : 'text-emerald-500'} />}
+                              {p.week}주차
+                              <span className={`text-[10px] font-bold ${isActive ? 'text-white/70' : 'text-neutral-400'}`}>· {p.topic}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 체크리스트 */}
+                  {displayWeek !== null ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[11px] font-black text-on-surface-variant/50 uppercase tracking-widest">
+                          {displayWeek}주차 할 일
+                        </p>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500">
+                          {steps.filter(s => s.done).length}/{steps.length} 완료
+                        </span>
+                      </div>
+
+                      {steps.map((s) => (
+                        <div key={s.step} className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${
+                          s.done
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : 'bg-white border-neutral-200 hover:border-primary/30'
+                        }`}>
+                          {/* 완료 아이콘 */}
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black text-sm ${
+                            s.done ? 'bg-emerald-500 text-white' : 'bg-neutral-100 text-neutral-400'
+                          }`}>
+                            {s.done ? <Check size={18} /> : s.step}
+                          </div>
+
+                          {/* 텍스트 */}
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-black text-sm ${s.done ? 'text-emerald-700 line-through decoration-emerald-300' : 'text-on-surface'}`}>
+                              Step {s.step} · {s.label}
+                            </p>
+                            <p className="text-xs font-bold text-on-surface-variant/60 mt-0.5">{s.desc}</p>
+                          </div>
+
+                          {/* 버튼 */}
+                          {s.done ? (
+                            <span className="text-[11px] font-black text-emerald-600 shrink-0">완료 ✓</span>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                if (s.tab === 'results') setSelectedWeek(displayWeek);
+                                handleTabChange(s.tab);
+                              }}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-black hover:bg-primary/80 active:scale-95 transition-all shrink-0 shadow-sm"
+                            >
+                              시작하기 <ArrowRight size={13} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center text-on-surface-variant/40">
+                      <p className="font-black">등록된 주차 계획이 없습니다.</p>
+                      <p className="text-sm font-bold mt-1">선생님께 주차 계획을 요청하세요.</p>
+                    </div>
+                  )}
+
+                  {/* 바로가기 */}
+                  <div className="pt-2 border-t border-neutral-100">
+                    <p className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-widest mb-3">바로가기</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { key: 'materials' as const, label: '수업 자료', icon: BookOpen, color: 'text-cyan-600 bg-cyan-50' },
+                        { key: 'badges' as const,    label: '나의 배지', icon: Trophy,   color: 'text-yellow-600 bg-yellow-50' },
+                        { key: 'suggestions' as const, label: '건의사항', icon: Megaphone, color: 'text-rose-600 bg-rose-50' },
+                      ].map(item => (
+                        <button key={item.key} onClick={() => handleTabChange(item.key)}
+                          className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-neutral-200 hover:border-primary/30 bg-white hover:bg-primary/5 transition-all text-sm font-black text-on-surface-variant">
+                          <item.icon size={15} className={item.color.split(' ')[0]} />
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })()}
+
             {/* ─── RECORD FORM 탭 ─── */}
             {activeTab === 'record' && (
               <motion.div
@@ -883,6 +1040,16 @@ ${guidePrompt}
                 exit={{ opacity: 0 }}
                 className="p-12 space-y-12"
               >
+                {/* Step 1 배너 */}
+                <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-violet-50 border border-violet-200">
+                  <div className="w-8 h-8 rounded-xl bg-violet-500 text-white flex items-center justify-center font-black text-sm shrink-0">1</div>
+                  <div>
+                    <p className="text-xs font-black text-violet-700">Step 1 · 관찰 기록 작성</p>
+                    <p className="text-[11px] font-bold text-violet-500/80">수업에서 한 활동, 배운 점, 느낀 점을 기록하고 제출하세요.</p>
+                  </div>
+                  <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-violet-400 hover:text-violet-600 shrink-0">홈으로 →</button>
+                </div>
+
                 <div className="space-y-4">
                   <div className="flex items-center justify-between ml-2">
                     <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">활동 주제</label>
@@ -956,152 +1123,250 @@ ${guidePrompt}
             )}
 
             {/* ─── MY HISTORY 탭 ─── */}
-            {activeTab === 'history' && (
-              <motion.div
-                key="history"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="p-12 space-y-6 min-h-[400px]"
-              >
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-                    <History size={24} />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black font-manrope">제출 기록 이력</h3>
-                    <p className="text-on-surface-variant text-sm font-bold mt-1">내가 지금까지 제출한 활동 기록 목록입니다.</p>
-                  </div>
-                </div>
+            {activeTab === 'history' && (() => {
+              // 관찰 기록 + 결과 제출 통합 타임라인
+              const obsItems = historyLogs.map(l => ({ ...l, _kind: 'obs' as const }));
+              const resItems = results.map(r => ({ ...r, _kind: 'result' as const }));
+              const allItems = [...obsItems, ...resItems].sort(
+                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+              );
+              const filtered = historyFilter === 'all' ? allItems
+                : historyFilter === 'obs' ? allItems.filter(i => i._kind === 'obs')
+                : allItems.filter(i => i._kind === 'result');
 
-                {historyLoading ? (
-                  <div className="flex items-center justify-center py-20">
-                    <Loader2 size={36} className="animate-spin text-primary" />
-                  </div>
-                ) : historyLogs.length > 0 ? (
-                  <div className="space-y-4">
-                    {historyLogs.map((log) => {
-                      const isEditing = editingLogId === log.id;
-                      const isDeleting = deletingLogId === log.id;
+              const resultTypeConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+                text:  { icon: <AlignLeft size={13} />,  label: '텍스트', color: 'text-primary bg-primary/10' },
+                link:  { icon: <Link2 size={13} />,      label: '링크',   color: 'text-blue-500 bg-blue-50' },
+                image: { icon: <ImageIcon size={13} />,  label: '이미지', color: 'text-emerald-500 bg-emerald-50' },
+                file:  { icon: <File size={13} />,       label: '파일',   color: 'text-amber-500 bg-amber-50' },
+              };
 
-                      return (
-                        <motion.div
-                          key={log.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className={`rounded-3xl border transition-all group cursor-default ${
-                            isEditing
-                              ? 'p-6 border-primary/30 bg-primary/[0.02]'
-                              : 'p-6 bg-surface-container-low border-surface-container hover:border-primary/20'
+              return (
+                <motion.div
+                  key="history"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="p-12 space-y-6 min-h-[400px]"
+                >
+                  {/* 헤더 + 필터 */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                        <History size={24} />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-black font-manrope">제출 기록 이력</h3>
+                        <p className="text-on-surface-variant text-sm font-bold mt-1">관찰 기록과 결과 제출 내역을 함께 확인하세요.</p>
+                      </div>
+                    </div>
+                    {/* 필터 칩 */}
+                    <div className="flex gap-2 shrink-0">
+                      {([
+                        { key: 'all' as const,    label: `전체 (${allItems.length})` },
+                        { key: 'obs' as const,    label: `📝 관찰 기록 (${obsItems.length})` },
+                        { key: 'result' as const, label: `📁 결과 제출 (${resItems.length})` },
+                      ]).map(f => (
+                        <button
+                          key={f.key}
+                          onClick={() => setHistoryFilter(f.key)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black border-2 transition-all whitespace-nowrap ${
+                            historyFilter === f.key
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
                           }`}
                         >
-                          {isEditing ? (
-                            /* ── 인라인 수정 폼 ── */
-                            <div className="space-y-3">
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-black text-primary uppercase tracking-widest">활동 제목 *</label>
-                                <input
-                                  type="text"
-                                  value={editLogForm.activity_name}
-                                  onChange={e => setEditLogForm(prev => ({ ...prev, activity_name: e.target.value }))}
-                                  className="w-full px-5 py-3 bg-white rounded-2xl font-bold text-sm border-2 border-primary/10 focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">활동 내용</label>
-                                <textarea
-                                  value={editLogForm.content}
-                                  onChange={e => setEditLogForm(prev => ({ ...prev, content: e.target.value }))}
-                                  rows={5}
-                                  className="w-full px-5 py-3 bg-white rounded-2xl font-medium text-sm leading-relaxed border-2 border-surface-container focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 resize-none transition-all"
-                                />
-                              </div>
-                              <div className="flex gap-3">
-                                <button
-                                  onClick={() => handleSaveEditLog(log.id)}
-                                  disabled={savingLogId === log.id}
-                                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-black text-xs hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm"
-                                >
-                                  {savingLogId === log.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                                  저장
-                                </button>
-                                <button
-                                  onClick={handleCancelEditLog}
-                                  className="flex items-center gap-2 px-5 py-2.5 bg-surface-container text-on-surface-variant rounded-xl font-black text-xs hover:bg-surface-container-high active:scale-95 transition-all"
-                                >
-                                  <X size={13} /> 취소
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            /* ── 일반 카드 ── */
-                            <div className="space-y-3">
-                              {/* 상단: 내용 + 상태 */}
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex items-start gap-4 flex-1 min-w-0">
-                                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-1">
-                                    <FileText size={18} />
-                                  </div>
-                                  <div className="space-y-1 min-w-0">
-                                    <p className="font-black text-base group-hover:text-primary transition-colors">{log.activity_name}</p>
-                                    <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{log.content}</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <div className="text-right space-y-1">
-                                    <span className="text-[10px] font-black text-secondary uppercase tracking-widest bg-secondary/10 px-2 py-0.5 rounded-md block">{log.category}</span>
-                                    <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 justify-end">
-                                      <Clock size={10} />
-                                      {formatRelativeTime(log.created_at)}
-                                    </p>
-                                  </div>
-                                  {log.status === 'pending' ? (
-                                    <div className="flex flex-col items-center gap-1">
-                                      <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
-                                        <Clock size={14} className="text-amber-500" />
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {historyLoading || resultsLoading ? (
+                    <div className="flex items-center justify-center py-20">
+                      <Loader2 size={36} className="animate-spin text-primary" />
+                    </div>
+                  ) : filtered.length > 0 ? (
+                    <div className="space-y-4">
+                      {filtered.map((item) => {
+                        if (item._kind === 'obs') {
+                          const log = item;
+                          const isEditing = editingLogId === log.id;
+                          const isDeleting = deletingLogId === log.id;
+                          return (
+                            <motion.div
+                              key={`obs-${log.id}`}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              className={`rounded-3xl border transition-all group cursor-default ${
+                                isEditing
+                                  ? 'p-6 border-primary/30 bg-primary/[0.02]'
+                                  : 'p-6 bg-surface-container-low border-surface-container hover:border-violet-200'
+                              }`}
+                            >
+                              {isEditing ? (
+                                <div className="space-y-3">
+                                  {classResources.length > 0 && (
+                                    <div className="space-y-1.5">
+                                      <label className="text-[10px] font-black text-primary uppercase tracking-widest">주차 선택</label>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {(classResources as {week: number; topic: string}[]).map(p => {
+                                          const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+                                          const isActive = norm(editLogForm.activity_name) === norm(p.topic);
+                                          return (
+                                            <button key={p.week} type="button"
+                                              onClick={() => setEditLogForm(prev => ({ ...prev, activity_name: p.topic }))}
+                                              className={`px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all ${isActive ? 'bg-primary text-white border-primary' : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'}`}>
+                                              {p.week}주차<span className={`ml-1 text-[9px] ${isActive ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
+                                            </button>
+                                          );
+                                        })}
                                       </div>
-                                      <span className="text-[9px] font-black text-amber-500 uppercase tracking-wider">대기중</span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col items-center gap-1">
-                                      <CheckCircle2 size={18} className="text-secondary" />
-                                      <span className="text-[9px] font-black text-secondary uppercase tracking-wider">승인됨</span>
                                     </div>
                                   )}
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-primary uppercase tracking-widest">활동 제목 *</label>
+                                    <input type="text" value={editLogForm.activity_name}
+                                      onChange={e => setEditLogForm(prev => ({ ...prev, activity_name: e.target.value }))}
+                                      className="w-full px-5 py-3 bg-white rounded-2xl font-bold text-sm border-2 border-primary/10 focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all" />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">활동 내용</label>
+                                    <textarea value={editLogForm.content} rows={5}
+                                      onChange={e => setEditLogForm(prev => ({ ...prev, content: e.target.value }))}
+                                      className="w-full px-5 py-3 bg-white rounded-2xl font-medium text-sm leading-relaxed border-2 border-surface-container focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 resize-none transition-all" />
+                                  </div>
+                                  <div className="flex gap-3">
+                                    <button onClick={() => handleSaveEditLog(log.id)} disabled={savingLogId === log.id}
+                                      className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-black text-xs hover:bg-primary/80 active:scale-95 transition-all disabled:opacity-50 shadow-sm">
+                                      {savingLogId === log.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 저장
+                                    </button>
+                                    <button onClick={handleCancelEditLog}
+                                      className="flex items-center gap-2 px-5 py-2.5 bg-surface-container text-on-surface-variant rounded-xl font-black text-xs hover:bg-surface-container-high active:scale-95 transition-all">
+                                      <X size={13} /> 취소
+                                    </button>
+                                  </div>
                                 </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                                      <div className="w-10 h-10 rounded-2xl bg-violet-100 flex items-center justify-center text-violet-600 shrink-0 mt-1">
+                                        <FileText size={18} />
+                                      </div>
+                                      <div className="space-y-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[10px] font-black text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md">📝 관찰 기록</span>
+                                          {log.category && <span className="text-[10px] font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-md">{log.category}</span>}
+                                        </div>
+                                        <p className="font-black text-base group-hover:text-primary transition-colors">{log.activity_name}</p>
+                                        <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{log.content}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <div className="text-right space-y-1">
+                                        <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 justify-end">
+                                          <Clock size={10} />{formatRelativeTime(log.created_at)}
+                                        </p>
+                                      </div>
+                                      {log.status === 'pending' ? (
+                                        <div className="flex flex-col items-center gap-1">
+                                          <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
+                                            <Clock size={14} className="text-amber-500" />
+                                          </div>
+                                          <span className="text-[9px] font-black text-amber-500">대기중</span>
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-col items-center gap-1">
+                                          <CheckCircle2 size={18} className="text-secondary" />
+                                          <span className="text-[9px] font-black text-secondary">승인됨</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-end gap-2 pt-1 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleStartEditLog(log)}
+                                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all">
+                                      <Pencil size={12} /> 수정
+                                    </button>
+                                    <button onClick={() => handleDeleteLog(log.id)} disabled={isDeleting}
+                                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all disabled:opacity-50">
+                                      {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} 삭제
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </motion.div>
+                          );
+                        }
+
+                        // 결과 제출 카드
+                        const r = item;
+                        const tc = resultTypeConfig[r.submission_type] ?? resultTypeConfig['text'];
+                        const weekLabel = r.week_number
+                          ? `${r.week_number}주차${classResources.find((c: any) => c.week === r.week_number)?.topic ? ` · ${classResources.find((c: any) => c.week === r.week_number).topic}` : ''}`
+                          : null;
+                        return (
+                          <motion.div
+                            key={`result-${r.id}`}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="p-6 bg-surface-container-low border border-surface-container hover:border-emerald-200 rounded-3xl transition-all group"
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 mt-1">
+                                <FolderOpen size={18} />
                               </div>
-                              {/* 하단: 수정/삭제 버튼 (호버 시 표시) */}
-                              <div className="flex justify-end gap-2 pt-1 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() => handleStartEditLog(log)}
-                                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all"
-                                >
-                                  <Pencil size={12} /> 수정
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteLog(log.id)}
-                                  disabled={isDeleting}
-                                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
-                                >
-                                  {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                                  삭제
-                                </button>
+                              <div className="flex-1 min-w-0 space-y-1.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">📁 결과 제출</span>
+                                  <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md ${tc.color}`}>{tc.icon}{tc.label}</span>
+                                  {weekLabel && <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">{weekLabel}</span>}
+                                </div>
+                                {r.title && <p className="font-black text-base group-hover:text-primary transition-colors">{r.title}</p>}
+                                {r.submission_type === 'text' && r.text_content && (
+                                  <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{r.text_content}</p>
+                                )}
+                                {r.submission_type === 'link' && r.link_url && (
+                                  <a href={r.link_url} target="_blank" rel="noopener noreferrer"
+                                    className="text-sm text-blue-500 font-bold underline underline-offset-2 hover:text-blue-700 line-clamp-1 break-all">{r.link_url}</a>
+                                )}
+                                {(r.submission_type === 'image' || r.submission_type === 'file') && r.display_name && (
+                                  <p className="text-sm text-on-surface-variant font-medium">{r.display_name}</p>
+                                )}
                               </div>
+                              <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 shrink-0">
+                                <Clock size={10} />{formatRelativeTime(r.created_at)}
+                              </p>
                             </div>
-                          )}
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
-                    <History size={64} />
-                    <p className="font-black text-lg">아직 제출한 기록이 없습니다.</p>
-                    <p className="text-sm font-bold">RECORD FORM 탭에서 활동을 작성하고 제출해보세요.</p>
-                  </div>
-                )}
-              </motion.div>
-            )}
+                            {/* 수정/삭제 버튼 */}
+                            <div className="flex justify-end gap-2 pt-3 mt-2 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => { handleEditResult(r); handleTabChange('results'); }}
+                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all"
+                              >
+                                <Pencil size={12} /> 수정
+                              </button>
+                              <button
+                                onClick={() => handleDeleteResult(r)}
+                                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-black text-xs transition-all"
+                              >
+                                <Trash2 size={12} /> 삭제
+                              </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
+                      <History size={64} />
+                      <p className="font-black text-lg">아직 제출한 기록이 없습니다.</p>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })()}
 
 
             {/* ─── CLASS MATERIALS 탭 ─── */}
@@ -1177,6 +1442,16 @@ ${guidePrompt}
                 exit={{ opacity: 0 }}
                 className="p-12 space-y-10 min-h-[400px]"
               >
+                {/* Step 2 배너 */}
+                <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shrink-0">2</div>
+                  <div>
+                    <p className="text-xs font-black text-emerald-700">Step 2 · 결과물 제출</p>
+                    <p className="text-[11px] font-bold text-emerald-500/80">관찰 기록 작성 후 결과물을 업로드하세요.</p>
+                  </div>
+                  <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-emerald-400 hover:text-emerald-600 shrink-0">홈으로 →</button>
+                </div>
+
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
                     <FolderOpen size={24} />
@@ -1346,8 +1621,15 @@ ${guidePrompt}
                   {resultSubmitting ? <Loader2 size={20} className="animate-spin" /> : editingResult ? <><Send size={20} /> 수정 완료</> : <><Send size={20} /> {selectedWeek ? `${selectedWeek}주차 결과 제출` : '결과 제출하기'}</>}
                 </button>
 
-                {/* ── 제출 내역 (주차별) ── */}
-                <div className="space-y-4 pt-4 border-t border-surface-container">
+                {/* 제출 내역은 나의 기록 탭에서 확인 */}
+                <div className="pt-2 border-t border-surface-container">
+                  <button onClick={() => handleTabChange('history')}
+                    className="flex items-center gap-2 text-sm font-black text-primary/60 hover:text-primary transition-colors">
+                    <History size={14} /> 제출 내역은 나의 기록 탭에서 확인하세요 →
+                  </button>
+                </div>
+
+                {false && <div className="space-y-4 pt-4 border-t border-surface-container">
                   <div className="flex items-center justify-between">
                     <h4 className="font-black text-base">제출 내역</h4>
                     <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">{results.length}개</span>
@@ -1486,7 +1768,7 @@ ${guidePrompt}
                       </div>
                     );
                   })()}
-                </div>
+                </div>}
               </motion.div>
             )}
 

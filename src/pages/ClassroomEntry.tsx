@@ -148,7 +148,7 @@ const ClassroomEntry = () => {
 
   const handlePinKeyDown = (
     idx: number, e: React.KeyboardEvent,
-    digits: string[], setDigits: (d: string[]) => void,
+    digits: string[], _setDigits: (d: string[]) => void,
     refs: React.MutableRefObject<(HTMLInputElement | null)[]>
   ) => {
     if (e.key === 'Backspace' && !digits[idx] && idx > 0) {

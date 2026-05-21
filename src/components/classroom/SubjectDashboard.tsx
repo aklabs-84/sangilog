@@ -82,7 +82,7 @@ const SubjectDashboard = ({
   onResetPin
 }: SubjectDashboardProps) => {
   const [showActivityModal, setShowActivityModal] = useState(false);
-  const [selectedActivityDate, setSelectedActivityDate] = useState<string | null>(null);
+  const [selectedActivityWeek, setSelectedActivityWeek] = useState<number | null>(null);
   const [pinPopupId, setPinPopupId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNumber, setEditNumber] = useState('');
@@ -110,25 +110,28 @@ const SubjectDashboard = ({
     setEditingId(null);
   };
 
-  // 날짜별 제출 통계
+  // 주차별 제출 통계
   const [showStats, setShowStats] = useState(true);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [selectedStatsDate, setSelectedStatsDate] = useState<string | null>(null);
-  const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string}>>([]);
-  const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string}>>([]);
-  const [rawSuggestions, setRawSuggestions] = useState<Array<{created_at: string, student_id: string}>>([]);
+  const [selectedStatsWeek, setSelectedStatsWeek] = useState<number | null>(null);
+  const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string, activity_name: string}>>([]);
+  const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string, week_number: number | null}>>([]);
 
-  const toDate = (d: string) => new Date(d).toISOString().slice(0, 10);
+  // 주차 목록: weekly_plan + 실제 제출된 주차 union
+  const weeklyPlan: {week: number, topic: string}[] = classInfo?.weekly_plan || [];
+  const submittedWeekNums = [...new Set(rawResults.map(r => r.week_number).filter((w): w is number => w !== null))];
+  const statsWeeks = [...new Set([...weeklyPlan.map(p => p.week), ...submittedWeekNums])].sort((a, b) => a - b);
 
-  const statsDates = [...new Set([
-    ...rawObs.map(r => toDate(r.created_at)),
-    ...rawResults.map(r => toDate(r.created_at)),
-    ...rawSuggestions.map(r => toDate(r.created_at))
-  ])].sort((a, b) => b.localeCompare(a)).slice(0, 14);
-
-  const obsOnDate     = new Set(rawObs.filter(r => toDate(r.created_at) === selectedStatsDate).map(r => r.student_id));
-  const resultsOnDate = new Set(rawResults.filter(r => toDate(r.created_at) === selectedStatsDate).map(r => r.student_id));
-  const suggestOnDate = new Set(rawSuggestions.filter(r => toDate(r.created_at) === selectedStatsDate).map(r => r.student_id));
+  // 주차별 제출 학생 ID 집합 (결과제출 + 활동명이 일치하는 관찰기록 모두 포함)
+  const getSubmittedOnWeek = (week: number | null): Set<string> => {
+    if (week === null) return new Set();
+    const weekTopic = weeklyPlan.find(p => p.week === week)?.topic;
+    const resultIds = rawResults.filter(r => r.week_number === week).map(r => r.student_id);
+    const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+    const obsIds = weekTopic ? rawObs.filter(r => norm(r.activity_name) === norm(weekTopic)).map(r => r.student_id) : [];
+    return new Set([...resultIds, ...obsIds]);
+  };
+  const submittedOnWeek = getSubmittedOnWeek(selectedStatsWeek);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -136,14 +139,12 @@ const SubjectDashboard = ({
       setStatsLoading(true);
       try {
         const studentIds = students.map((s: any) => s.id);
-        const [obsRes, resultsRes, suggestRes] = await Promise.all([
-          supabase.from('observations').select('created_at, student_id').in('student_id', studentIds).eq('is_student_record', true),
-          supabase.from('student_results').select('created_at, student_id').eq('class_id', classInfo.id),
-          supabase.from('student_suggestions').select('created_at, student_id').eq('class_id', classInfo.id)
+        const [obsRes, resultsRes] = await Promise.all([
+          supabase.from('observations').select('created_at, student_id, activity_name').in('student_id', studentIds).eq('is_student_record', true),
+          supabase.from('student_results').select('created_at, student_id, week_number').eq('class_id', classInfo.id),
         ]);
         setRawObs(obsRes.data || []);
         setRawResults(resultsRes.data || []);
-        setRawSuggestions(suggestRes.data || []);
       } catch (err) {
         console.error('fetchStats error:', err);
       } finally {
@@ -301,7 +302,7 @@ const SubjectDashboard = ({
         </div>
       </section>
       
-      {/* 4. 날짜별 제출 현황 통계 */}
+      {/* 4. 주차별 제출 현황 통계 */}
       <section className="px-4">
         <div className="rounded-2xl border border-neutral-100 bg-neutral-50/60 overflow-hidden">
           <button
@@ -312,15 +313,15 @@ const SubjectDashboard = ({
               <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
                 <BarChart2 size={14} />
               </div>
-              <span className="text-sm font-black text-on-surface">날짜별 제출 현황</span>
-              {statsDates.length > 0 && (
+              <span className="text-sm font-black text-on-surface">주차별 제출 현황</span>
+              {statsWeeks.length > 0 && (
                 <span className="text-[10px] font-bold text-on-surface-variant/50 bg-white px-2 py-0.5 rounded-md border border-neutral-200">
-                  최근 {statsDates.length}일
+                  총 {statsWeeks.length}주차
                 </span>
               )}
-              {selectedStatsDate && (
+              {selectedStatsWeek !== null && (
                 <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
-                  {(() => { const [, m, d] = selectedStatsDate.split('-'); return `${parseInt(m)}월 ${parseInt(d)}일 선택됨`; })()}
+                  {selectedStatsWeek}주차 선택됨
                 </span>
               )}
             </div>
@@ -333,48 +334,49 @@ const SubjectDashboard = ({
                 <div className="flex items-center justify-center py-6">
                   <span className="text-xs font-bold text-on-surface-variant/40">불러오는 중...</span>
                 </div>
-              ) : statsDates.length === 0 ? (
+              ) : statsWeeks.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-xs font-black text-on-surface-variant/30">제출된 데이터가 없습니다.</p>
+                  <p className="text-xs font-black text-on-surface-variant/30">등록된 주차 계획이 없습니다. 학급 설정에서 주차별 계획을 추가해 주세요.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {statsDates.map(date => {
-                      const [, m, d] = date.split('-');
-                      const isSelected = selectedStatsDate === date;
+                    {statsWeeks.map(week => {
+                      const topic = weeklyPlan.find(p => p.week === week)?.topic;
+                      const weekResultCount = getSubmittedOnWeek(week).size;
+                      const isSelected = selectedStatsWeek === week;
                       return (
                         <button
-                          key={date}
-                          onClick={() => setSelectedStatsDate(isSelected ? null : date)}
-                          className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border ${
+                          key={week}
+                          onClick={() => setSelectedStatsWeek(isSelected ? null : week)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border ${
                             isSelected
                               ? 'bg-primary text-white border-primary shadow-sm'
                               : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'
                           }`}
                         >
-                          {parseInt(m)}/{parseInt(d)}
+                          <span>{week}주차</span>
+                          {topic && <span className={`text-[9px] ${isSelected ? 'text-white/70' : 'text-neutral-300'}`}>· {topic}</span>}
+                          {weekResultCount > 0 && (
+                            <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                              {weekResultCount}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
                   </div>
-                  {selectedStatsDate ? (
+                  {selectedStatsWeek !== null ? (
                     <div className="flex items-center gap-3 flex-wrap">
-                      {[
-                        { label: '📝 활동 기록', count: obsOnDate.size,     colorClass: 'bg-violet-50 border-violet-100 text-violet-700' },
-                        { label: '📁 결과 제출', count: resultsOnDate.size, colorClass: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
-                        { label: '💬 건의사항',  count: suggestOnDate.size, colorClass: 'bg-rose-50 border-rose-100 text-rose-700' },
-                      ].map(({ label, count, colorClass }) => (
-                        <div key={label} className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black ${colorClass}`}>
-                          <span>{label}</span>
-                          <span className="text-base font-black">{count}</span>
-                          <span className="font-bold opacity-60">명</span>
-                        </div>
-                      ))}
-                      <p className="text-[10px] font-bold text-on-surface-variant/40 ml-1">아래 표에서 제출 현황을 확인하세요</p>
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black bg-emerald-50 border-emerald-100 text-emerald-700">
+                        <span>📋 제출완료</span>
+                        <span className="text-base font-black">{submittedOnWeek.size}</span>
+                        <span className="font-bold opacity-60">명</span>
+                      </div>
+                      <p className="text-[10px] font-bold text-on-surface-variant/40 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
                     </div>
                   ) : (
-                    <p className="text-[11px] font-bold text-on-surface-variant/40">날짜를 선택하면 해당일 제출 현황이 아래 표에 표시됩니다.</p>
+                    <p className="text-[11px] font-bold text-on-surface-variant/40">주차를 선택하면 해당 주차 결과 제출 현황이 아래 표에 표시됩니다.</p>
                   )}
                 </div>
               )}
@@ -437,9 +439,9 @@ const SubjectDashboard = ({
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">활동 및 관찰 기록</th>
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">진행 상태</th>
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">승인</th>
-                        {selectedStatsDate && (
+                        {selectedStatsWeek !== null && (
                           <th className="p-6 text-[13px] font-black text-primary/80 uppercase tracking-widest text-center">
-                            {(() => { const [, m, d] = selectedStatsDate.split('-'); return `${parseInt(m)}/${parseInt(d)} 제출`; })()}
+                            {selectedStatsWeek}주차 결과제출
                           </th>
                         )}
                         <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-12">관리</th>
@@ -530,23 +532,14 @@ const SubjectDashboard = ({
                               <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20">승인 완료</span>
                             )}
                           </td>
-                          {/* 날짜별 제출 현황 셀 */}
-                          {selectedStatsDate && (
+                          {/* 주차별 결과제출 현황 셀 */}
+                          {selectedStatsWeek !== null && (
                             <td className="p-6 text-center">
-                              <div className="flex items-center justify-center gap-1 flex-wrap">
-                                {obsOnDate.has(s.id) && (
-                                  <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-violet-50 text-violet-600 border border-violet-100 whitespace-nowrap">📝활동</span>
-                                )}
-                                {resultsOnDate.has(s.id) && (
-                                  <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁결과</span>
-                                )}
-                                {suggestOnDate.has(s.id) && (
-                                  <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-rose-50 text-rose-600 border border-rose-100 whitespace-nowrap">💬건의</span>
-                                )}
-                                {!obsOnDate.has(s.id) && !resultsOnDate.has(s.id) && !suggestOnDate.has(s.id) && (
-                                  <span className="text-neutral-300 font-bold text-sm">—</span>
-                                )}
-                              </div>
+                              {submittedOnWeek.has(s.id) ? (
+                                <span className="px-2 py-1 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁 제출완료</span>
+                              ) : (
+                                <span className="text-neutral-300 font-bold text-sm">—</span>
+                              )}
                             </td>
                           )}
 
@@ -647,7 +640,7 @@ const SubjectDashboard = ({
                     </div>
 
                     <div className="absolute top-6 left-6 flex flex-col gap-3">
-                       <button onClick={(e) => { e.stopPropagation(); onEditStudent(s); }} className="w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl shadow-md flex items-center justify-center text-on-surface-variant/40 transition-all hover:scale-110"><Pencil size={16} /></button>
+                       <button onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }} className="w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl shadow-md flex items-center justify-center text-on-surface-variant/40 transition-all hover:scale-110"><Pencil size={16} /></button>
                        <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="w-10 h-10 bg-white hover:bg-error hover:text-white rounded-xl shadow-md flex items-center justify-center text-error/30 transition-all hover:scale-110"><Trash2 size={16} /></button>
                     </div>
                   </motion.div>
@@ -662,36 +655,26 @@ const SubjectDashboard = ({
     {/* 활동 참여 현황 모달 */}
     <AnimatePresence>
       {showActivityModal && (() => {
-        // 전체 날짜 추출 (중복 제거, 최신순)
-        const allDates = [...new Set(
-          students.flatMap(s => (s.all_observations || []).map((o: any) =>
-            new Date(o.created_at).toISOString().slice(0, 10)
-          ))
-        )].sort((a, b) => b.localeCompare(a));
+        // 주차 선택 여부에 따라 필터
+        const submittedStudentIds = selectedActivityWeek !== null
+          ? getSubmittedOnWeek(selectedActivityWeek)
+          : null;
 
-        const formatDate = (iso: string) => {
-          const d = new Date(iso);
-          return `${d.getMonth() + 1}/${d.getDate()}`;
-        };
-
-        // 날짜 선택 여부에 따라 필터
-        const submitted = selectedActivityDate
-          ? students.filter(s =>
-              (s.all_observations || []).some((o: any) =>
-                new Date(o.created_at).toISOString().slice(0, 10) === selectedActivityDate
-              )
-            )
+        const submitted = submittedStudentIds
+          ? students.filter(s => submittedStudentIds.has(s.id))
           : students.filter(s => s.activity && s.activity !== '기록 없음');
 
         const notSubmitted = students.filter(s => !submitted.includes(s));
 
         const getActivityLabel = (s: any) => {
-          if (!selectedActivityDate) return s.activity;
-          const obs = (s.all_observations || []).find((o: any) =>
-            new Date(o.created_at).toISOString().slice(0, 10) === selectedActivityDate
-          );
-          return obs?.activity_name || s.activity;
+          if (selectedActivityWeek !== null) {
+            return submittedStudentIds?.has(s.id) ? `${selectedActivityWeek}주차 제출완료` : s.activity;
+          }
+          return s.activity;
         };
+
+        // 주차 목록 (모달용)
+        const modalWeeks = statsWeeks;
 
         return (
           <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
@@ -705,7 +688,9 @@ const SubjectDashboard = ({
               <div className="flex items-center justify-between px-10 py-7 border-b border-neutral-100">
                 <div className="space-y-1">
                   <p className="text-[10px] font-black text-secondary uppercase tracking-[0.25em]">Activity Rate</p>
-                  <h3 className="text-2xl font-black tracking-tight">{classInfo?.name} 활동 참여 현황</h3>
+                  <h3 className="text-2xl font-black tracking-tight">
+                    {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}주차 ` : ''}활동 참여 현황
+                  </h3>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-3 text-right">
@@ -720,7 +705,7 @@ const SubjectDashboard = ({
                     </div>
                   </div>
                   <button
-                    onClick={() => { setShowActivityModal(false); setSelectedActivityDate(null); }}
+                    onClick={() => { setShowActivityModal(false); setSelectedActivityWeek(null); }}
                     className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all"
                   >
                     <X size={20} />
@@ -728,32 +713,35 @@ const SubjectDashboard = ({
                 </div>
               </div>
 
-              {/* 날짜 필터 칩 */}
-              {allDates.length > 0 && (
+              {/* 주차 필터 칩 */}
+              {modalWeeks.length > 0 && (
                 <div className="px-10 py-3 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
                   <button
-                    onClick={() => setSelectedActivityDate(null)}
+                    onClick={() => setSelectedActivityWeek(null)}
                     className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
-                      selectedActivityDate === null
+                      selectedActivityWeek === null
                         ? 'bg-secondary text-white border-secondary shadow-sm'
                         : 'bg-white text-neutral-400 border-neutral-200 hover:border-secondary/40'
                     }`}
                   >
                     전체
                   </button>
-                  {allDates.map(date => (
-                    <button
-                      key={date}
-                      onClick={() => setSelectedActivityDate(date)}
-                      className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
-                        selectedActivityDate === date
-                          ? 'bg-secondary text-white border-secondary shadow-sm'
-                          : 'bg-white text-neutral-400 border-neutral-200 hover:border-secondary/40'
-                      }`}
-                    >
-                      {formatDate(date)}
-                    </button>
-                  ))}
+                  {modalWeeks.map(week => {
+                    const topic = weeklyPlan.find(p => p.week === week)?.topic;
+                    return (
+                      <button
+                        key={week}
+                        onClick={() => setSelectedActivityWeek(week)}
+                        className={`shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
+                          selectedActivityWeek === week
+                            ? 'bg-secondary text-white border-secondary shadow-sm'
+                            : 'bg-white text-neutral-400 border-neutral-200 hover:border-secondary/40'
+                        }`}
+                      >
+                        {week}주차{topic && <span className="opacity-60">· {topic}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -836,7 +824,7 @@ const SubjectDashboard = ({
                   </span>
                 </div>
                 <button
-                  onClick={() => { setShowActivityModal(false); setSelectedActivityDate(null); }}
+                  onClick={() => { setShowActivityModal(false); setSelectedActivityWeek(null); }}
                   className="px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all"
                 >
                   닫기

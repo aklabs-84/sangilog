@@ -37,7 +37,7 @@ import AttendanceTab from '../components/classroom/AttendanceTab';
 const Classroom = () => {
   const { user, profile } = useAuth();
   const location = useLocation();
-  const navigateTo = useNavigate();
+  useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);

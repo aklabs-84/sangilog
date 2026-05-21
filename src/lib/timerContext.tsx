@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 
 // ── Audio helpers ─────────────────────────────────────────────────────────────
 function playBeep(ctx: AudioContext, freq: number, duration: number, delay = 0) {

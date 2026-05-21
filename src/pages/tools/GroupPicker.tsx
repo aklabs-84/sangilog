@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, Trash2, Shuffle, ChevronDown, X,
   Maximize2, Minimize2, Crown, RefreshCw, Check,
-  UserPlus
+  UserPlus, Download, Copy, CheckCheck
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -34,7 +34,6 @@ const GroupPicker = () => {
 
   // 클래스 불러오기
   const [classes, setClasses] = useState<any[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState('');
   const [loadingClass, setLoadingClass] = useState(false);
   const [classDropdownOpen, setClassDropdownOpen] = useState(false);
 
@@ -52,6 +51,118 @@ const GroupPicker = () => {
 
   // 전체화면 발표 모드
   const [presentMode, setPresentMode] = useState(false);
+
+  // 저장 기능
+  const [copied, setCopied] = useState(false);
+
+  const handleSaveImage = () => {
+    if (groups.length === 0) return;
+
+    const SCALE = 2;
+    const COLS = Math.min(groups.length, 4);
+    const ROWS = Math.ceil(groups.length / COLS);
+    const MAX_MEMBERS = Math.max(...groups.map(g => g.members.length));
+    const CARD_W = 240 * SCALE;
+    const CARD_H = (100 + MAX_MEMBERS * 36) * SCALE;
+    const GAP = 20 * SCALE;
+    const HEADER = 80 * SCALE;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = COLS * CARD_W + (COLS + 1) * GAP;
+    canvas.height = ROWS * CARD_H + (ROWS + 1) * GAP + HEADER;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // 배경
+    const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    grad.addColorStop(0, '#0f172a');
+    grad.addColorStop(1, '#1e293b');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 제목
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${28 * SCALE}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('🎯 조 편성 결과', GAP, 52 * SCALE);
+
+    const emojis = ['🔵', '🔴', '🟢', '🟡', '🟣', '🟠', '⚫', '⚪'];
+
+    const rr = (x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.arcTo(x + w, y, x + w, y + r, r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+      ctx.lineTo(x + r, y + h);
+      ctx.arcTo(x, y + h, x, y + h - r, r);
+      ctx.lineTo(x, y + r);
+      ctx.arcTo(x, y, x + r, y, r);
+      ctx.closePath();
+    };
+
+    groups.forEach((group, i) => {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const x = GAP + col * (CARD_W + GAP);
+      const y = HEADER + GAP + row * (CARD_H + GAP);
+
+      // 카드 배경
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      rr(x, y, CARD_W, CARD_H, 16 * SCALE);
+      ctx.fill();
+
+      // 이모지
+      ctx.font = `${30 * SCALE}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(emojis[group.id % 8], x + CARD_W / 2, y + 38 * SCALE);
+
+      // 조 이름
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${18 * SCALE}px sans-serif`;
+      ctx.fillText(group.name, x + CARD_W / 2, y + 62 * SCALE);
+
+      // 인원수
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.font = `${11 * SCALE}px sans-serif`;
+      ctx.fillText(`${group.members.length}명`, x + CARD_W / 2, y + 80 * SCALE);
+
+      // 멤버
+      ctx.textAlign = 'left';
+      group.members.forEach((member, mi) => {
+        const isLeader = group.leader?.id === member.id;
+        const my = y + 96 * SCALE + mi * 36 * SCALE;
+
+        ctx.fillStyle = isLeader ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.08)';
+        rr(x + 12 * SCALE, my, CARD_W - 24 * SCALE, 28 * SCALE, 7 * SCALE);
+        ctx.fill();
+
+        ctx.fillStyle = isLeader ? '#fbbf24' : '#ffffff';
+        ctx.font = `${isLeader ? 'bold ' : ''}${13 * SCALE}px sans-serif`;
+        ctx.fillText(isLeader ? `👑 ${member.name}` : member.name, x + 22 * SCALE, my + 19 * SCALE);
+      });
+    });
+
+    const link = document.createElement('a');
+    link.download = `조편성_결과_${new Date().toLocaleDateString('ko-KR').replace(/[\s.]/g, '')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCopyText = () => {
+    const text = groups.map(g => {
+      const leader = g.leader ? `(조장: ${g.leader.name})` : '';
+      const members = g.members.map(m => m.name).join(', ');
+      return `${g.name} ${leader}\n${members}`;
+    }).join('\n\n');
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   useEffect(() => {
     if (user) fetchClasses();
@@ -614,16 +725,32 @@ const GroupPicker = () => {
               <div className="min-h-screen p-8 flex flex-col">
                 <div className="flex items-center justify-between mb-8">
                   <h1 className="text-3xl font-black text-white">🎯 조 편성 결과</h1>
-                  <button
-                    onClick={() => setPresentMode(false)}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 text-white hover:bg-white/30 transition-all font-black text-sm border border-white/30"
-                  >
-                    <Minimize2 size={18} />
-                    발표 종료 (ESC)
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCopyText}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 text-white hover:bg-white/30 transition-all font-black text-sm border border-white/30"
+                    >
+                      {copied ? <CheckCheck size={16} className="text-green-400" /> : <Copy size={16} />}
+                      {copied ? '복사됨!' : '텍스트 복사'}
+                    </button>
+                    <button
+                      onClick={handleSaveImage}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 text-white hover:bg-white/30 transition-all font-black text-sm border border-white/30"
+                    >
+                      <Download size={16} />
+                      이미지 저장
+                    </button>
+                    <button
+                      onClick={() => setPresentMode(false)}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 text-white hover:bg-white/30 transition-all font-black text-sm border border-white/30"
+                    >
+                      <Minimize2 size={18} />
+                      발표 종료 (ESC)
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 content-start">
+                <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 content-start p-2">
                   {groups.map((group) => (
                     <motion.div
                       key={group.id}

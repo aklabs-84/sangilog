@@ -93,7 +93,7 @@ const StudentView = () => {
     try {
       const { data: studentData, error: studentError } = await supabase
         .from('students')
-        .select(`*, classes(name, subject, teacher_id)`)
+        .select(`*, classes(name, subject, teacher_id, weekly_plan)`)
         .eq('id', id)
         .single();
       if (studentError) throw studentError;
@@ -442,6 +442,34 @@ ${activitiesContext}
                       {isEditing ? (
                         /* ── 인라인 수정 폼 ── */
                         <div className="bg-primary/[0.03] border-2 border-primary/20 rounded-2xl p-5 space-y-3">
+                          {/* 주차 선택 칩 */}
+                          {(() => {
+                            const weeklyPlan: { week: number; topic: string }[] = student?.classes?.weekly_plan || [];
+                            if (weeklyPlan.length === 0) return null;
+                            const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+                            const activeWeek = weeklyPlan.find(p => norm(p.topic) === norm(editForm.activity_name))?.week ?? null;
+                            return (
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-primary uppercase tracking-widest">주차 선택</label>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {weeklyPlan.map(p => (
+                                    <button
+                                      key={p.week}
+                                      type="button"
+                                      onClick={() => setEditForm(prev => ({ ...prev, activity_name: p.topic }))}
+                                      className={`px-3 py-1.5 rounded-xl text-[11px] font-black border transition-all ${
+                                        activeWeek === p.week
+                                          ? 'bg-primary text-white border-primary'
+                                          : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'
+                                      }`}
+                                    >
+                                      {p.week}주차<span className={`ml-1 text-[9px] ${activeWeek === p.week ? 'text-white/70' : 'text-neutral-300'}`}>· {p.topic}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
                           <div className="grid grid-cols-2 gap-3">
                             <div className="col-span-2 space-y-1">
                               <label className="text-[10px] font-black text-primary uppercase tracking-widest">활동 제목 *</label>
@@ -494,9 +522,22 @@ ${activitiesContext}
                         <>
                           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-3">
                             <div>
-                              <span className="inline-block px-2.5 py-1 bg-surface-container text-[10px] font-black uppercase text-on-surface-variant/60 rounded border border-neutral-200 mb-2 tracking-widest">
-                                {obs.category || '활동'}
-                              </span>
+                              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                                <span className="inline-block px-2.5 py-1 bg-surface-container text-[10px] font-black uppercase text-on-surface-variant/60 rounded border border-neutral-200 tracking-widest">
+                                  {obs.category || '활동'}
+                                </span>
+                                {(() => {
+                                  const weeklyPlan: {week: number; topic: string}[] = student?.classes?.weekly_plan || [];
+                                  const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+                                  const matched = weeklyPlan.find(p => norm(p.topic) === norm(obs.activity_name || ''));
+                                  if (!matched) return null;
+                                  return (
+                                    <span className="inline-block px-2.5 py-1 bg-primary/10 text-primary text-[10px] font-black rounded border border-primary/20">
+                                      {matched.week}주차
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                               <h4 className="text-lg font-black tracking-tight text-on-surface group-hover:text-primary transition-colors">
                                 {obs.activity_name}
                               </h4>
