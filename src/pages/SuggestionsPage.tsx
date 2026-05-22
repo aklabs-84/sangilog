@@ -53,22 +53,21 @@ const SuggestionsPage = () => {
     fetchClasses();
   }, [user]);
 
-  // 모든 수업의 건의사항을 한 번에 로드
+  // teacher_id로 직접 조회 — classes 로드 여부와 무관하게 실행
   useEffect(() => {
-    if (classes.length === 0) return;
+    if (!user) return;
     const fetchAllSuggestions = async () => {
       setLoading(true);
-      const classIds = classes.map(c => c.id);
       const { data } = await supabase
         .from('student_suggestions')
         .select('*, students(name, number)')
-        .in('class_id', classIds)
+        .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
       setAllSuggestions((data as Suggestion[]) || []);
       setLoading(false);
     };
     fetchAllSuggestions();
-  }, [classes]);
+  }, [user]);
 
   // 드롭다운 선택 = 클라이언트 필터
   const visibleSuggestions = selectedClassId
