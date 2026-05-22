@@ -6,7 +6,7 @@ import {
   Megaphone, Send, Loader2, Reply, Clock, ChevronDown,
   MessageSquare, CheckCircle2, Filter, ArrowLeft
 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 type Suggestion = {
   id: string;
@@ -18,6 +18,7 @@ type Suggestion = {
   is_reply_read: boolean;
   created_at: string;
   students: { name: string; number: string | number } | null;
+  class: { name: string; subject: string } | null;
 };
 
 type ClassInfo = { id: string; name: string; subject: string; class_type: string };
@@ -25,11 +26,11 @@ type ClassInfo = { id: string; name: string; subject: string; class_type: string
 const SuggestionsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
   const [classes, setClasses] = useState<ClassInfo[]>([]);
+  // '' = 전체 수업 보기
   const [selectedClassId, setSelectedClassId] = useState<string>('');
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [allSuggestions, setAllSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [classesLoading, setClassesLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'replied'>('all');
@@ -47,43 +48,44 @@ const SuggestionsPage = () => {
         .select('id, name, subject, class_type')
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
-      const list = data || [];
-      setClasses(list);
-      const preselect = searchParams.get('classId');
-      if (preselect && list.find((c: ClassInfo) => c.id === preselect)) {
-        setSelectedClassId(preselect);
-      } else if (list.length > 0) {
-        setSelectedClassId(list[0].id);
-      }
+      setClasses(data || []);
       setClassesLoading(false);
     };
     fetchClasses();
   }, [user]);
 
-  // 선택된 수업의 건의사항 로드
+  // 모든 수업의 건의사항을 한 번에 로드
   useEffect(() => {
-    if (!selectedClassId) return;
-    const fetchSuggestions = async () => {
+    if (classes.length === 0) return;
+    const fetchAllSuggestions = async () => {
       setLoading(true);
-      const { data } = await supabase
+      const classIds = classes.map(c => c.id);
+      const { data, error } = await supabase
         .from('student_suggestions')
-        .select('*, students(name, number)')
-        .eq('class_id', selectedClassId)
+        .select('*, students(name, number), class:classes(name, subject)')
+        .in('class_id', classIds)
         .order('created_at', { ascending: false });
-      setSuggestions((data as Suggestion[]) || []);
+      if (!error) {
+        setAllSuggestions((data as Suggestion[]) || []);
+      }
       setLoading(false);
     };
-    fetchSuggestions();
-  }, [selectedClassId]);
+    fetchAllSuggestions();
+  }, [classes]);
 
-  const filteredSuggestions = suggestions.filter(s => {
+  // 드롭다운 선택 = 클라이언트 필터
+  const visibleSuggestions = selectedClassId
+    ? allSuggestions.filter(s => s.class_id === selectedClassId)
+    : allSuggestions;
+
+  const filteredSuggestions = visibleSuggestions.filter(s => {
     if (filter === 'pending') return !s.teacher_reply;
     if (filter === 'replied') return !!s.teacher_reply;
     return true;
   });
 
-  const pendingCount = suggestions.filter(s => !s.teacher_reply).length;
-  const repliedCount = suggestions.filter(s => !!s.teacher_reply).length;
+  const pendingCount = visibleSuggestions.filter(s => !s.teacher_reply).length;
+  const repliedCount = visibleSuggestions.filter(s => !!s.teacher_reply).length;
 
   const handleSaveReply = async (id: string) => {
     if (!replyText.trim()) return;
@@ -93,7 +95,7 @@ const SuggestionsPage = () => {
       .update({ teacher_reply: replyText.trim(), replied_at: new Date().toISOString(), is_reply_read: false })
       .eq('id', id);
     if (!error) {
-      setSuggestions(prev => prev.map(s =>
+      setAllSuggestions(prev => prev.map(s =>
         s.id === id ? { ...s, teacher_reply: replyText.trim(), replied_at: new Date().toISOString() } : s
       ));
       setReplyingId(null);
@@ -133,7 +135,7 @@ const SuggestionsPage = () => {
           </div>
         </div>
 
-        {/* 수업 선택 */}
+        {/* 수업 선택 드롭다운 */}
         {!classesLoading && classes.length > 0 && (
           <div className="relative">
             <select
@@ -141,6 +143,7 @@ const SuggestionsPage = () => {
               onChange={e => setSelectedClassId(e.target.value)}
               className="appearance-none pl-4 pr-10 py-2.5 bg-white border-2 border-primary/20 rounded-2xl font-black text-sm focus:outline-none focus:border-primary/50 transition-all cursor-pointer"
             >
+              <option value="">전체 수업</option>
               {classes.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.name}{c.subject ? ` · ${c.subject}` : ''}
@@ -155,7 +158,7 @@ const SuggestionsPage = () => {
       {/* 요약 카드 */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
-          { label: '전체', count: suggestions.length, color: 'bg-neutral-50 border-neutral-200 text-neutral-600', key: 'all' },
+          { label: '전체', count: visibleSuggestions.length, color: 'bg-neutral-50 border-neutral-200 text-neutral-600', key: 'all' },
           { label: '미답변', count: pendingCount, color: 'bg-rose-50 border-rose-200 text-rose-600', key: 'pending' },
           { label: '답변완료', count: repliedCount, color: 'bg-emerald-50 border-emerald-200 text-emerald-600', key: 'replied' },
         ].map(({ label, count, color, key }) => (
@@ -188,9 +191,9 @@ const SuggestionsPage = () => {
             {label}
           </button>
         ))}
-        {selectedClass && (
-          <span className="ml-auto text-xs font-bold text-on-surface-variant/50">{selectedClass.name}</span>
-        )}
+        <span className="ml-auto text-xs font-bold text-on-surface-variant/50">
+          {selectedClass ? selectedClass.name : '전체 수업'}
+        </span>
       </div>
 
       {/* 건의사항 목록 */}
@@ -211,6 +214,7 @@ const SuggestionsPage = () => {
             {filteredSuggestions.map(s => {
               const isReplying = replyingId === s.id;
               const isSaving = savingId === s.id;
+              const className = s.class?.name || classes.find(c => c.id === s.class_id)?.name;
               return (
                 <motion.div
                   key={s.id}
@@ -233,6 +237,11 @@ const SuggestionsPage = () => {
                         {s.students?.number && (
                           <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">
                             {s.students.number}번
+                          </span>
+                        )}
+                        {className && (
+                          <span className="text-[10px] font-black text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-md">
+                            {className}
                           </span>
                         )}
                         {s.teacher_reply ? (
