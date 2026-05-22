@@ -24,9 +24,11 @@ import {
   Trash2,
   KeyRound,
   Eye,
-  EyeOff
+  EyeOff,
+  Megaphone
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 interface HomeroomDashboardProps {
   classInfo: any;
@@ -69,6 +71,7 @@ const HomeroomDashboard = ({
   onBulkApprove,
   onResetPin
 }: HomeroomDashboardProps) => {
+  const navigate = useNavigate();
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
   const filteredStudents = students.filter(s =>
     s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -93,6 +96,7 @@ const HomeroomDashboard = ({
   const [selectedStatsWeek, setSelectedStatsWeek] = useState<number | null>(null);
   const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string, activity_name: string}>>([]);
   const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string, week_number: number | null}>>([]);
+  const [suggestionCounts, setSuggestionCounts] = useState<Record<string, number>>({});
 
   // 주차 목록: weekly_plan + 실제 제출된 주차 union
   const weeklyPlan: {week: number, topic: string}[] = classInfo?.weekly_plan || [];
@@ -128,12 +132,18 @@ const HomeroomDashboard = ({
       try {
         const studentIds = students.map((s: any) => s.id);
         // 담임반: 학생ID 기반으로 모든 교과 결과 조회
-        const [obsRes, resultsRes] = await Promise.all([
+        const [obsRes, resultsRes, suggRes] = await Promise.all([
           supabase.from('observations').select('created_at, student_id, activity_name').in('student_id', studentIds).eq('is_student_record', true),
           supabase.from('student_results').select('created_at, student_id, week_number').in('student_id', studentIds),
+          supabase.from('student_suggestions').select('student_id').in('student_id', studentIds).is('teacher_reply', null),
         ]);
         setRawObs(obsRes.data || []);
         setRawResults(resultsRes.data || []);
+        const counts: Record<string, number> = {};
+        (suggRes.data || []).forEach((r: { student_id: string }) => {
+          counts[r.student_id] = (counts[r.student_id] || 0) + 1;
+        });
+        setSuggestionCounts(counts);
       } catch (err) {
         console.error('fetchActivityStats error:', err);
       } finally {
@@ -214,7 +224,19 @@ const HomeroomDashboard = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => navigate(`/suggestions?classId=${classInfo.id}`)}
+            className="relative flex items-center gap-2 px-6 py-3.5 rounded-2xl font-black text-sm border-2 border-rose-200 text-rose-500 hover:bg-rose-50 transition-all"
+          >
+            <Megaphone size={18} />
+            <span>건의사항 관리</span>
+            {Object.values(suggestionCounts).reduce((a, b) => a + b, 0) > 0 && (
+              <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                {Object.values(suggestionCounts).reduce((a, b) => a + b, 0)}
+              </span>
+            )}
+          </button>
           <button
             onClick={onInviteTeachers}
             className="btn-vibrant group px-6 py-3.5 rounded-2xl font-black text-sm flex items-center gap-3 transition-all"
@@ -512,6 +534,11 @@ const HomeroomDashboard = ({
                                  <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
                                  <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="px-1.5 py-0.5 bg-primary/5 text-[8px] font-black text-primary/70 uppercase tracking-wider rounded border border-primary/10">{s.tag || '학생'}</span>
+                                    {suggestionCounts[s.id] > 0 && (
+                                      <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-50 text-[8px] font-black text-rose-500 rounded border border-rose-100">
+                                        💬 {suggestionCounts[s.id]}건
+                                      </span>
+                                    )}
                                  </div>
                                </div>
                              </div>

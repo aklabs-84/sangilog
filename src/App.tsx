@@ -14,6 +14,7 @@ import StudentLog from './pages/StudentLog';
 import Archive from './pages/Archive';
 import StudentView from './pages/StudentView';
 import TeachingTools from './pages/TeachingTools';
+import SuggestionsPage from './pages/SuggestionsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -72,6 +73,7 @@ function App() {
                 <Route path="archive" element={<Archive />} />
                 <Route path="activity-log" element={<ActivityLog />} />
                 <Route path="teaching-tools" element={<TeachingTools />} />
+                <Route path="suggestions" element={<SuggestionsPage />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="help" element={<Help />} />
               </Route>
