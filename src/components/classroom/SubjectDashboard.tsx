@@ -143,7 +143,6 @@ const SubjectDashboard = ({
   const getResultsOnWeek = (week: number | null): Set<string> =>
     week === null ? new Set() : new Set(rawResults.filter(r => r.week_number === week).map(r => r.student_id));
 
-  const submittedOnWeek = getSubmittedOnWeek(selectedStatsWeek);
   const obsOnWeek = getObsOnWeek(selectedStatsWeek);
   const resultsOnWeek = getResultsOnWeek(selectedStatsWeek);
 
@@ -357,7 +356,7 @@ const SubjectDashboard = ({
                   <div className="flex items-center gap-2 flex-wrap">
                     {statsWeeks.map(week => {
                       const topic = weeklyPlan.find(p => p.week === week)?.topic;
-                      const weekResultCount = getSubmittedOnWeek(week).size;
+                      const weekResultCount = getObsOnWeek(week).size;
                       const isSelected = selectedStatsWeek === week;
                       return (
                         <button
@@ -384,7 +383,7 @@ const SubjectDashboard = ({
                     <div className="flex items-center gap-3 flex-wrap">
                       <div className="flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black bg-emerald-50 border-emerald-100 text-emerald-700">
                         <span>📋 제출완료</span>
-                        <span className="text-base font-black">{submittedOnWeek.size}</span>
+                        <span className="text-base font-black">{obsOnWeek.size}</span>
                         <span className="font-bold opacity-60">명</span>
                       </div>
                       <p className="text-[10px] font-bold text-on-surface-variant/40 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
@@ -428,14 +427,14 @@ const SubjectDashboard = ({
                 className="layered-card rounded-3xl border-white/60 shadow-soft overflow-hidden bg-white/60"
               >
                 <div className="overflow-x-auto custom-scrollbar">
-                  <table className="w-full text-left border-collapse min-w-[900px]">
+                  <table className="w-full text-left border-collapse min-w-[800px]">
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-neutral-50 border-b border-neutral-100">
-                        <th className="p-6 text-center w-16">
+                        <th className="p-4 lg:p-6 text-center w-12 lg:w-16 whitespace-nowrap">
                           <label className="flex items-center justify-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              className="hidden" 
+                            <input
+                              type="checkbox"
+                              className="hidden"
                               checked={isAllSelected}
                               onChange={(e) => onSelectAll(e.target.checked)}
                             />
@@ -444,26 +443,26 @@ const SubjectDashboard = ({
                             </div>
                           </label>
                         </th>
-                        <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">
+                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden sm:table-cell">
                           <button className="flex items-center gap-2 group" onClick={() => onSort('number')}>
                             NO. <ArrowRight size={14} className={`group-hover:text-primary transition-all rotate-90 ${sortConfig.key === 'number' ? 'text-primary' : 'opacity-20'}`} />
                           </button>
                         </th>
-                        <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">학생 정보</th>
-                        <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">활동 및 관찰 기록</th>
-                        <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">진행 상태</th>
-                        <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">승인</th>
+                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap">학생 정보</th>
+                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden lg:table-cell">활동 및 관찰 기록</th>
+                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap hidden md:table-cell">진행 상태</th>
+                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
                         {selectedStatsWeek !== null && (
                           <>
-                            <th className="p-6 text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center">
+                            <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center whitespace-nowrap">
                               {selectedStatsWeek}주차 관찰기록
                             </th>
-                            <th className="p-6 text-[13px] font-black text-emerald-600/80 uppercase tracking-widest text-center">
+                            <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-emerald-600/80 uppercase tracking-widest text-center whitespace-nowrap">
                               {selectedStatsWeek}주차 결과제출
                             </th>
                           </>
                         )}
-                        <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-12">관리</th>
+                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-8 lg:pr-12 whitespace-nowrap">관리</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-neutral-100">
@@ -476,11 +475,11 @@ const SubjectDashboard = ({
                           onClick={() => !isEditing && onNavigateAI(s.id)}
                           className={`group hover:bg-neutral-50/50 transition-all ${isEditing ? 'bg-primary/[0.02] cursor-default' : 'cursor-pointer'} ${selectedIds.includes(s.id) ? 'bg-primary/[0.03]' : ''}`}
                         >
-                          <td className="p-6 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="p-3 lg:p-6 text-center" onClick={(e) => e.stopPropagation()}>
                             <label className="flex items-center justify-center cursor-pointer">
-                              <input 
-                                type="checkbox" 
-                                className="hidden" 
+                              <input
+                                type="checkbox"
+                                className="hidden"
                                 checked={selectedIds.includes(s.id)}
                                 onChange={() => onSelectStudent(s.id)}
                               />
@@ -489,7 +488,7 @@ const SubjectDashboard = ({
                               </div>
                             </label>
                           </td>
-                          <td className="p-6 w-24" onClick={(e) => isEditing && e.stopPropagation()}>
+                          <td className="p-3 lg:p-6 w-20 lg:w-24 hidden sm:table-cell" onClick={(e) => isEditing && e.stopPropagation()}>
                             {isEditing ? (
                               <input
                                 type="text"
@@ -505,7 +504,7 @@ const SubjectDashboard = ({
                               </span>
                             )}
                           </td>
-                          <td className="p-6" onClick={(e) => isEditing && e.stopPropagation()}>
+                          <td className="p-3 lg:p-6" onClick={(e) => isEditing && e.stopPropagation()}>
                             {isEditing ? (
                               <input
                                 type="text"
@@ -516,9 +515,9 @@ const SubjectDashboard = ({
                                 className="w-40 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black focus:outline-none focus:border-primary"
                               />
                             ) : (
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                                <Users size={20} strokeWidth={2.5} />
+                            <div className="flex items-center gap-3 lg:gap-4">
+                              <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                                <Users size={18} strokeWidth={2.5} />
                               </div>
                               <div className="flex flex-col">
                                 <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
@@ -527,15 +526,15 @@ const SubjectDashboard = ({
                             </div>
                             )}
                           </td>
-                          <td className="p-6">
+                          <td className="p-3 lg:p-6 hidden lg:table-cell">
                              <div className="max-w-[400px]">
                                 <p className="text-sm font-medium text-on-surface/80 group-hover:text-on-surface transition-colors line-clamp-1 italic">
                                   {s.activity ? `"${s.activity}"` : <span className="text-on-surface-variant/30 not-italic">최근 기록 없음</span>}
                                 </p>
                              </div>
                           </td>
-                          <td className="p-6 text-center">
-                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${
+                          <td className="p-3 lg:p-6 text-center hidden md:table-cell">
+                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border whitespace-nowrap ${
                               s.status === '발행됨' ? 'bg-secondary/5 text-secondary border-secondary/20' :
                               s.status === '미작성' ? 'bg-neutral-50 text-on-surface-variant/30 border-neutral-200' : 'bg-primary/5 text-primary border-primary/20'
                             }`}>
@@ -554,14 +553,14 @@ const SubjectDashboard = ({
                           {/* 주차별 관찰기록 / 결과제출 현황 셀 */}
                           {selectedStatsWeek !== null && (
                             <>
-                              <td className="p-6 text-center">
+                              <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                 {obsOnWeek.has(s.id) ? (
                                   <span className="px-2 py-1 rounded-md text-[9px] font-black bg-violet-50 text-violet-600 border border-violet-100 whitespace-nowrap">📝 제출</span>
                                 ) : (
                                   <span className="text-neutral-300 font-bold text-sm">—</span>
                                 )}
                               </td>
-                              <td className="p-6 text-center">
+                              <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                 {resultsOnWeek.has(s.id) ? (
                                   <span className="px-2 py-1 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁 제출</span>
                                 ) : (
@@ -571,7 +570,7 @@ const SubjectDashboard = ({
                             </>
                           )}
 
-                          <td className="p-6 text-right pr-10" onClick={(e) => e.stopPropagation()}>
+                          <td className="p-3 lg:p-6 text-right pr-6 lg:pr-10" onClick={(e) => e.stopPropagation()}>
                             {isEditing ? (
                               <div className="flex items-center justify-end gap-2">
                                 <button

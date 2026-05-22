@@ -118,7 +118,6 @@ const HomeroomDashboard = ({
   const getResultsOnWeek = (week: number | null): Set<string> =>
     week === null ? new Set() : new Set(rawResults.filter(r => r.week_number === week).map(r => r.student_id));
 
-  const submittedOnWeek = getSubmittedOnWeek(selectedStatsWeek);
   const obsOnWeek = getObsOnWeek(selectedStatsWeek);
   const resultsOnWeek = getResultsOnWeek(selectedStatsWeek);
 
@@ -373,7 +372,7 @@ const HomeroomDashboard = ({
                      <div className="flex items-center gap-2 flex-wrap">
                        {statsWeeks.map(week => {
                          const topic = weeklyPlan.find(p => p.week === week)?.topic;
-                         const weekResultCount = getSubmittedOnWeek(week).size;
+                         const weekResultCount = getObsOnWeek(week).size;
                          const isSelected = selectedStatsWeek === week;
                          return (
                            <button
@@ -402,7 +401,7 @@ const HomeroomDashboard = ({
                        <div className="flex items-center gap-3 flex-wrap">
                          <div className="flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black bg-emerald-50 border-emerald-100 text-emerald-700">
                            <span>📋 제출완료</span>
-                           <span className="text-base font-black">{submittedOnWeek.size}</span>
+                           <span className="text-base font-black">{obsOnWeek.size}</span>
                            <span className="font-bold opacity-60">명</span>
                          </div>
                          <p className="text-[10px] font-bold text-on-surface-variant/40 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
@@ -420,7 +419,7 @@ const HomeroomDashboard = ({
              <table className="w-full text-left border-collapse min-w-[700px]">
                <thead className="sticky top-0 z-10">
                  <tr className="bg-neutral-50 border-b border-neutral-100">
-                   <th className="p-6 text-center w-16">
+                   <th className="p-4 lg:p-6 text-center w-12 lg:w-16 whitespace-nowrap">
                      <label className="flex items-center justify-center cursor-pointer">
                        <input
                          type="checkbox"
@@ -433,21 +432,21 @@ const HomeroomDashboard = ({
                        </div>
                      </label>
                    </th>
-                   <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">NO.</th>
-                   <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest">학생 정보</th>
-                   <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">연동 과목</th>
-                   <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">승인</th>
+                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden sm:table-cell">NO.</th>
+                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap">학생 정보</th>
+                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap hidden lg:table-cell">연동 과목</th>
+                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
                    {selectedStatsWeek !== null && (
                      <>
-                       <th className="p-6 text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center">
+                       <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center whitespace-nowrap">
                          {selectedStatsWeek}주차 관찰기록
                        </th>
-                       <th className="p-6 text-[13px] font-black text-emerald-600/80 uppercase tracking-widest text-center">
+                       <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-emerald-600/80 uppercase tracking-widest text-center whitespace-nowrap">
                          {selectedStatsWeek}주차 결과제출
                        </th>
                      </>
                    )}
-                   <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-12">관리</th>
+                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-8 lg:pr-12 whitespace-nowrap">관리</th>
                  </tr>
                </thead>
                <tbody className="divide-y divide-neutral-100">
@@ -461,7 +460,7 @@ const HomeroomDashboard = ({
                          onClick={() => !isEditing && onNavigateToStudent(s.id)}
                          className={`group hover:bg-neutral-50/50 transition-all ${isEditing ? 'bg-primary/[0.02] cursor-default' : 'cursor-pointer'} ${selectedIds.includes(s.id) ? 'bg-primary/[0.03]' : ''}`}
                        >
-                         <td className="p-6 text-center" onClick={(e) => e.stopPropagation()}>
+                         <td className="p-3 lg:p-6 text-center" onClick={(e) => e.stopPropagation()}>
                            <label className="flex items-center justify-center cursor-pointer">
                              <input
                                type="checkbox"
@@ -476,7 +475,7 @@ const HomeroomDashboard = ({
                          </td>
 
                          {/* NO. 셀 */}
-                         <td className="p-6 w-24" onClick={(e) => isEditing && e.stopPropagation()}>
+                         <td className="p-3 lg:p-6 w-20 lg:w-24 hidden sm:table-cell" onClick={(e) => isEditing && e.stopPropagation()}>
                            {isEditing ? (
                              <input
                                type="text"
@@ -494,7 +493,7 @@ const HomeroomDashboard = ({
                          </td>
 
                          {/* 학생 정보 셀 */}
-                         <td className="p-6" onClick={(e) => isEditing && e.stopPropagation()}>
+                         <td className="p-3 lg:p-6" onClick={(e) => isEditing && e.stopPropagation()}>
                            {isEditing ? (
                              <input
                                type="text"
@@ -505,8 +504,8 @@ const HomeroomDashboard = ({
                                className="w-40 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black focus:outline-none focus:border-primary"
                              />
                            ) : (
-                             <div className="flex items-center gap-4">
-                               <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                             <div className="flex items-center gap-3 lg:gap-4">
+                               <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
                                  <Users size={18} strokeWidth={2.5} />
                                </div>
                                <div className="flex flex-col">
@@ -519,7 +518,7 @@ const HomeroomDashboard = ({
                            )}
                          </td>
 
-                         <td className="p-6 text-center">
+                         <td className="p-3 lg:p-6 text-center hidden lg:table-cell">
                              <div className="flex items-center justify-center gap-1.5 overflow-hidden">
                                {linkedClasses.length > 0 ? (
                                  linkedClasses.map((linkedClass) => (
@@ -538,27 +537,27 @@ const HomeroomDashboard = ({
                          </td>
 
                          {/* 승인 셀 */}
-                         <td className="p-6 text-center">
+                         <td className="p-3 lg:p-6 text-center">
                            {(!s.activity || s.activity === '기록 없음') ? (
                              <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
                            ) : (s.pending_obs_ids?.length > 0) ? (
-                             <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200">승인 대기</span>
+                             <span className="px-2 lg:px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200 whitespace-nowrap">승인 대기</span>
                            ) : (
-                             <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20">승인 완료</span>
+                             <span className="px-2 lg:px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20 whitespace-nowrap">승인 완료</span>
                            )}
                          </td>
 
                          {/* 주차별 관찰기록 / 결과제출 현황 셀 */}
                          {selectedStatsWeek !== null && (
                            <>
-                             <td className="p-6 text-center">
+                             <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                {obsOnWeek.has(s.id) ? (
                                  <span className="px-2 py-1 rounded-md text-[9px] font-black bg-violet-50 text-violet-600 border border-violet-100 whitespace-nowrap">📝 제출</span>
                                ) : (
                                  <span className="text-neutral-300 font-bold text-sm">—</span>
                                )}
                              </td>
-                             <td className="p-6 text-center">
+                             <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                {resultsOnWeek.has(s.id) ? (
                                  <span className="px-2 py-1 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁 제출</span>
                                ) : (
@@ -569,7 +568,7 @@ const HomeroomDashboard = ({
                          )}
 
                          {/* 관리 셀 */}
-                         <td className="p-6 text-right pr-10" onClick={(e) => e.stopPropagation()}>
+                         <td className="p-3 lg:p-6 text-right pr-6 lg:pr-10" onClick={(e) => e.stopPropagation()}>
                            {isEditing ? (
                              <div className="flex items-center justify-end gap-2">
                                <button

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, Settings, Trash2, Plus, GraduationCap } from 'lucide-react';
+import { Bell, Settings, Trash2, Plus, GraduationCap, Menu, X } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
@@ -10,6 +10,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setAvatarError(false); // avatar_url 바뀌면 에러 상태 초기화
@@ -142,9 +143,10 @@ const Navbar = () => {
   ];
 
   return (
-    <header className="h-16 glass fixed top-3 left-4 right-4 z-50 px-6 flex items-center justify-between rounded-2xl border border-white/40 shadow-soft">
+    <>
+    <header className="h-16 glass fixed top-3 left-4 right-4 z-50 px-4 md:px-6 flex items-center justify-between rounded-2xl border border-white/40 shadow-soft">
       {/* Left: Logo + Nav */}
-      <div className="flex items-center gap-8">
+      <div className="flex items-center gap-4 md:gap-8">
         <div className="flex items-center gap-2.5 shrink-0">
           <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center text-white shadow-md shadow-primary/20">
             <GraduationCap size={18} strokeWidth={2.5} />
@@ -152,14 +154,15 @@ const Navbar = () => {
           <h2 className="text-base font-black tracking-tightest leading-none gradient-text">생기로그</h2>
         </div>
 
-        <nav className="flex items-center gap-1">
+        {/* PC/Tablet 메뉴 */}
+        <nav className="hidden md:flex items-center gap-1">
           {navItems.map((tab) => (
             <NavLink
               key={tab.path}
               to={tab.path}
               end={tab.path === '/'}
               className={({ isActive }) => `
-                px-4 py-2 rounded-xl text-[13px] font-black transition-all relative
+                px-3 lg:px-4 py-2 rounded-xl text-[12px] lg:text-[13px] font-black transition-all relative
                 ${isActive
                   ? 'text-primary bg-primary/5'
                   : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-white/60'}
@@ -171,7 +174,7 @@ const Navbar = () => {
                   {isActive && (
                     <motion.div
                       layoutId="activeTabGlow"
-                      className="absolute bottom-1 left-4 right-4 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(var(--primary-rgb),0.4)]"
+                      className="absolute bottom-1 left-3 right-3 lg:left-4 lg:right-4 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(var(--primary-rgb),0.4)]"
                     />
                   )}
                 </>
@@ -182,10 +185,10 @@ const Navbar = () => {
       </div>
 
       {/* Right: CTA + Utilities */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         <NavLink
           to="/activity-log"
-          className="flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-xl font-black text-xs shadow-md shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all"
+          className="hidden md:flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-xl font-black text-xs shadow-md shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all"
         >
           <Plus size={15} strokeWidth={3} />
           새 활동
@@ -282,9 +285,9 @@ const Navbar = () => {
 
         <NavLink
           to="/settings"
-          className="flex items-center gap-2.5 pl-3 border-l border-on-surface/5 hover:bg-white hover:shadow-soft transition-all p-2 rounded-xl group active:scale-95"
+          className="flex items-center gap-2.5 pl-2 md:pl-3 border-l border-on-surface/5 hover:bg-white hover:shadow-soft transition-all p-2 rounded-xl group active:scale-95"
         >
-          <div className="text-right hidden sm:block">
+          <div className="text-right hidden lg:block">
             <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] group-hover:text-secondary transition-colors leading-none mb-0.5">
               {profile?.role || 'Teacher'}
             </p>
@@ -309,8 +312,60 @@ const Navbar = () => {
             )}
           </div>
         </NavLink>
+
+        {/* 모바일 햄버거 버튼 */}
+        <button
+          onClick={() => setMobileMenuOpen(prev => !prev)}
+          className="md:hidden w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all flex items-center justify-center text-on-surface-variant/60"
+        >
+          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
       </div>
     </header>
+
+    {/* 모바일 드롭다운 메뉴 */}
+    <AnimatePresence>
+      {mobileMenuOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.18 }}
+          className="md:hidden fixed top-[4.5rem] left-4 right-4 z-40 glass rounded-2xl border border-white/40 shadow-elevated overflow-hidden"
+        >
+          <nav className="flex flex-col p-3 gap-1">
+            {navItems.map((tab) => (
+              <NavLink
+                key={tab.path}
+                to={tab.path}
+                end={tab.path === '/'}
+                onClick={() => setMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `px-4 py-3 rounded-xl text-[14px] font-black transition-all ${
+                    isActive
+                      ? 'text-primary bg-primary/8'
+                      : 'text-on-surface-variant/70 hover:text-on-surface hover:bg-white/60'
+                  }`
+                }
+              >
+                {tab.label}
+              </NavLink>
+            ))}
+            <div className="border-t border-on-surface/5 mt-1 pt-2">
+              <NavLink
+                to="/activity-log"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 px-4 py-3 btn-gradient rounded-xl font-black text-sm w-full justify-center"
+              >
+                <Plus size={16} strokeWidth={3} />
+                새 활동 추가
+              </NavLink>
+            </div>
+          </nav>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 };
 
