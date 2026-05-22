@@ -99,15 +99,28 @@ const HomeroomDashboard = ({
   const submittedWeekNums = [...new Set(rawResults.map(r => r.week_number).filter((w): w is number => w !== null))];
   const statsWeeks = [...new Set([...weeklyPlan.map(p => p.week), ...submittedWeekNums])].sort((a, b) => a - b);
 
+  const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+
   const getSubmittedOnWeek = (week: number | null): Set<string> => {
     if (week === null) return new Set();
     const weekTopic = weeklyPlan.find(p => p.week === week)?.topic;
     const resultIds = rawResults.filter(r => r.week_number === week).map(r => r.student_id);
-    const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
     const obsIds = weekTopic ? rawObs.filter(r => norm(r.activity_name) === norm(weekTopic)).map(r => r.student_id) : [];
     return new Set([...resultIds, ...obsIds]);
   };
+
+  const getObsOnWeek = (week: number | null): Set<string> => {
+    if (week === null) return new Set();
+    const weekTopic = weeklyPlan.find(p => p.week === week)?.topic;
+    if (!weekTopic) return new Set();
+    return new Set(rawObs.filter(r => norm(r.activity_name) === norm(weekTopic)).map(r => r.student_id));
+  };
+  const getResultsOnWeek = (week: number | null): Set<string> =>
+    week === null ? new Set() : new Set(rawResults.filter(r => r.week_number === week).map(r => r.student_id));
+
   const submittedOnWeek = getSubmittedOnWeek(selectedStatsWeek);
+  const obsOnWeek = getObsOnWeek(selectedStatsWeek);
+  const resultsOnWeek = getResultsOnWeek(selectedStatsWeek);
 
   useEffect(() => {
     const fetchActivityStats = async () => {
@@ -425,9 +438,14 @@ const HomeroomDashboard = ({
                    <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">연동 과목</th>
                    <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center">승인</th>
                    {selectedStatsWeek !== null && (
-                     <th className="p-6 text-[13px] font-black text-primary/80 uppercase tracking-widest text-center">
-                       {selectedStatsWeek}주차 결과제출
-                     </th>
+                     <>
+                       <th className="p-6 text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center">
+                         {selectedStatsWeek}주차 관찰기록
+                       </th>
+                       <th className="p-6 text-[13px] font-black text-emerald-600/80 uppercase tracking-widest text-center">
+                         {selectedStatsWeek}주차 결과제출
+                       </th>
+                     </>
                    )}
                    <th className="p-6 text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-right pr-12">관리</th>
                  </tr>
@@ -530,15 +548,24 @@ const HomeroomDashboard = ({
                            )}
                          </td>
 
-                         {/* 주차별 결과제출 현황 셀 */}
+                         {/* 주차별 관찰기록 / 결과제출 현황 셀 */}
                          {selectedStatsWeek !== null && (
-                           <td className="p-6 text-center">
-                             {submittedOnWeek.has(s.id) ? (
-                               <span className="px-2 py-1 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁 제출완료</span>
-                             ) : (
-                               <span className="text-neutral-300 font-bold text-sm">—</span>
-                             )}
-                           </td>
+                           <>
+                             <td className="p-6 text-center">
+                               {obsOnWeek.has(s.id) ? (
+                                 <span className="px-2 py-1 rounded-md text-[9px] font-black bg-violet-50 text-violet-600 border border-violet-100 whitespace-nowrap">📝 제출</span>
+                               ) : (
+                                 <span className="text-neutral-300 font-bold text-sm">—</span>
+                               )}
+                             </td>
+                             <td className="p-6 text-center">
+                               {resultsOnWeek.has(s.id) ? (
+                                 <span className="px-2 py-1 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁 제출</span>
+                               ) : (
+                                 <span className="text-neutral-300 font-bold text-sm">—</span>
+                               )}
+                             </td>
+                           </>
                          )}
 
                          {/* 관리 셀 */}
