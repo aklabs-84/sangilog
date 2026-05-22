@@ -12,12 +12,13 @@ type Suggestion = {
   id: string;
   student_id: string;
   class_id: string;
+  teacher_id: string;
   content: string;
+  student_name: string | null;
   teacher_reply: string | null;
   replied_at: string | null;
   is_reply_read: boolean;
   created_at: string;
-  students: { name: string; number: string | number } | null;
 };
 
 type ClassInfo = { id: string; name: string; subject: string; class_type: string };
@@ -60,7 +61,7 @@ const SuggestionsPage = () => {
       setLoading(true);
       const { data } = await supabase
         .from('student_suggestions')
-        .select('*, students(name, number)')
+        .select('*')
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false });
       setAllSuggestions((data as Suggestion[]) || []);
@@ -228,13 +229,8 @@ const SuggestionsPage = () => {
                     <div className="flex-1 min-w-0 space-y-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-black text-on-surface">
-                          {s.students?.name || '이름 없음'}
+                          {s.student_name || '이름 없음'}
                         </span>
-                        {s.students?.number && (
-                          <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">
-                            {s.students.number}번
-                          </span>
-                        )}
                         {className && (
                           <span className="text-[10px] font-black text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-md">
                             {className}
