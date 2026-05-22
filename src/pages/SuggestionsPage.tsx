@@ -18,7 +18,6 @@ type Suggestion = {
   is_reply_read: boolean;
   created_at: string;
   students: { name: string; number: string | number } | null;
-  class: { name: string; subject: string } | null;
 };
 
 type ClassInfo = { id: string; name: string; subject: string; class_type: string };
@@ -60,14 +59,12 @@ const SuggestionsPage = () => {
     const fetchAllSuggestions = async () => {
       setLoading(true);
       const classIds = classes.map(c => c.id);
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('student_suggestions')
-        .select('*, students(name, number), class:classes(name, subject)')
+        .select('*, students(name, number)')
         .in('class_id', classIds)
         .order('created_at', { ascending: false });
-      if (!error) {
-        setAllSuggestions((data as Suggestion[]) || []);
-      }
+      setAllSuggestions((data as Suggestion[]) || []);
       setLoading(false);
     };
     fetchAllSuggestions();
@@ -214,7 +211,7 @@ const SuggestionsPage = () => {
             {filteredSuggestions.map(s => {
               const isReplying = replyingId === s.id;
               const isSaving = savingId === s.id;
-              const className = s.class?.name || classes.find(c => c.id === s.class_id)?.name;
+              const className = classes.find(c => c.id === s.class_id)?.name;
               return (
                 <motion.div
                   key={s.id}
