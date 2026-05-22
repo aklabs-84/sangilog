@@ -663,8 +663,18 @@ const StudentLog = () => {
 
   const handleSubmit = async () => {
     if (!title || !content) {
-      alert('활동 제목과 내용을 입력해주세요.');
+      showToast('활동 제목과 내용을 입력해주세요.', 'error');
       return;
+    }
+
+    // 주차별 주제가 등록된 수업이면 드롭다운 선택 필수
+    if (classResources && classResources.length > 0 && classResources[0]?.topic) {
+      const normStr = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+      const matched = (classResources as {topic: string}[]).some(item => normStr(item.topic) === normStr(title));
+      if (!matched) {
+        showToast('주차를 선택해주세요. 드롭다운에서 해당 주차를 선택하면 자동으로 입력됩니다.', 'error');
+        return;
+      }
     }
 
     if (!session?.student_id || !teacherId) return;
