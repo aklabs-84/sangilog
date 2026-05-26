@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Users,
-  CheckCircle2, XCircle, Clock, LogOut, Shield, Loader2
+  CheckCircle2, XCircle, Clock, LogOut, Shield, Loader2,
+  Download, FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import * as XLSX from 'xlsx';
 
 interface AttendanceTabProps {
   classId: string;
@@ -29,7 +31,14 @@ const COLOR_MAP: Record<string, { bg: string; text: string; border: string; ring
   violet:  { bg: 'bg-violet-50',   text: 'text-violet-700',  border: 'border-violet-200',  ring: 'ring-violet-400'  },
 };
 
-const toDateStr = (d: Date) => d.toISOString().slice(0, 10);
+// toISOString()은 UTC 기준이라 한국(UTC+9) 환경에서 날짜가 밀림
+// → 로컬 날짜 컴포넌트로 직접 조합
+const toDateStr = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 const today = toDateStr(new Date());
 
 const formatDisplayDate = (dateStr: string) => {
@@ -43,6 +52,7 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
   const [records, setRecords] = useState<Record<string, StatusKey>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dlLoading, setDlLoading] = useState(false);
 
   const fetchAttendance = useCallback(async (date: string) => {
     if (!classId) return;
@@ -127,6 +137,83 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
       .eq('date', selectedDate);
   };
 
+  const STATUS_LABEL: Record<string, string> = {
+    present: '출석', absent: '결석', late: '지각', early_leave: '조퇴', excused: '공결',
+  };
+
+  // 선택 날짜 출석 다운로드
+  const downloadDay = async () => {
+    setDlLoading(true);
+    try {
+      const { data } = await supabase.from('attendance').select('student_id, status')
+        .eq('class_id', classId).eq('date', selectedDate);
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => { map[r.student_id] = r.status; });
+
+      const rows = students.map(s => ({
+        '번호': s.number === '-' ? '' : s.number,
+        '이름': s.name,
+        '출석상태': STATUS_LABEL[map[s.id]] || '미기록',
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      // 열 너비 설정
+      ws['!cols'] = [{ wch: 6 }, { wch: 12 }, { wch: 10 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '출석');
+      XLSX.writeFile(wb, `출석_${selectedDate}.xlsx`);
+    } finally {
+      setDlLoading(false);
+    }
+  };
+
+  // 선택 날짜가 속한 달 전체 출석 다운로드 (행: 학생, 열: 날짜)
+  const downloadMonth = async () => {
+    setDlLoading(true);
+    try {
+      const [year, month] = selectedDate.split('-').map(Number);
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      const { data } = await supabase.from('attendance').select('student_id, date, status')
+        .eq('class_id', classId).gte('date', startDate).lte('date', endDate);
+
+      // 기록된 날짜 목록 수집 (오름차순)
+      const dateSet = new Set<string>();
+      (data || []).forEach((r: any) => dateSet.add(r.date));
+      const dates = [...dateSet].sort();
+
+      // 학생별·날짜별 피벗 맵
+      const pivotMap: Record<string, Record<string, string>> = {};
+      students.forEach(s => { pivotMap[s.id] = {}; });
+      (data || []).forEach((r: any) => {
+        if (pivotMap[r.student_id]) pivotMap[r.student_id][r.date] = r.status;
+      });
+
+      const rows = students.map(s => {
+        const row: Record<string, any> = {
+          '번호': s.number === '-' ? '' : s.number,
+          '이름': s.name,
+        };
+        dates.forEach(d => {
+          const dayNum = parseInt(d.split('-')[2]);
+          row[`${month}/${dayNum}`] = STATUS_LABEL[pivotMap[s.id]?.[d]] || '';
+        });
+        return row;
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const colWidths = [{ wch: 6 }, { wch: 12 }, ...dates.map(() => ({ wch: 5 }))];
+      ws['!cols'] = colWidths;
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `${year}년 ${month}월 출석`);
+      XLSX.writeFile(wb, `출석_${year}년_${month}월.xlsx`);
+    } finally {
+      setDlLoading(false);
+    }
+  };
+
   // Summary counts
   const counts = STATUSES.reduce((acc, s) => {
     acc[s.key] = Object.values(records).filter(v => v === s.key).length;
@@ -195,7 +282,8 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
       </div>
 
       {/* Quick actions */}
-      <div className="flex items-center justify-between px-1">
+      <div className="flex items-center justify-between gap-3 px-1 flex-wrap">
+        {/* 일괄 설정 + 초기화 */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-black text-on-surface-variant/50 uppercase tracking-widest">일괄 설정</span>
           <button
@@ -204,13 +292,38 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
           >
             전체 출석
           </button>
+          <button
+            onClick={handleClearAll}
+            className="px-3 py-1.5 text-[11px] font-black bg-neutral-50 text-neutral-400 border border-neutral-200 rounded-xl hover:bg-neutral-100 transition-all"
+          >
+            전체 초기화
+          </button>
         </div>
-        <button
-          onClick={handleClearAll}
-          className="px-3 py-1.5 text-[11px] font-black bg-neutral-50 text-neutral-400 border border-neutral-200 rounded-xl hover:bg-neutral-100 transition-all"
-        >
-          전체 초기화
-        </button>
+
+        {/* 다운로드 */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-black text-on-surface-variant/50 uppercase tracking-widest flex items-center gap-1">
+            <Download size={11} />다운로드
+          </span>
+          <button
+            onClick={downloadDay}
+            disabled={dlLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 rounded-xl hover:bg-blue-100 transition-all disabled:opacity-50"
+            title="선택 날짜 출석 엑셀 다운로드"
+          >
+            {dlLoading ? <Loader2 size={11} className="animate-spin" /> : <FileSpreadsheet size={11} />}
+            선택일
+          </button>
+          <button
+            onClick={downloadMonth}
+            disabled={dlLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-all disabled:opacity-50"
+            title="선택 날짜가 속한 달 전체 출석 엑셀 다운로드"
+          >
+            {dlLoading ? <Loader2 size={11} className="animate-spin" /> : <FileSpreadsheet size={11} />}
+            이번 달
+          </button>
+        </div>
       </div>
 
       {/* Attendance table */}
