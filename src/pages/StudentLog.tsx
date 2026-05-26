@@ -867,7 +867,7 @@ ${guidePrompt}
           <div className="border-b border-surface-container bg-surface-container-low/20">
             {/* 탭 그리드 */}
             <div className="px-6 pt-5 pb-4">
-              <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
                 {[
                   { key: 'home' as const,         icon: LayoutDashboard, label: '홈',         desc: '오늘 할 일',        activeIcon: 'bg-primary/10 text-primary',   activeBg: 'bg-primary/5 border-primary/30', activeText: 'text-primary' },
                   { key: 'record' as const,        icon: MessageSquare,   label: '관찰 기록',  desc: '오늘 활동 제출',   activeIcon: 'bg-violet-100 text-violet-600', activeBg: 'bg-violet-50 border-violet-300', activeText: 'text-violet-700' },
@@ -875,9 +875,8 @@ ${guidePrompt}
                   { key: 'unit' as const,          icon: ClipboardList,   label: '단원 마무리',desc: '단원 서식 작성',   activeIcon: 'bg-amber-100 text-amber-600', activeBg: 'bg-amber-50 border-amber-300',  activeText: 'text-amber-700', badge: unitPendingCount },
                   { key: 'results' as const,       icon: FolderOpen,      label: '결과 제출',  desc: '결과물 올리기',    activeIcon: 'bg-emerald-100 text-emerald-600', activeBg: 'bg-emerald-50 border-emerald-300', activeText: 'text-emerald-700' },
                   { key: 'materials' as const,     icon: BookOpen,        label: '수업 자료',  desc: '선생님 공유 자료', activeIcon: 'bg-cyan-100 text-cyan-600',   activeBg: 'bg-cyan-50 border-cyan-300',    activeText: 'text-cyan-700' },
-                  { key: 'badges' as const,        icon: Trophy,          label: '나의 배지',  desc: '획득 배지 확인',   activeIcon: 'bg-yellow-100 text-yellow-600', activeBg: 'bg-yellow-50 border-yellow-300', activeText: 'text-yellow-700' },
-                  { key: 'suggestions' as const,   icon: Megaphone,       label: '건의사항',   desc: '선생님께 의견',    activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-rose-50 border-rose-300',    activeText: 'text-rose-700', badge: unreadReplyCount },
                   { key: 'quiz' as const,          icon: Gamepad2,        label: '퀴즈',       desc: '실시간 퀴즈 참여', activeIcon: 'bg-purple-100 text-purple-600', activeBg: 'bg-purple-50 border-purple-300', activeText: 'text-purple-700' },
+                  { key: 'suggestions' as const,   icon: Megaphone,       label: '건의사항',   desc: '선생님께 의견',    activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-rose-50 border-rose-300',    activeText: 'text-rose-700', badge: unreadReplyCount },
                 ].map((tab) => {
                   const isActive = activeTab === tab.key;
                   return (
