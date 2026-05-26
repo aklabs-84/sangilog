@@ -612,7 +612,8 @@ const Classroom = () => {
             created_at: new Date(s.created_at).getTime(),
             activity_time: latestObs ? new Date(latestObs.created_at).getTime() : 0,
             all_observations: s.observations || [],
-            pending_obs_ids: (s.observations || []).filter((o: any) => o.status === 'pending').map((o: any) => o.id)
+            // teacher_id 필터: 다른 선생님(예: 담임)의 pending 기록이 과목선생님 승인 대기 카운트에 포함되지 않도록
+            pending_obs_ids: (s.observations || []).filter((o: any) => o.status === 'pending' && o.teacher_id === user?.id).map((o: any) => o.id)
           };
         });
         setStudents(formattedStudents);

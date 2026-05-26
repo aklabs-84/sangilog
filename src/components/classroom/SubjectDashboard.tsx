@@ -156,9 +156,13 @@ const SubjectDashboard = ({
       setStatsLoading(true);
       try {
         const studentIds = students.map((s: any) => s.id);
+        // student_results: class_id가 아닌 student_id로 조회
+        // → 학생은 담임반 입장코드로 로그인하므로 저장 class_id = 담임반 ID
+        //   과목반 ID로 조회하면 결과가 없어 주차별 결과제출이 항상 공백으로 표시됨
+        //   HomeroomDashboard와 동일하게 student_id 기반 조회로 통일
         const [obsRes, resultsRes, suggRes] = await Promise.all([
           supabase.from('observations').select('created_at, student_id, activity_name').in('student_id', studentIds).eq('is_student_record', true),
-          supabase.from('student_results').select('created_at, student_id, week_number').eq('class_id', classInfo.id),
+          supabase.from('student_results').select('created_at, student_id, week_number').in('student_id', studentIds),
           supabase.from('student_suggestions').select('student_id').eq('class_id', classInfo.id).is('teacher_reply', null),
         ]);
         setRawObs(obsRes.data || []);
