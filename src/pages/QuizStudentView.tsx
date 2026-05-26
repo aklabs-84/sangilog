@@ -280,12 +280,15 @@ const QuizStudentView = () => {
       response_time: responseTime,
     });
 
-    // 참가자 점수 업데이트
+    // 참가자 점수 업데이트 — RPC로 서버사이드 누적 (score = score + delta)
+    // 클라이언트 state 값에 의존하지 않으므로 race condition 없음
     if (score > 0) {
-      await supabase
-        .from('quiz_participants')
-        .update({ score: participant.score + score })
-        .eq('id', participant.id);
+      await supabase.rpc('update_participant_score', {
+        p_participant_id: participant.id,
+        p_score_delta: score,
+      });
+      // 로컬 state도 즉시 반영 (Realtime 이벤트 도착 전 UX용)
+      setParticipant(prev => prev ? { ...prev, score: prev.score + score } : prev);
     }
   };
 
