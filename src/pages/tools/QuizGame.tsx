@@ -396,6 +396,15 @@ const QuizGame = () => {
 
   const handleEndGame = async () => {
     if (timerRef.current) clearInterval(timerRef.current);
+
+    // DB를 FINAL로 업데이트 → 학생들도 Realtime으로 종료 화면 전환
+    if (session) {
+      await supabase
+        .from('quiz_sessions')
+        .update({ state: 'FINAL', updated_at: new Date().toISOString() })
+        .eq('id', session.id);
+    }
+
     if (channelRef.current) supabase.removeChannel(channelRef.current);
     setSession(null);
     setParticipants([]);

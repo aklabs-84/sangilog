@@ -245,6 +245,18 @@ const QuizStudentView = () => {
     }
   }, [session?.state]);
 
+  // 선생님이 강제 종료(FINAL)하면 5초 후 처음 화면으로 자동 이동
+  useEffect(() => {
+    if (!session || session.state !== 'FINAL') return;
+
+    const timer = setTimeout(() => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      navigate('/quiz', { replace: true });
+    }, 6000); // 최종 결과 화면 6초 보여주고 자동 이동
+
+    return () => clearTimeout(timer);
+  }, [session?.state, navigate]);
+
   // ── 답변 제출 ──────────────────────────────────────────────────────────────
   const handleAnswer = async (optionIdx: number) => {
     if (!session || !participant || myAnswer !== null) return;
@@ -580,16 +592,19 @@ const QuizStudentView = () => {
                         <h2 className={`text-3xl font-black ${lastResult.isCorrect ? 'text-green-300' : 'text-red-300'}`}>
                           {lastResult.isCorrect ? '정답!' : '오답...'}
                         </h2>
-                        {lastResult.isCorrect && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex items-center justify-center gap-2 bg-white/20 rounded-2xl px-6 py-3"
-                          >
-                            <Zap size={18} className="text-yellow-300" />
-                            <span className="text-white font-black text-xl">+{lastResult.score.toLocaleString()}점</span>
-                          </motion.div>
-                        )}
+                        {/* 이번 문제 획득 점수 — 정답/오답 모두 명시 표시 */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`flex items-center justify-center gap-2 rounded-2xl px-6 py-3 ${
+                            lastResult.isCorrect ? 'bg-white/20' : 'bg-white/10'
+                          }`}
+                        >
+                          <Zap size={18} className={lastResult.isCorrect ? 'text-yellow-300' : 'text-white/30'} />
+                          <span className={`font-black text-xl ${lastResult.isCorrect ? 'text-white' : 'text-white/50'}`}>
+                            이번 획득: +{lastResult.score.toLocaleString()}점
+                          </span>
+                        </motion.div>
                         {!lastResult.isCorrect && (
                           <p className="text-white/70 text-sm">
                             정답: <strong className="text-white">
@@ -601,14 +616,19 @@ const QuizStudentView = () => {
                     ) : (
                       <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 text-center space-y-3">
                         <div className="text-5xl">⏰</div>
-                        <p className="text-white/70 text-sm">시간 초과 또는 미답변</p>
+                        <p className="text-white font-bold">시간 초과!</p>
+                        <div className="flex items-center justify-center gap-2 bg-white/10 rounded-2xl px-6 py-3">
+                          <Zap size={18} className="text-white/30" />
+                          <span className="text-white/50 font-black text-xl">이번 획득: +0점</span>
+                        </div>
                         <p className="text-white/50 text-xs">정답: <strong className="text-white">
                           {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][currentQuestion.correct_answer]}
                         </strong></p>
                       </div>
                     )}
+                    {/* 누적 점수는 항상 표시 — 이번 획득과 분리되어 혼동 없음 */}
                     <div className="bg-white/10 rounded-2xl p-4 border border-white/15 flex items-center justify-between">
-                      <span className="text-white/70 text-sm font-bold">현재 점수</span>
+                      <span className="text-white/70 text-sm font-bold">누적 점수</span>
                       <span className="text-white font-black text-xl">{myCurrentScore.toLocaleString()}점</span>
                     </div>
                   </motion.div>
@@ -721,12 +741,8 @@ const QuizStudentView = () => {
                         </div>
                       ))}
                     </div>
-                    <button
-                      onClick={() => navigate('/')}
-                      className="w-full py-4 rounded-2xl bg-white text-violet-600 font-black text-lg hover:bg-white/90 transition-all"
-                    >
-                      홈으로 돌아가기
-                    </button>
+                    {/* 6초 후 자동으로 PIN 입력 화면으로 이동 */}
+                    <AutoRedirectButton onNavigate={() => navigate('/quiz', { replace: true })} />
                   </motion.div>
                 )}
 
@@ -737,6 +753,27 @@ const QuizStudentView = () => {
         </AnimatePresence>
       </div>
     </div>
+  );
+};
+
+// ─── 자동 이동 버튼 (카운트다운 표시) ─────────────────────────────────────────
+const AutoRedirectButton = ({ onNavigate }: { onNavigate: () => void }) => {
+  const [count, setCount] = useState(6);
+
+  useEffect(() => {
+    if (count <= 0) { onNavigate(); return; }
+    const t = setTimeout(() => setCount(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [count, onNavigate]);
+
+  return (
+    <button
+      onClick={onNavigate}
+      className="w-full py-4 rounded-2xl bg-white text-violet-600 font-black text-lg hover:bg-white/90 transition-all flex items-center justify-center gap-2"
+    >
+      처음으로 돌아가기
+      <span className="text-sm font-normal opacity-60">({count}초)</span>
+    </button>
   );
 };
 
