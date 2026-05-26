@@ -256,17 +256,31 @@ const QuizStudentView = () => {
     }
   }, [session?.state]);
 
-  // 선생님이 강제 종료(FINAL)하면 5초 후 처음 화면으로 자동 이동
+  // FINAL 종료 처리 — 채널 해제 후 완전히 다른 경로로 이동(컴포넌트 재마운트 보장)
+  const handleFinalExit = useCallback(() => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    // StudentLog에서 자동입장 → 학생 페이지로 복귀
+    // 직접 PIN 입력 → /quiz로 이동 (window.location으로 강제 재마운트)
+    if (autoJoinName) {
+      navigate('/student-log', { replace: true });
+    } else {
+      window.location.replace('/quiz');
+    }
+  }, [autoJoinName, navigate]);
+
+  // 선생님이 강제 종료(FINAL)하면 AutoRedirectButton 카운트다운과 별개로 보험용 타이머
   useEffect(() => {
     if (!session || session.state !== 'FINAL') return;
-
-    const timer = setTimeout(() => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
-      navigate('/quiz', { replace: true });
-    }, 6000); // 최종 결과 화면 6초 보여주고 자동 이동
-
+    const timer = setTimeout(handleFinalExit, 7000); // AutoRedirectButton(6초)보다 1초 뒤
     return () => clearTimeout(timer);
-  }, [session?.state, navigate]);
+  }, [session?.state, handleFinalExit]);
 
   // ── 답변 제출 ──────────────────────────────────────────────────────────────
   const handleAnswer = async (optionIdx: number) => {
@@ -752,8 +766,8 @@ const QuizStudentView = () => {
                         </div>
                       ))}
                     </div>
-                    {/* 6초 후 자동으로 PIN 입력 화면으로 이동 */}
-                    <AutoRedirectButton onNavigate={() => navigate('/quiz', { replace: true })} />
+                    {/* 6초 후 자동으로 처음 화면으로 이동 */}
+                    <AutoRedirectButton onNavigate={handleFinalExit} />
                   </motion.div>
                 )}
 
@@ -768,18 +782,21 @@ const QuizStudentView = () => {
 };
 
 // ─── 자동 이동 버튼 (카운트다운 표시) ─────────────────────────────────────────
+// onNavigate를 ref로 관리해서 부모 리렌더 시 deps 변경으로 카운트다운이 초기화되는 버그 방지
 const AutoRedirectButton = ({ onNavigate }: { onNavigate: () => void }) => {
   const [count, setCount] = useState(6);
+  const onNavigateRef = useRef(onNavigate);
+  useEffect(() => { onNavigateRef.current = onNavigate; });
 
   useEffect(() => {
-    if (count <= 0) { onNavigate(); return; }
+    if (count <= 0) { onNavigateRef.current(); return; }
     const t = setTimeout(() => setCount(c => c - 1), 1000);
     return () => clearTimeout(t);
-  }, [count, onNavigate]);
+  }, [count]); // onNavigate를 deps에서 제거 — ref로 최신값 참조
 
   return (
     <button
-      onClick={onNavigate}
+      onClick={() => onNavigateRef.current()}
       className="w-full py-4 rounded-2xl bg-white text-violet-600 font-black text-lg hover:bg-white/90 transition-all flex items-center justify-center gap-2"
     >
       처음으로 돌아가기
