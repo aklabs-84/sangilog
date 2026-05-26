@@ -33,7 +33,10 @@ import {
   ExternalLink,
   Megaphone,
   LayoutDashboard,
-  ArrowRight
+  ArrowRight,
+  Gamepad2,
+  Play,
+  RefreshCw,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { geminiFlash } from '../lib/gemini';
@@ -44,7 +47,7 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz'>('home');
   const [selectedHomeWeek, setSelectedHomeWeek] = useState<number | null>(null);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
@@ -124,6 +127,10 @@ const StudentLog = () => {
   const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
   const [unitForm, setUnitForm] = useState<Record<string, any>>({});
   const [unitSubmitting, setUnitSubmitting] = useState(false);
+
+  // Quiz Tab States
+  const [activeQuizSessions, setActiveQuizSessions] = useState<any[]>([]);
+  const [quizLoading, setQuizLoading] = useState(false);
 
   useEffect(() => {
     const sessionData = sessionStorage.getItem('student_session');
@@ -641,13 +648,35 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions') => {
+  const fetchActiveQuizSessions = async () => {
+    if (!session?.class_id) return;
+    setQuizLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('quiz_sessions')
+        .select('id, pin_code, state, created_at, quiz_sets(title)')
+        .eq('class_id', session.class_id)
+        .neq('state', 'FINAL')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setActiveQuizSessions(data);
+      }
+    } catch (err) {
+      console.error('Error fetching quiz sessions:', err);
+    } finally {
+      setQuizLoading(false);
+    }
+  };
+
+  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz') => {
     setActiveTab(tab);
     if (tab === 'history') { fetchHistory(); fetchResults(); }
     if (tab === 'materials') fetchResources();
     if (tab === 'results') fetchResults();
     if (tab === 'unit') fetchPendingUnits();
     if (tab === 'suggestions') fetchSuggestions();
+    if (tab === 'quiz') fetchActiveQuizSessions();
   };
 
   const formatRelativeTime = (dateStr: string) => {
@@ -838,7 +867,7 @@ ${guidePrompt}
           <div className="border-b border-surface-container bg-surface-container-low/20">
             {/* 탭 그리드 */}
             <div className="px-6 pt-5 pb-4">
-              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
                 {[
                   { key: 'home' as const,         icon: LayoutDashboard, label: '홈',         desc: '오늘 할 일',        activeIcon: 'bg-primary/10 text-primary',   activeBg: 'bg-primary/5 border-primary/30', activeText: 'text-primary' },
                   { key: 'record' as const,        icon: MessageSquare,   label: '관찰 기록',  desc: '오늘 활동 제출',   activeIcon: 'bg-violet-100 text-violet-600', activeBg: 'bg-violet-50 border-violet-300', activeText: 'text-violet-700' },
@@ -847,7 +876,8 @@ ${guidePrompt}
                   { key: 'results' as const,       icon: FolderOpen,      label: '결과 제출',  desc: '결과물 올리기',    activeIcon: 'bg-emerald-100 text-emerald-600', activeBg: 'bg-emerald-50 border-emerald-300', activeText: 'text-emerald-700' },
                   { key: 'materials' as const,     icon: BookOpen,        label: '수업 자료',  desc: '선생님 공유 자료', activeIcon: 'bg-cyan-100 text-cyan-600',   activeBg: 'bg-cyan-50 border-cyan-300',    activeText: 'text-cyan-700' },
                   { key: 'badges' as const,        icon: Trophy,          label: '나의 배지',  desc: '획득 배지 확인',   activeIcon: 'bg-yellow-100 text-yellow-600', activeBg: 'bg-yellow-50 border-yellow-300', activeText: 'text-yellow-700' },
-                  { key: 'suggestions' as const,   icon: Megaphone,       label: '건의사항',   desc: '선생님께 의견',    activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-rose-50 border-rose-300',    activeText: 'text-rose-700', badge: unreadReplyCount }
+                  { key: 'suggestions' as const,   icon: Megaphone,       label: '건의사항',   desc: '선생님께 의견',    activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-rose-50 border-rose-300',    activeText: 'text-rose-700', badge: unreadReplyCount },
+                  { key: 'quiz' as const,          icon: Gamepad2,        label: '퀴즈',       desc: '실시간 퀴즈 참여', activeIcon: 'bg-purple-100 text-purple-600', activeBg: 'bg-purple-50 border-purple-300', activeText: 'text-purple-700' },
                 ].map((tab) => {
                   const isActive = activeTab === tab.key;
                   return (
@@ -2208,10 +2238,116 @@ ${guidePrompt}
                 </div>
               </motion.div>
             )}
+
+            {/* ─── 퀴즈 탭 ─── */}
+            {activeTab === 'quiz' && (
+              <motion.div
+                key="quiz"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                className="p-8 space-y-6"
+              >
+                {/* 헤더 */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-purple-500 uppercase tracking-[0.25em]">Live Quiz</p>
+                    <h2 className="text-2xl font-black">실시간 퀴즈</h2>
+                    <p className="text-sm text-on-surface-variant font-bold">선생님이 시작한 퀴즈에 바로 참여하세요</p>
+                  </div>
+                  <button
+                    onClick={fetchActiveQuizSessions}
+                    disabled={quizLoading}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} className={quizLoading ? 'animate-spin' : ''} />
+                    새로고침
+                  </button>
+                </div>
+
+                {/* 내용 */}
+                {quizLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 size={28} className="animate-spin text-purple-500" />
+                  </div>
+                ) : activeQuizSessions.length === 0 ? (
+                  <div className="flex flex-col items-center py-20 space-y-4">
+                    <div className="w-20 h-20 rounded-3xl bg-purple-50 flex items-center justify-center">
+                      <Gamepad2 size={36} className="text-purple-300" />
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="font-black text-on-surface opacity-40">진행 중인 퀴즈가 없습니다</p>
+                      <p className="text-sm text-on-surface-variant/50 font-bold">선생님이 퀴즈를 시작하면 여기에 표시됩니다</p>
+                    </div>
+                    <button
+                      onClick={fetchActiveQuizSessions}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-600 font-black text-sm hover:bg-purple-100 transition-all"
+                    >
+                      <RefreshCw size={14} />
+                      다시 확인하기
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {activeQuizSessions.map((qs) => {
+                      const quizTitle = (qs.quiz_sets as any)?.title ?? '퀴즈';
+                      const stateLabel: Record<string, { text: string; color: string }> = {
+                        LOBBY:   { text: '대기 중',   color: 'bg-amber-100 text-amber-700' },
+                        QUIZ:    { text: '진행 중 🔥', color: 'bg-red-100 text-red-700' },
+                        RESULT:  { text: '결과 확인', color: 'bg-blue-100 text-blue-700' },
+                        RANKING: { text: '순위 발표', color: 'bg-violet-100 text-violet-700' },
+                      };
+                      const st = stateLabel[qs.state] ?? { text: qs.state, color: 'bg-surface-container text-on-surface-variant' };
+
+                      return (
+                        <motion.div
+                          key={qs.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="rounded-3xl border-2 border-purple-100 bg-gradient-to-r from-purple-50 to-violet-50 p-6 flex items-center justify-between gap-4"
+                        >
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center shadow-lg shadow-purple-200 shrink-0">
+                              <Gamepad2 size={26} className="text-white" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${st.color}`}>
+                                  {st.text}
+                                </span>
+                                <span className="text-[10px] font-black text-on-surface-variant/50 bg-white/60 px-2 py-0.5 rounded-full border border-surface-container">
+                                  PIN: {qs.pin_code}
+                                </span>
+                              </div>
+                              <h3 className="font-black text-on-surface text-base truncate">{quizTitle}</h3>
+                              <p className="text-xs text-on-surface-variant font-bold mt-0.5">
+                                {session?.student_name}으로 자동 입장됩니다
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              navigate(`/quiz/${qs.pin_code}`, {
+                                state: { autoJoinName: session?.student_name }
+                              });
+                            }}
+                            className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-violet-600 text-white font-black text-sm shadow-lg shadow-purple-200 hover:brightness-110 active:scale-95 transition-all shrink-0"
+                          >
+                            <Play size={16} />
+                            입장하기
+                          </button>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            )}
           </AnimatePresence>
         </motion.div>
 
-        <button 
+        <button
           onClick={() => navigate('/classroom-entry')}
           className="flex items-center gap-3 text-on-surface-variant hover:text-primary text-[12px] font-black uppercase tracking-[0.3em] transition-all mx-auto pb-10 group"
         >

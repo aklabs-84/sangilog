@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle, XCircle, Trophy, Zap, Users,
@@ -57,12 +57,15 @@ const OPTION_SHADOW = [
 const QuizStudentView = () => {
   const { pin } = useParams<{ pin: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  // StudentLog에서 자동 입장 시 state로 이름 전달
+  const autoJoinName = (location.state as any)?.autoJoinName ?? '';
 
   // 단계: pin입력 → name입력 → 게임
   type Step = 'enter-pin' | 'enter-name' | 'game';
   const [step, setStep] = useState<Step>(pin ? 'enter-name' : 'enter-pin');
   const [pinInput, setPinInput] = useState(pin ?? '');
-  const [nameInput, setNameInput] = useState('');
+  const [nameInput, setNameInput] = useState(autoJoinName);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -105,8 +108,16 @@ const QuizStudentView = () => {
     setLoading(false);
   };
 
-  const handleJoin = async () => {
-    const name = nameInput.trim();
+  // 자동 입장: autoJoinName이 있으면 enter-name 단계에서 자동으로 참가 처리
+  useEffect(() => {
+    if (step === 'enter-name' && autoJoinName) {
+      handleJoin(autoJoinName);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  const handleJoin = async (forceName?: string) => {
+    const name = (forceName ?? nameInput).trim();
     if (!name) { setErrorMsg('이름을 입력하세요'); return; }
     setLoading(true);
     setErrorMsg('');
@@ -386,7 +397,7 @@ const QuizStudentView = () => {
                   <p className="text-red-300 text-xs font-bold text-center">{errorMsg}</p>
                 )}
                 <button
-                  onClick={handleJoin}
+                  onClick={() => handleJoin()}
                   disabled={!nameInput.trim() || loading}
                   className="w-full py-4 rounded-2xl bg-white text-violet-600 font-black text-lg hover:bg-white/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -525,8 +536,8 @@ const QuizStudentView = () => {
                     </div>
 
                     {/* 문제 */}
-                    <div className="bg-white/15 backdrop-blur-md rounded-2xl p-5 border border-white/20">
-                      <p className="text-white font-black text-center text-lg leading-relaxed">
+                    <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                      <p className="text-white font-black text-center text-2xl leading-relaxed">
                         {currentQuestion.text}
                       </p>
                     </div>
@@ -539,12 +550,12 @@ const QuizStudentView = () => {
                             key={idx}
                             whileTap={{ scale: 0.94 }}
                             onClick={() => handleAnswer(idx)}
-                            className={`h-28 rounded-2xl bg-gradient-to-br ${OPTION_BG[idx]} shadow-xl ${OPTION_SHADOW[idx]} flex flex-col items-center justify-center gap-2 transition-all active:brightness-90`}
+                            className={`h-36 rounded-2xl bg-gradient-to-br ${OPTION_BG[idx]} shadow-xl ${OPTION_SHADOW[idx]} flex flex-col items-center justify-center gap-2 transition-all active:brightness-90`}
                           >
-                            <span className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white font-black text-lg">
+                            <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white font-black text-xl">
                               {OPTION_LABELS[idx]}
                             </span>
-                            <span className="text-white font-bold text-xs text-center px-2 leading-tight">{opt}</span>
+                            <span className="text-white font-bold text-sm text-center px-3 leading-snug">{opt}</span>
                           </motion.button>
                         ))}
                       </div>
