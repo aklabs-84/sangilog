@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft } from 'lucide-react';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
+import QuizGame from './tools/QuizGame';
 
 interface Tool {
   id: string;
@@ -32,18 +33,19 @@ const tools: Tool[] = [
     component: <ClassTimer />,
   },
   {
+    id: 'quiz',
+    icon: <ClipboardCheck size={28} />,
+    label: '실시간 퀴즈',
+    description: '클래스별 문제를 만들고 Kahoot 스타일의 실시간 퀴즈를 진행합니다',
+    badge: 'NEW',
+    available: true,
+    component: <QuizGame />,
+  },
+  {
     id: 'random-pick',
     icon: <Dices size={28} />,
     label: '랜덤 학생 뽑기',
     description: '발표자, 청소 당번 등 랜덤으로 학생 1명을 뽑습니다',
-    badge: '준비 중',
-    available: false,
-  },
-  {
-    id: 'quiz',
-    icon: <ClipboardCheck size={28} />,
-    label: '퀴즈 & 투표',
-    description: '실시간 퀴즈와 학급 투표를 진행합니다',
     badge: '준비 중',
     available: false,
   },
@@ -109,7 +111,11 @@ const TeachingTools = () => {
                 }`}
               >
                 {tool.badge && (
-                  <span className="absolute top-4 right-4 text-[10px] font-black bg-on-surface/10 text-on-surface-variant px-2 py-0.5 rounded-full">
+                  <span className={`absolute top-4 right-4 text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    tool.badge === 'NEW'
+                      ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white'
+                      : 'bg-on-surface/10 text-on-surface-variant'
+                  }`}>
                     {tool.badge}
                   </span>
                 )}
