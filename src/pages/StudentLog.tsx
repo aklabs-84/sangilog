@@ -864,19 +864,19 @@ ${guidePrompt}
           className="surface-card rounded-[3.5rem] shadow-ambient overflow-hidden border border-surface-container-highest"
         >
           {/* Tab Bar */}
-          <div className="border-b border-surface-container bg-surface-container-low/20">
+          <div className="border-b-2 border-slate-200 bg-gradient-to-b from-slate-100 to-slate-50">
             {/* 탭 그리드 */}
             <div className="px-6 pt-5 pb-4">
               <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
                 {[
-                  { key: 'home' as const,         icon: LayoutDashboard, label: '홈',         desc: '오늘 할 일',        activeIcon: 'bg-primary/10 text-primary',   activeBg: 'bg-primary/5 border-primary/30', activeText: 'text-primary' },
-                  { key: 'record' as const,        icon: MessageSquare,   label: '관찰 기록',  desc: '오늘 활동 제출',   activeIcon: 'bg-violet-100 text-violet-600', activeBg: 'bg-violet-50 border-violet-300', activeText: 'text-violet-700' },
-                  { key: 'history' as const,       icon: History,         label: '나의 기록',  desc: '내 기록 이력',     activeIcon: 'bg-blue-100 text-blue-600',    activeBg: 'bg-blue-50 border-blue-300',    activeText: 'text-blue-700' },
-                  { key: 'unit' as const,          icon: ClipboardList,   label: '단원 마무리',desc: '단원 서식 작성',   activeIcon: 'bg-amber-100 text-amber-600', activeBg: 'bg-amber-50 border-amber-300',  activeText: 'text-amber-700', badge: unitPendingCount },
-                  { key: 'results' as const,       icon: FolderOpen,      label: '결과 제출',  desc: '결과물 올리기',    activeIcon: 'bg-emerald-100 text-emerald-600', activeBg: 'bg-emerald-50 border-emerald-300', activeText: 'text-emerald-700' },
-                  { key: 'materials' as const,     icon: BookOpen,        label: '수업 자료',  desc: '선생님 공유 자료', activeIcon: 'bg-cyan-100 text-cyan-600',   activeBg: 'bg-cyan-50 border-cyan-300',    activeText: 'text-cyan-700' },
-                  { key: 'quiz' as const,          icon: Gamepad2,        label: '퀴즈',       desc: '실시간 퀴즈 참여', activeIcon: 'bg-purple-100 text-purple-600', activeBg: 'bg-purple-50 border-purple-300', activeText: 'text-purple-700' },
-                  { key: 'suggestions' as const,   icon: Megaphone,       label: '건의사항',   desc: '선생님께 의견',    activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-rose-50 border-rose-300',    activeText: 'text-rose-700', badge: unreadReplyCount },
+                  { key: 'home' as const,         icon: LayoutDashboard, label: '홈',         desc: '오늘 할 일',        activeIcon: 'bg-primary/10 text-primary',   activeBg: 'bg-white border-primary/40 shadow-md', activeText: 'text-primary' },
+                  { key: 'record' as const,        icon: MessageSquare,   label: '관찰 기록',  desc: '오늘 활동 제출',   activeIcon: 'bg-violet-100 text-violet-600', activeBg: 'bg-white border-violet-400 shadow-md', activeText: 'text-violet-700' },
+                  { key: 'history' as const,       icon: History,         label: '나의 기록',  desc: '내 기록 이력',     activeIcon: 'bg-blue-100 text-blue-600',    activeBg: 'bg-white border-blue-400 shadow-md',   activeText: 'text-blue-700' },
+                  { key: 'unit' as const,          icon: ClipboardList,   label: '단원 마무리',desc: '단원 서식 작성',   activeIcon: 'bg-amber-100 text-amber-600', activeBg: 'bg-white border-amber-400 shadow-md',  activeText: 'text-amber-700', badge: unitPendingCount },
+                  { key: 'results' as const,       icon: FolderOpen,      label: '결과 제출',  desc: '결과물 올리기',    activeIcon: 'bg-emerald-100 text-emerald-600', activeBg: 'bg-white border-emerald-400 shadow-md', activeText: 'text-emerald-700' },
+                  { key: 'materials' as const,     icon: BookOpen,        label: '수업 자료',  desc: '선생님 공유 자료', activeIcon: 'bg-cyan-100 text-cyan-600',   activeBg: 'bg-white border-cyan-400 shadow-md',   activeText: 'text-cyan-700' },
+                  { key: 'quiz' as const,          icon: Gamepad2,        label: '퀴즈',       desc: '실시간 퀴즈 참여', activeIcon: 'bg-purple-100 text-purple-600', activeBg: 'bg-white border-purple-400 shadow-md', activeText: 'text-purple-700' },
+                  { key: 'suggestions' as const,   icon: Megaphone,       label: '건의사항',   desc: '선생님께 의견',    activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-white border-rose-400 shadow-md',   activeText: 'text-rose-700', badge: unreadReplyCount },
                 ].map((tab) => {
                   const isActive = activeTab === tab.key;
                   return (
@@ -885,22 +885,22 @@ ${guidePrompt}
                       onClick={() => handleTabChange(tab.key)}
                       className={`relative flex flex-col items-center gap-1.5 px-2 py-3 rounded-2xl border-2 transition-all group ${
                         isActive
-                          ? `${tab.activeBg} shadow-sm scale-[1.03]`
-                          : 'bg-white/40 border-transparent hover:bg-white/80 hover:border-surface-container-highest/30 hover:scale-[1.02]'
+                          ? `${tab.activeBg} scale-[1.04]`
+                          : 'bg-white/60 border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-sm hover:scale-[1.02]'
                       }`}
                     >
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                        isActive ? tab.activeIcon : 'bg-surface-container text-on-surface-variant/60 group-hover:bg-surface-container-high group-hover:text-on-surface'
+                        isActive ? tab.activeIcon : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'
                       }`}>
                         <tab.icon size={18} />
                       </div>
                       <span className={`text-[11px] font-black leading-tight text-center transition-colors ${
-                        isActive ? tab.activeText : 'text-on-surface-variant/70 group-hover:text-on-surface'
+                        isActive ? tab.activeText : 'text-slate-500 group-hover:text-slate-700'
                       }`}>
                         {tab.label}
                       </span>
                       <span className={`text-[9px] font-bold leading-tight text-center hidden sm:block transition-colors ${
-                        isActive ? `${tab.activeText} opacity-70` : 'text-on-surface-variant/40 group-hover:text-on-surface-variant'
+                        isActive ? `${tab.activeText} opacity-70` : 'text-slate-400 group-hover:text-slate-500'
                       }`}>
                         {tab.desc}
                       </span>
@@ -918,7 +918,7 @@ ${guidePrompt}
             {/* 관찰 기록 탭 액션 버튼 — 별도 행 */}
             {activeTab === 'record' && (
               <div className="px-6 pb-4 flex items-center justify-end gap-4">
-                <button className="flex items-center gap-2 px-5 py-2.5 text-sm font-black text-on-surface-variant hover:text-on-surface transition-all opacity-60 hover:opacity-100 rounded-xl hover:bg-surface-container whitespace-nowrap">
+                <button className="flex items-center gap-2 px-5 py-2.5 text-sm font-black text-slate-500 hover:text-slate-700 transition-all opacity-60 hover:opacity-100 rounded-xl hover:bg-slate-200 whitespace-nowrap">
                   <Save size={16} />
                   임시 저장
                 </button>
