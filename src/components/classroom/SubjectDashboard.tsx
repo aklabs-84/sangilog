@@ -120,6 +120,8 @@ const SubjectDashboard = ({
   const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string, activity_name: string}>>([]);
   const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string, week_number: number | null}>>([]);
   const [suggestionCounts, setSuggestionCounts] = useState<Record<string, number>>({});
+  // 연결된 담임반의 weekly_plan (학생이 담임반 코드로 입장 시 activity_name이 담임반 주제로 저장됨)
+  const [linkedWeeklyPlan, setLinkedWeeklyPlan] = useState<{week: number, topic: string}[]>([]);
 
   // 주차 목록: weekly_plan + 실제 제출된 주차 union
   const weeklyPlan: {week: number, topic: string}[] = classInfo?.weekly_plan || [];
@@ -128,21 +130,33 @@ const SubjectDashboard = ({
 
   const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
 
+  // 주어진 주차에 해당하는 매칭 주제 목록 (과목반 + 담임반 모두)
+  const getTopicsForWeek = (week: number): string[] => {
+    const topics: string[] = [];
+    const subjectTopic = weeklyPlan.find(p => p.week === week)?.topic;
+    const linkedTopic = linkedWeeklyPlan.find(p => p.week === week)?.topic;
+    if (subjectTopic) topics.push(norm(subjectTopic));
+    if (linkedTopic && norm(linkedTopic) !== (subjectTopic ? norm(subjectTopic) : '')) topics.push(norm(linkedTopic));
+    return topics;
+  };
+
   // 주차별 제출 학생 ID 집합 (결과제출 + 관찰기록 합산 — 주차 칩 카운트용)
   const getSubmittedOnWeek = (week: number | null): Set<string> => {
     if (week === null) return new Set();
-    const weekTopic = weeklyPlan.find(p => p.week === week)?.topic;
+    const topics = getTopicsForWeek(week);
     const resultIds = rawResults.filter(r => r.week_number === week).map(r => r.student_id);
-    const obsIds = weekTopic ? rawObs.filter(r => norm(r.activity_name) === norm(weekTopic)).map(r => r.student_id) : [];
+    const obsIds = topics.length > 0
+      ? rawObs.filter(r => topics.includes(norm(r.activity_name))).map(r => r.student_id)
+      : [];
     return new Set([...resultIds, ...obsIds]);
   };
 
   // 테이블용 — 관찰기록 / 결과제출 각각 분리
   const getObsOnWeek = (week: number | null): Set<string> => {
     if (week === null) return new Set();
-    const weekTopic = weeklyPlan.find(p => p.week === week)?.topic;
-    if (!weekTopic) return new Set();
-    return new Set(rawObs.filter(r => norm(r.activity_name) === norm(weekTopic)).map(r => r.student_id));
+    const topics = getTopicsForWeek(week);
+    if (topics.length === 0) return new Set();
+    return new Set(rawObs.filter(r => topics.includes(norm(r.activity_name))).map(r => r.student_id));
   };
   const getResultsOnWeek = (week: number | null): Set<string> =>
     week === null ? new Set() : new Set(rawResults.filter(r => r.week_number === week).map(r => r.student_id));
@@ -167,6 +181,22 @@ const SubjectDashboard = ({
         ]);
         setRawObs(obsRes.data || []);
         setRawResults(resultsRes.data || []);
+
+        // 연결된 담임반의 weekly_plan 가져오기
+        // 학생이 담임반 입장코드로 로그인 시 activity_name = 담임반 주제로 저장되므로
+        // 과목반 주제와 담임반 주제를 모두 비교해야 정확한 제출 여부를 판단할 수 있음
+        if (classInfo.linked_class_id) {
+          const linkedClassRes = await supabase
+            .from('classes')
+            .select('weekly_plan')
+            .eq('id', classInfo.linked_class_id)
+            .single();
+          if (linkedClassRes.data?.weekly_plan) {
+            setLinkedWeeklyPlan(linkedClassRes.data.weekly_plan);
+          }
+        } else {
+          setLinkedWeeklyPlan([]);
+        }
         const counts: Record<string, number> = {};
         (suggRes.data || []).forEach((r: { student_id: string }) => {
           counts[r.student_id] = (counts[r.student_id] || 0) + 1;
