@@ -575,7 +575,10 @@ const SubjectDashboard = ({
                             </span>
                           </td>
                           <td className="p-6 text-center">
-                            {s.status === '미작성' ? (
+                            {/* 주차 선택 시: 해당 주차에 관찰기록도 결과제출도 없으면 — 표시
+                                (전체 누적 기준 승인 완료가 다른 주차에 오해를 주는 문제 방지) */}
+                            {s.status === '미작성' ||
+                             (selectedStatsWeek !== null && !obsOnWeek.has(s.id) && !resultsOnWeek.has(s.id)) ? (
                               <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
                             ) : (s.pending_obs_ids?.length > 0) ? (
                               <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200">승인 대기</span>
