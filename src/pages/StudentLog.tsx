@@ -710,8 +710,11 @@ const StudentLog = () => {
 
     setSubmitting(true);
     try {
+      // ── AI 가이드 검토 ──────────────────────────────────────────────────────
+      // guidePrompt가 있을 때만 실행. AI 오류가 나더라도 제출 자체는 막지 않음.
       if (guidePrompt) {
-        const prompt = `
+        try {
+          const prompt = `
 당신은 학생이 제출한 활동 기록을 정성껏 검토하고, 학생이 성실하게 참여했는지 판단하는 따뜻한 AI 가이드입니다.
 선생님의 지침(guidePrompt)을 참고하되, 학생이 수업에 능동적으로 참여했다는 진심이 느껴진다면 가급적 수용(pass)하는 방향으로 평가하세요.
 
@@ -728,28 +731,31 @@ ${guidePrompt}
 2. 문법적 완성도보다는 학생이 해당 활동에서 무엇을 했고, 어떤 기분을 느꼈는지 '진정성'이 보인다면 승인(pass)하세요.
 3. 지침을 완전히 따르지 않더라도, 수업 내용과 관련된 의미 있는 기록이라면 수용하세요.
 
-응답은 반드시 아래 순수 JSON 형식으로만 반환하세요 (백틱이나 마크다운 없이 {} 로 시작):
-{
-  "status": "pass" | "reject",
-  "reason": "반려 시에만 작성: 어떤 점이 장난스럽거나 성의가 부족했는지 친절히 설명 (승인 시 빈 문자열)",
-  "guide": "반려 시에만 작성: 학생이 기운 잃지 않고 조금만 더 보완할 수 있도록 구체적인 격려와 팁 제공 (승인 시 빈 문자열)"
-}
+반드시 아래 JSON 형식 그대로만 반환하세요 (다른 텍스트 없이):
+{"status":"pass","reason":"","guide":""}
 `;
-        const aiResult = await geminiFlash.generateContent(prompt);
-        const aiResponseText = aiResult.response.text();
-        // Remove potential markdown blocks
-        const cleanedJson = aiResponseText.replace(/^```json/g, '').replace(/```$/g, '').trim();
-        const parsed = JSON.parse(cleanedJson);
+          const aiResult = await geminiFlash.generateContent(prompt);
+          const aiResponseText = aiResult.response.text();
 
-        if (parsed.status === 'reject') {
-          setAiFeedback({ reason: parsed.reason, guide: parsed.guide });
-          setIsRejectModalOpen(true);
-          setSubmitting(false);
-          return;
+          // AI 응답에서 JSON 객체 추출 (마크다운 블록, 앞뒤 텍스트 제거)
+          const jsonMatch = aiResponseText.match(/\{[\s\S]*?\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (parsed.status === 'reject') {
+              setAiFeedback({ reason: parsed.reason || '', guide: parsed.guide || '' });
+              setIsRejectModalOpen(true);
+              setSubmitting(false);
+              return;
+            }
+          }
+          // JSON 파싱 실패 또는 pass → 제출 진행
+        } catch (aiErr) {
+          // AI 검토 오류 → 경고만 남기고 제출 계속 진행
+          console.warn('[AI 검토 오류 — 제출 진행]', aiErr);
         }
       }
 
-      // 1. 활동 기록 저장 (observations) - 교사 승인 대기 상태로 저장
+      // ── 1. 관찰 기록 저장 ──────────────────────────────────────────────────
       const { error: obsError } = await supabase
         .from('observations')
         .insert({
@@ -762,17 +768,19 @@ ${guidePrompt}
           category: session?.subject || '학생 제출'
         });
 
-      if (obsError) throw obsError;
+      if (obsError) throw new Error(`기록 저장 오류: ${obsError.message}`);
 
-      // 2. 교사에게 실시간 알림 전송 (notifications 테이블 INSERT)
-      await supabase
+      // ── 2. 교사 알림 전송 (실패해도 제출 성공으로 처리) ───────────────────
+      supabase
         .from('notifications')
         .insert({
           user_id: teacherId,
           title: `📝 ${session.student_name}이(가) 활동을 제출했습니다`,
           content: `"${title}" — ${session.class_name}`,
           type: 'student_submission',
-          link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`
+        })
+        .then(({ error }) => {
+          if (error) console.warn('[알림 전송 실패]', error.message);
         });
 
       showToast('제출 완료! 선생님 승인 후 최종 기록에 반영됩니다. ✅');
@@ -780,9 +788,10 @@ ${guidePrompt}
       setContent('');
       setFeeling('');
       handleTabChange('history');
-      
+
     } catch (err: any) {
-      alert('저장 중 오류가 발생했습니다: ' + err.message);
+      console.error('[handleSubmit 오류]', err);
+      showToast('저장 중 오류가 발생했습니다: ' + err.message, 'error');
     } finally {
       setSubmitting(false);
     }
