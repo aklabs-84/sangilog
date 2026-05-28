@@ -28,41 +28,48 @@ const ClassBoard = () => {
     if (!classId) return;
     setLoading(true);
     try {
-      // 1. 클래스 정보
-      const { data: classInfo } = await supabase
-        .from('classes').select('name, subject').eq('id', classId).single();
+      const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
+
+      // 1. 클래스 정보 + 학생 목록 병렬 조회
+      const [{ data: classInfo }, { data: studentList }] = await Promise.all([
+        supabase.from('classes').select('name, subject, weekly_plan').eq('id', classId).single(),
+        supabase.from('students').select('id, full_name').eq('class_id', classId),
+      ]);
       if (classInfo) setClassName(`${classInfo.name}${classInfo.subject ? ` · ${classInfo.subject}` : ''}`);
 
-      // 2. 해당 클래스 학생 목록 (이름 매핑용)
-      const { data: studentList } = await supabase
-        .from('students').select('id, name').eq('class_id', classId);
       const studentIds = (studentList || []).map((s: any) => s.id);
       const nameMap: Record<string, string> = Object.fromEntries(
-        (studentList || []).map((s: any) => [s.id, s.name])
+        (studentList || []).map((s: any) => [s.id, s.full_name])
       );
+
+      // activity_name → week_number 매핑 (weekly_plan 기반)
+      const topicWeekMap: Record<string, number> = {};
+      ((classInfo?.weekly_plan as any[]) || []).forEach((p: any) => {
+        if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week);
+      });
 
       if (studentIds.length === 0) { setPosts([]); setLoading(false); return; }
 
-      // 3. 관찰기록 + 결과 병렬 조회 (올바른 테이블명)
+      // 2. 관찰기록 + 결과 병렬 조회
       const [{ data: obs }, { data: results }] = await Promise.all([
         supabase
           .from('observations')
           .select('id, student_id, activity_name, content, created_at, status')
           .in('student_id', studentIds)
           .eq('is_student_record', true)
-          .eq('status', 'approved')
+          .in('status', ['approved', 'pending'])
           .order('created_at', { ascending: false }),
         supabase
           .from('student_results')
-          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, created_at, status')
-          .eq('class_id', classId)
-          .eq('status', 'approved')
+          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, created_at')
+          .in('student_id', studentIds)
           .order('created_at', { ascending: false }),
       ]);
 
-      // 4. student_name 매핑 + 이미지 URL 변환
+      // 3. student_name 매핑 + 이미지 URL 변환 + 관찰기록에 week_number 부여
       const obsPosts = (obs || []).map((o: any) => ({
         ...o,
+        week_number: topicWeekMap[norm(o.activity_name)] ?? null,
         student_name: nameMap[o.student_id] || '학생',
         _type: 'obs' as const,
       }));
