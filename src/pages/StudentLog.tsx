@@ -41,6 +41,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { geminiFlash } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
+import CodeBlock from '../components/CodeBlock';
 
 const StudentLog = () => {
   const navigate = useNavigate();
@@ -1623,10 +1624,16 @@ ${guidePrompt}
                                         {children}
                                       </blockquote>
                                     ),
-                                    code: ({ children, className }: any) =>
-                                      className
-                                        ? <code className="block bg-surface-container p-3 rounded-xl text-xs font-mono mb-2 overflow-auto whitespace-pre-wrap">{children}</code>
-                                        : <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>,
+                                    code: ({ children, className }: any) => {
+                                      if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>;
+                                      return <code className={className}>{children}</code>;
+                                    },
+                                    pre: ({ children }: any) => {
+                                      const child = (Array.isArray(children) ? children[0] : children) as any;
+                                      const lang = (child?.props?.className || '').replace('language-', '') || 'text';
+                                      const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+                                      return <CodeBlock lang={lang} code={code} />;
+                                    },
                                     a: ({ href, children }: any) => (
                                       <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm hover:opacity-70">{children}</a>
                                     ),

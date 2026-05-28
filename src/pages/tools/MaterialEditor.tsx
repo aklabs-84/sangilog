@@ -3,12 +3,13 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import ReactMarkdown from 'react-markdown';
 import {
-  Bold, Italic, List, ListOrdered, Quote, Code,
+  Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Save, Trash2, Copy, Plus,
   Loader2, ChevronDown, Globe, Lock, Minus,
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   ExternalLink, Users,
 } from 'lucide-react';
+import CodeBlock from '../../components/CodeBlock';
 
 interface Material {
   id: string;
@@ -37,13 +38,22 @@ const mdComponents: any = {
       {children}
     </blockquote>
   ),
+  // 인라인 코드 (className 없는 경우)
   code: ({ children, className }: any) => {
-    const isBlock = !!className;
-    return isBlock
-      ? <code className="block bg-surface-container p-4 rounded-xl text-sm font-mono mb-3 overflow-auto whitespace-pre-wrap">{children}</code>
-      : <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
+    if (!className) {
+      return <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
+    }
+    // 블록 코드는 pre에서 처리하므로 그대로 전달
+    return <code className={className}>{children}</code>;
   },
-  pre: ({ children }: any) => <pre className="mb-3">{children}</pre>,
+  // 블록 코드 — CodeBlock 컴포넌트 사용
+  pre: ({ children }: any) => {
+    const child = (Array.isArray(children) ? children[0] : children) as any;
+    const className = child?.props?.className || '';
+    const lang = className.replace('language-', '') || 'text';
+    const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return <CodeBlock lang={lang} code={code} />;
+  },
   a: ({ href, children }: any) => (
     <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:opacity-70">
       {children}
@@ -318,6 +328,25 @@ const MaterialEditor = () => {
     { type: 'icon', icon: ListOrdered,  title: '번호 목록',      action: () => insertLinePrefix('1. ') },
     { type: 'icon', icon: Quote,        title: '인용구',         action: () => insertLinePrefix('> ') },
     { type: 'icon', icon: Code,         title: '인라인 코드',    action: () => insertAtCursor('`', '`', '코드') },
+    {
+      type: 'icon', icon: Code2, title: '코드 블록 삽입',
+      action: () => {
+        const el = textareaRef.current;
+        if (!el) return;
+        const start = el.selectionStart;
+        const end   = el.selectionEnd;
+        const selected = content.substring(start, end);
+        const block = `\n\`\`\`\n${selected || '코드를 입력하세요'}\n\`\`\`\n`;
+        const next  = content.substring(0, start) + block + content.substring(end);
+        setContent(next);
+        setTimeout(() => {
+          el.focus();
+          const codeStart = start + '\n```\n'.length;
+          const codeEnd   = codeStart + (selected || '코드를 입력하세요').length;
+          el.setSelectionRange(codeStart, codeEnd);
+        }, 10);
+      },
+    },
     { type: 'sep' },
     { type: 'icon', icon: Minus,        title: '구분선',         action: () => insertAtCursor('\n\n---\n\n', '', '') },
     { type: 'icon', icon: Link2,        title: '링크 삽입',      action: () => setLinkDialogOpen(true) },
