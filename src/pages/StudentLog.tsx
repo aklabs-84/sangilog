@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { openFile } from '../lib/fileUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap,
@@ -3477,17 +3478,14 @@ ${guidePrompt}
                       </a>
                     )}
                     {!isObs && p.file_url && (
-                      <a
-                        href={p.file_url}
-                        download={p.display_name || '첨부파일'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl hover:bg-amber-100 transition-all group"
+                      <button
+                        onClick={() => openFile(p.file_url, p.display_name || '첨부파일')}
+                        className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl hover:bg-amber-100 transition-all group text-left"
                       >
                         <File size={15} className="text-amber-500 shrink-0" />
                         <span className="text-sm font-black text-amber-700 truncate flex-1">{p.display_name || '첨부 파일'}</span>
                         <Download size={14} className="text-amber-400 shrink-0 group-hover:text-amber-600 transition-colors" />
-                      </a>
+                      </button>
                     )}
                   </div>
                 </div>

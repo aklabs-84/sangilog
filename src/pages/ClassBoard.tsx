@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { openFile } from '../lib/fileUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users2,
@@ -466,21 +467,18 @@ const ClassBoard = () => {
                       </a>
                     )}
 
-                    {/* 결과물 파일 — 다운로드 */}
+                    {/* 결과물 파일 — 열기/다운로드 */}
                     {!isObs && selectedPost.file_url && (
-                      <a
-                        href={selectedPost.file_url}
-                        download={selectedPost.display_name || '첨부파일'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 px-4 py-3.5 bg-amber-900/30 border border-amber-700/40 rounded-2xl hover:bg-amber-900/50 transition-all group"
+                      <button
+                        onClick={() => openFile(selectedPost.file_url, selectedPost.display_name || '첨부파일')}
+                        className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-900/30 border border-amber-700/40 rounded-2xl hover:bg-amber-900/50 transition-all group text-left"
                       >
                         <File size={16} className="text-amber-400 shrink-0" />
                         <span className="text-sm font-black text-amber-300 truncate flex-1">
                           {selectedPost.display_name || '첨부 파일'}
                         </span>
                         <Download size={14} className="text-amber-400/60 shrink-0 group-hover:text-amber-300 transition-colors" />
-                      </a>
+                      </button>
                     )}
                   </div>
                 </div>
