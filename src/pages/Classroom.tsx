@@ -868,22 +868,55 @@ const Classroom = () => {
   const fetchBoard = async (classId: string) => {
     setBoardLoading(true);
     try {
+      // 1. 해당 클래스 학생 목록 (이름 매핑용)
+      const { data: studentList } = await supabase
+        .from('students')
+        .select('id, name')
+        .eq('class_id', classId);
+      const studentIds = (studentList || []).map((s: any) => s.id);
+      const nameMap: Record<string, string> = Object.fromEntries(
+        (studentList || []).map((s: any) => [s.id, s.name])
+      );
+
+      if (studentIds.length === 0) { setBoardPosts([]); setBoardLoading(false); return; }
+
+      // 2. 관찰기록 + 결과 병렬 조회 (올바른 테이블명)
       const [{ data: obs }, { data: results }] = await Promise.all([
         supabase
-          .from('weekly_observations')
-          .select('id, student_id, student_name, activity_name, content, feeling, created_at, week_number, status')
-          .eq('class_id', classId)
+          .from('observations')
+          .select('id, student_id, activity_name, content, created_at, status')
+          .in('student_id', studentIds)
+          .eq('is_student_record', true)
           .eq('status', 'approved')
           .order('created_at', { ascending: false }),
         supabase
-          .from('activity_results')
-          .select('id, student_id, student_name, week_number, title, text_content, image_url, file_url, display_name, link_url, created_at, status')
+          .from('student_results')
+          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, created_at, status')
           .eq('class_id', classId)
           .eq('status', 'approved')
           .order('created_at', { ascending: false }),
       ]);
-      const obsPosts = (obs || []).map(o => ({ ...o, _type: 'obs' as const }));
-      const resPosts = (results || []).map(r => ({ ...r, _type: 'result' as const }));
+
+      // 3. student_name 매핑 + 이미지 public URL 변환
+      const obsPosts = (obs || []).map((o: any) => ({
+        ...o,
+        student_name: nameMap[o.student_id] || '학생',
+        _type: 'obs' as const,
+      }));
+      const resPosts = (results || []).map((r: any) => {
+        let image_url = null;
+        if (r.result_type === 'image' && r.storage_path) {
+          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+          image_url = urlData?.publicUrl || null;
+        }
+        return {
+          ...r,
+          image_url,
+          student_name: nameMap[r.student_id] || '학생',
+          _type: 'result' as const,
+        };
+      });
+
       setBoardPosts([...obsPosts, ...resPosts].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       ));
