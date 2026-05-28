@@ -81,17 +81,20 @@ const ClassBoard = () => {
       }));
       const resPosts = (results || []).map((r: any) => {
         let image_url = null;
+        let image_original_url = null;
         let file_url = null;
         if (r.result_type === 'image' && r.storage_path) {
-          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
+          const { data: orig } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+          image_original_url = orig?.publicUrl || null;
+          const { data: thumb } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
             transform: { width: 600, quality: 70 },
           });
-          image_url = urlData?.publicUrl || null;
+          image_url = thumb?.publicUrl || image_original_url;
         } else if (r.result_type === 'file' && r.storage_path) {
           const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
           file_url = urlData?.publicUrl || null;
         }
-        return { ...r, image_url, file_url, student_name: nameMap[r.student_id] || '학생', _type: 'result' as const };
+        return { ...r, image_url, image_original_url, file_url, student_name: nameMap[r.student_id] || '학생', _type: 'result' as const };
       });
 
       setPosts([...obsPosts, ...resPosts].sort(
@@ -312,6 +315,11 @@ const ClassBoard = () => {
                           alt=""
                           className="w-full rounded-xl object-cover max-h-48"
                           loading="lazy"
+                          onError={e => {
+                            if (post.image_original_url) {
+                              (e.target as HTMLImageElement).src = post.image_original_url;
+                            }
+                          }}
                         />
                       )}
                       {!isObs && post.link_url && (
@@ -443,15 +451,32 @@ const ClassBoard = () => {
                       </div>
                     )}
 
-                    {/* 결과물 이미지 */}
+                    {/* 결과물 이미지 — 클릭 시 원본 새 탭 */}
                     {!isObs && selectedPost.image_url && (
-                      <img
-                        src={selectedPost.image_url}
-                        alt=""
-                        className="w-full rounded-2xl object-contain max-h-96"
-                        loading="lazy"
-                        decoding="async"
-                      />
+                      <a
+                        href={selectedPost.image_original_url || selectedPost.image_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block relative group"
+                      >
+                        <img
+                          src={selectedPost.image_url}
+                          alt=""
+                          className="w-full rounded-2xl object-contain max-h-96 cursor-zoom-in"
+                          loading="lazy"
+                          decoding="async"
+                          onError={e => {
+                            if (selectedPost.image_original_url) {
+                              (e.target as HTMLImageElement).src = selectedPost.image_original_url;
+                            }
+                          }}
+                        />
+                        <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-black bg-black/50 px-3 py-1.5 rounded-full transition-all">
+                            새 탭에서 보기
+                          </span>
+                        </div>
+                      </a>
                     )}
 
                     {/* 결과물 링크 */}
