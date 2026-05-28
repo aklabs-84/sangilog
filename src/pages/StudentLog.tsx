@@ -2855,27 +2855,27 @@ ${guidePrompt}
       </div>
 
       {/* ── 하단 바텀 탭 바 ── */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-xl border-t border-slate-200 shadow-[0_-4px_30px_rgba(0,0,0,0.08)]">
-        <div className="max-w-lg mx-auto flex items-center px-2 pb-safe">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900 border-t border-slate-700/60 shadow-[0_-8px_40px_rgba(0,0,0,0.35)]">
+        <div className="max-w-lg mx-auto flex items-center px-1 pb-safe">
           {[
-            { key: 'home' as const,    icon: LayoutDashboard, label: '홈',    color: 'text-primary',   activeBg: 'bg-primary/10' },
-            { key: 'record' as const,  icon: MessageSquare,   label: '기록',  color: 'text-violet-600', activeBg: 'bg-violet-100' },
-            { key: 'results' as const, icon: FolderOpen,      label: '결과',  color: 'text-emerald-600', activeBg: 'bg-emerald-100' },
-            { key: 'board' as const,   icon: Users2,          label: '보드',  color: 'text-indigo-600',  activeBg: 'bg-indigo-100' },
+            { key: 'home' as const,    icon: LayoutDashboard, label: '홈',   activeColor: 'text-sky-400',     activeBg: 'bg-sky-400/15' },
+            { key: 'record' as const,  icon: MessageSquare,   label: '기록', activeColor: 'text-violet-400',  activeBg: 'bg-violet-400/15' },
+            { key: 'results' as const, icon: FolderOpen,      label: '결과', activeColor: 'text-emerald-400', activeBg: 'bg-emerald-400/15' },
+            { key: 'board' as const,   icon: Users2,          label: '보드', activeColor: 'text-indigo-400',  activeBg: 'bg-indigo-400/15' },
           ].map((tab) => {
             const isActive = activeTab === tab.key && !isMoreSheetOpen;
             return (
               <button
                 key={tab.key}
                 onClick={() => handleTabChange(tab.key)}
-                className="flex-1 flex flex-col items-center gap-1 py-3 transition-all"
+                className="flex-1 flex flex-col items-center gap-1.5 py-3.5 transition-all"
               >
-                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
-                  isActive ? `${tab.activeBg} scale-110 shadow-sm` : 'hover:bg-slate-100'
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+                  isActive ? `${tab.activeBg} scale-105` : 'hover:bg-white/5'
                 }`}>
-                  <tab.icon size={20} className={isActive ? tab.color : 'text-slate-400'} />
+                  <tab.icon size={24} className={isActive ? tab.activeColor : 'text-slate-500'} strokeWidth={isActive ? 2.5 : 1.8} />
                 </div>
-                <span className={`text-[10px] font-black transition-colors ${isActive ? tab.color : 'text-slate-400'}`}>
+                <span className={`text-[11px] font-black tracking-tight transition-colors ${isActive ? tab.activeColor : 'text-slate-500'}`}>
                   {tab.label}
                 </span>
               </button>
@@ -2885,20 +2885,19 @@ ${guidePrompt}
           {/* 더보기 버튼 */}
           <button
             onClick={() => setIsMoreSheetOpen(prev => !prev)}
-            className="flex-1 flex flex-col items-center gap-1 py-3 transition-all"
+            className="flex-1 flex flex-col items-center gap-1.5 py-3.5 transition-all"
           >
-            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all relative ${
-              isMoreSheetOpen ? 'bg-slate-800 scale-110 shadow-sm' : 'hover:bg-slate-100'
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all relative ${
+              isMoreSheetOpen ? 'bg-white/15 scale-105' : 'hover:bg-white/5'
             }`}>
-              <MoreHorizontal size={20} className={isMoreSheetOpen ? 'text-white' : 'text-slate-400'} />
-              {/* 더보기 뱃지 (단원마무리 + 건의사항 합산) */}
+              <MoreHorizontal size={24} className={isMoreSheetOpen ? 'text-white' : 'text-slate-500'} strokeWidth={isMoreSheetOpen ? 2.5 : 1.8} />
               {(unitPendingCount + unreadReplyCount) > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-error text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
                   {unitPendingCount + unreadReplyCount}
                 </span>
               )}
             </div>
-            <span className={`text-[10px] font-black transition-colors ${isMoreSheetOpen ? 'text-slate-800' : 'text-slate-400'}`}>
+            <span className={`text-[11px] font-black tracking-tight transition-colors ${isMoreSheetOpen ? 'text-white' : 'text-slate-500'}`}>
               더보기
             </span>
           </button>
