@@ -147,6 +147,7 @@ const StudentLog = () => {
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
   const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
+  const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
   const [boardLikes, setBoardLikes] = useState<Record<string, boolean>>({}); // postId → liked
 
   useEffect(() => {
@@ -2721,11 +2722,12 @@ ${guidePrompt}
                             key={`${post._type}-${post.id}`}
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className={`break-inside-avoid rounded-3xl border-2 p-5 space-y-3 transition-all ${
+                            onClick={() => setBoardSelectedPost(post)}
+                            className={`break-inside-avoid rounded-3xl border-2 p-5 space-y-3 transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
                               isMe
                                 ? isObs
-                                  ? 'bg-violet-50 border-violet-200'
-                                  : 'bg-emerald-50 border-emerald-200'
+                                  ? 'bg-violet-50 border-violet-200 hover:border-violet-300'
+                                  : 'bg-emerald-50 border-emerald-200 hover:border-emerald-300'
                                 : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-sm'
                             }`}
                           >
@@ -2804,7 +2806,7 @@ ${guidePrompt}
                             {/* 좋아요 버튼 */}
                             <div className="pt-1 border-t border-slate-100">
                               <button
-                                onClick={() => setBoardLikes(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                                onClick={(e) => { e.stopPropagation(); setBoardLikes(prev => ({ ...prev, [post.id]: !prev[post.id] })); }}
                                 className={`flex items-center gap-1.5 text-xs font-black transition-all px-2 py-1 rounded-lg ${
                                   liked
                                     ? 'text-rose-500 bg-rose-50'
@@ -3363,6 +3365,117 @@ ${guidePrompt}
                 </div>
               </motion.div>
             </div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* 보드 카드 상세 모달 */}
+      <AnimatePresence>
+        {boardSelectedPost && (() => {
+          const p = boardSelectedPost;
+          const isObs = p._type === 'obs';
+          const isMe = p.student_id === session?.student_id;
+          return (
+            <>
+              <motion.div
+                key="board-detail-backdrop"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => setBoardSelectedPost(null)}
+                className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm"
+              />
+              <motion.div
+                key="board-detail-modal"
+                initial={{ opacity: 0, y: 60, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 60, scale: 0.95 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+                className="fixed inset-x-0 bottom-0 z-[200] flex justify-center px-4 pb-safe pointer-events-none"
+                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
+              >
+                <div
+                  onClick={e => e.stopPropagation()}
+                  className={`pointer-events-auto w-full max-w-lg max-h-[75vh] overflow-y-auto rounded-3xl border-2 shadow-2xl bg-white ${
+                    isMe
+                      ? isObs ? 'border-violet-200' : 'border-emerald-200'
+                      : 'border-slate-200'
+                  }`}
+                >
+                  {/* 모달 헤더 */}
+                  <div className={`sticky top-0 flex items-center justify-between gap-3 px-5 py-4 border-b ${
+                    isMe
+                      ? isObs ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'
+                      : 'bg-slate-50 border-slate-100'
+                  }`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-base shrink-0 ${
+                        isObs ? 'bg-violet-100' : 'bg-emerald-100'
+                      }`}>
+                        {isObs ? '📝' : '📁'}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black truncate text-sm">
+                          {p.student_name}
+                          {isMe && <span className="ml-1.5 text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
+                        </p>
+                        <p className="text-[11px] text-on-surface-variant font-bold">
+                          {p.week_number ? `${p.week_number}주차 · ` : ''}
+                          {new Date(p.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
+                          &nbsp;·&nbsp;
+                          <span className={isObs ? 'text-violet-600' : 'text-emerald-600'}>
+                            {isObs ? '관찰기록' : '결과물'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setBoardSelectedPost(null)}
+                      className="shrink-0 w-9 h-9 rounded-xl hover:bg-surface-container flex items-center justify-center transition-all"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* 모달 본문 */}
+                  <div className="p-5 space-y-4">
+                    <h2 className="text-base font-black leading-snug">
+                      {isObs ? p.activity_name : p.title}
+                    </h2>
+                    {isObs && p.content && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest">관찰 내용</p>
+                        <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{p.content}</p>
+                      </div>
+                    )}
+                    {isObs && p.feeling && (
+                      <div className="px-4 py-3 rounded-2xl bg-violet-50 border border-violet-100">
+                        <p className="text-sm text-on-surface-variant/70 font-bold italic leading-relaxed">💬 {p.feeling}</p>
+                      </div>
+                    )}
+                    {!isObs && p.text_content && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">내용</p>
+                        <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{p.text_content}</p>
+                      </div>
+                    )}
+                    {!isObs && p.image_url && (
+                      <img src={p.image_url} alt="" className="w-full rounded-2xl object-contain max-h-72" />
+                    )}
+                    {!isObs && p.link_url && (
+                      <a href={p.link_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
+                        <ExternalLink size={14} /><span className="truncate">{p.link_url}</span>
+                      </a>
+                    )}
+                    {!isObs && p.storage_path && p.result_type === 'file' && (
+                      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
+                        <File size={15} className="text-amber-500 shrink-0" />
+                        <span className="text-sm font-black text-amber-700 truncate">{p.display_name || '첨부 파일'}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </>
           );
         })()}
       </AnimatePresence>

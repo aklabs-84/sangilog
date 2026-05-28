@@ -11,6 +11,7 @@ import {
   ExternalLink,
   File,
   ArrowLeft,
+  X,
 } from 'lucide-react';
 
 const ClassBoard = () => {
@@ -23,6 +24,7 @@ const ClassBoard = () => {
   const [typeFilter, setTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedPost, setSelectedPost] = useState<any | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!classId) return;
@@ -99,6 +101,15 @@ const ClassBoard = () => {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  // ESC 키로 모달 닫기
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedPost(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const filtered = posts.filter(p => {
     if (typeFilter !== 'all' && p._type !== typeFilter) return false;
@@ -236,10 +247,11 @@ const ClassBoard = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03 }}
-                    className={`break-inside-avoid rounded-3xl border p-5 space-y-3 ${
+                    onClick={() => setSelectedPost(post)}
+                    className={`break-inside-avoid rounded-3xl border p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl ${
                       isObs
-                        ? 'bg-violet-900/30 border-violet-700/40'
-                        : 'bg-emerald-900/30 border-emerald-700/40'
+                        ? 'bg-violet-900/30 border-violet-700/40 hover:border-violet-500/60 hover:bg-violet-900/50'
+                        : 'bg-emerald-900/30 border-emerald-700/40 hover:border-emerald-500/60 hover:bg-emerald-900/50'
                     }`}
                   >
                     {/* 카드 헤더 */}
@@ -288,15 +300,10 @@ const ClassBoard = () => {
                         />
                       )}
                       {!isObs && post.link_url && (
-                        <a
-                          href={post.link_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-xs font-black text-blue-400 hover:underline"
-                        >
+                        <div className="flex items-center gap-1.5 text-xs font-black text-blue-400">
                           <ExternalLink size={11} />
                           <span className="truncate">{post.link_url}</span>
-                        </a>
+                        </div>
                       )}
                       {!isObs && post.file_url && (
                         <div className="flex items-center gap-2 px-3 py-2 bg-amber-900/30 border border-amber-700/30 rounded-xl">
@@ -322,6 +329,142 @@ const ClassBoard = () => {
           30초마다 자동 새로고침
         </span>
       </footer>
+
+      {/* 상세 모달 */}
+      <AnimatePresence>
+        {selectedPost && (() => {
+          const isObs = selectedPost._type === 'obs';
+          return (
+            <>
+              {/* 배경 오버레이 */}
+              <motion.div
+                key="backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedPost(null)}
+                className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+              />
+
+              {/* 모달 패널 */}
+              <motion.div
+                key="modal"
+                initial={{ opacity: 0, scale: 0.92, y: 24 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 24 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+              >
+                <div
+                  onClick={e => e.stopPropagation()}
+                  className={`pointer-events-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl border shadow-2xl ${
+                    isObs
+                      ? 'bg-slate-900 border-violet-700/50'
+                      : 'bg-slate-900 border-emerald-700/50'
+                  }`}
+                >
+                  {/* 모달 헤더 */}
+                  <div className={`sticky top-0 flex items-center justify-between gap-3 px-6 py-4 border-b backdrop-blur-xl ${
+                    isObs ? 'bg-violet-900/40 border-violet-700/30' : 'bg-emerald-900/40 border-emerald-700/30'
+                  }`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-base shrink-0 ${
+                        isObs ? 'bg-violet-700/50' : 'bg-emerald-700/50'
+                      }`}>
+                        {isObs ? '📝' : '📁'}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-white truncate">{selectedPost.student_name}</p>
+                        <p className="text-[11px] text-white/40 font-bold">
+                          {selectedPost.week_number ? `${selectedPost.week_number}주차 · ` : ''}
+                          {new Date(selectedPost.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          &nbsp;·&nbsp;
+                          <span className={isObs ? 'text-violet-400' : 'text-emerald-400'}>
+                            {isObs ? '관찰기록' : '결과물'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedPost(null)}
+                      className="shrink-0 w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* 모달 본문 */}
+                  <div className="p-6 space-y-5">
+                    {/* 제목 */}
+                    <h2 className="text-lg font-black text-white leading-snug">
+                      {isObs ? selectedPost.activity_name : selectedPost.title}
+                    </h2>
+
+                    {/* 관찰기록 내용 */}
+                    {isObs && selectedPost.content && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest">관찰 내용</p>
+                        <p className="text-sm text-white/80 font-bold leading-relaxed whitespace-pre-wrap">
+                          {selectedPost.content}
+                        </p>
+                      </div>
+                    )}
+                    {isObs && selectedPost.feeling && (
+                      <div className="px-4 py-3 rounded-2xl bg-violet-900/30 border border-violet-700/30">
+                        <p className="text-sm text-white/70 font-bold italic leading-relaxed">
+                          💬 {selectedPost.feeling}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 결과물 텍스트 */}
+                    {!isObs && selectedPost.text_content && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">내용</p>
+                        <p className="text-sm text-white/80 font-bold leading-relaxed whitespace-pre-wrap">
+                          {selectedPost.text_content}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 결과물 이미지 */}
+                    {!isObs && selectedPost.image_url && (
+                      <img
+                        src={selectedPost.image_url}
+                        alt=""
+                        className="w-full rounded-2xl object-contain max-h-96"
+                      />
+                    )}
+
+                    {/* 결과물 링크 */}
+                    {!isObs && selectedPost.link_url && (
+                      <a
+                        href={selectedPost.link_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-900/30 border border-blue-700/30 text-blue-400 font-black text-sm hover:bg-blue-900/50 transition-all"
+                      >
+                        <ExternalLink size={15} />
+                        <span className="truncate">{selectedPost.link_url}</span>
+                      </a>
+                    )}
+
+                    {/* 결과물 파일 */}
+                    {!isObs && selectedPost.storage_path && selectedPost.result_type === 'file' && (
+                      <div className="flex items-center gap-3 px-4 py-3 bg-amber-900/30 border border-amber-700/30 rounded-2xl">
+                        <File size={16} className="text-amber-400 shrink-0" />
+                        <span className="text-sm font-black text-amber-300 truncate">
+                          {selectedPost.display_name || '첨부 파일'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          );
+        })()}
+      </AnimatePresence>
     </div>
   );
 };

@@ -72,6 +72,7 @@ const Classroom = () => {
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
+  const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
   
   // 아카이브 관련 상태
@@ -1309,8 +1310,9 @@ const Classroom = () => {
                               key={`${post._type}-${post.id}`}
                               initial={{ opacity: 0, scale: 0.95 }}
                               animate={{ opacity: 1, scale: 1 }}
-                              className={`break-inside-avoid rounded-3xl border-2 p-5 space-y-3 ${
-                                isObs ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'
+                              onClick={() => setBoardSelectedPost(post)}
+                              className={`break-inside-avoid rounded-3xl border-2 p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${
+                                isObs ? 'bg-violet-50 border-violet-100 hover:border-violet-300 hover:bg-violet-50/80' : 'bg-emerald-50 border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50/80'
                               }`}
                             >
                               <div className="flex items-center justify-between gap-2">
@@ -1975,6 +1977,105 @@ const Classroom = () => {
             </motion.div>
           </div>
         )}
+
+        {/* 보드 카드 상세 모달 */}
+        {boardSelectedPost && (() => {
+          const p = boardSelectedPost;
+          const isObs = p._type === 'obs';
+          return (
+            <>
+              <motion.div
+                key="board-backdrop"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => setBoardSelectedPost(null)}
+                className="fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm"
+              />
+              <motion.div
+                key="board-modal"
+                initial={{ opacity: 0, scale: 0.92, y: 24 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 24 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+                className="fixed inset-0 z-[2000] flex items-center justify-center p-4 pointer-events-none"
+              >
+                <div
+                  onClick={e => e.stopPropagation()}
+                  className={`pointer-events-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl border-2 shadow-2xl bg-white ${
+                    isObs ? 'border-violet-200' : 'border-emerald-200'
+                  }`}
+                >
+                  {/* 모달 헤더 */}
+                  <div className={`sticky top-0 flex items-center justify-between gap-3 px-6 py-4 border-b ${
+                    isObs ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'
+                  }`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-base shrink-0 ${
+                        isObs ? 'bg-violet-100' : 'bg-emerald-100'
+                      }`}>
+                        {isObs ? '📝' : '📁'}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black truncate">{p.student_name}</p>
+                        <p className="text-[11px] text-on-surface-variant font-bold">
+                          {p.week_number ? `${p.week_number}주차 · ` : ''}
+                          {new Date(p.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          &nbsp;·&nbsp;
+                          <span className={isObs ? 'text-violet-600' : 'text-emerald-600'}>
+                            {isObs ? '관찰기록' : '결과물'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setBoardSelectedPost(null)}
+                      className="shrink-0 w-9 h-9 rounded-xl hover:bg-surface-container flex items-center justify-center transition-all"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  {/* 모달 본문 */}
+                  <div className="p-6 space-y-5">
+                    <h2 className="text-lg font-black leading-snug">
+                      {isObs ? p.activity_name : p.title}
+                    </h2>
+                    {isObs && p.content && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest">관찰 내용</p>
+                        <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{p.content}</p>
+                      </div>
+                    )}
+                    {isObs && p.feeling && (
+                      <div className="px-4 py-3 rounded-2xl bg-violet-50 border border-violet-100">
+                        <p className="text-sm text-on-surface-variant/70 font-bold italic leading-relaxed">💬 {p.feeling}</p>
+                      </div>
+                    )}
+                    {!isObs && p.text_content && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">내용</p>
+                        <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{p.text_content}</p>
+                      </div>
+                    )}
+                    {!isObs && p.image_url && (
+                      <img src={p.image_url} alt="" className="w-full rounded-2xl object-contain max-h-96" />
+                    )}
+                    {!isObs && p.link_url && (
+                      <a href={p.link_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
+                        <ExternalLink size={15} /><span className="truncate">{p.link_url}</span>
+                      </a>
+                    )}
+                    {!isObs && p.storage_path && p.result_type === 'file' && (
+                      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
+                        <File size={16} className="text-amber-500 shrink-0" />
+                        <span className="text-sm font-black text-amber-700 truncate">{p.display_name || '첨부 파일'}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          );
+        })()}
 
         {/* 수업 자료 관리 모달 */}
         {isResourceModalOpen && (
