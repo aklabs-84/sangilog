@@ -25,6 +25,7 @@ import {
   ExternalLink,
   File,
   Loader2,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -916,15 +917,20 @@ const Classroom = () => {
       }));
       const resPosts = (results || []).map((r: any) => {
         let image_url = null;
+        let file_url = null;
         if (r.result_type === 'image' && r.storage_path) {
           const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
             transform: { width: 600, quality: 70 },
           });
           image_url = urlData?.publicUrl || null;
+        } else if (r.result_type === 'file' && r.storage_path) {
+          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+          file_url = urlData?.publicUrl || null;
         }
         return {
           ...r,
           image_url,
+          file_url,
           student_name: nameMap[r.student_id] || '학생',
           _type: 'result' as const,
         };
@@ -1364,7 +1370,8 @@ const Classroom = () => {
                                 {!isObs && post.file_url && (
                                   <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
                                     <File size={13} className="text-amber-500 shrink-0" />
-                                    <span className="text-xs font-black text-amber-700 truncate">{post.display_name || '파일'}</span>
+                                    <span className="text-xs font-black text-amber-700 truncate flex-1">{post.display_name || '파일'}</span>
+                                    <Download size={11} className="text-amber-400 shrink-0" />
                                   </div>
                                 )}
                               </div>
@@ -2068,11 +2075,18 @@ const Classroom = () => {
                         <ExternalLink size={15} /><span className="truncate">{p.link_url}</span>
                       </a>
                     )}
-                    {!isObs && p.storage_path && p.result_type === 'file' && (
-                      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl">
+                    {!isObs && p.file_url && (
+                      <a
+                        href={p.file_url}
+                        download={p.display_name || '첨부파일'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl hover:bg-amber-100 transition-all group"
+                      >
                         <File size={16} className="text-amber-500 shrink-0" />
-                        <span className="text-sm font-black text-amber-700 truncate">{p.display_name || '첨부 파일'}</span>
-                      </div>
+                        <span className="text-sm font-black text-amber-700 truncate flex-1">{p.display_name || '첨부 파일'}</span>
+                        <Download size={14} className="text-amber-400 shrink-0 group-hover:text-amber-600 transition-colors" />
+                      </a>
                     )}
                   </div>
                 </div>

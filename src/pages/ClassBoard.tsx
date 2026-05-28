@@ -12,6 +12,7 @@ import {
   File,
   ArrowLeft,
   X,
+  Download,
 } from 'lucide-react';
 
 const ClassBoard = () => {
@@ -79,14 +80,17 @@ const ClassBoard = () => {
       }));
       const resPosts = (results || []).map((r: any) => {
         let image_url = null;
+        let file_url = null;
         if (r.result_type === 'image' && r.storage_path) {
-          // 썸네일 크기로 변환 (원본 5MB+ → 압축본)
           const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
             transform: { width: 600, quality: 70 },
           });
           image_url = urlData?.publicUrl || null;
+        } else if (r.result_type === 'file' && r.storage_path) {
+          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+          file_url = urlData?.publicUrl || null;
         }
-        return { ...r, image_url, student_name: nameMap[r.student_id] || '학생', _type: 'result' as const };
+        return { ...r, image_url, file_url, student_name: nameMap[r.student_id] || '학생', _type: 'result' as const };
       });
 
       setPosts([...obsPosts, ...resPosts].sort(
@@ -318,7 +322,8 @@ const ClassBoard = () => {
                       {!isObs && post.file_url && (
                         <div className="flex items-center gap-2 px-3 py-2 bg-amber-900/30 border border-amber-700/30 rounded-xl">
                           <File size={13} className="text-amber-400 shrink-0" />
-                          <span className="text-xs font-black text-amber-300 truncate">{post.display_name || '파일'}</span>
+                          <span className="text-xs font-black text-amber-300 truncate flex-1">{post.display_name || '파일'}</span>
+                          <Download size={11} className="text-amber-400/60 shrink-0" />
                         </div>
                       )}
                     </div>
@@ -461,14 +466,21 @@ const ClassBoard = () => {
                       </a>
                     )}
 
-                    {/* 결과물 파일 */}
-                    {!isObs && selectedPost.storage_path && selectedPost.result_type === 'file' && (
-                      <div className="flex items-center gap-3 px-4 py-3 bg-amber-900/30 border border-amber-700/30 rounded-2xl">
+                    {/* 결과물 파일 — 다운로드 */}
+                    {!isObs && selectedPost.file_url && (
+                      <a
+                        href={selectedPost.file_url}
+                        download={selectedPost.display_name || '첨부파일'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-4 py-3.5 bg-amber-900/30 border border-amber-700/40 rounded-2xl hover:bg-amber-900/50 transition-all group"
+                      >
                         <File size={16} className="text-amber-400 shrink-0" />
-                        <span className="text-sm font-black text-amber-300 truncate">
+                        <span className="text-sm font-black text-amber-300 truncate flex-1">
                           {selectedPost.display_name || '첨부 파일'}
                         </span>
-                      </div>
+                        <Download size={14} className="text-amber-400/60 shrink-0 group-hover:text-amber-300 transition-colors" />
+                      </a>
                     )}
                   </div>
                 </div>
