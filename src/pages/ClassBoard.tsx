@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -52,7 +52,7 @@ const ClassBoard = () => {
 
       if (studentIds.length === 0) { setPosts([]); setLoading(false); return; }
 
-      // 2. 관찰기록 + 결과 병렬 조회
+      // 2. 관찰기록 + 결과 병렬 조회 (최신 150건씩 제한)
       const [{ data: obs }, { data: results }] = await Promise.all([
         supabase
           .from('observations')
@@ -60,12 +60,14 @@ const ClassBoard = () => {
           .in('student_id', studentIds)
           .eq('is_student_record', true)
           .in('status', ['approved', 'pending'])
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .limit(150),
         supabase
           .from('student_results')
           .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, created_at')
           .in('student_id', studentIds)
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .limit(150),
       ]);
 
       // 3. student_name 매핑 + 이미지 URL 변환 + 관찰기록에 week_number 부여
@@ -78,7 +80,10 @@ const ClassBoard = () => {
       const resPosts = (results || []).map((r: any) => {
         let image_url = null;
         if (r.result_type === 'image' && r.storage_path) {
-          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+          // 썸네일 크기로 변환 (원본 5MB+ → 압축본)
+          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
+            transform: { width: 600, quality: 70 },
+          });
           image_url = urlData?.publicUrl || null;
         }
         return { ...r, image_url, student_name: nameMap[r.student_id] || '학생', _type: 'result' as const };
@@ -95,10 +100,12 @@ const ClassBoard = () => {
     }
   }, [classId]);
 
-  // 최초 로드 + 30초마다 자동 갱신
+  // 최초 로드 + 60초마다 자동 갱신 (탭이 숨겨지면 중단)
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchData();
+    }, 60000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -111,13 +118,16 @@ const ClassBoard = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const filtered = posts.filter(p => {
+  const filtered = useMemo(() => posts.filter(p => {
     if (typeFilter !== 'all' && p._type !== typeFilter) return false;
     if (weekFilter !== 'all' && p.week_number !== weekFilter) return false;
     return true;
-  });
+  }), [posts, typeFilter, weekFilter]);
 
-  const weekList = Array.from(new Set(posts.map(p => p.week_number).filter(Boolean))).sort((a, b) => a - b);
+  const weekList = useMemo(
+    () => Array.from(new Set(posts.map(p => p.week_number).filter(Boolean))).sort((a, b) => a - b),
+    [posts]
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
@@ -246,7 +256,7 @@ const ClassBoard = () => {
                     key={`${post._type}-${post.id}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
+                    transition={{ delay: Math.min(i, 15) * 0.03 }}
                     onClick={() => setSelectedPost(post)}
                     className={`break-inside-avoid rounded-3xl border p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl ${
                       isObs
@@ -433,6 +443,8 @@ const ClassBoard = () => {
                         src={selectedPost.image_url}
                         alt=""
                         className="w-full rounded-2xl object-contain max-h-96"
+                        loading="lazy"
+                        decoding="async"
                       />
                     )}
 

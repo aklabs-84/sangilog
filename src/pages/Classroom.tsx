@@ -889,23 +889,25 @@ const Classroom = () => {
 
       if (studentIds.length === 0) { setBoardPosts([]); setBoardLoading(false); return; }
 
-      // 2. 관찰기록 + 결과 병렬 조회
+      // 2. 관찰기록 + 결과 병렬 조회 (최신 150건씩 제한)
       const [{ data: obs }, { data: results }] = await Promise.all([
         supabase
           .from('observations')
           .select('id, student_id, activity_name, content, created_at, status')
           .in('student_id', studentIds)
           .eq('is_student_record', true)
-          .in('status', ['approved', 'pending'])   // 승인+대기 모두 표시 (선생님 보드)
-          .order('created_at', { ascending: false }),
+          .in('status', ['approved', 'pending'])
+          .order('created_at', { ascending: false })
+          .limit(150),
         supabase
           .from('student_results')
           .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, created_at')
           .in('student_id', studentIds)
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .limit(150),
       ]);
 
-      // 3. student_name 매핑 + 이미지 URL 변환 + 관찰기록에 week_number 부여
+      // 3. student_name 매핑 + 이미지 URL 변환(썸네일) + 관찰기록에 week_number 부여
       const obsPosts = (obs || []).map((o: any) => ({
         ...o,
         week_number: topicWeekMap[norm(o.activity_name)] ?? null,
@@ -915,7 +917,9 @@ const Classroom = () => {
       const resPosts = (results || []).map((r: any) => {
         let image_url = null;
         if (r.result_type === 'image' && r.storage_path) {
-          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
+            transform: { width: 600, quality: 70 },
+          });
           image_url = urlData?.publicUrl || null;
         }
         return {
@@ -2056,7 +2060,7 @@ const Classroom = () => {
                       </div>
                     )}
                     {!isObs && p.image_url && (
-                      <img src={p.image_url} alt="" className="w-full rounded-2xl object-contain max-h-96" />
+                      <img src={p.image_url} alt="" className="w-full rounded-2xl object-contain max-h-96" loading="lazy" decoding="async" />
                     )}
                     {!isObs && p.link_url && (
                       <a href={p.link_url} target="_blank" rel="noopener noreferrer"
