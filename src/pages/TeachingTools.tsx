@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen } from 'lucide-react';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
 import QuizGame from './tools/QuizGame';
+import MaterialEditor from './tools/MaterialEditor';
 
 interface Tool {
   id: string;
@@ -40,6 +41,15 @@ const tools: Tool[] = [
     badge: 'NEW',
     available: true,
     component: <QuizGame />,
+  },
+  {
+    id: 'material-editor',
+    icon: <BookOpen size={28} />,
+    label: '수업 자료 에디터',
+    description: '마크다운으로 수업 자료를 작성하고 클래스 주차별로 학생에게 공개합니다',
+    badge: 'NEW',
+    available: true,
+    component: <MaterialEditor />,
   },
   {
     id: 'random-pick',

@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { geminiFlash } from '../lib/gemini';
+import ReactMarkdown from 'react-markdown';
 
 const StudentLog = () => {
   const navigate = useNavigate();
@@ -60,9 +61,11 @@ const StudentLog = () => {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<{reason: string, guide: string} | null>(null);
   
-  // Resources State
+  // Resources State (weekly_plan + class_materials)
   const [classResources, setClassResources] = useState<any[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(false);
+  const [classMaterials, setClassMaterials] = useState<any[]>([]);
+  const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
 
   // Result Submission State
   const [results, setResults] = useState<any[]>([]);
@@ -214,27 +217,32 @@ const StudentLog = () => {
   };
 
   const fetchResources = async () => {
-    // We already fetch weekly_plan from class_resources state in fetchClassDetails
-    // But if we're mixing with legacy resources, we could fetch them here.
-    // For now, let's keep the existing logic alongside weekly_plan.
     if (!session?.class_id) return;
     setResourcesLoading(true);
     try {
+      // 공개된 수업 자료 조회
       const { data, error } = await supabase
-        .from('class_resources')
+        .from('class_materials')
         .select('*')
         .eq('class_id', session.class_id)
-        .order('created_at', { ascending: false });
+        .eq('is_published', true)
+        .order('week_number', { ascending: true });
 
-      if (!error && data) {
-         // Merge legacy resources with weekly plans visually later, 
-         // but for compatibility we might just leave this.
-      }
+      if (!error && data) setClassMaterials(data);
     } catch (err) {
-      console.error('Error fetching resources:', err);
+      console.error('Error fetching class_materials:', err);
     } finally {
       setResourcesLoading(false);
     }
+  };
+
+  // 수업 자료 열람 기록 (학생별 1회)
+  const recordMaterialView = async (materialId: string) => {
+    if (!session?.student_id) return;
+    await supabase.from('student_material_views').upsert(
+      { material_id: materialId, student_id: session.student_id },
+      { onConflict: 'material_id,student_id', ignoreDuplicates: true }
+    );
   };
 
   const handleStartEditLog = (log: any) => {
@@ -1536,60 +1544,144 @@ ${guidePrompt}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="p-12 space-y-6 min-h-[400px]"
+                className="p-6 space-y-5 min-h-[400px]"
               >
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-                    <BookOpen size={24} />
+                <div className="flex items-center gap-4">
+                  <div className="w-11 h-11 bg-cyan-100 rounded-2xl flex items-center justify-center text-cyan-600">
+                    <BookOpen size={22} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black font-manrope">수업 자료실</h3>
-                    <p className="text-on-surface-variant text-sm font-bold mt-1">선생님이 공유해주신 참고 자료 링크 모음입니다.</p>
+                    <h3 className="text-xl font-black">수업 자료실</h3>
+                    <p className="text-on-surface-variant text-xs font-bold mt-0.5">선생님이 작성하고 공개한 자료입니다.</p>
                   </div>
                 </div>
 
                 {resourcesLoading ? (
                   <div className="flex items-center justify-center py-20">
-                    <Loader2 size={36} className="animate-spin text-primary" />
+                    <Loader2 size={32} className="animate-spin text-primary" />
                   </div>
-                ) : classResources && classResources.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {classResources.map((res, idx) => (
-                      <a
-                        key={idx}
-                        href={res.url && res.url.startsWith('http') ? res.url : `https://${res.url}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-6 bg-surface-container-low rounded-3xl border border-surface-container hover:border-primary/30 hover:shadow-lg transition-all group flex items-start gap-4 cursor-pointer relative overflow-hidden"
-                      >
-                        <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 group-hover:scale-110 transition-all">
-                          <BookOpen size={100} />
-                        </div>
-                        <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-primary shrink-0 mt-1 relative z-10">
-                          {res.week ? (
-                            <span className="text-xs font-black">{res.week}</span>
-                          ) : (
-                            <BookOpen size={20} />
-                          )}
-                        </div>
-                        <div className="flex-1 overflow-hidden space-y-1 relative z-10">
-                          <p className="font-black text-base truncate group-hover:text-primary transition-colors">
-                            {res.topic || res.title || '수업 자료'}
-                          </p>
-                          <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">{res.url}</p>
-                        </div>
-                        <div className="w-8 h-8 rounded-full bg-surface-container group-hover:bg-primary/10 flex items-center justify-center shrink-0 text-on-surface-variant group-hover:text-primary transition-colors relative z-10">
-                          <ArrowLeft size={14} className="rotate-[135deg]" />
-                        </div>
-                      </a>
+                ) : classMaterials.length > 0 ? (
+                  <div className="space-y-3">
+                    {classMaterials.map(mat => (
+                      <div key={mat.id} className="bg-white rounded-2xl border border-surface-container overflow-hidden hover:border-cyan-200 transition-all">
+                        {/* 자료 헤더 */}
+                        <button
+                          className="w-full flex items-center gap-3 p-4 text-left"
+                          onClick={() => {
+                            const next = expandedMaterialId === mat.id ? null : mat.id;
+                            setExpandedMaterialId(next);
+                            if (next) recordMaterialView(mat.id);
+                          }}
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xs font-black shrink-0">
+                            {mat.week_number}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-sm">{mat.title}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {mat.content && <span className="text-[10px] font-bold text-cyan-600">📝 내용</span>}
+                              {mat.url   && <span className="text-[10px] font-bold text-blue-500">🔗 링크</span>}
+                            </div>
+                          </div>
+                          <ArrowRight
+                            size={16}
+                            className={`shrink-0 text-on-surface-variant transition-transform duration-200 ${
+                              expandedMaterialId === mat.id ? 'rotate-90' : ''
+                            }`}
+                          />
+                        </button>
+
+                        {/* 자료 내용 (확장 시) */}
+                        {expandedMaterialId === mat.id && (
+                          <div className="border-t border-surface-container">
+                            {/* 외부 링크 */}
+                            {mat.url && (
+                              <a
+                                href={mat.url.startsWith('http') ? mat.url : `https://${mat.url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors border-b border-surface-container"
+                              >
+                                <ExternalLink size={14} />
+                                <span className="truncate">{mat.url}</span>
+                              </a>
+                            )}
+                            {/* 마크다운 본문 */}
+                            {mat.content ? (
+                              <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
+                                <ReactMarkdown
+                                  components={{
+                                    h1: ({ children }: any) => <h1 className="text-xl font-black mb-3 mt-4">{children}</h1>,
+                                    h2: ({ children }: any) => <h2 className="text-lg font-black mb-2 mt-3">{children}</h2>,
+                                    h3: ({ children }: any) => <h3 className="text-base font-black mb-2 mt-3">{children}</h3>,
+                                    p: ({ children }: any) => <p className="mb-2.5 text-sm leading-relaxed">{children}</p>,
+                                    ul: ({ children }: any) => <ul className="list-disc pl-5 mb-2.5 space-y-1">{children}</ul>,
+                                    ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-2.5 space-y-1">{children}</ol>,
+                                    li: ({ children }: any) => <li className="text-sm">{children}</li>,
+                                    blockquote: ({ children }: any) => (
+                                      <blockquote className="border-l-4 border-cyan-400 pl-3 italic text-on-surface-variant my-2 bg-cyan-50 py-1.5 rounded-r-lg text-sm">
+                                        {children}
+                                      </blockquote>
+                                    ),
+                                    code: ({ children, className }: any) =>
+                                      className
+                                        ? <code className="block bg-surface-container p-3 rounded-xl text-xs font-mono mb-2 overflow-auto whitespace-pre-wrap">{children}</code>
+                                        : <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>,
+                                    a: ({ href, children }: any) => (
+                                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm hover:opacity-70">{children}</a>
+                                    ),
+                                    img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-xl my-2 shadow-sm" />,
+                                    hr: () => <hr className="border-surface-container my-3" />,
+                                    strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
+                                    em: ({ children }: any) => <em className="italic">{children}</em>,
+                                  }}
+                                >
+                                  {mat.content}
+                                </ReactMarkdown>
+                              </div>
+                            ) : (
+                              <p className="px-5 py-4 text-sm text-on-surface-variant font-bold opacity-50">
+                                작성된 내용이 없습니다. 링크를 참고해 주세요.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
-                    <BookOpen size={64} />
-                    <p className="font-black text-lg">아직 등록된 수업 자료가 없습니다.</p>
-                    <p className="text-sm font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
-                  </div>
+                  /* 마크다운 자료가 없으면 weekly_plan URL 링크 폴백 */
+                  classResources && classResources.length > 0 ? (
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-on-surface-variant opacity-60">주차별 참고 링크</p>
+                      {classResources.filter((r: any) => r.url).map((res: any, idx: number) => (
+                        <a
+                          key={idx}
+                          href={res.url.startsWith('http') ? res.url : `https://${res.url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container hover:border-primary/30 hover:shadow-sm transition-all group"
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
+                            {res.week || <BookOpen size={16} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-sm truncate group-hover:text-primary transition-colors">
+                              {res.topic || res.title || '수업 자료'}
+                            </p>
+                            <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">{res.url}</p>
+                          </div>
+                          <ExternalLink size={14} className="shrink-0 text-on-surface-variant group-hover:text-primary transition-colors" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
+                      <BookOpen size={64} />
+                      <p className="font-black text-lg">아직 등록된 수업 자료가 없습니다.</p>
+                      <p className="text-sm font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
+                    </div>
+                  )
                 )}
               </motion.div>
             )}

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { geminiFlash } from '../../lib/gemini';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GameState = 'LOBBY' | 'QUIZ' | 'RESULT' | 'RANKING' | 'FINAL';
@@ -114,6 +115,15 @@ const QuizGame = () => {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
+  // ── 수업 자료 AI 생성 ──────────────────────────────────────────────────────
+  const [classMaterials, setClassMaterials] = useState<any[]>([]);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
+  const [aiCount, setAiCount] = useState(5);
+  const [aiDifficulty, setAiDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
+
   // ── 초기 로딩 ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (user) fetchClasses();
@@ -156,6 +166,75 @@ const QuizGame = () => {
     setSelectedQuizSet(null);
     setQuestions([]);
     await fetchQuizSets(cls.id);
+    // 수업 자료 로드
+    const { data } = await supabase
+      .from('class_materials')
+      .select('id, week_number, title, content, url')
+      .eq('class_id', cls.id)
+      .eq('is_published', true)
+      .order('week_number', { ascending: true });
+    setClassMaterials(data || []);
+  };
+
+  // 수업 자료 기반 AI 문제 생성
+  const handleAiGenerate = async () => {
+    if (!selectedMaterial || !selectedQuizSet) return;
+    if (!selectedMaterial.content && !selectedMaterial.url) {
+      setAiError('선택한 자료에 내용이 없습니다. 마크다운 내용이 있는 자료를 선택해 주세요.'); return;
+    }
+    setAiGenerating(true); setAiError('');
+    try {
+      const diffLabel = aiDifficulty === 'easy' ? '쉬운' : aiDifficulty === 'medium' ? '보통' : '어려운';
+      const prompt = `다음 수업 자료를 바탕으로 4지선다형 퀴즈 문제를 ${aiCount}개 만들어주세요.
+난이도: ${diffLabel}
+수업 자료:
+${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.title + ')'}
+
+반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만 출력하세요:
+{
+  "questions": [
+    {
+      "text": "문제 내용",
+      "option_1": "선택지1",
+      "option_2": "선택지2",
+      "option_3": "선택지3",
+      "option_4": "선택지4",
+      "correct_answer": 0
+    }
+  ]
+}
+correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
+
+      const result = await geminiFlash.generateContent(prompt);
+      const raw = result.response.text();
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('AI 응답 파싱 실패');
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!parsed.questions || !Array.isArray(parsed.questions)) throw new Error('형식 오류');
+
+      // DB에 문제 삽입
+      const rows = parsed.questions.map((q: any, i: number) => ({
+        quiz_set_id: selectedQuizSet.id,
+        order_index: questions.length + i,
+        text: q.text || '',
+        option_1: q.option_1 || '',
+        option_2: q.option_2 || '',
+        option_3: q.option_3 || '',
+        option_4: q.option_4 || '',
+        correct_answer: q.correct_answer ?? 0,
+        time_limit: 20,
+      }));
+      const { error } = await supabase.from('quiz_questions').insert(rows);
+      if (error) throw error;
+
+      await fetchQuestions(selectedQuizSet.id);
+      setAiModalOpen(false);
+      setSelectedMaterial(null);
+    } catch (err: any) {
+      setAiError(err.message || 'AI 문제 생성 중 오류가 발생했습니다.');
+    } finally {
+      setAiGenerating(false);
+    }
   };
 
   // 퀴즈 세트 선택
@@ -586,6 +665,15 @@ const QuizGame = () => {
             >
               세트 변경
             </button>
+            {/* AI 문제 생성 버튼 (수업 자료가 있을 때) */}
+            {classMaterials.length > 0 && (
+              <button
+                onClick={() => { setAiModalOpen(true); setAiError(''); setSelectedMaterial(null); }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-xs font-black transition-all"
+              >
+                ✨ AI 문제 생성
+              </button>
+            )}
             <button
               onClick={() => {
                 setShowQuestionForm(true);
@@ -601,6 +689,97 @@ const QuizGame = () => {
             </button>
           </div>
         </div>
+
+        {/* AI 문제 생성 모달 */}
+        {aiModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-3xl p-6 shadow-2xl w-96 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-base">✨ 수업 자료로 AI 문제 생성</h3>
+                <button onClick={() => setAiModalOpen(false)} className="p-1.5 rounded-lg hover:bg-surface-container transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* 자료 선택 */}
+              <div className="space-y-2">
+                <p className="text-xs font-black text-on-surface-variant">수업 자료 선택</p>
+                <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                  {classMaterials.map(mat => (
+                    <button
+                      key={mat.id}
+                      onClick={() => setSelectedMaterial(mat)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                        selectedMaterial?.id === mat.id
+                          ? 'border-violet-400 bg-violet-50'
+                          : 'border-surface-container hover:border-violet-200'
+                      }`}
+                    >
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
+                        selectedMaterial?.id === mat.id ? 'bg-violet-500 text-white' : 'bg-surface-container text-on-surface-variant'
+                      }`}>
+                        {mat.week_number}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm truncate">{mat.title}</p>
+                        {!mat.content && <p className="text-[10px] text-amber-500 font-bold">내용 없음 (링크만)</p>}
+                      </div>
+                      {selectedMaterial?.id === mat.id && <Check size={14} className="text-violet-500 shrink-0" strokeWidth={3} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 문제 수 + 난이도 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-black text-on-surface-variant">문제 수</p>
+                  <select
+                    value={aiCount}
+                    onChange={e => setAiCount(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 bg-surface-container rounded-xl text-sm font-bold focus:outline-none"
+                  >
+                    {[3, 5, 7, 10].map(n => <option key={n} value={n}>{n}문제</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-black text-on-surface-variant">난이도</p>
+                  <div className="flex gap-1">
+                    {(['easy', 'medium', 'hard'] as const).map(d => (
+                      <button
+                        key={d}
+                        onClick={() => setAiDifficulty(d)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                          aiDifficulty === d
+                            ? d === 'easy' ? 'bg-emerald-500 text-white' : d === 'medium' ? 'bg-amber-500 text-white' : 'bg-red-500 text-white'
+                            : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-low'
+                        }`}
+                      >
+                        {d === 'easy' ? '쉬움' : d === 'medium' ? '보통' : '어려움'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {aiError && (
+                <p className="text-xs font-bold text-red-500 bg-red-50 px-3 py-2 rounded-xl">{aiError}</p>
+              )}
+
+              <button
+                onClick={handleAiGenerate}
+                disabled={!selectedMaterial || aiGenerating}
+                className="w-full py-3 bg-violet-500 hover:bg-violet-600 text-white rounded-2xl font-black text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {aiGenerating ? (
+                  <><RefreshCw size={15} className="animate-spin" /> 문제 생성 중...</>
+                ) : (
+                  <>✨ {aiCount}문제 생성하기</>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 문제 목록 */}
         <div className="space-y-3">
