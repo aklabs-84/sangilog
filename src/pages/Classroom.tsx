@@ -17,7 +17,14 @@ import {
   Link2,
   ArrowRight,
   Plus,
-  ClipboardList
+  ClipboardList,
+  Users2,
+  Maximize2,
+  StickyNote,
+  RefreshCw,
+  ExternalLink,
+  File,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -59,7 +66,12 @@ const Classroom = () => {
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance' | 'board'>('list');
+  // 보드 탭 state
+  const [boardPosts, setBoardPosts] = useState<any[]>([]);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
+  const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
   
   // 아카이브 관련 상태
@@ -853,6 +865,35 @@ const Classroom = () => {
     }
   };
 
+  const fetchBoard = async (classId: string) => {
+    setBoardLoading(true);
+    try {
+      const [{ data: obs }, { data: results }] = await Promise.all([
+        supabase
+          .from('weekly_observations')
+          .select('id, student_id, student_name, activity_name, content, feeling, created_at, week_number, status')
+          .eq('class_id', classId)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('activity_results')
+          .select('id, student_id, student_name, week_number, title, text_content, image_url, file_url, display_name, link_url, created_at, status')
+          .eq('class_id', classId)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false }),
+      ]);
+      const obsPosts = (obs || []).map(o => ({ ...o, _type: 'obs' as const }));
+      const resPosts = (results || []).map(r => ({ ...r, _type: 'result' as const }));
+      setBoardPosts([...obsPosts, ...resPosts].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ));
+    } catch (err) {
+      console.error('fetchBoard error:', err);
+    } finally {
+      setBoardLoading(false);
+    }
+  };
+
   const fetchResources = async (classId: string) => {
     try {
       const { data, error } = await supabase
@@ -981,13 +1022,17 @@ const Classroom = () => {
                 ] : []),
                 { id: 'units', label: '단원 관리', icon: BookOpen },
                 { id: 'attendance', label: '출석 체크', icon: ClipboardList },
+                { id: 'board', label: '우리반 보드', icon: Users2 },
                 { id: 'ai', label: 'AI 분석 인사이트', icon: Sparkles }
               ].map((tab) => {
                 const isActive = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance')}
+                    onClick={() => {
+                      setActiveTab(tab.id as 'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance' | 'board');
+                      if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);
+                    }}
                     className={`
                       relative z-10 flex items-center gap-3 px-8 py-4 rounded-[2rem] font-black text-sm transition-all duration-500 whitespace-nowrap
                       ${isActive ? 'text-surface' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/30'}
@@ -1120,6 +1165,168 @@ const Classroom = () => {
                        명단 데이터를 기반으로 분석된 실시간 결과입니다.
                      </p>
                   )}
+                </div>
+              )}
+
+              {activeTab === 'board' && activeClassId && (
+                <div>
+                  {/* 보드 헤더 */}
+                  <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-100 flex items-center justify-center">
+                        <Users2 size={20} className="text-indigo-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black">우리반 보드</h2>
+                        <p className="text-xs text-on-surface-variant font-bold">승인된 관찰기록·결과를 한눈에</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => activeClassId && fetchBoard(activeClassId)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 font-black text-xs hover:bg-indigo-100 transition-all"
+                      >
+                        <RefreshCw size={13} /> 새로고침
+                      </button>
+                      <button
+                        onClick={() => window.open(`/board/${activeClassId}`, '_blank')}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white font-black text-xs hover:bg-indigo-700 transition-all shadow-sm"
+                      >
+                        <Maximize2 size={13} /> 전체화면
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 필터 바 */}
+                  <div className="flex items-center gap-3 mb-8 flex-wrap">
+                    <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+                      {[
+                        { key: 'all', label: '전체' },
+                        { key: 'obs', label: '📝 관찰기록' },
+                        { key: 'result', label: '📁 결과' },
+                      ].map(f => (
+                        <button
+                          key={f.key}
+                          onClick={() => setBoardTypeFilter(f.key as any)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                            boardTypeFilter === f.key ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto">
+                      <button
+                        onClick={() => setBoardWeekFilter('all')}
+                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                          boardWeekFilter === 'all' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
+                        }`}
+                      >
+                        전체 주차
+                      </button>
+                      {Array.from(new Set(boardPosts.map(p => p.week_number).filter(Boolean))).sort((a, b) => a - b).map(w => (
+                        <button
+                          key={w}
+                          onClick={() => setBoardWeekFilter(w)}
+                          className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                            boardWeekFilter === w ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
+                          }`}
+                        >
+                          {w}주차
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 보드 콘텐츠 */}
+                  {boardLoading ? (
+                    <div className="flex items-center justify-center py-24">
+                      <Loader2 size={32} className="animate-spin text-indigo-400" />
+                    </div>
+                  ) : (() => {
+                    const filtered = boardPosts.filter(p => {
+                      if (boardTypeFilter !== 'all' && p._type !== boardTypeFilter) return false;
+                      if (boardWeekFilter !== 'all' && p.week_number !== boardWeekFilter) return false;
+                      return true;
+                    });
+                    if (filtered.length === 0) return (
+                      <div className="flex flex-col items-center py-24 space-y-4">
+                        <div className="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center">
+                          <StickyNote size={36} className="text-indigo-200" />
+                        </div>
+                        <p className="font-black text-on-surface opacity-40">아직 승인된 게시물이 없어요</p>
+                        <p className="text-sm text-on-surface-variant/50 font-bold">학생 제출물을 승인하면 보드에 나타납니다</p>
+                      </div>
+                    );
+                    return (
+                      <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4">
+                        {filtered.map(post => {
+                          const isObs = post._type === 'obs';
+                          return (
+                            <motion.div
+                              key={`${post._type}-${post.id}`}
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className={`break-inside-avoid rounded-3xl border-2 p-5 space-y-3 ${
+                                isObs ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[11px] font-black shrink-0 ${
+                                    isObs ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+                                  }`}>
+                                    {isObs ? '📝' : '📁'}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-black truncate">{post.student_name}</p>
+                                    <p className="text-[10px] text-on-surface-variant font-bold">
+                                      {post.week_number ? `${post.week_number}주차 · ` : ''}{new Date(post.created_at).toLocaleDateString('ko-KR')}
+                                    </p>
+                                  </div>
+                                </div>
+                                <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                  isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
+                                }`}>
+                                  {isObs ? '관찰기록' : '결과'}
+                                </span>
+                              </div>
+                              <div className="space-y-1.5">
+                                <p className="text-sm font-black leading-snug line-clamp-2">
+                                  {isObs ? post.activity_name : post.title}
+                                </p>
+                                {isObs && post.content && (
+                                  <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.content}</p>
+                                )}
+                                {isObs && post.feeling && (
+                                  <p className="text-[11px] text-on-surface-variant/60 font-bold italic line-clamp-2">💬 {post.feeling}</p>
+                                )}
+                                {!isObs && post.text_content && (
+                                  <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.text_content}</p>
+                                )}
+                                {!isObs && post.image_url && (
+                                  <img src={post.image_url} alt="" className="w-full rounded-xl object-cover max-h-40" loading="lazy" />
+                                )}
+                                {!isObs && post.link_url && (
+                                  <a href={post.link_url} target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-1.5 text-xs font-black text-blue-600 hover:underline">
+                                    <ExternalLink size={11} /><span className="truncate">{post.link_url}</span>
+                                  </a>
+                                )}
+                                {!isObs && post.file_url && (
+                                  <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
+                                    <File size={13} className="text-amber-500 shrink-0" />
+                                    <span className="text-xs font-black text-amber-700 truncate">{post.display_name || '파일'}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

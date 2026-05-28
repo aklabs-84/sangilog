@@ -16,6 +16,7 @@ import StudentView from './pages/StudentView';
 import TeachingTools from './pages/TeachingTools';
 import SuggestionsPage from './pages/SuggestionsPage';
 import QuizStudentView from './pages/QuizStudentView';
+import ClassBoard from './pages/ClassBoard';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -60,6 +61,7 @@ function App() {
               <Route path="/student-log" element={<StudentLog />} />
               <Route path="/quiz/:pin" element={<QuizStudentView />} />
               <Route path="/quiz" element={<QuizStudentView />} />
+              <Route path="/board/:classId" element={<ProtectedRoute><ClassBoard /></ProtectedRoute>} />
               
               <Route 
                 element={
