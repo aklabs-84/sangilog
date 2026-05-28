@@ -422,9 +422,16 @@ const StudentLog = () => {
     setResultTitle(result.title || '');
     setResultText(result.text_content || '');
     setResultUrl(result.link_url || '');
-    setResultImageFile(null); setResultFileUpload(null); setImagePreview(null);
+    setResultImageFile(null); setResultFileUpload(null);
     if (resultImageInputRef.current) resultImageInputRef.current.value = '';
     if (resultFileInputRef.current) resultFileInputRef.current.value = '';
+    // 기존 이미지가 있으면 스토리지에서 공개 URL 불러와 미리보기 세팅
+    if (result.result_type === 'image' && result.storage_path) {
+      const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
+      setImagePreview(data.publicUrl);
+    } else {
+      setImagePreview(null);
+    }
     resultFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -1626,10 +1633,12 @@ ${guidePrompt}
                         {imagePreview ? (
                           <div>
                             <img src={imagePreview} alt="preview" className="max-h-36 mx-auto rounded-xl object-contain" />
-                            <p className="text-xs font-bold text-emerald-600 mt-2">{resultImageFile?.name}</p>
+                            <p className="text-xs font-bold text-emerald-600 mt-2">
+                              {resultImageFile
+                                ? resultImageFile.name
+                                : (editingResult?.display_name || '현재 이미지') + ' — 새 이미지 선택 시 교체'}
+                            </p>
                           </div>
-                        ) : editingResult?.result_type === 'image' && editingResult.storage_path ? (
-                          <p className="text-xs font-bold text-emerald-600">현재 파일 유지 (새 파일 선택 시 교체)</p>
                         ) : (
                           <div className="flex items-center justify-center gap-3">
                             <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
@@ -1667,7 +1676,15 @@ ${guidePrompt}
                             </div>
                           </div>
                         ) : editingResult?.result_type === 'file' && editingResult.storage_path ? (
-                          <p className="text-xs font-bold text-amber-600 text-center">현재 파일 유지 (새 파일 선택 시 교체)</p>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                              <File size={18} className="text-amber-500" />
+                            </div>
+                            <div>
+                              <p className="font-black text-sm text-amber-700">{editingResult.display_name || '현재 파일'}</p>
+                              <p className="text-xs font-bold text-amber-400">새 파일 선택 시 교체됩니다</p>
+                            </div>
+                          </div>
                         ) : (
                           <div className="flex items-center justify-center gap-3">
                             <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center group-hover:bg-amber-200 transition-colors">
