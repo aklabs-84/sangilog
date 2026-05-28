@@ -59,7 +59,7 @@ const ClassBoard = () => {
           .select('id, student_id, activity_name, content, created_at, status')
           .in('student_id', studentIds)
           .eq('is_student_record', true)
-          .in('status', ['approved', 'pending'])
+          .eq('status', 'approved')
           .order('created_at', { ascending: false })
           .limit(150),
         supabase
