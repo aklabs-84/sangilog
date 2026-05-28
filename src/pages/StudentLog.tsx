@@ -78,6 +78,7 @@ const StudentLog = () => {
   const resultImageInputRef = useRef<HTMLInputElement | null>(null);
   const resultFileInputRef = useRef<HTMLInputElement | null>(null);
   const [editingResult, setEditingResult] = useState<any>(null);
+  const [editingGroupResults, setEditingGroupResults] = useState<any[]>([]);
   const resultFormRef = useRef<HTMLDivElement | null>(null);
   const [filterWeek, setFilterWeek] = useState<number | null>(null);
   const [detailItem, setDetailItem] = useState<any>(null);
@@ -322,7 +323,7 @@ const StudentLog = () => {
   const resetResultForm = () => {
     setResultTitle(''); setResultText(''); setResultUrl('');
     setResultImageFile(null); setResultFileUpload(null); setImagePreview(null);
-    setEditingResult(null);
+    setEditingResult(null); setEditingGroupResults([]);
     if (resultImageInputRef.current) resultImageInputRef.current.value = '';
     if (resultFileInputRef.current) resultFileInputRef.current.value = '';
   };
@@ -338,28 +339,89 @@ const StudentLog = () => {
   const handleSubmitResult = async () => {
     if (!session?.student_id || !session?.class_id) return;
 
-    // 수정 모드: 단일 항목 업데이트
+    // 수정 모드: 그룹 전체 업데이트
     if (editingResult) {
-      const type = editingResult.result_type;
-      if (type === 'text' && !resultText.trim()) { showToast('내용을 입력해주세요.', 'error'); return; }
-      if (type === 'link' && !resultUrl.trim()) { showToast('링크를 입력해주세요.', 'error'); return; }
+      const hasText  = resultText.trim() !== '';
+      const hasLink  = resultUrl.trim() !== '';
+      const hasImage = resultImageFile !== null;
+      const hasFile  = resultFileUpload !== null;
+      const keepImg  = imagePreview !== null && !hasImage; // 기존 이미지 유지 여부
+
       setResultSubmitting(true);
       try {
-        let payload: any = { title: resultTitle.trim() || null };
-        if (type === 'text') payload.text_content = resultText.trim();
-        if (type === 'link') payload.link_url = resultUrl.trim();
-        if (type === 'image' && resultImageFile) {
-          if (editingResult.storage_path) await supabase.storage.from('student-attachments').remove([editingResult.storage_path]);
-          const up = await uploadFile(resultImageFile, 'image');
-          payload = { ...payload, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType };
+        const groupId = editingResult.submission_group || crypto.randomUUID();
+        const base = {
+          student_id:       editingResult.student_id,
+          class_id:         editingResult.class_id,
+          week_number:      editingResult.week_number,
+          submission_group: groupId,
+          title:            resultTitle.trim() || null,
+        };
+
+        const existingText  = editingGroupResults.find((r: any) => r.result_type === 'text');
+        const existingLink  = editingGroupResults.find((r: any) => r.result_type === 'link');
+        const existingImage = editingGroupResults.find((r: any) => r.result_type === 'image');
+        const existingFile  = editingGroupResults.find((r: any) => r.result_type === 'file');
+
+        // ── 텍스트 ──
+        if (hasText) {
+          if (existingText) {
+            const { error } = await supabase.from('student_results').update({ title: base.title, text_content: resultText.trim() }).eq('id', existingText.id);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'text', text_content: resultText.trim() });
+            if (error) throw error;
+          }
+        } else if (existingText) {
+          // 텍스트 비움 → 삭제
+          await supabase.from('student_results').delete().eq('id', existingText.id);
         }
-        if (type === 'file' && resultFileUpload) {
-          if (editingResult.storage_path) await supabase.storage.from('student-attachments').remove([editingResult.storage_path]);
-          const up = await uploadFile(resultFileUpload, 'file');
-          payload = { ...payload, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType };
+
+        // ── 링크 ──
+        if (hasLink) {
+          if (existingLink) {
+            const { error } = await supabase.from('student_results').update({ title: base.title, link_url: resultUrl.trim() }).eq('id', existingLink.id);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'link', link_url: resultUrl.trim() });
+            if (error) throw error;
+          }
+        } else if (existingLink) {
+          await supabase.from('student_results').delete().eq('id', existingLink.id);
         }
-        const { error } = await supabase.from('student_results').update(payload).eq('id', editingResult.id);
-        if (error) throw error;
+
+        // ── 이미지 ──
+        if (hasImage) {
+          if (existingImage?.storage_path) await supabase.storage.from('student-attachments').remove([existingImage.storage_path]);
+          const up = await uploadFile(resultImageFile!, 'image');
+          if (existingImage) {
+            const { error } = await supabase.from('student_results').update({ title: base.title, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }).eq('id', existingImage.id);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'image', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
+            if (error) throw error;
+          }
+        } else if (existingImage && keepImg) {
+          // 기존 이미지 유지 — title만 반영
+          await supabase.from('student_results').update({ title: base.title }).eq('id', existingImage.id);
+        }
+
+        // ── 파일 ──
+        if (hasFile) {
+          if (existingFile?.storage_path) await supabase.storage.from('student-attachments').remove([existingFile.storage_path]);
+          const up = await uploadFile(resultFileUpload!, 'file');
+          if (existingFile) {
+            const { error } = await supabase.from('student_results').update({ title: base.title, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }).eq('id', existingFile.id);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'file', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
+            if (error) throw error;
+          }
+        } else if (existingFile) {
+          // 기존 파일 유지 — title만 반영
+          await supabase.from('student_results').update({ title: base.title }).eq('id', existingFile.id);
+        }
+
         resetResultForm();
         await fetchResults();
         showToast('수정되었습니다! ✅');
@@ -417,21 +479,40 @@ const StudentLog = () => {
     finally { setResultSubmitting(false); }
   };
 
-  const handleEditResult = (result: any) => {
+  const handleEditResult = async (result: any) => {
     setEditingResult(result);
     setResultTitle(result.title || '');
-    setResultText(result.text_content || '');
-    setResultUrl(result.link_url || '');
-    setResultImageFile(null); setResultFileUpload(null);
+    setResultImageFile(null); setResultFileUpload(null); setImagePreview(null);
     if (resultImageInputRef.current) resultImageInputRef.current.value = '';
     if (resultFileInputRef.current) resultFileInputRef.current.value = '';
-    // 기존 이미지가 있으면 스토리지에서 공개 URL 불러와 미리보기 세팅
-    if (result.result_type === 'image' && result.storage_path) {
-      const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
-      setImagePreview(data.publicUrl);
-    } else {
-      setImagePreview(null);
+
+    // submission_group으로 같은 그룹의 모든 row 조회
+    let groupResults: any[] = [result];
+    if (result.submission_group) {
+      const { data } = await supabase
+        .from('student_results')
+        .select('*')
+        .eq('submission_group', result.submission_group);
+      if (data && data.length > 0) groupResults = data;
     }
+    setEditingGroupResults(groupResults);
+
+    // 각 타입별 pre-populate
+    const textRow  = groupResults.find((r: any) => r.result_type === 'text');
+    const linkRow  = groupResults.find((r: any) => r.result_type === 'link');
+    const imageRow = groupResults.find((r: any) => r.result_type === 'image');
+
+    setResultText(textRow?.text_content || '');
+    setResultUrl(linkRow?.link_url || '');
+
+    if (imageRow?.storage_path) {
+      const { data } = supabase.storage.from('student-attachments').getPublicUrl(imageRow.storage_path);
+      setImagePreview(data.publicUrl);
+    }
+
+    // 수정 중인 주차 고정
+    setSelectedWeek(result.week_number || null);
+
     resultFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -1545,7 +1626,9 @@ ${guidePrompt}
 
                 {/* ── 주차 선택 ── */}
                 <div ref={resultFormRef} className="space-y-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">주차 선택 *</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">
+                    주차 선택 {editingResult ? '' : '*'}
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {(classResources.length > 0
                       ? classResources.map((r: any) => ({ week: r.week, label: `${r.week}주차${r.topic ? `: ${r.topic}` : ''}` }))
@@ -1553,12 +1636,12 @@ ${guidePrompt}
                     ).map(({ week, label }) => (
                       <button
                         key={week}
-                        onClick={() => setSelectedWeek(week)}
+                        onClick={() => { if (!editingResult) setSelectedWeek(week); }}
                         className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${
                           selectedWeek === week
                             ? 'bg-primary text-white border-primary shadow-md'
                             : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
-                        }`}
+                        } ${editingResult ? 'opacity-60 cursor-not-allowed' : ''}`}
                       >
                         {label}
                       </button>
@@ -1569,9 +1652,14 @@ ${guidePrompt}
                 {/* ── 수정 중 배너 ── */}
                 {editingResult && (
                   <div className="flex items-center justify-between px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl">
-                    <p className="text-sm font-black text-amber-700">
-                      {editingResult.result_type === 'text' ? '텍스트' : editingResult.result_type === 'link' ? '링크' : editingResult.result_type === 'image' ? '이미지' : '파일'} 항목 수정 중
-                    </p>
+                    <div>
+                      <p className="text-sm font-black text-amber-700">
+                        ✏️ {editingResult.week_number}주차 결과물 수정 중
+                      </p>
+                      <p className="text-xs font-bold text-amber-500 mt-0.5">
+                        항목을 추가하거나 내용을 수정할 수 있습니다
+                      </p>
+                    </div>
                     <button onClick={resetResultForm} className="text-xs font-black text-amber-500 hover:text-amber-700 flex items-center gap-1">
                       <X size={14} /> 취소
                     </button>
@@ -1589,103 +1677,104 @@ ${guidePrompt}
                   />
 
                   {/* 텍스트 */}
-                  {(!editingResult || editingResult.result_type === 'text') && (
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-2 text-[11px] font-black text-primary/70 uppercase tracking-widest">
-                        <AlignLeft size={13} /> 텍스트
-                      </label>
-                      <textarea
-                        value={resultText}
-                        onChange={e => setResultText(e.target.value)}
-                        placeholder="수업 내용, 느낀 점 등을 자유롭게 작성하세요..."
-                        rows={4}
-                        className="w-full p-5 bg-white rounded-2xl font-bold text-sm leading-relaxed focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all"
-                      />
-                    </div>
-                  )}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-2 text-[11px] font-black text-primary/70 uppercase tracking-widest">
+                      <AlignLeft size={13} /> 텍스트
+                    </label>
+                    <textarea
+                      value={resultText}
+                      onChange={e => setResultText(e.target.value)}
+                      placeholder="수업 내용, 느낀 점 등을 자유롭게 작성하세요..."
+                      rows={4}
+                      className="w-full p-5 bg-white rounded-2xl font-bold text-sm leading-relaxed focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all"
+                    />
+                  </div>
 
                   {/* 링크 */}
-                  {(!editingResult || editingResult.result_type === 'link') && (
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-2 text-[11px] font-black text-blue-500/80 uppercase tracking-widest">
-                        <Link2 size={13} /> 링크
-                      </label>
-                      <input
-                        type="url"
-                        value={resultUrl}
-                        onChange={e => setResultUrl(e.target.value)}
-                        placeholder="https://..."
-                        className="w-full px-5 py-3.5 bg-white rounded-2xl font-bold text-sm focus:outline-none focus:ring-4 focus:ring-blue-100 border-2 border-transparent focus:border-blue-300 transition-all"
-                      />
-                    </div>
-                  )}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-2 text-[11px] font-black text-blue-500/80 uppercase tracking-widest">
+                      <Link2 size={13} /> 링크
+                    </label>
+                    <input
+                      type="url"
+                      value={resultUrl}
+                      onChange={e => setResultUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-5 py-3.5 bg-white rounded-2xl font-bold text-sm focus:outline-none focus:ring-4 focus:ring-blue-100 border-2 border-transparent focus:border-blue-300 transition-all"
+                    />
+                  </div>
 
                   {/* 이미지 */}
-                  {(!editingResult || editingResult.result_type === 'image') && (
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-2 text-[11px] font-black text-emerald-600/80 uppercase tracking-widest">
-                        <ImageIcon size={13} /> 이미지
-                      </label>
-                      <div
-                        onClick={() => resultImageInputRef.current?.click()}
-                        className="border-2 border-dashed border-emerald-200 rounded-2xl p-6 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-all text-center group"
-                      >
-                        {imagePreview ? (
-                          <div>
-                            <img src={imagePreview} alt="preview" className="max-h-36 mx-auto rounded-xl object-contain" />
-                            <p className="text-xs font-bold text-emerald-600 mt-2">
-                              {resultImageFile
-                                ? resultImageFile.name
-                                : (editingResult?.display_name || '현재 이미지') + ' — 새 이미지 선택 시 교체'}
-                            </p>
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-2 text-[11px] font-black text-emerald-600/80 uppercase tracking-widest">
+                      <ImageIcon size={13} /> 이미지
+                    </label>
+                    <div
+                      onClick={() => resultImageInputRef.current?.click()}
+                      className="border-2 border-dashed border-emerald-200 rounded-2xl p-6 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-all text-center group"
+                    >
+                      {imagePreview ? (
+                        <div>
+                          <img src={imagePreview} alt="preview" className="max-h-36 mx-auto rounded-xl object-contain" />
+                          <p className="text-xs font-bold text-emerald-600 mt-2">
+                            {resultImageFile
+                              ? resultImageFile.name
+                              : (editingGroupResults.find((r: any) => r.result_type === 'image')?.display_name || '현재 이미지') + ' — 새 이미지 선택 시 교체'}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-3">
+                          <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
+                            <ImageIcon size={20} className="text-emerald-500" />
                           </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-3">
-                            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
-                              <ImageIcon size={20} className="text-emerald-500" />
-                            </div>
-                            <div className="text-left">
-                              <p className="font-black text-emerald-600 text-sm">이미지 선택</p>
-                              <p className="text-xs font-bold text-emerald-400">JPG, PNG, GIF, WEBP (최대 20MB)</p>
-                            </div>
+                          <div className="text-left">
+                            <p className="font-black text-emerald-600 text-sm">이미지 선택</p>
+                            <p className="text-xs font-bold text-emerald-400">JPG, PNG, GIF, WEBP (최대 20MB)</p>
                           </div>
-                        )}
-                      </div>
-                      <input ref={resultImageInputRef} type="file" className="hidden" accept="image/*" onChange={handleImageFileSelect} />
+                        </div>
+                      )}
                     </div>
-                  )}
+                    <input ref={resultImageInputRef} type="file" className="hidden" accept="image/*" onChange={handleImageFileSelect} />
+                  </div>
 
                   {/* 파일 */}
-                  {(!editingResult || editingResult.result_type === 'file') && (
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-2 text-[11px] font-black text-amber-600/80 uppercase tracking-widest">
-                        <File size={13} /> 파일
-                      </label>
-                      <div
-                        onClick={() => resultFileInputRef.current?.click()}
-                        className="border-2 border-dashed border-amber-200 rounded-2xl p-6 cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 transition-all group"
-                      >
-                        {resultFileUpload ? (
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-                              <File size={18} className="text-amber-500" />
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-2 text-[11px] font-black text-amber-600/80 uppercase tracking-widest">
+                      <File size={13} /> 파일
+                    </label>
+                    <div
+                      onClick={() => resultFileInputRef.current?.click()}
+                      className="border-2 border-dashed border-amber-200 rounded-2xl p-6 cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 transition-all group"
+                    >
+                      {(() => {
+                        const existingFile = editingGroupResults.find((r: any) => r.result_type === 'file');
+                        if (resultFileUpload) {
+                          return (
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                                <File size={18} className="text-amber-500" />
+                              </div>
+                              <div>
+                                <p className="font-black text-sm">{resultFileUpload.name}</p>
+                                <p className="text-xs font-bold text-amber-500">{formatFileSize(resultFileUpload.size)}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-black text-sm">{resultFileUpload.name}</p>
-                              <p className="text-xs font-bold text-amber-500">{formatFileSize(resultFileUpload.size)}</p>
+                          );
+                        }
+                        if (editingResult && existingFile?.storage_path) {
+                          return (
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                                <File size={18} className="text-amber-500" />
+                              </div>
+                              <div>
+                                <p className="font-black text-sm text-amber-700">{existingFile.display_name || '현재 파일'}</p>
+                                <p className="text-xs font-bold text-amber-400">새 파일 선택 시 교체됩니다</p>
+                              </div>
                             </div>
-                          </div>
-                        ) : editingResult?.result_type === 'file' && editingResult.storage_path ? (
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-                              <File size={18} className="text-amber-500" />
-                            </div>
-                            <div>
-                              <p className="font-black text-sm text-amber-700">{editingResult.display_name || '현재 파일'}</p>
-                              <p className="text-xs font-bold text-amber-400">새 파일 선택 시 교체됩니다</p>
-                            </div>
-                          </div>
-                        ) : (
+                          );
+                        }
+                        return (
                           <div className="flex items-center justify-center gap-3">
                             <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center group-hover:bg-amber-200 transition-colors">
                               <Upload size={18} className="text-amber-500" />
@@ -1695,11 +1784,11 @@ ${guidePrompt}
                               <p className="text-xs font-bold text-amber-400">모든 파일 형식 (최대 20MB)</p>
                             </div>
                           </div>
-                        )}
-                      </div>
-                      <input ref={resultFileInputRef} type="file" className="hidden" accept="*" onChange={handleUploadFileSelect} />
+                        );
+                      })()}
                     </div>
-                  )}
+                    <input ref={resultFileInputRef} type="file" className="hidden" accept="*" onChange={handleUploadFileSelect} />
+                  </div>
                 </div>
 
                 <button
