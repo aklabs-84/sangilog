@@ -106,13 +106,14 @@ const HomeroomDashboard = ({
 
   const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
 
-  const getSubmittedOnWeek = (week: number | null): Set<string> => {
+  const _getSubmittedOnWeek = (week: number | null): Set<string> => {
     if (week === null) return new Set();
     const weekTopic = weeklyPlan.find(p => p.week === week)?.topic;
     const resultIds = rawResults.filter(r => r.week_number === week).map(r => r.student_id);
     const obsIds = weekTopic ? rawObs.filter(r => norm(r.activity_name) === norm(weekTopic)).map(r => r.student_id) : [];
     return new Set([...resultIds, ...obsIds]);
   };
+  void _getSubmittedOnWeek;
 
   const getObsOnWeek = (week: number | null): Set<string> => {
     if (week === null) return new Set();

@@ -142,7 +142,7 @@ const SubjectDashboard = ({
   };
 
   // 주차별 제출 학생 ID 집합 (결과제출 + 관찰기록 합산 — 주차 칩 카운트용)
-  const getSubmittedOnWeek = (week: number | null): Set<string> => {
+  const _getSubmittedOnWeek = (week: number | null): Set<string> => {
     if (week === null) return new Set();
     const topics = getTopicsForWeek(week);
     const resultIds = rawResults.filter(r => r.week_number === week).map(r => r.student_id);
@@ -151,6 +151,7 @@ const SubjectDashboard = ({
       : [];
     return new Set([...resultIds, ...obsIds]);
   };
+  void _getSubmittedOnWeek;
 
   // 테이블용 — 관찰기록 / 결과제출 각각 분리
   const getObsOnWeek = (week: number | null): Set<string> => {

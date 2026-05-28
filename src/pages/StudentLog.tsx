@@ -37,6 +37,10 @@ import {
   Gamepad2,
   Play,
   RefreshCw,
+  MoreHorizontal,
+  Users2,
+  StickyNote,
+  Heart,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { geminiFlash } from '../lib/gemini';
@@ -49,7 +53,8 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'board'>('home');
+  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const [selectedHomeWeek, setSelectedHomeWeek] = useState<number | null>(null);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
@@ -136,6 +141,13 @@ const StudentLog = () => {
   // Quiz Tab States
   const [activeQuizSessions, setActiveQuizSessions] = useState<any[]>([]);
   const [quizLoading, setQuizLoading] = useState(false);
+
+  // Board Tab States
+  const [boardPosts, setBoardPosts] = useState<any[]>([]);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
+  const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
+  const [boardLikes, setBoardLikes] = useState<Record<string, boolean>>({}); // postId → liked
 
   useEffect(() => {
     const sessionData = sessionStorage.getItem('student_session');
@@ -780,14 +792,48 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz') => {
+  const fetchBoard = async () => {
+    if (!session?.class_id) return;
+    setBoardLoading(true);
+    try {
+      // 관찰기록 조회
+      const { data: obs } = await supabase
+        .from('weekly_observations')
+        .select('id, student_id, student_name, activity_name, content, feeling, created_at, week_number, status')
+        .eq('class_id', session.class_id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+      // 결과제출 조회
+      const { data: results } = await supabase
+        .from('activity_results')
+        .select('id, student_id, student_name, week_number, title, text_content, image_url, file_url, display_name, link_url, created_at, status')
+        .eq('class_id', session.class_id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+      const obsPosts = (obs || []).map(o => ({ ...o, _type: 'obs' as const }));
+      const resultPosts = (results || []).map(r => ({ ...r, _type: 'result' as const }));
+      setBoardPosts([...obsPosts, ...resultPosts].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ));
+    } catch (err) {
+      console.error('fetchBoard error:', err);
+    } finally {
+      setBoardLoading(false);
+    }
+  };
+
+  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'board') => {
     setActiveTab(tab);
+    setIsMoreSheetOpen(false);
     if (tab === 'history') { fetchHistory(); fetchResults(); }
     if (tab === 'materials') fetchResources();
     if (tab === 'results') fetchResults();
     if (tab === 'unit') fetchPendingUnits();
     if (tab === 'suggestions') fetchSuggestions();
     if (tab === 'quiz') fetchActiveQuizSessions();
+    if (tab === 'board') fetchBoard();
   };
 
   const formatRelativeTime = (dateStr: string) => {
@@ -917,7 +963,7 @@ ${guidePrompt}
   }
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col p-6">
+    <div className="min-h-screen bg-surface flex flex-col p-6 pb-28">
       {/* Top Navbar */}
       <header className="flex items-center justify-between px-6 py-4 mb-4">
         <div className="flex items-center gap-3">
@@ -978,85 +1024,28 @@ ${guidePrompt}
         </div>
 
         {/* Main Card with Tabs */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           className="surface-card rounded-[3.5rem] shadow-ambient overflow-hidden border border-surface-container-highest"
         >
-          {/* Tab Bar */}
-          <div className="border-b-2 border-slate-200 bg-gradient-to-b from-slate-100 to-slate-50">
-            {/* 탭 그리드 */}
-            <div className="px-6 pt-5 pb-4">
-              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-                {[
-                  { key: 'home' as const,         icon: LayoutDashboard, label: '홈',         desc: '오늘 할 일',        activeIcon: 'bg-primary/10 text-primary',   activeBg: 'bg-white border-primary/40 shadow-md', activeText: 'text-primary' },
-                  { key: 'record' as const,        icon: MessageSquare,   label: '관찰 기록',  desc: '오늘 활동 제출',   activeIcon: 'bg-violet-100 text-violet-600', activeBg: 'bg-white border-violet-400 shadow-md', activeText: 'text-violet-700' },
-                  { key: 'history' as const,       icon: History,         label: '나의 기록',  desc: '내 기록 이력',     activeIcon: 'bg-blue-100 text-blue-600',    activeBg: 'bg-white border-blue-400 shadow-md',   activeText: 'text-blue-700' },
-                  { key: 'unit' as const,          icon: ClipboardList,   label: '단원 마무리',desc: '단원 서식 작성',   activeIcon: 'bg-amber-100 text-amber-600', activeBg: 'bg-white border-amber-400 shadow-md',  activeText: 'text-amber-700', badge: unitPendingCount },
-                  { key: 'results' as const,       icon: FolderOpen,      label: '결과 제출',  desc: '결과물 올리기',    activeIcon: 'bg-emerald-100 text-emerald-600', activeBg: 'bg-white border-emerald-400 shadow-md', activeText: 'text-emerald-700' },
-                  { key: 'materials' as const,     icon: BookOpen,        label: '수업 자료',  desc: '선생님 공유 자료', activeIcon: 'bg-cyan-100 text-cyan-600',   activeBg: 'bg-white border-cyan-400 shadow-md',   activeText: 'text-cyan-700' },
-                  { key: 'quiz' as const,          icon: Gamepad2,        label: '퀴즈',       desc: '실시간 퀴즈 참여', activeIcon: 'bg-purple-100 text-purple-600', activeBg: 'bg-white border-purple-400 shadow-md', activeText: 'text-purple-700' },
-                  { key: 'suggestions' as const,   icon: Megaphone,       label: '건의사항',   desc: '선생님께 의견',    activeIcon: 'bg-rose-100 text-rose-600',   activeBg: 'bg-white border-rose-400 shadow-md',   activeText: 'text-rose-700', badge: unreadReplyCount },
-                ].map((tab) => {
-                  const isActive = activeTab === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      onClick={() => handleTabChange(tab.key)}
-                      className={`relative flex flex-col items-center gap-1.5 px-2 py-3 rounded-2xl border-2 transition-all group ${
-                        isActive
-                          ? `${tab.activeBg} scale-[1.04]`
-                          : 'bg-white/60 border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-sm hover:scale-[1.02]'
-                      }`}
-                    >
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                        isActive ? tab.activeIcon : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'
-                      }`}>
-                        <tab.icon size={18} />
-                      </div>
-                      <span className={`text-[11px] font-black leading-tight text-center transition-colors ${
-                        isActive ? tab.activeText : 'text-slate-500 group-hover:text-slate-700'
-                      }`}>
-                        {tab.label}
-                      </span>
-                      <span className={`text-[9px] font-bold leading-tight text-center hidden sm:block transition-colors ${
-                        isActive ? `${tab.activeText} opacity-70` : 'text-slate-400 group-hover:text-slate-500'
-                      }`}>
-                        {tab.desc}
-                      </span>
-                      {'badge' in tab && (tab as any).badge > 0 && (
-                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-error text-white rounded-full text-[9px] font-black flex items-center justify-center shadow-sm">
-                          {(tab as any).badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+          {/* 관찰 기록 탭 제출 버튼 — 상단 고정 */}
+          {activeTab === 'record' && (
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-end gap-3 bg-violet-50/40">
+              <button className="flex items-center gap-2 px-4 py-2 text-sm font-black text-slate-500 hover:text-slate-700 transition-all rounded-xl hover:bg-slate-200 whitespace-nowrap">
+                <Save size={15} />임시 저장
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-2xl font-black text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
+              >
+                {submitting ? <Loader2 size={15} className="animate-spin" /> : (
+                  <><Send size={15} /> 활동 기록 제출하기</>
+                )}
+              </button>
             </div>
-
-            {/* 관찰 기록 탭 액션 버튼 — 별도 행 */}
-            {activeTab === 'record' && (
-              <div className="px-6 pb-4 flex items-center justify-end gap-4">
-                <button className="flex items-center gap-2 px-5 py-2.5 text-sm font-black text-slate-500 hover:text-slate-700 transition-all opacity-60 hover:opacity-100 rounded-xl hover:bg-slate-200 whitespace-nowrap">
-                  <Save size={16} />
-                  임시 저장
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="flex items-center gap-2.5 px-8 py-3 btn-gradient rounded-2xl font-black text-sm shadow-lg shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all group disabled:opacity-50 whitespace-nowrap"
-                >
-                  {submitting ? <Loader2 size={16} className="animate-spin" /> : (
-                    <>
-                      <Send size={16} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                      활동 기록 제출하기
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Tab Contents */}
           <AnimatePresence mode="wait">
@@ -2581,6 +2570,225 @@ ${guidePrompt}
                 )}
               </motion.div>
             )}
+            {/* ─── 보드 탭 ─── */}
+            {activeTab === 'board' && (
+              <motion.div
+                key="board"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="p-6 md:p-8"
+              >
+                {/* 헤더 */}
+                <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center">
+                        <Users2 size={16} className="text-indigo-600" />
+                      </div>
+                      <h2 className="text-xl font-black">우리 반 보드</h2>
+                    </div>
+                    <p className="text-xs text-on-surface-variant font-bold ml-10">승인된 관찰기록·결과를 함께 봐요</p>
+                  </div>
+                  <button
+                    onClick={fetchBoard}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 font-black text-xs hover:bg-indigo-100 transition-all"
+                  >
+                    <RefreshCw size={12} /> 새로고침
+                  </button>
+                </div>
+
+                {/* 필터 바 */}
+                <div className="flex items-center gap-2 mb-6 flex-wrap">
+                  {/* 타입 필터 */}
+                  <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+                    {[
+                      { key: 'all', label: '전체' },
+                      { key: 'obs', label: '📝 관찰기록' },
+                      { key: 'result', label: '📁 결과' },
+                    ].map(f => (
+                      <button
+                        key={f.key}
+                        onClick={() => setBoardTypeFilter(f.key as any)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                          boardTypeFilter === f.key
+                            ? 'bg-white text-indigo-700 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 주차 필터 */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto">
+                    <button
+                      onClick={() => setBoardWeekFilter('all')}
+                      className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                        boardWeekFilter === 'all'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
+                      }`}
+                    >
+                      전체 주차
+                    </button>
+                    {Array.from(new Set(boardPosts.map(p => p.week_number).filter(Boolean))).sort((a,b)=>a-b).map(w => (
+                      <button
+                        key={w}
+                        onClick={() => setBoardWeekFilter(w)}
+                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                          boardWeekFilter === w
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
+                        }`}
+                      >
+                        {w}주차
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 보드 콘텐츠 */}
+                {boardLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 size={28} className="animate-spin text-indigo-500" />
+                  </div>
+                ) : (() => {
+                  const filtered = boardPosts.filter(p => {
+                    if (boardTypeFilter !== 'all' && p._type !== boardTypeFilter) return false;
+                    if (boardWeekFilter !== 'all' && p.week_number !== boardWeekFilter) return false;
+                    return true;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="flex flex-col items-center py-20 space-y-4">
+                        <div className="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center">
+                          <StickyNote size={36} className="text-indigo-200" />
+                        </div>
+                        <div className="text-center space-y-1">
+                          <p className="font-black text-on-surface opacity-40">아직 게시물이 없어요</p>
+                          <p className="text-sm text-on-surface-variant/50 font-bold">선생님이 승인한 기록이 여기에 나타납니다</p>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
+                      {filtered.map((post) => {
+                        const isObs = post._type === 'obs';
+                        const isMe = post.student_id === session?.student_id;
+                        const liked = !!boardLikes[post.id];
+
+                        return (
+                          <motion.div
+                            key={`${post._type}-${post.id}`}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className={`break-inside-avoid rounded-3xl border-2 p-5 space-y-3 transition-all ${
+                              isMe
+                                ? isObs
+                                  ? 'bg-violet-50 border-violet-200'
+                                  : 'bg-emerald-50 border-emerald-200'
+                                : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-sm'
+                            }`}
+                          >
+                            {/* 카드 헤더 */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[11px] font-black shrink-0 ${
+                                  isObs ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  {isObs ? '📝' : '📁'}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-black truncate">
+                                    {post.student_name}
+                                    {isMe && <span className="ml-1 text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">나</span>}
+                                  </p>
+                                  <p className="text-[10px] text-on-surface-variant font-bold">
+                                    {post.week_number ? `${post.week_number}주차 · ` : ''}{new Date(post.created_at).toLocaleDateString('ko-KR')}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
+                              }`}>
+                                {isObs ? '관찰기록' : '결과'}
+                              </span>
+                            </div>
+
+                            {/* 카드 내용 */}
+                            <div className="space-y-1.5">
+                              <p className="text-sm font-black leading-snug line-clamp-2">
+                                {isObs ? post.activity_name : post.title}
+                              </p>
+                              {isObs && post.content && (
+                                <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">
+                                  {post.content}
+                                </p>
+                              )}
+                              {isObs && post.feeling && (
+                                <p className="text-[11px] text-on-surface-variant/60 font-bold italic line-clamp-2">
+                                  💬 {post.feeling}
+                                </p>
+                              )}
+                              {!isObs && post.text_content && (
+                                <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">
+                                  {post.text_content}
+                                </p>
+                              )}
+                              {!isObs && post.image_url && (
+                                <img
+                                  src={post.image_url}
+                                  alt="결과 이미지"
+                                  className="w-full rounded-xl object-cover max-h-40"
+                                  loading="lazy"
+                                />
+                              )}
+                              {!isObs && post.link_url && (
+                                <a
+                                  href={post.link_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 text-xs font-black text-blue-600 hover:underline"
+                                >
+                                  <ExternalLink size={11} />
+                                  <span className="truncate">{post.link_url}</span>
+                                </a>
+                              )}
+                              {!isObs && post.file_url && (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
+                                  <File size={13} className="text-amber-500 shrink-0" />
+                                  <span className="text-xs font-black text-amber-700 truncate">{post.display_name || '파일'}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* 좋아요 버튼 */}
+                            <div className="pt-1 border-t border-slate-100">
+                              <button
+                                onClick={() => setBoardLikes(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                                className={`flex items-center gap-1.5 text-xs font-black transition-all px-2 py-1 rounded-lg ${
+                                  liked
+                                    ? 'text-rose-500 bg-rose-50'
+                                    : 'text-slate-400 hover:text-rose-400 hover:bg-rose-50'
+                                }`}
+                              >
+                                <Heart size={13} className={liked ? 'fill-rose-500' : ''} />
+                                공감
+                              </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </motion.div>
+            )}
           </AnimatePresence>
         </motion.div>
 
@@ -2592,6 +2800,121 @@ ${guidePrompt}
           다른 수업의 참여 코드가 있나요?
         </button>
       </div>
+
+      {/* ── 하단 바텀 탭 바 ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-xl border-t border-slate-200 shadow-[0_-4px_30px_rgba(0,0,0,0.08)]">
+        <div className="max-w-lg mx-auto flex items-center px-2 pb-safe">
+          {[
+            { key: 'home' as const,    icon: LayoutDashboard, label: '홈',    color: 'text-primary',   activeBg: 'bg-primary/10' },
+            { key: 'record' as const,  icon: MessageSquare,   label: '기록',  color: 'text-violet-600', activeBg: 'bg-violet-100' },
+            { key: 'results' as const, icon: FolderOpen,      label: '결과',  color: 'text-emerald-600', activeBg: 'bg-emerald-100' },
+            { key: 'board' as const,   icon: Users2,          label: '보드',  color: 'text-indigo-600',  activeBg: 'bg-indigo-100' },
+          ].map((tab) => {
+            const isActive = activeTab === tab.key && !isMoreSheetOpen;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => handleTabChange(tab.key)}
+                className="flex-1 flex flex-col items-center gap-1 py-3 transition-all"
+              >
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                  isActive ? `${tab.activeBg} scale-110 shadow-sm` : 'hover:bg-slate-100'
+                }`}>
+                  <tab.icon size={20} className={isActive ? tab.color : 'text-slate-400'} />
+                </div>
+                <span className={`text-[10px] font-black transition-colors ${isActive ? tab.color : 'text-slate-400'}`}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+
+          {/* 더보기 버튼 */}
+          <button
+            onClick={() => setIsMoreSheetOpen(prev => !prev)}
+            className="flex-1 flex flex-col items-center gap-1 py-3 transition-all"
+          >
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all relative ${
+              isMoreSheetOpen ? 'bg-slate-800 scale-110 shadow-sm' : 'hover:bg-slate-100'
+            }`}>
+              <MoreHorizontal size={20} className={isMoreSheetOpen ? 'text-white' : 'text-slate-400'} />
+              {/* 더보기 뱃지 (단원마무리 + 건의사항 합산) */}
+              {(unitPendingCount + unreadReplyCount) > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-error text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                  {unitPendingCount + unreadReplyCount}
+                </span>
+              )}
+            </div>
+            <span className={`text-[10px] font-black transition-colors ${isMoreSheetOpen ? 'text-slate-800' : 'text-slate-400'}`}>
+              더보기
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── 더보기 슬라이드업 시트 ── */}
+      <AnimatePresence>
+        {isMoreSheetOpen && (
+          <>
+            {/* 딤 레이어 */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMoreSheetOpen(false)}
+              className="fixed inset-0 z-30 bg-black/30 backdrop-blur-sm"
+            />
+            {/* 시트 */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+              className="fixed bottom-[68px] left-0 right-0 z-40 bg-white rounded-t-[2rem] shadow-2xl border-t border-slate-200 overflow-hidden"
+            >
+              {/* 핸들 */}
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-10 h-1 bg-slate-300 rounded-full" />
+              </div>
+
+              <div className="px-4 pt-1 pb-6 grid grid-cols-5 gap-1">
+                {[
+                  { key: 'materials' as const, icon: BookOpen,    label: '수업 자료', color: 'text-cyan-600',   activeBg: 'bg-cyan-50'   },
+                  { key: 'history' as const,   icon: History,     label: '나의 기록', color: 'text-blue-600',   activeBg: 'bg-blue-50'   },
+                  { key: 'quiz' as const,      icon: Gamepad2,    label: '퀴즈',      color: 'text-purple-600', activeBg: 'bg-purple-50' },
+                  { key: 'unit' as const,      icon: ClipboardList, label: '단원마무리', color: 'text-amber-600', activeBg: 'bg-amber-50', badge: unitPendingCount },
+                  { key: 'suggestions' as const, icon: Megaphone, label: '건의사항',  color: 'text-rose-600',   activeBg: 'bg-rose-50',  badge: unreadReplyCount },
+                ].map((item) => {
+                  const isActive = activeTab === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => handleTabChange(item.key)}
+                      className={`relative flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl transition-all ${
+                        isActive ? item.activeBg : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                        isActive ? `${item.activeBg} shadow-sm` : 'bg-slate-100'
+                      }`}>
+                        <item.icon size={20} className={isActive ? item.color : 'text-slate-500'} />
+                      </div>
+                      <span className={`text-[10px] font-black text-center leading-tight ${isActive ? item.color : 'text-slate-500'}`}>
+                        {item.label}
+                      </span>
+                      {(item as any).badge > 0 && (
+                        <span className="absolute top-2 right-2 w-4 h-4 bg-error text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-sm">
+                          {(item as any).badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* 가이드 모달 */}
       <AnimatePresence>
