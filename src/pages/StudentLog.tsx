@@ -177,14 +177,25 @@ const StudentLog = () => {
         .select('teacher_id, student_guide_prompt, weekly_plan')
         .eq('id', classId)
         .single();
-      
+
       if (data) {
         setTeacherId(data.teacher_id);
         setGuidePrompt(data.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요.');
         if (data.weekly_plan && Array.isArray(data.weekly_plan) && data.weekly_plan.length > 0) {
           setClassResources(data.weekly_plan);
-          // Set initial title to first topic if available
           setTitle(data.weekly_plan[0].topic);
+
+          // weekly_plan 중 material_id가 있는 항목의 자료 미리 로드
+          const materialIds = data.weekly_plan
+            .map((p: any) => p.material_id)
+            .filter(Boolean);
+          if (materialIds.length > 0) {
+            const { data: mats } = await supabase
+              .from('class_materials')
+              .select('*')
+              .in('id', materialIds);
+            if (mats) setClassMaterials(mats);
+          }
         }
       }
     } catch (err) {
@@ -221,15 +232,18 @@ const StudentLog = () => {
     if (!session?.class_id) return;
     setResourcesLoading(true);
     try {
-      // 공개된 수업 자료 조회
-      const { data, error } = await supabase
-        .from('class_materials')
-        .select('*')
-        .eq('class_id', session.class_id)
-        .eq('is_published', true)
-        .order('week_number', { ascending: true });
-
-      if (!error && data) setClassMaterials(data);
+      // weekly_plan의 material_id 목록 기준으로 자료 로드
+      const plan = classResources as any[];
+      const materialIds = plan.map(p => p.material_id).filter(Boolean);
+      if (materialIds.length > 0) {
+        const { data } = await supabase
+          .from('class_materials')
+          .select('*')
+          .in('id', materialIds);
+        if (data) setClassMaterials(data);
+      } else {
+        setClassMaterials([]);
+      }
     } catch (err) {
       console.error('Error fetching class_materials:', err);
     } finally {
@@ -1561,135 +1575,145 @@ ${guidePrompt}
                   <div className="flex items-center justify-center py-20">
                     <Loader2 size={32} className="animate-spin text-primary" />
                   </div>
-                ) : classMaterials.length > 0 ? (
-                  <div className="space-y-3">
-                    {classMaterials.map(mat => (
-                      <div key={mat.id} className="bg-white rounded-2xl border border-surface-container overflow-hidden hover:border-cyan-200 transition-all">
-                        {/* 자료 헤더 */}
-                        <button
-                          className="w-full flex items-center gap-3 p-4 text-left"
-                          onClick={() => {
-                            const next = expandedMaterialId === mat.id ? null : mat.id;
-                            setExpandedMaterialId(next);
-                            if (next) recordMaterialView(mat.id);
-                          }}
-                        >
-                          <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xs font-black shrink-0">
-                            {mat.week_number}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-black text-sm">{mat.title}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {mat.content && <span className="text-[10px] font-bold text-cyan-600">📝 내용</span>}
-                              {mat.url   && <span className="text-[10px] font-bold text-blue-500">🔗 링크</span>}
-                            </div>
-                          </div>
-                          <ArrowRight
-                            size={16}
-                            className={`shrink-0 text-on-surface-variant transition-transform duration-200 ${
-                              expandedMaterialId === mat.id ? 'rotate-90' : ''
-                            }`}
-                          />
-                        </button>
-
-                        {/* 자료 내용 (확장 시) */}
-                        {expandedMaterialId === mat.id && (
-                          <div className="border-t border-surface-container">
-                            {/* 외부 링크 */}
-                            {mat.url && (
-                              <a
-                                href={mat.url.startsWith('http') ? mat.url : `https://${mat.url}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors border-b border-surface-container"
-                              >
-                                <ExternalLink size={14} />
-                                <span className="truncate">{mat.url}</span>
-                              </a>
-                            )}
-                            {/* 마크다운 본문 */}
-                            {mat.content ? (
-                              <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
-                                <ReactMarkdown
-                                  components={{
-                                    h1: ({ children }: any) => <h1 className="text-xl font-black mb-3 mt-4">{children}</h1>,
-                                    h2: ({ children }: any) => <h2 className="text-lg font-black mb-2 mt-3">{children}</h2>,
-                                    h3: ({ children }: any) => <h3 className="text-base font-black mb-2 mt-3">{children}</h3>,
-                                    p: ({ children }: any) => <p className="mb-2.5 text-sm leading-relaxed">{children}</p>,
-                                    ul: ({ children }: any) => <ul className="list-disc pl-5 mb-2.5 space-y-1">{children}</ul>,
-                                    ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-2.5 space-y-1">{children}</ol>,
-                                    li: ({ children }: any) => <li className="text-sm">{children}</li>,
-                                    blockquote: ({ children }: any) => (
-                                      <blockquote className="border-l-4 border-cyan-400 pl-3 italic text-on-surface-variant my-2 bg-cyan-50 py-1.5 rounded-r-lg text-sm">
-                                        {children}
-                                      </blockquote>
-                                    ),
-                                    code: ({ children, className }: any) => {
-                                      if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>;
-                                      return <code className={className}>{children}</code>;
-                                    },
-                                    pre: ({ children }: any) => {
-                                      const child = (Array.isArray(children) ? children[0] : children) as any;
-                                      const lang = (child?.props?.className || '').replace('language-', '') || 'text';
-                                      const code = String(child?.props?.children ?? '').replace(/\n$/, '');
-                                      return <CodeBlock lang={lang} code={code} />;
-                                    },
-                                    a: ({ href, children }: any) => (
-                                      <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm hover:opacity-70">{children}</a>
-                                    ),
-                                    img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-xl my-2 shadow-sm" />,
-                                    hr: () => <hr className="border-surface-container my-3" />,
-                                    strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
-                                    em: ({ children }: any) => <em className="italic">{children}</em>,
-                                  }}
-                                >
-                                  {mat.content}
-                                </ReactMarkdown>
-                              </div>
-                            ) : (
-                              <p className="px-5 py-4 text-sm text-on-surface-variant font-bold opacity-50">
-                                작성된 내용이 없습니다. 링크를 참고해 주세요.
-                              </p>
-                            )}
-                          </div>
-                        )}
+                ) : (() => {
+                  // weekly_plan에 자료(material_id 또는 url)가 있는 주차만 필터링
+                  const weeks = (classResources as any[]).filter(r => r.material_id || r.url);
+                  if (weeks.length === 0) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
+                        <BookOpen size={64} />
+                        <p className="font-black text-lg">아직 등록된 수업 자료가 없습니다.</p>
+                        <p className="text-sm font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  /* 마크다운 자료가 없으면 weekly_plan URL 링크 폴백 */
-                  classResources && classResources.length > 0 ? (
+                    );
+                  }
+                  return (
                     <div className="space-y-3">
-                      <p className="text-xs font-bold text-on-surface-variant opacity-60">주차별 참고 링크</p>
-                      {classResources.filter((r: any) => r.url).map((res: any, idx: number) => (
-                        <a
-                          key={idx}
-                          href={res.url.startsWith('http') ? res.url : `https://${res.url}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container hover:border-primary/30 hover:shadow-sm transition-all group"
-                        >
-                          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
-                            {res.week || <BookOpen size={16} />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-black text-sm truncate group-hover:text-primary transition-colors">
-                              {res.topic || res.title || '수업 자료'}
-                            </p>
-                            <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">{res.url}</p>
-                          </div>
-                          <ExternalLink size={14} className="shrink-0 text-on-surface-variant group-hover:text-primary transition-colors" />
-                        </a>
-                      ))}
+                      {weeks.map((res: any) => {
+                        // material_id가 있으면 에디터 자료 사용
+                        const mat = res.material_id
+                          ? classMaterials.find(m => m.id === res.material_id)
+                          : null;
+
+                        if (res.material_id && mat) {
+                          // ── 에디터 자료 카드 ──
+                          return (
+                            <div key={res.week} className="bg-white rounded-2xl border border-surface-container overflow-hidden hover:border-cyan-200 transition-all">
+                              <button
+                                className="w-full flex items-center gap-3 p-4 text-left"
+                                onClick={() => {
+                                  const next = expandedMaterialId === mat.id ? null : mat.id;
+                                  setExpandedMaterialId(next);
+                                  if (next) recordMaterialView(mat.id);
+                                }}
+                              >
+                                <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xs font-black shrink-0">
+                                  {res.week}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-black text-sm">{res.topic || mat.title}</p>
+                                  <p className="text-[11px] text-cyan-600 font-bold mt-0.5">{mat.title}</p>
+                                </div>
+                                <ArrowRight
+                                  size={16}
+                                  className={`shrink-0 text-on-surface-variant transition-transform duration-200 ${
+                                    expandedMaterialId === mat.id ? 'rotate-90' : ''
+                                  }`}
+                                />
+                              </button>
+
+                              {expandedMaterialId === mat.id && (
+                                <div className="border-t border-surface-container">
+                                  {mat.url && (
+                                    <a
+                                      href={mat.url.startsWith('http') ? mat.url : `https://${mat.url}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors border-b border-surface-container"
+                                    >
+                                      <ExternalLink size={14} />
+                                      <span className="truncate">{mat.url}</span>
+                                    </a>
+                                  )}
+                                  {mat.content ? (
+                                    <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
+                                      <ReactMarkdown
+                                        components={{
+                                          h1: ({ children }: any) => <h1 className="text-xl font-black mb-3 mt-4">{children}</h1>,
+                                          h2: ({ children }: any) => <h2 className="text-lg font-black mb-2 mt-3">{children}</h2>,
+                                          h3: ({ children }: any) => <h3 className="text-base font-black mb-2 mt-3">{children}</h3>,
+                                          p: ({ children }: any) => <p className="mb-2.5 text-sm leading-relaxed">{children}</p>,
+                                          ul: ({ children }: any) => <ul className="list-disc pl-5 mb-2.5 space-y-1">{children}</ul>,
+                                          ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-2.5 space-y-1">{children}</ol>,
+                                          li: ({ children }: any) => <li className="text-sm">{children}</li>,
+                                          blockquote: ({ children }: any) => (
+                                            <blockquote className="border-l-4 border-cyan-400 pl-3 italic text-on-surface-variant my-2 bg-cyan-50 py-1.5 rounded-r-lg text-sm">
+                                              {children}
+                                            </blockquote>
+                                          ),
+                                          code: ({ children, className }: any) => {
+                                            if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>;
+                                            return <code className={className}>{children}</code>;
+                                          },
+                                          pre: ({ children }: any) => {
+                                            const child = (Array.isArray(children) ? children[0] : children) as any;
+                                            const lang = (child?.props?.className || '').replace('language-', '') || 'text';
+                                            const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+                                            return <CodeBlock lang={lang} code={code} />;
+                                          },
+                                          a: ({ href, children }: any) => (
+                                            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm hover:opacity-70">{children}</a>
+                                          ),
+                                          img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-xl my-2 shadow-sm" />,
+                                          hr: () => <hr className="border-surface-container my-3" />,
+                                          strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
+                                          em: ({ children }: any) => <em className="italic">{children}</em>,
+                                        }}
+                                      >
+                                        {mat.content}
+                                      </ReactMarkdown>
+                                    </div>
+                                  ) : (
+                                    <p className="px-5 py-4 text-sm text-on-surface-variant font-bold opacity-50">
+                                      작성된 내용이 없습니다. 링크를 참고해 주세요.
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        // ── URL 링크 카드 ──
+                        if (res.url) {
+                          const href = res.url.startsWith('http') ? res.url : `https://${res.url}`;
+                          return (
+                            <a
+                              key={res.week}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container hover:border-primary/30 hover:shadow-sm transition-all group"
+                            >
+                              <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
+                                {res.week}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-sm truncate group-hover:text-primary transition-colors">
+                                  {res.topic || '수업 자료'}
+                                </p>
+                                <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">{res.url}</p>
+                              </div>
+                              <ExternalLink size={14} className="shrink-0 text-on-surface-variant group-hover:text-primary transition-colors" />
+                            </a>
+                          );
+                        }
+
+                        return null;
+                      })}
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
-                      <BookOpen size={64} />
-                      <p className="font-black text-lg">아직 등록된 수업 자료가 없습니다.</p>
-                      <p className="text-sm font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
-                    </div>
-                  )
-                )}
+                  );
+                })()}
               </motion.div>
             )}
             {/* ─── 결과 제출 탭 ─── */}

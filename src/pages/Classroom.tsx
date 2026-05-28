@@ -100,6 +100,9 @@ const Classroom = () => {
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
   const [classResources, setClassResources] = useState<any[]>([]);
   const [newResource, setNewResource] = useState({ title: '', url: '' });
+  // 학급정보 수정 팝업에서 에디터 자료 선택용
+  const [editingClassMaterials, setEditingClassMaterials] = useState<any[]>([]);
+  const [materialDropdownIdx, setMaterialDropdownIdx] = useState<number | null>(null);
 
   // 학생 선택 및 드로어 상태
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -454,6 +457,8 @@ const Classroom = () => {
       if (error) throw error;
       setIsUpdateModalOpen(false);
       setUpdateClassData(null);
+      setEditingClassMaterials([]);
+      setMaterialDropdownIdx(null);
       await fetchClasses();
       showToast("학급 정보가 성공적으로 수정되었습니다. 💾");
     } catch (error) {
@@ -926,9 +931,17 @@ const Classroom = () => {
         activeClassId={activeClassId} 
         onSelectClass={setActiveClassId}
         onCreateClass={() => setIsCreateModalOpen(true)}
-        onEditClass={(c) => {
+        onEditClass={async (c) => {
           setUpdateClassData(c);
           setIsUpdateModalOpen(true);
+          setMaterialDropdownIdx(null);
+          // 해당 클래스의 수업자료 에디터 자료 로드
+          const { data } = await supabase
+            .from('class_materials')
+            .select('id, week_number, title')
+            .eq('class_id', c.id)
+            .order('week_number', { ascending: true });
+          setEditingClassMaterials(data || []);
         }}
         onDeleteClass={handleDeleteClass}
         onOpenArchive={() => {
@@ -1439,17 +1452,92 @@ const Classroom = () => {
                                   </div>
                                   <div className="space-y-1">
                                     <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">자료 링크 (URL)</label>
-                                    <input 
-                                      type="text" 
-                                      value={item.url} 
+                                    <input
+                                      type="text"
+                                      value={item.url || ''}
+                                      disabled={!!item.material_id}
                                       onChange={(e) => {
                                         const plan = [...updateClassData.weekly_plan];
                                         plan[idx].url = e.target.value;
+                                        plan[idx].material_id = '';
                                         setUpdateClassData({ ...updateClassData, weekly_plan: plan });
                                       }}
-                                      placeholder="https://..."
-                                      className="w-full px-4 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
+                                      placeholder={item.material_id ? '에디터 자료가 연결됨' : 'https://...'}
+                                      className={`w-full px-4 py-2 border rounded-xl text-sm font-bold focus:border-primary/40 outline-none transition-all ${
+                                        item.material_id
+                                          ? 'bg-neutral-100 border-neutral-100 text-neutral-400 cursor-not-allowed'
+                                          : 'bg-white border-neutral-200'
+                                      }`}
                                     />
+                                  </div>
+
+                                  {/* ── 에디터 자료 연결 ── */}
+                                  <div className="space-y-1">
+                                    <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">
+                                      수업자료 에디터 연결 {editingClassMaterials.length === 0 && <span className="normal-case font-bold text-neutral-300">(에디터에서 작성한 자료 없음)</span>}
+                                    </label>
+
+                                    {item.material_id ? (
+                                      /* 선택된 자료 표시 */
+                                      <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border-2 border-primary/20 rounded-xl">
+                                        <BookOpen size={14} className="text-primary shrink-0" />
+                                        <span className="text-sm font-black text-primary flex-1 truncate">
+                                          {editingClassMaterials.find(m => m.id === item.material_id)?.title || '선택된 자료'}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const plan = [...updateClassData.weekly_plan];
+                                            plan[idx].material_id = '';
+                                            setUpdateClassData({ ...updateClassData, weekly_plan: plan });
+                                          }}
+                                          className="p-0.5 text-neutral-400 hover:text-error transition-colors"
+                                        >
+                                          <X size={14} />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      /* 자료 선택 드롭다운 */
+                                      <div className="relative">
+                                        <button
+                                          type="button"
+                                          disabled={editingClassMaterials.length === 0}
+                                          onClick={() => setMaterialDropdownIdx(materialDropdownIdx === idx ? null : idx)}
+                                          className={`w-full flex items-center justify-between px-4 py-2 border rounded-xl text-sm font-bold transition-all ${
+                                            editingClassMaterials.length === 0
+                                              ? 'bg-neutral-50 border-neutral-100 text-neutral-300 cursor-not-allowed'
+                                              : 'bg-white border-neutral-200 hover:border-primary/40 cursor-pointer'
+                                          }`}
+                                        >
+                                          <span className="text-neutral-400">에디터 자료 선택...</span>
+                                          <ChevronDown size={14} className="text-neutral-300" />
+                                        </button>
+
+                                        {materialDropdownIdx === idx && editingClassMaterials.length > 0 && (
+                                          <div className="absolute top-full mt-1 left-0 right-0 bg-white rounded-xl shadow-xl border border-neutral-200 z-50 overflow-hidden max-h-48 overflow-y-auto">
+                                            {editingClassMaterials.map(mat => (
+                                              <button
+                                                key={mat.id}
+                                                type="button"
+                                                onClick={() => {
+                                                  const plan = [...updateClassData.weekly_plan];
+                                                  plan[idx].material_id = mat.id;
+                                                  plan[idx].url = '';
+                                                  setUpdateClassData({ ...updateClassData, weekly_plan: plan });
+                                                  setMaterialDropdownIdx(null);
+                                                }}
+                                                className="w-full text-left px-4 py-2.5 hover:bg-primary/5 transition-colors flex items-center gap-2"
+                                              >
+                                                <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center shrink-0">
+                                                  {mat.week_number}
+                                                </span>
+                                                <span className="text-sm font-bold truncate">{mat.title}</span>
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
