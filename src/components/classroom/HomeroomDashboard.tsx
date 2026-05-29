@@ -226,13 +226,13 @@ const HomeroomDashboard = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => navigate(`/suggestions?classId=${classInfo.id}`)}
-            className="relative flex items-center gap-2 px-6 py-3.5 rounded-2xl font-black text-sm border-2 border-rose-200 text-rose-500 hover:bg-rose-50 transition-all"
+            className="relative flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm border-2 border-rose-200 text-rose-500 hover:bg-rose-50 transition-all whitespace-nowrap"
           >
-            <Megaphone size={18} />
-            <span>건의사항 관리</span>
+            <Megaphone size={16} />
+            <span>건의사항</span>
             {Object.values(suggestionCounts).reduce((a, b) => a + b, 0) > 0 && (
               <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                 {Object.values(suggestionCounts).reduce((a, b) => a + b, 0)}
@@ -241,10 +241,10 @@ const HomeroomDashboard = ({
           </button>
           <button
             onClick={onInviteTeachers}
-            className="btn-vibrant group px-6 py-3.5 rounded-2xl font-black text-sm flex items-center gap-3 transition-all"
+            className="btn-vibrant group px-4 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all whitespace-nowrap"
           >
-            <UserPlus size={18} className="group-hover:rotate-12 transition-transform" />
-            <span>교과 선생님 초대</span>
+            <UserPlus size={16} className="group-hover:rotate-12 transition-transform" />
+            <span>선생님 초대</span>
           </button>
         </div>
       </header>
@@ -305,54 +305,60 @@ const HomeroomDashboard = ({
       {/* 3. Student Data Center - Full Width */}
       <section className="px-4 pb-16">
         <div className="layered-card p-8 bg-white flex flex-col">
-           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
-              <div className="space-y-1">
-                <h2 className="text-2xl font-black flex items-center gap-4 tracking-tight">
-                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary"><LayoutDashboard size={20} /></div>
-                  학급 데이터 센터
-                </h2>
-                <p className="text-xs font-bold text-on-surface-variant/60 ml-14">실시간 연동 데이터 기반 학생 프로필</p>
+           <div className="flex flex-col gap-4 mb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <h2 className="text-xl md:text-2xl font-black flex items-center gap-3 tracking-tight">
+                    <div className="w-9 h-9 md:w-10 md:h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0"><LayoutDashboard size={18} /></div>
+                    학급 데이터 센터
+                  </h2>
+                  <p className="text-xs font-bold text-on-surface-variant/60 ml-12">실시간 연동 데이터 기반 학생 프로필</p>
+                </div>
+                {/* 전체화면 버튼 — 오른쪽 상단 */}
+                <button
+                  onClick={() => setShowFullscreen(true)}
+                  className="self-start sm:self-auto p-3 rounded-2xl border-2 border-neutral-200 hover:border-primary/40 hover:bg-primary/5 text-neutral-400 hover:text-primary transition-all"
+                  title="전체화면으로 보기"
+                >
+                  <Maximize2 size={18} />
+                </button>
               </div>
 
-              <div className="flex items-center gap-4">
-                 <div className="relative group flex-1 max-w-sm">
-                   <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-primary transition-colors" />
-                   <input
-                     type="text"
-                     placeholder="학생 검색..."
-                     value={searchQuery}
-                     onChange={e => setSearchQuery(e.target.value)}
-                     className="bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 text-sm font-bold text-neutral-900 outline-none pl-14 pr-8 py-4 rounded-2xl w-full transition-all placeholder:text-neutral-400 shadow-sm"
-                   />
-                 </div>
-                 <button
-                   onClick={() => setShowFullscreen(true)}
-                   className="p-4 rounded-2xl border-2 border-neutral-200 hover:border-primary/40 hover:bg-primary/5 text-neutral-400 hover:text-primary transition-all"
-                   title="전체화면으로 보기"
-                 >
-                   <Maximize2 size={18} />
-                 </button>
-                 {(() => {
-                   const pendingCount = students.reduce((acc, s) => acc + (s.pending_obs_ids?.length || 0), 0);
-                   return pendingCount > 0 ? (
-                     <button
-                       onClick={onBulkApprove}
-                       className="flex items-center gap-2 px-6 py-4 rounded-2xl font-black text-sm bg-amber-50 border-2 border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-all"
-                       title={`승인 대기 ${pendingCount}건 일괄 승인`}
-                     >
-                       <CheckCheck size={16} />
-                       <span>일괄 승인 ({pendingCount})</span>
-                     </button>
-                   ) : null;
-                 })()}
-                 <button
-                  onClick={onAddStudent}
-                  className="btn-vibrant group flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-sm transition-all"
-                 >
-                   <Plus size={18} className="group-hover:rotate-90 transition-transform duration-500" />
-                   <span>학생 등록</span>
-                 </button>
-               </div>
+              {/* 검색 + 액션 버튼 — 모바일 세로 스택 */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative group flex-1">
+                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-primary transition-colors" />
+                  <input
+                    type="text"
+                    placeholder="학생 검색..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 text-sm font-bold text-neutral-900 outline-none pl-10 pr-4 py-3 rounded-2xl w-full transition-all placeholder:text-neutral-400 shadow-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(() => {
+                    const pendingCount = students.reduce((acc, s) => acc + (s.pending_obs_ids?.length || 0), 0);
+                    return pendingCount > 0 ? (
+                      <button
+                        onClick={onBulkApprove}
+                        className="flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm bg-amber-50 border-2 border-amber-200 text-amber-700 hover:bg-amber-100 transition-all whitespace-nowrap"
+                      >
+                        <CheckCheck size={15} />
+                        <span>일괄 승인</span>
+                        <span className="bg-amber-200 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-lg">{pendingCount}</span>
+                      </button>
+                    ) : null;
+                  })()}
+                  <button
+                    onClick={onAddStudent}
+                    className="btn-vibrant group flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm transition-all whitespace-nowrap flex-1 sm:flex-none justify-center"
+                  >
+                    <Plus size={16} className="group-hover:rotate-90 transition-transform duration-500" />
+                    <span>학생 등록</span>
+                  </button>
+                </div>
+              </div>
            </div>
 
            {/* ── 주차별 제출 현황 통계 ── */}

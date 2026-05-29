@@ -263,13 +263,13 @@ const SubjectDashboard = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => navigate(`/suggestions?classId=${classInfo.id}`)}
-            className="relative flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-sm border-2 border-rose-200 text-rose-500 hover:bg-rose-50 transition-all"
+            className="relative flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm border-2 border-rose-200 text-rose-500 hover:bg-rose-50 transition-all whitespace-nowrap"
           >
-            <Megaphone size={16} />
-            <span>건의사항 관리</span>
+            <Megaphone size={15} />
+            <span>건의사항</span>
             {Object.values(suggestionCounts).reduce((a, b) => a + b, 0) > 0 && (
               <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                 {Object.values(suggestionCounts).reduce((a, b) => a + b, 0)}
@@ -278,10 +278,10 @@ const SubjectDashboard = ({
           </button>
           <div className="flex p-1 glass rounded-2xl border border-white/40 shadow-soft">
             <button onClick={() => setViewMode('grid')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40 hover:text-on-surface'}`}>
-              <Grid size={18} />
+              <Grid size={17} />
             </button>
             <button onClick={() => setViewMode('list')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'list' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40 hover:text-on-surface'}`}>
-              <List size={18} />
+              <List size={17} />
             </button>
           </div>
         </div>
@@ -328,48 +328,52 @@ const SubjectDashboard = ({
 
       {/* 3. Strategy & Search Bento Bar */}
       <section className="px-4">
-        <div className="glass p-3 rounded-[2.5rem] border border-white/60 shadow-soft flex flex-wrap items-center gap-4">
-          <div className="relative flex-1 min-w-[280px] group">
-            <Search size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-primary transition-colors" />
-            <input 
-              type="text" 
-              placeholder="학생 또는 번호 검색..." 
+        <div className="glass p-3 rounded-3xl border border-white/60 shadow-soft flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+          {/* 검색 */}
+          <div className="relative flex-1 min-w-0 group">
+            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-primary transition-colors" />
+            <input
+              type="text"
+              placeholder="학생 또는 번호 검색..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-14 pr-10 py-4 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-2xl text-sm font-bold text-neutral-900 outline-none transition-all placeholder:text-neutral-400 shadow-sm" 
+              className="w-full pl-10 pr-4 py-3 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-2xl text-sm font-bold text-neutral-900 outline-none transition-all placeholder:text-neutral-400 shadow-sm"
             />
           </div>
 
-          <div className="flex items-center gap-3 p-1.5 bg-white/20 rounded-2xl border border-white/40 backdrop-blur-md">
-            <button onClick={onOpenQR} className="w-11 h-11 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft group" title="QR 출결/입장">
-              <QrCode size={18} />
+          {/* 아이콘 액션 버튼들 */}
+          <div className="flex items-center gap-2 p-1.5 bg-white/20 rounded-2xl border border-white/40 backdrop-blur-md self-start sm:self-auto">
+            <button onClick={onOpenQR} className="w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft" title="QR 출결/입장">
+              <QrCode size={17} />
             </button>
-            <button onClick={onOpenResources} className="w-11 h-11 bg-white hover:bg-secondary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft group" title="수업 자료실">
-               <BookOpen size={18} />
+            <button onClick={onOpenResources} className="w-10 h-10 bg-white hover:bg-secondary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft" title="수업 자료실">
+              <BookOpen size={17} />
             </button>
-            <button onClick={onCopyLink} className={`w-11 h-11 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft group ${copySuccess ? 'text-primary' : 'text-on-surface-variant/60'}`} title="학생 기록 URL 복사">
-               {copySuccess ? <Check size={18} /> : <LinkIcon size={18} />}
+            <button onClick={onCopyLink} className={`w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft ${copySuccess ? 'text-primary' : 'text-on-surface-variant/60'}`} title="학생 기록 URL 복사">
+              {copySuccess ? <Check size={17} /> : <LinkIcon size={17} />}
             </button>
-            <button onClick={onExport} className="w-11 h-11 bg-white hover:bg-on-surface hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft group" title="데이터 내보내기">
-               <Download size={18} />
+            <button onClick={onExport} className="w-10 h-10 bg-white hover:bg-on-surface hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft" title="데이터 내보내기">
+              <Download size={17} />
             </button>
           </div>
 
-          {pendingCount > 0 && (
-            <button
-              onClick={onBulkApprove}
-              className="px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-3 shadow-soft bg-amber-500 hover:bg-amber-600 text-white transition-all active:scale-95"
-            >
-              <CheckCheck size={18} strokeWidth={2.5} />
-              <span>전체 승인</span>
-              <span className="bg-white/30 text-white text-[10px] font-black px-2 py-0.5 rounded-lg">{pendingCount}건</span>
+          {/* 전체승인 + 학생등록 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {pendingCount > 0 && (
+              <button
+                onClick={onBulkApprove}
+                className="flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm shadow-soft bg-amber-500 hover:bg-amber-600 text-white transition-all active:scale-95 whitespace-nowrap"
+              >
+                <CheckCheck size={16} strokeWidth={2.5} />
+                <span>전체 승인</span>
+                <span className="bg-white/30 text-[10px] font-black px-1.5 py-0.5 rounded-lg">{pendingCount}건</span>
+              </button>
+            )}
+            <button onClick={onAddStudent} className="btn-vibrant px-4 py-3 rounded-2xl font-black text-sm flex items-center gap-2 shadow-soft whitespace-nowrap flex-1 sm:flex-none justify-center">
+              <Plus size={16} strokeWidth={3} />
+              <span>학생 등록</span>
             </button>
-          )}
-
-          <button onClick={onAddStudent} className="btn-vibrant px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-3 shadow-soft">
-            <Plus size={18} strokeWidth={3} />
-            <span>학생 등록</span>
-          </button>
+          </div>
         </div>
       </section>
       
