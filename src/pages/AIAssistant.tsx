@@ -244,7 +244,7 @@ ${recordsText}
       {/* Header */}
       <div className="px-2">
         <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">Intelligence Engine</p>
-        <h1 className="text-4xl font-extrabold font-manrope mb-4">
+        <h1 className="text-xl md:text-4xl font-extrabold font-manrope mb-4">
           {isHomeroom ? 'AI 종합 생기부/행특 초안 생성' : 'AI 교과 세특 초안 생성'}
         </h1>
         <p className="text-on-surface-variant text-base max-w-2xl leading-relaxed">
@@ -254,10 +254,10 @@ ${recordsText}
         </p>
       </div>
 
-      <div className="grid grid-cols-12 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
         {/* Left Control Panel */}
         <div className="col-span-12 lg:col-span-5 space-y-8">
-          <div className="surface-card p-10 shadow-ambient border-l-4 border-primary">
+          <div className="surface-card p-5 md:p-10 shadow-ambient border-l-4 border-primary">
             <h2 className="text-xl font-bold mb-8 flex items-center gap-3">
               <Users size={24} className="text-primary" />
               대상 학급 선택
@@ -400,7 +400,7 @@ ${recordsText}
                   </div>
                 </div>
 
-                <div className="flex-1 p-10 space-y-10">
+                <div className="flex-1 p-5 md:p-10 space-y-6 md:space-y-10">
                   <div className="relative group flex-1">
                     <div className="absolute -left-6 top-0 w-1 h-full bg-primary/20 group-hover:bg-primary transition-colors rounded-full" />
                     <textarea

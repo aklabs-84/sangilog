@@ -131,16 +131,16 @@ const ActivityLog = () => {
     >
       <div className="px-2">
         <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">Activity Logging</p>
-        <h1 className="text-4xl font-extrabold font-manrope mb-4">새 활동 기록</h1>
+        <h1 className="text-2xl md:text-4xl font-extrabold font-manrope mb-4">새 활동 기록</h1>
         <p className="text-on-surface-variant text-base max-w-3xl leading-relaxed">
           수업 중 관찰된 학생들의 활동 내용과 성취도를 기록합니다. 기록된 내용은 AI 분석 및 생활기록부 초안 작성에 활용됩니다.
         </p>
       </div>
 
-      <div className="grid grid-cols-12 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
         <div className="col-span-12 lg:col-span-8 space-y-8">
-          <div className="surface-card p-10 shadow-ambient space-y-10">
-            <div className="grid grid-cols-2 gap-8">
+          <div className="surface-card p-5 md:p-10 shadow-ambient space-y-6 md:space-y-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8">
               <div className="space-y-2">
                 <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider ml-1">Class Selection</label>
                 <div className="relative">
@@ -172,7 +172,7 @@ const ActivityLog = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8">
               <div className="space-y-2">
                 <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider ml-1">Activity Date</label>
                 <div className="relative">

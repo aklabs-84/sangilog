@@ -1050,7 +1050,7 @@ const Classroom = () => {
 
       {/* 2. 메인 대시보드 영역 (통합 스크롤) */}
       <main className="flex flex-col relative">
-        <div className="fixed top-24 right-10 z-[200] flex flex-col gap-3 pointer-events-none">
+        <div className="fixed top-24 right-4 md:right-10 z-[200] flex flex-col gap-3 pointer-events-none max-w-[calc(100vw-2rem)]">
           <AnimatePresence>
             {realtimeToasts.map((toast) => (
               <motion.div
@@ -1067,10 +1067,10 @@ const Classroom = () => {
           </AnimatePresence>
         </div>
 
-        <div className="p-8 md:p-12 max-w-[1600px] mx-auto w-full">
+        <div className="p-4 md:p-8 lg:p-12 max-w-[1600px] mx-auto w-full">
           {/* 2.1 Cohesive Segmented Control */}
-          <div className="flex justify-center mb-16">
-            <div className="p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[2.5rem] flex items-center border border-white/40 shadow-soft relative overflow-hidden">
+          <div className="flex justify-center mb-8 md:mb-16">
+            <div className="p-1 md:p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[2rem] md:rounded-[2.5rem] flex items-center border border-white/40 shadow-soft relative overflow-x-auto max-w-full custom-scrollbar">
               {[
                 { id: 'list', label: '전체 명단', icon: LayoutDashboard },
                 ...(classInfo?.class_type === 'homeroom' ? [
@@ -1091,7 +1091,7 @@ const Classroom = () => {
                       if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);
                     }}
                     className={`
-                      relative z-10 flex items-center gap-3 px-8 py-4 rounded-[2rem] font-black text-sm transition-all duration-500 whitespace-nowrap
+                      relative z-10 flex items-center gap-1.5 md:gap-3 px-4 md:px-8 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] font-black text-xs md:text-sm transition-all duration-500 whitespace-nowrap shrink-0
                       ${isActive ? 'text-surface' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/30'}
                     `}
                   >

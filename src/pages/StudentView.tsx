@@ -283,7 +283,7 @@ ${activitiesContext}
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-8 max-w-7xl mx-auto font-pretendard space-y-8 pb-20"
+      className="p-4 md:p-8 max-w-7xl mx-auto font-pretendard space-y-6 md:space-y-8 pb-20"
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">

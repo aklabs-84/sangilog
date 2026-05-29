@@ -312,7 +312,7 @@ const Settings = () => {
       <div className="px-2 flex items-center justify-between">
         <div>
           <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">System Preferences</p>
-          <h1 className="text-4xl font-extrabold font-manrope mb-4">설정</h1>
+          <h1 className="text-2xl md:text-4xl font-extrabold font-manrope mb-4">설정</h1>
           <p className="text-on-surface-variant text-base leading-relaxed">
             계정 정보, 워크스페이스 및 개인화 설정을 관리하세요.
           </p>
@@ -348,7 +348,7 @@ const Settings = () => {
       </div>
 
       {/* Profile Header Card */}
-      <div className="surface-card p-10 shadow-ambient flex items-center gap-10 relative overflow-hidden">
+      <div className="surface-card p-5 md:p-10 shadow-ambient flex items-center gap-5 md:gap-10 relative overflow-hidden">
         <div className="relative group cursor-pointer" onClick={handleFileSelect}>
           <div className={`w-32 h-32 rounded-3xl overflow-hidden shadow-lg border-4 border-surface-container-high transition-transform ${isEditing ? 'hover:scale-105' : ''} bg-surface-container flex items-center justify-center relative`}>
             {loading ? (
@@ -429,7 +429,7 @@ const Settings = () => {
       <div className="space-y-6">
         {sections.map((section) => (
           <div key={section.id} className="surface-card shadow-ambient overflow-hidden transition-all">
-            <div className="px-10 py-6 border-b border-surface-container bg-surface-container-low/30 flex items-center justify-between">
+            <div className="px-5 md:px-10 py-4 md:py-6 border-b border-surface-container bg-surface-container-low/30 flex items-center justify-between">
               <h3 className="text-lg font-bold flex items-center gap-3">
                 <section.icon size={22} className="text-primary" />
                 {section.title}
@@ -445,7 +445,7 @@ const Settings = () => {
             </div>
             <div className="divide-y divide-surface-container">
               {section.items.map((item, i) => (
-                <div key={i} className="px-10 py-6 flex items-center justify-between hover:bg-surface-container-low/50 transition-colors group">
+                <div key={i} className="px-5 md:px-10 py-4 md:py-6 flex items-center justify-between hover:bg-surface-container-low/50 transition-colors group">
                   <div className="space-y-1 flex-1">
                     <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">{item.label}</p>
                     {isEditing && !item.readOnly ? (
@@ -516,7 +516,7 @@ const Settings = () => {
       </div>
 
       {/* Action Footer */}
-      <div className="flex items-center justify-between p-10 mt-10 border-t border-surface-container-high relative">
+      <div className="flex items-center justify-between p-5 md:p-10 mt-6 md:mt-10 border-t border-surface-container-high relative flex-wrap gap-4">
         <div className="flex items-center gap-8">
           <button 
             onClick={() => setShowLangModal(true)}

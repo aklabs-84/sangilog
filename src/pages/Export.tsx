@@ -221,16 +221,16 @@ const Export = () => {
     >
       <div className="px-2">
         <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">Workspace Utility</p>
-        <h1 className="text-4xl font-extrabold font-manrope mb-4">데이터 내보내기 센터</h1>
+        <h1 className="text-2xl md:text-4xl font-extrabold font-manrope mb-4">데이터 내보내기 센터</h1>
         <p className="text-on-surface-variant text-base leading-relaxed max-w-2xl">
           기록된 학생 데이터를 다양한 형식으로 추출할 수 있습니다. 성적, 출석, AI 피드백 초안이 포함된 통합 리포트를 생성하세요.
         </p>
       </div>
 
-      <div className="grid grid-cols-12 gap-10 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10 items-start">
         {/* Export Configuration */}
         <div className="col-span-12 lg:col-span-5 space-y-8">
-          <div className="surface-card p-10 shadow-ambient border-l-4 border-primary">
+          <div className="surface-card p-5 md:p-10 shadow-ambient border-l-4 border-primary">
             <h2 className="text-xl font-bold mb-8 flex items-center gap-3">
               <Database size={24} className="text-primary" />
               내보내기 매개변수 설정
@@ -383,7 +383,7 @@ const Export = () => {
 
         {/* Data Preview */}
         <div className="col-span-12 lg:col-span-7">
-          <div className="surface-card p-10 shadow-ambient">
+          <div className="surface-card p-5 md:p-10 shadow-ambient">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h2 className="text-xl font-bold font-manrope">데이터 구조 미리보기</h2>
@@ -430,7 +430,7 @@ const Export = () => {
             </div>
 
             <div className="mt-8 pt-6 border-t border-surface-container flex items-center justify-between">
-              <div className="flex gap-10">
+              <div className="flex flex-col sm:flex-row gap-4 md:gap-10">
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold text-on-surface-variant uppercase">포함 열</p>
                   <p className="text-sm font-black">6개 선택됨</p>

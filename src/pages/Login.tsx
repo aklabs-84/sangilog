@@ -62,7 +62,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-8 relative overflow-hidden selection:bg-primary/20 selection:text-primary">
+    <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-4 md:p-8 relative overflow-hidden selection:bg-primary/20 selection:text-primary">
       {/* Background Decor - More vibrant for the login page */}
       <div className="absolute top-[-10%] right-[-10%] w-[800px] h-[800px] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
       <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-secondary/10 rounded-full blur-[100px] animate-pulse delay-700" />
@@ -72,13 +72,13 @@ const Login = () => {
       <motion.div 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="flex items-center gap-4 mb-16 relative z-10"
+        className="flex items-center gap-4 mb-8 md:mb-16 relative z-10"
       >
         <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-[1.5rem] flex items-center justify-center text-white shadow-elevated group cursor-pointer hover:rotate-12 transition-transform duration-500">
           <GraduationCap size={36} strokeWidth={2.5} />
         </div>
         <div>
-          <h1 className="text-4xl font-black tracking-tightest leading-none gradient-text">생기로그 AI</h1>
+          <h1 className="text-2xl md:text-4xl font-black tracking-tightest leading-none gradient-text">생기로그 AI</h1>
           <p className="text-[10px] text-primary/40 font-black uppercase tracking-[0.4em] mt-1 ml-1">Next-Gen Education Lab</p>
         </div>
       </motion.div>
@@ -86,7 +86,7 @@ const Login = () => {
       <motion.div 
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-[520px] layered-card shadow-elevated p-12 relative z-10 overflow-hidden bg-white/70"
+        className="w-full max-w-[520px] layered-card shadow-elevated p-6 md:p-12 relative z-10 overflow-hidden bg-white/70"
       >
         {/* Decorative corner glow */}
         <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />

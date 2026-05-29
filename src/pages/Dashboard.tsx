@@ -356,61 +356,61 @@ const Dashboard = () => {
       </AnimatePresence>
 
       {/* Hero & Stats Grid */}
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-8 surface-zone p-10 flex flex-col justify-center relative overflow-hidden h-[340px]">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
+        <div className="md:col-span-8 surface-zone p-6 md:p-10 flex flex-col justify-center relative overflow-hidden min-h-[200px] md:h-[340px]">
           <div className="relative z-10 max-w-lg">
             <p className="text-primary font-bold text-xs mb-3 tracking-widest uppercase">인텔리전스 허브</p>
-            <h1 className="text-4xl font-extrabold mb-6 leading-[1.2] font-manrope">
-              AI로 간편하게 만드는 <br />
+            <h1 className="text-2xl md:text-4xl font-extrabold mb-4 md:mb-6 leading-[1.2] font-manrope">
+              AI로 간편하게 만드는<br />
               학생 맞춤형 생기부 초안
             </h1>
-            <p className="text-on-surface-variant text-base mb-8 leading-relaxed">
-              학급 내 관찰 기록을 바탕으로 세밀하게 튜닝된 AI가 <br />
+            <p className="text-on-surface-variant text-sm md:text-base mb-6 md:mb-8 leading-relaxed hidden sm:block">
+              학급 내 관찰 기록을 바탕으로 세밀하게 튜닝된 AI가
               학기말 리포트 초안을 정성스럽게 작성해 드립니다.
             </p>
             <button
               onClick={() => navigate('/ai-assistant')}
-              className="btn-gradient px-8 py-3.5 rounded-xl font-bold flex items-center gap-2 w-fit hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-primary/20"
+              className="btn-gradient px-6 md:px-8 py-3 md:py-3.5 rounded-xl font-bold flex items-center gap-2 w-fit hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-primary/20 text-sm"
             >
-              <Sparkles size={20} />
+              <Sparkles size={18} />
               AI 리포트 자동 생성
             </button>
           </div>
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[300px] h-[300px] opacity-10">
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[200px] h-[200px] md:w-[300px] md:h-[300px] opacity-10 hidden sm:block">
             <GraduationCap size={300} />
           </div>
         </div>
 
-        <div className="col-span-4 flex flex-col gap-6">
-          <div className="flex-1 surface-card p-8 flex flex-col justify-between shadow-ambient">
+        <div className="md:col-span-4 grid grid-cols-2 md:grid-cols-1 gap-4 md:gap-6">
+          <div className="surface-card p-5 md:p-8 flex flex-col justify-between shadow-ambient">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">리포트 완성도</p>
               <div className="text-primary bg-primary-container/30 px-2 py-1 rounded-lg text-[10px] font-bold">
                 {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
               </div>
             </div>
-            <div className="my-4">
-              <p className="text-5xl font-extrabold font-manrope">{stats.completed}</p>
+            <div className="my-2 md:my-4">
+              <p className="text-3xl md:text-5xl font-extrabold font-manrope">{stats.completed}</p>
             </div>
             <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
-              <motion.div 
+              <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}%` }}
                 transition={{ duration: 1, delay: 0.5 }}
-                className="h-full bg-primary" 
+                className="h-full bg-primary"
               />
             </div>
           </div>
 
-          <div className="flex-1 surface-card p-8 flex flex-col justify-between shadow-ambient">
+          <div className="surface-card p-5 md:p-8 flex flex-col justify-between shadow-ambient">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">기록된 관찰 내용</p>
               <div className="text-on-surface-variant bg-surface-container-high px-2 py-1 rounded-lg text-[10px] font-bold">주간 목표</div>
             </div>
-            <div className="my-4">
-              <p className="text-5xl font-extrabold font-manrope">{totalActivitiesCount}</p>
+            <div className="my-2 md:my-4">
+              <p className="text-3xl md:text-5xl font-extrabold font-manrope">{totalActivitiesCount}</p>
             </div>
-            <p className="text-[11px] text-on-surface-variant italic">
+            <p className="text-[11px] text-on-surface-variant italic hidden sm:block">
               "지속적인 관찰 기록이 AI 초안의 정확도를 높입니다."
             </p>
           </div>
@@ -418,11 +418,11 @@ const Dashboard = () => {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-12 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
         {/* Classes Section */}
         <div className="col-span-12 lg:col-span-7 space-y-6">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-2xl font-bold font-manrope">나의 학급</h2>
+            <h2 className="text-xl md:text-2xl font-bold font-manrope">나의 학급</h2>
             <button 
               onClick={() => navigate('/classroom')}
               className="text-xs font-bold text-primary flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
@@ -430,15 +430,15 @@ const Dashboard = () => {
               전체 보기 <ArrowRight size={14} />
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
             {loading ? (
-              [1, 2].map(i => <div key={i} className="h-[200px] surface-card animate-pulse" />)
+              [1, 2].map(i => <div key={i} className="h-[160px] md:h-[200px] surface-card animate-pulse" />)
             ) : classes.length > 0 ? (
               classes.map((cls) => (
-                <div 
-                  key={cls.id} 
+                <div
+                  key={cls.id}
                   onClick={() => navigate(`/classroom?id=${cls.id}`)}
-                  className="surface-card p-8 shadow-ambient hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
+                  className="surface-card p-5 md:p-8 shadow-ambient hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
                 >
                   <div className={`w-12 h-12 ${cls.color} rounded-2xl flex items-center justify-center mb-6 group-hover:rotate-12 transition-transform`}>
                     <Users size={24} className="text-on-surface" />
