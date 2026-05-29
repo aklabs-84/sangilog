@@ -76,12 +76,19 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
     try {
       const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
 
-      const [{ data: students }, { data: classInfo }] = await Promise.all([
-        supabase.from('students').select('id, full_name, number').eq('class_id', classId).order('number', { ascending: true }),
+      // number 컬럼은 클라이언트 정렬 — DB order()로 타입 불일치 에러 방지
+      const [
+        { data: students, error: studentsErr },
+        { data: classData, error: classErr },
+      ] = await Promise.all([
+        supabase.from('students').select('id, full_name, number').eq('class_id', classId),
         supabase.from('classes').select('weekly_plan').eq('id', classId).single(),
       ]);
 
-      const plan: { week: number; topic: string }[] = classInfo?.weekly_plan || [];
+      if (studentsErr) console.error('BriefingModal students error:', studentsErr);
+      if (classErr) console.error('BriefingModal class error:', classErr);
+
+      const plan: { week: number; topic: string }[] = classData?.weekly_plan || [];
       setWeeklyPlan(plan);
       const topicWeekMap: Record<string, number> = {};
       plan.forEach((p: any) => { if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week); });
@@ -91,10 +98,15 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
         (students || []).map((s: any) => [s.id, { name: s.full_name, number: String(s.number || '-') }])
       );
 
-      if (!studentIds.length) { setRecords([]); setLoading(false); return; }
+      if (!studentIds.length) {
+        console.warn('BriefingModal: 학생 없음 (classId:', classId, ')');
+        setRecords([]);
+        setLoading(false);
+        return;
+      }
 
-      // pending + approved 모두 조회 — 이동 중 내용 파악 후 도착해서 승인 처리
-      const { data: obs } = await supabase
+      // pending + approved 모두 조회 — 이동 중 내용 파악 후 도착 후 승인 처리
+      const { data: obs, error: obsErr } = await supabase
         .from('observations')
         .select('id, student_id, activity_name, content, created_at, status')
         .in('student_id', studentIds)
@@ -102,6 +114,9 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
         .in('status', ['pending', 'approved'])
         .order('created_at', { ascending: false })
         .limit(200);
+
+      if (obsErr) console.error('BriefingModal obs error:', obsErr);
+      console.log('BriefingModal 조회 결과:', { students: studentIds.length, obs: obs?.length ?? 0 });
 
       const enriched: BriefingRecord[] = (obs || []).map((o: any) => ({
         ...o,
@@ -359,7 +374,10 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                 <Loader2 size={24} className="animate-spin text-indigo-400" />
               </div>
             ) : byStudent.length === 0 ? (
-              <div className="text-center py-8 text-slate-500 font-bold text-sm">승인된 관찰기록이 없습니다</div>
+              <div className="text-center py-8 space-y-2">
+                <p className="text-slate-400 font-bold text-sm">제출된 관찰기록이 없습니다</p>
+                <p className="text-slate-600 text-xs">({weekFilter === 'all' ? '전체 주차' : `${weekFilter}주차`} · 총 {records.length}건 조회됨)</p>
+              </div>
             ) : (
               <div className={`rounded-2xl border p-4 transition-all ${isPlaying && phase === 'reading' ? 'bg-indigo-900/30 border-indigo-500/50' : 'bg-white/5 border-white/10'}`}>
                 {phase === 'intro' ? (
