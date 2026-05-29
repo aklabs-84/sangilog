@@ -27,12 +27,14 @@ import {
   File,
   Loader2,
   Download,
+  Headphones,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
+import BriefingModal from '../components/classroom/BriefingModal';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
 import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import TeacherInviteModal from '../components/classroom/TeacherInviteModal';
@@ -75,6 +77,7 @@ const Classroom = () => {
   const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
   const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
+  const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
   
   // 아카이브 관련 상태
@@ -1068,6 +1071,19 @@ const Classroom = () => {
         </div>
 
         <div className="p-4 md:p-8 lg:p-12 max-w-[1600px] mx-auto w-full">
+          {/* 이동 중 브리핑 버튼 */}
+          {activeClassId && (
+            <div className="flex justify-end mb-4 md:mb-6">
+              <button
+                onClick={() => setIsBriefingOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-600 font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
+              >
+                <Headphones size={14} />
+                이동 중 브리핑
+              </button>
+            </div>
+          )}
+
           {/* 2.1 Cohesive Segmented Control */}
           <div className="flex justify-center mb-8 md:mb-16">
             <div className="p-1 md:p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[2rem] md:rounded-[2.5rem] flex items-center border border-white/40 shadow-soft relative overflow-x-auto max-w-full custom-scrollbar">
@@ -2000,6 +2016,15 @@ const Classroom = () => {
               </div>
             </motion.div>
           </div>
+        )}
+
+        {/* 이동 중 브리핑 모달 */}
+        {isBriefingOpen && activeClassId && classInfo && (
+          <BriefingModal
+            classId={activeClassId}
+            className={classInfo.name + (classInfo.subject ? ` · ${classInfo.subject}` : '')}
+            onClose={() => setIsBriefingOpen(false)}
+          />
         )}
 
         {/* 보드 카드 상세 모달 */}
