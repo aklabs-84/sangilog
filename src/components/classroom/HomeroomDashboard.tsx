@@ -439,7 +439,100 @@ const HomeroomDashboard = ({
              )}
            </div>
 
-           <div className="overflow-x-auto bg-white rounded-3xl border border-neutral-100 shadow-sm">
+           {/* ── 모바일 카드 뷰 (md 미만) ── */}
+           <div className="md:hidden space-y-3">
+             {filteredStudents.length === 0 ? (
+               <div className="text-center py-16 text-on-surface-variant/30 font-bold">학생이 없습니다</div>
+             ) : filteredStudents.map((s) => {
+               const approvalStatus = (!s.activity || s.activity === '기록 없음')
+                 ? 'none'
+                 : s.pending_obs_ids?.length > 0 ? 'pending' : 'done';
+               return (
+                 <motion.div
+                   key={s.id}
+                   initial={{ opacity: 0, y: 10 }}
+                   animate={{ opacity: 1, y: 0 }}
+                   onClick={() => onNavigateToStudent(s.id)}
+                   className={`bg-white rounded-2xl border border-neutral-100 shadow-sm p-4 cursor-pointer hover:bg-primary/[0.02] transition-all ${selectedIds.includes(s.id) ? 'ring-2 ring-primary/30' : ''}`}
+                 >
+                   {/* 카드 헤더 */}
+                   <div className="flex items-center justify-between gap-2">
+                     <div className="flex items-center gap-3 min-w-0" onClick={(e) => e.stopPropagation()}>
+                       <label className="flex items-center cursor-pointer shrink-0">
+                         <input type="checkbox" className="hidden" checked={selectedIds.includes(s.id)} onChange={() => onSelectStudentToggle(s.id)} />
+                         <div className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${selectedIds.includes(s.id) ? 'bg-primary border-primary' : 'border-neutral-300'}`}>
+                           {selectedIds.includes(s.id) && <Check size={12} className="text-white" strokeWidth={4} />}
+                         </div>
+                       </label>
+                       {s.number !== '-' && (
+                         <span className="text-xs font-black text-on-surface-variant/30 shrink-0 w-6">
+                           {s.number?.toString().padStart(2, '0')}
+                         </span>
+                       )}
+                       <div className="min-w-0">
+                         <p className="text-sm font-black text-on-surface truncate">{s.name}</p>
+                         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                           <span className="text-[9px] font-bold text-on-surface-variant/40">{s.tag || '학생'}</span>
+                           {suggestionCounts[s.id] > 0 && (
+                             <span className="text-[8px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">💬 {suggestionCounts[s.id]}</span>
+                           )}
+                         </div>
+                       </div>
+                     </div>
+                     <div className="shrink-0 flex items-center gap-2">
+                       {approvalStatus === 'pending' && (
+                         <span className="text-[9px] font-black px-2 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">⏳ 대기</span>
+                       )}
+                       {approvalStatus === 'done' && (
+                         <span className="text-[9px] font-black px-2 py-1 rounded-lg bg-secondary/5 text-secondary border border-secondary/20 whitespace-nowrap">✅ 완료</span>
+                       )}
+                       <button
+                         onClick={(e) => { e.stopPropagation(); onNavigateToStudent(s.id); }}
+                         className="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant/30 hover:text-primary transition-all"
+                       >
+                         <ArrowRight size={14} />
+                       </button>
+                     </div>
+                   </div>
+
+                   {/* 주차별 현황 */}
+                   {statsWeeks.length > 0 && (
+                     <div className="mt-3 pt-3 border-t border-neutral-100 space-y-1.5">
+                       {statsWeeks.map(w => {
+                         const hasObs = getObsOnWeek(w).has(s.id);
+                         const hasResult = getResultsOnWeek(w).has(s.id);
+                         const topic = weeklyPlan.find(p => p.week === w)?.topic;
+                         return (
+                           <div key={w} className="flex items-center gap-2">
+                             <span className="text-[10px] font-black text-on-surface-variant/40 w-10 shrink-0">{w}주차</span>
+                             {topic && <span className="text-[10px] font-bold text-on-surface-variant/40 truncate flex-1 min-w-0">{topic}</span>}
+                             <div className="flex items-center gap-1.5 shrink-0">
+                               <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-violet-50 text-violet-600 border-violet-100' : 'bg-neutral-50 text-neutral-300 border-neutral-100'}`}>
+                                 📝 {hasObs ? '제출' : '미제출'}
+                               </span>
+                               <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${hasResult ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-neutral-50 text-neutral-300 border-neutral-100'}`}>
+                                 📁 {hasResult ? '제출' : '미제출'}
+                               </span>
+                             </div>
+                           </div>
+                         );
+                       })}
+                     </div>
+                   )}
+
+                   {/* 관리 버튼 */}
+                   <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                     <button onClick={(e) => { e.stopPropagation(); handleStartEdit(e, s); }} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg"><Pencil size={14} /></button>
+                     <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="p-2 hover:bg-error/10 text-neutral-400 hover:text-error transition-all rounded-lg"><Trash2 size={14} /></button>
+                     <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-violet-50 text-neutral-400 hover:text-violet-500 transition-all rounded-lg"><KeyRound size={14} /></button>
+                   </div>
+                 </motion.div>
+               );
+             })}
+           </div>
+
+           {/* ── 데스크탑 테이블 (md 이상) ── */}
+           <div className="hidden md:block overflow-x-auto bg-white rounded-3xl border border-neutral-100 shadow-sm">
              <table className="w-full text-left border-collapse min-w-[700px]">
                <thead className="sticky top-0 z-10">
                  <tr className="bg-neutral-50 border-b border-neutral-100">
