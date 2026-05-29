@@ -81,7 +81,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
         { data: students, error: studentsErr },
         { data: classData, error: classErr },
       ] = await Promise.all([
-        supabase.from('students').select('id, full_name, number').eq('class_id', classId),
+        supabase.from('students').select('id, full_name, student_number').eq('class_id', classId),
         supabase.from('classes').select('weekly_plan').eq('id', classId).single(),
       ]);
 
@@ -95,7 +95,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
 
       const studentIds = (students || []).map((s: any) => s.id);
       const nameMap: Record<string, { name: string; number: string }> = Object.fromEntries(
-        (students || []).map((s: any) => [s.id, { name: s.full_name, number: String(s.number || '-') }])
+        (students || []).map((s: any) => [s.id, { name: s.full_name, number: String(s.student_number || '-') }])
       );
 
       if (!studentIds.length) {
