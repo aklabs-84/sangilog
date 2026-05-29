@@ -21,6 +21,7 @@ interface BriefingRecord {
   content: string;
   week_number: number | null;
   created_at: string;
+  status: 'pending' | 'approved';
 }
 
 const SPEEDS = [0.8, 1.0, 1.2, 1.5, 2.0];
@@ -92,12 +93,13 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
 
       if (!studentIds.length) { setRecords([]); setLoading(false); return; }
 
+      // pending + approved 모두 조회 — 이동 중 내용 파악 후 도착해서 승인 처리
       const { data: obs } = await supabase
         .from('observations')
-        .select('id, student_id, activity_name, content, created_at')
+        .select('id, student_id, activity_name, content, created_at, status')
         .in('student_id', studentIds)
         .eq('is_student_record', true)
-        .eq('status', 'approved')
+        .in('status', ['pending', 'approved'])
         .order('created_at', { ascending: false })
         .limit(200);
 
@@ -106,6 +108,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
         student_name: nameMap[o.student_id]?.name || '학생',
         student_number: nameMap[o.student_id]?.number || '-',
         week_number: topicWeekMap[norm(o.activity_name)] ?? null,
+        status: o.status,
       }));
 
       const weeks = Array.from(new Set(enriched.map(r => r.week_number).filter(Boolean) as number[])).sort((a, b) => a - b);
@@ -183,7 +186,9 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
     window.speechSynthesis.cancel();
     const students = studentsRef.current;
     const weekLabel = weekFilter === 'all' ? '전체' : `${weekFilter}주차`;
-    const introText = `${className} 이동 중 브리핑을 시작합니다. ${weekLabel} 관찰 기록, 총 ${students.length}명입니다.`;
+    const pendingCount = students.filter(s => s.status === 'pending').length;
+    const pendingStr = pendingCount > 0 ? ` 승인 대기 ${pendingCount}건 포함.` : '';
+    const introText = `${className} 이동 중 브리핑을 시작합니다. ${weekLabel} 관찰 기록, 총 ${students.length}명.${pendingStr}`;
 
     const utt = new SpeechSynthesisUtterance(introText);
     utt.lang = 'ko-KR';
@@ -309,6 +314,23 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
             </button>
           </div>
 
+          {/* 요약 카운트 */}
+          {!loading && byStudent.length > 0 && (
+            <div className="px-6 pt-3 pb-0 flex items-center gap-3">
+              <span className="text-[11px] font-black text-slate-400">총 {byStudent.length}명 제출</span>
+              {byStudent.filter(s => s.status === 'pending').length > 0 && (
+                <span className="text-[11px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-lg border border-amber-700/40">
+                  ⏳ 승인 대기 {byStudent.filter(s => s.status === 'pending').length}건
+                </span>
+              )}
+              {byStudent.filter(s => s.status === 'approved').length > 0 && (
+                <span className="text-[11px] font-black text-emerald-400">
+                  ✅ {byStudent.filter(s => s.status === 'approved').length}건 승인 완료
+                </span>
+              )}
+            </div>
+          )}
+
           {/* 주차 필터 */}
           <div className="px-6 pt-4 pb-2">
             <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
@@ -383,9 +405,18 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] font-black text-slate-500">
-                        {currentIndex + 1} / {byStudent.length}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+                          current.status === 'pending'
+                            ? 'bg-amber-900/40 text-amber-400 border-amber-700/50'
+                            : 'bg-emerald-900/40 text-emerald-400 border-emerald-700/50'
+                        }`}>
+                          {current.status === 'pending' ? '⏳ 대기' : '✅ 승인'}
+                        </span>
+                        <span className="text-[10px] font-black text-slate-500">
+                          {currentIndex + 1} / {byStudent.length}
+                        </span>
+                      </div>
                     </div>
                     <p className="text-xs font-black text-indigo-300 mb-1 truncate">{current.activity_name}</p>
                     <p className="text-xs text-slate-400 font-bold leading-relaxed line-clamp-2">{current.content}</p>
@@ -486,6 +517,9 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                     {r.student_number !== '-' ? `${r.student_number}번 ` : ''}{r.student_name}
                   </span>
                   <span className="text-[10px] text-slate-600 truncate flex-1 min-w-0">{r.activity_name}</span>
+                  {r.status === 'pending' && (
+                    <span className="text-[8px] font-black text-amber-500 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-700/40 shrink-0">대기</span>
+                  )}
                 </button>
               ))}
             </div>
