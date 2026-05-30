@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import {
   ChevronDown, ChevronUp, Check, RotateCw, Sparkles,
   Download, AlertCircle, Search, Save, FileSpreadsheet,
-  Settings2, RefreshCw,
+  Settings2, RefreshCw, Undo2,
 } from 'lucide-react';
 
 interface ExportColumn {
@@ -115,6 +115,23 @@ const NaissWorkstation = ({ classes }: Props) => {
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [compressingId, setCompressingId] = useState<string | null>(null);
   const [dbError, setDbError] = useState(false);
+  // 행 펼칠 때 setech_content 스냅샷 저장 (되돌리기용)
+  const [undoSnapshots, setUndoSnapshots] = useState<Record<string, string>>({});
+
+  const toggleExpand = (rowId: string, currentContent: string) => {
+    if (expandedId !== rowId) {
+      // 처음 펼칠 때만 스냅샷 저장
+      setUndoSnapshots(prev => prev[rowId] !== undefined ? prev : { ...prev, [rowId]: currentContent });
+    }
+    setExpandedId(prev => prev === rowId ? null : rowId);
+  };
+
+  const undoRow = (rowId: string) => {
+    const snapshot = undoSnapshots[rowId];
+    if (snapshot === undefined) return;
+    updateRow(rowId, { setech_content: snapshot, isDirty: false });
+    setUndoSnapshots(prev => { const next = { ...prev }; delete next[rowId]; return next; });
+  };
   const [showExportSettings, setShowExportSettings] = useState(false);
   const [isImportingDrafts, setIsImportingDrafts] = useState(false);
   const [exportColumns, setExportColumns] = useState<ExportColumn[]>([
@@ -561,7 +578,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                 {/* ── 모바일 요약 카드 (sm 미만) ── */}
                 <div
                   className="sm:hidden flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-container/30 transition-all"
-                  onClick={() => setExpandedId(isExpanded ? null : row.id)}
+                  onClick={() => toggleExpand(row.id, row.setech_content)}
                 >
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${row.status === 'final' ? 'bg-emerald-100 text-emerald-600' : row.status === 'draft' ? 'bg-amber-100 text-amber-500' : 'bg-neutral-100 text-neutral-300'}`}>
                     {row.status === 'final' ? <Check size={14} strokeWidth={3} /> : row.status === 'draft' ? '✏️' : '·'}
@@ -602,7 +619,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                         {isSavingThis ? <RotateCw size={12} className="animate-spin" /> : <Save size={12} />}
                       </button>
                     )}
-                    <button onClick={e => { e.stopPropagation(); setExpandedId(isExpanded ? null : row.id); }}
+                    <button onClick={e => { e.stopPropagation(); toggleExpand(row.id, row.setech_content); }}
                       className="p-1.5 rounded-lg hover:bg-surface-container text-neutral-400 transition-all">
                       {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                     </button>
@@ -612,7 +629,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                 {/* ── 데스크탑 요약 행 (sm 이상) ── */}
                 <div
                   className="hidden sm:grid grid-cols-[40px_32px_80px_72px_1fr_80px_48px_90px_80px] gap-2 items-center px-4 py-3 cursor-pointer hover:bg-surface-container/30 transition-all"
-                  onClick={() => setExpandedId(isExpanded ? null : row.id)}
+                  onClick={() => toggleExpand(row.id, row.setech_content)}
                 >
                   {/* 체크 아이콘 */}
                   <div className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-black ${row.status === 'final' ? 'bg-emerald-100 text-emerald-600' : row.status === 'draft' ? 'bg-amber-100 text-amber-500' : 'bg-neutral-100 text-neutral-300'}`}>
@@ -662,7 +679,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                         {isSavingThis ? <RotateCw size={12} className="animate-spin" /> : <Save size={12} />}
                       </button>
                     )}
-                    <button onClick={e => { e.stopPropagation(); setExpandedId(isExpanded ? null : row.id); }}
+                    <button onClick={e => { e.stopPropagation(); toggleExpand(row.id, row.setech_content); }}
                       className="p-1.5 rounded-lg hover:bg-surface-container text-neutral-400 transition-all">
                       {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                     </button>
@@ -682,7 +699,17 @@ CREATE POLICY "teacher_own" ON student_evaluations
                         <div className="p-4 space-y-3">
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">세특 내용 작성</p>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {/* 되돌리기 — 이번 세션에서 수정 전 내용으로 복원 */}
+                              {row.isDirty && undoSnapshots[row.id] !== undefined && (
+                                <button
+                                  onClick={() => undoRow(row.id)}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-black hover:bg-amber-100 transition-all"
+                                  title="수정 전 내용으로 되돌리기 (이번 세션 시작 시점)"
+                                >
+                                  <Undo2 size={11} /> 되돌리기
+                                </button>
+                              )}
                               <button onClick={() => generateAI(row)} disabled={!!generatingId || !row.obs_count}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[10px] font-black hover:bg-primary/20 transition-all disabled:opacity-40">
                                 {isGenerating ? <RotateCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
