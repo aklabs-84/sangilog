@@ -53,6 +53,19 @@ const byteCount = (text: string) => {
 const sanitizeForNaiss = (text: string) =>
   text.replace(/[<>&"'\\]/g, ' ').replace(/\s+/g, ' ').trim();
 
+// 마지막 완전한 문장 단위로 500자 이내 자르기
+const smartTrim = (text: string, limit = 500): string => {
+  if (text.length <= limit) return text;
+  const sub = text.slice(0, limit);
+  // 마침표(.) 기준으로 마지막 완전한 문장 찾기
+  const lastPeriod = sub.lastIndexOf('.');
+  if (lastPeriod > limit * 0.5) return text.slice(0, lastPeriod + 1).trim();
+  // 마침표 없으면 마지막 공백 기준
+  const lastSpace = sub.lastIndexOf(' ');
+  if (lastSpace > 0) return text.slice(0, lastSpace).trim();
+  return sub;
+};
+
 interface Props {
   classes: any[];
 }
@@ -100,6 +113,7 @@ const NaissWorkstation = ({ classes }: Props) => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'empty' | 'draft' | 'final'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [compressingId, setCompressingId] = useState<string | null>(null);
   const [dbError, setDbError] = useState(false);
   const [showExportSettings, setShowExportSettings] = useState(false);
   const [isImportingDrafts, setIsImportingDrafts] = useState(false);
@@ -236,10 +250,27 @@ const NaissWorkstation = ({ classes }: Props) => {
       const obsText = row.observations.map(o => `활동명: ${o.activity_name}\n내용: ${o.content}`).join('\n---\n');
       const prompt = `${SYSTEM_INSTRUCTIONS.BASE}\n${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}\n아래는 ${row.full_name} 학생의 관찰 기록입니다.\n이를 바탕으로 ${docType} 초안을 500자 이내로 작성하세요.\n문구만 출력하세요.\n\n${obsText}`;
       const result = await geminiPro.generateContent(prompt);
-      const content = result.response.text().trim().slice(0, 500);
+      const content = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: content, status: 'draft' });
     } catch { alert('AI 생성 중 오류가 발생했습니다.'); }
     finally { setGeneratingId(null); }
+  };
+
+  const aiCompress = async (row: StudentRow) => {
+    if (!row.setech_content) return;
+    setCompressingId(row.id);
+    try {
+      const prompt = `다음 세특 문구를 500자 이내로 자연스럽게 압축해주세요.
+핵심 내용과 학생의 역량이 잘 드러나도록 유지하면서, 문장이 자연스럽게 마무리되게 해주세요.
+문구만 출력하고 설명은 쓰지 마세요.
+
+원본:
+${row.setech_content}`;
+      const result = await geminiPro.generateContent(prompt);
+      const compressed = smartTrim(result.response.text().trim());
+      updateRow(row.id, { setech_content: compressed, isDirty: true });
+    } catch { alert('AI 압축 중 오류가 발생했습니다.'); }
+    finally { setCompressingId(null); }
   };
 
   const saveAllDirty = async () => {
@@ -701,12 +732,26 @@ CREATE POLICY "teacher_own" ON student_evaluations
                                 )}
                               </div>
                               {isOver && (
-                                <button
-                                  onClick={() => updateRow(row.id, { setech_content: row.setech_content.slice(0, 500) })}
-                                  className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-600 text-[10px] font-black hover:bg-red-100 transition-all"
-                                >
-                                  <RefreshCw size={10} /> 500자로 자르기
-                                </button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    onClick={() => updateRow(row.id, { setech_content: smartTrim(row.setech_content), isDirty: true })}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-600 text-[10px] font-black hover:bg-red-100 transition-all"
+                                    title="500자 이내 마지막 완전한 문장까지 자르기"
+                                  >
+                                    <RefreshCw size={10} /> 문장 단위 자르기
+                                  </button>
+                                  <button
+                                    onClick={() => aiCompress(row)}
+                                    disabled={compressingId === row.id}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-600 text-[10px] font-black hover:bg-violet-100 transition-all disabled:opacity-50"
+                                    title="AI가 핵심 내용을 유지하며 500자 이내로 자연스럽게 압축"
+                                  >
+                                    {compressingId === row.id
+                                      ? <RotateCw size={10} className="animate-spin" />
+                                      : <Sparkles size={10} />}
+                                    AI로 압축
+                                  </button>
+                                </div>
                               )}
                             </div>
                             <div className="w-full h-2 bg-neutral-100 rounded-full overflow-hidden">
@@ -717,7 +762,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                             </div>
                             {isOver && (
                               <p className="text-[10px] font-black text-red-500 flex items-center gap-1">
-                                <AlertCircle size={11} /> 나이스 입력 시 오류가 발생합니다 — 자르기 버튼으로 수정하세요
+                                <AlertCircle size={11} /> 나이스 입력 시 오류 — <span className="font-bold">문장 단위 자르기</span>(빠름) 또는 <span className="font-bold">AI로 압축</span>(자연스러움)
                               </p>
                             )}
                           </div>
