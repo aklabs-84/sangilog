@@ -1437,6 +1437,8 @@ const Classroom = () => {
                     setSearchQuery={setSearchQuery}
                     copySuccess={copySuccess}
                     onCopyCode={handleCopyCode}
+                    onShareTeacher={handleShareTeacher}
+                    shareTeacherSuccess={shareTeacherSuccess}
                     selectedIds={selectedStudentIds}
                     onSelectStudentToggle={handleSelectStudent}
                     onSelectAll={handleSelectAll}

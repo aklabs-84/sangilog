@@ -25,7 +25,8 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  Megaphone
+  Megaphone,
+  Share2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -39,6 +40,8 @@ interface HomeroomDashboardProps {
   setSearchQuery: (query: string) => void;
   copySuccess: boolean;
   onCopyCode: () => void;
+  onShareTeacher: () => void;
+  shareTeacherSuccess: boolean;
   selectedIds: string[];
   onSelectStudentToggle: (id: string) => void;
   onSelectAll: (isSelect: boolean) => void;
@@ -60,6 +63,8 @@ const HomeroomDashboard = ({
   setSearchQuery,
   copySuccess,
   onCopyCode,
+  onShareTeacher,
+  shareTeacherSuccess,
   selectedIds,
   onSelectStudentToggle,
   onSelectAll,
@@ -350,6 +355,13 @@ const HomeroomDashboard = ({
                       </button>
                     ) : null;
                   })()}
+                  <button
+                    onClick={onShareTeacher}
+                    className={`w-10 h-10 bg-white border-2 rounded-2xl flex items-center justify-center transition-all shadow-soft shrink-0 ${shareTeacherSuccess ? 'border-indigo-400 text-indigo-500' : 'border-neutral-200 text-on-surface-variant/60 hover:border-indigo-300 hover:text-indigo-500'}`}
+                    title="학교 선생님 공유 링크 복사"
+                  >
+                    {shareTeacherSuccess ? <Check size={16} /> : <Share2 size={16} />}
+                  </button>
                   <button
                     onClick={onAddStudent}
                     className="btn-vibrant group flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm transition-all whitespace-nowrap flex-1 sm:flex-none justify-center"
