@@ -466,6 +466,13 @@ const StudentLog = () => {
           await supabase.from('student_results').update({ title: base.title }).eq('id', existingFile.id);
         }
 
+        // 반려 상태였으면 제출 상태로 초기화
+        if (editingResult.submission_group) {
+          await supabase.from('student_results')
+            .update({ status: 'submitted', rejection_feedback: null })
+            .eq('submission_group', editingResult.submission_group);
+        }
+
         resetResultForm();
         await fetchResults();
         showToast('수정되었습니다! ✅');
@@ -1657,6 +1664,11 @@ ${guidePrompt}
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">📁 결과 제출</span>
                                   <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md ${tc.color}`}>{tc.icon}{tc.label}</span>
+                                  {r.status === 'rejected' && (
+                                    <span className="text-[10px] font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                      <X size={9} /> 반려됨
+                                    </span>
+                                  )}
                                   {weekLabel && <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">{weekLabel}</span>}
                                 </div>
                                 {r.title && <p className="font-black text-base group-hover:text-primary transition-colors">{r.title}</p>}
@@ -1675,6 +1687,21 @@ ${guidePrompt}
                                 <Clock size={10} />{formatRelativeTime(r.created_at)}
                               </p>
                             </div>
+                            {/* 반려 피드백 */}
+                            {r.status === 'rejected' && (
+                              <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-2xl">
+                                <p className="text-[10px] font-black text-red-500 mb-1">선생님 피드백</p>
+                                {r.rejection_feedback && (
+                                  <p className="text-xs font-bold text-red-700 leading-relaxed mb-2">{r.rejection_feedback}</p>
+                                )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleEditResult(r); handleTabChange('results'); }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[10px] font-black transition-all"
+                                >
+                                  <RefreshCw size={10} /> 수정 후 재제출
+                                </button>
+                              </div>
+                            )}
                             {/* 수정/삭제 버튼 */}
                             <div className="flex justify-end gap-2 pt-3 mt-2 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
