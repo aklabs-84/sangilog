@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/auth';
 import {
   ChevronDown, ChevronUp, Check, RotateCw, Sparkles,
   Download, AlertCircle, Search, Save, FileSpreadsheet,
-  Settings2, RefreshCw, Undo2,
+  Settings2, RefreshCw, Undo2, Maximize2, X,
 } from 'lucide-react';
 
 interface ExportColumn {
@@ -117,6 +117,7 @@ const NaissWorkstation = ({ classes }: Props) => {
   const [dbError, setDbError] = useState(false);
   // 행 펼칠 때 setech_content 스냅샷 저장 (되돌리기용)
   const [undoSnapshots, setUndoSnapshots] = useState<Record<string, string>>({});
+  const [fullscreenRowId, setFullscreenRowId] = useState<string | null>(null);
 
   const toggleExpand = (rowId: string, currentContent: string) => {
     if (expandedId !== rowId) {
@@ -698,7 +699,16 @@ CREATE POLICY "teacher_own" ON student_evaluations
                         {/* 세특 편집 패널 */}
                         <div className="p-4 space-y-3">
                           <div className="flex items-center justify-between flex-wrap gap-2">
-                            <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">세특 내용 작성</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">세특 내용 작성</p>
+                              <button
+                                onClick={() => setFullscreenRowId(row.id)}
+                                className="p-1 rounded-lg hover:bg-surface-container text-neutral-400 hover:text-primary transition-all"
+                                title="전체화면으로 보기"
+                              >
+                                <Maximize2 size={12} />
+                              </button>
+                            </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {/* 되돌리기 — 이번 세션에서 수정 전 내용으로 복원 */}
                               {row.isDirty && undoSnapshots[row.id] !== undefined && (
@@ -840,6 +850,172 @@ CREATE POLICY "teacher_own" ON student_evaluations
           )}
         </div>
       )}
+
+      {/* 전체화면 세특 편집 모달 */}
+      <AnimatePresence>
+        {fullscreenRowId && (() => {
+          const fsRow = rows.find(r => r.id === fullscreenRowId);
+          if (!fsRow) return null;
+          const fsChars = charCount(fsRow.setech_content);
+          const fsPct = Math.min((fsChars / 500) * 100, 100);
+          const fsIsOver     = fsChars > 500;
+          const fsIsDanger   = !fsIsOver && fsChars > 480;
+          const fsIsWarning  = !fsIsDanger && fsChars > 450;
+          const fsIsCaution  = !fsIsWarning && fsChars > 400;
+          const fsIsNearLimit = fsChars > 440;
+          const fsBarColor = fsIsOver ? 'bg-red-500' : fsIsDanger ? 'bg-orange-400' : fsIsWarning ? 'bg-amber-400' : fsIsCaution ? 'bg-yellow-300' : 'bg-emerald-400';
+          const fsTextColor = fsIsOver ? 'text-red-500' : fsIsDanger ? 'text-orange-500' : fsIsWarning ? 'text-amber-500' : fsIsCaution ? 'text-yellow-600' : 'text-emerald-600';
+          const fsIsGenerating = generatingId === fsRow.id;
+          const fsIsSaving = savingId === fsRow.id;
+          return (
+            <motion.div
+              key="fullscreen-overlay"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+              onClick={() => setFullscreenRowId(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }} transition={{ duration: 0.15 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden"
+                style={{ maxHeight: 'calc(100vh - 2rem)' }}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* 헤더 */}
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-100 shrink-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-black text-on-surface">
+                      {fsRow.student_number}번 {fsRow.full_name}
+                    </span>
+                    <span className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">세특 내용 작성</span>
+                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${STATUS_COLORS[fsRow.status]}`}>
+                      {STATUS_LABELS[fsRow.status]}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {fsRow.isDirty && undoSnapshots[fsRow.id] !== undefined && (
+                      <button
+                        onClick={() => undoRow(fsRow.id)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-black hover:bg-amber-100 transition-all"
+                      >
+                        <Undo2 size={11} /> 되돌리기
+                      </button>
+                    )}
+                    <button onClick={() => generateAI(fsRow)} disabled={!!generatingId || !fsRow.obs_count}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[10px] font-black hover:bg-primary/20 transition-all disabled:opacity-40">
+                      {fsIsGenerating ? <RotateCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                      AI 생성
+                    </button>
+                    <button onClick={() => updateRow(fsRow.id, { setech_content: sanitizeForNaiss(fsRow.setech_content) })}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-container text-on-surface-variant text-[10px] font-black hover:bg-surface-container-high transition-all">
+                      특수문자 정제
+                    </button>
+                    <button onClick={() => markFinal(fsRow)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-black hover:bg-emerald-100 transition-all">
+                      <Check size={11} /> 최종 확정
+                    </button>
+                    {fsRow.isDirty && (
+                      <button onClick={() => saveRow(fsRow)} disabled={!!savingId}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary text-white text-[10px] font-black hover:bg-primary/80 transition-all">
+                        {fsIsSaving ? <RotateCw size={11} className="animate-spin" /> : <Save size={11} />}
+                        저장
+                      </button>
+                    )}
+                    <button onClick={() => setFullscreenRowId(null)}
+                      className="p-1.5 rounded-xl hover:bg-neutral-100 text-neutral-400 transition-all ml-1">
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 본문: 편집 + 관찰기록 */}
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_280px] overflow-hidden min-h-0">
+                  {/* 세특 편집 영역 */}
+                  <div className="flex flex-col gap-3 p-5 overflow-auto">
+                    <textarea
+                      value={fsRow.setech_content}
+                      onChange={e => updateRow(fsRow.id, { setech_content: e.target.value })}
+                      placeholder="세특 내용을 직접 입력하거나 AI 생성 버튼을 눌러주세요..."
+                      autoFocus
+                      className={`flex-1 w-full p-4 rounded-xl text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 transition-all border ${
+                        fsIsOver    ? 'border-red-300 focus:ring-red-200 bg-red-50/50' :
+                        fsIsDanger  ? 'border-orange-300 focus:ring-orange-200 bg-orange-50/30' :
+                        fsIsWarning ? 'border-amber-200 focus:ring-amber-200' :
+                        'border-neutral-200 focus:ring-primary/20 bg-surface-container/40'
+                      }`}
+                      style={{ minHeight: '320px' }}
+                    />
+                    {/* 진행바 + 카운터 */}
+                    <div className="space-y-1.5 shrink-0">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-[11px] font-black ${fsTextColor}`}>{fsChars} / 500자</span>
+                          <span className="text-[10px] font-bold text-neutral-400">{byteCount(fsRow.setech_content)} bytes</span>
+                          {fsIsOver ? (
+                            <span className="text-[10px] font-black text-red-500 flex items-center gap-1">
+                              <AlertCircle size={10} /> {fsChars - 500}자 초과
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] font-bold ${fsIsNearLimit ? fsTextColor : 'text-neutral-400'}`}>
+                              남은 {500 - fsChars}자
+                            </span>
+                          )}
+                        </div>
+                        {fsIsOver && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => updateRow(fsRow.id, { setech_content: smartTrim(fsRow.setech_content), isDirty: true })}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-600 text-[10px] font-black hover:bg-red-100 transition-all"
+                            >
+                              <RefreshCw size={10} /> 문장 단위 자르기
+                            </button>
+                            <button
+                              onClick={() => aiCompress(fsRow)}
+                              disabled={compressingId === fsRow.id}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-50 border border-violet-200 text-violet-600 text-[10px] font-black hover:bg-violet-100 transition-all disabled:opacity-50"
+                            >
+                              {compressingId === fsRow.id ? <RotateCw size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                              AI로 압축
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="w-full h-2 bg-neutral-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-200 ${fsBarColor}`} style={{ width: `${Math.min(fsPct, 100)}%` }} />
+                      </div>
+                      {fsIsOver && (
+                        <p className="text-[10px] font-black text-red-500 flex items-center gap-1">
+                          <AlertCircle size={11} /> 나이스 입력 시 오류 — <span className="font-bold">문장 단위 자르기</span> 또는 <span className="font-bold">AI로 압축</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 관찰기록 참고 패널 */}
+                  <div className="p-4 bg-surface-container/30 border-t lg:border-t-0 lg:border-l border-surface-container flex flex-col gap-2 overflow-auto">
+                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest shrink-0">
+                      관찰 기록 ({fsRow.obs_count}건)
+                    </p>
+                    {fsRow.observations.length > 0 ? (
+                      <div className="space-y-2 overflow-y-auto custom-scrollbar pr-1">
+                        {fsRow.observations.map((o, i) => (
+                          <div key={i} className="p-3 bg-white rounded-xl border border-surface-container text-xs">
+                            <p className="font-black text-on-surface mb-1">{o.activity_name}</p>
+                            <p className="text-on-surface-variant/60 leading-relaxed">{o.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-xs text-neutral-400 italic">관찰 기록이 없습니다</div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* 엑셀 다운로드 안내 */}
       {rows.length > 0 && (
