@@ -388,29 +388,29 @@ CREATE POLICY "teacher_own" ON student_evaluations
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* AI 초안 불러오기 */}
           <button onClick={importFromAIDrafts} disabled={isImportingDrafts || !rows.length}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-black text-xs transition-all disabled:opacity-40">
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-black text-xs transition-all disabled:opacity-40">
             {isImportingDrafts ? <RotateCw size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            AI 초안 불러오기
+            <span className="hidden sm:inline">AI 초안 불러오기</span>
+            <span className="sm:hidden">초안 불러오기</span>
           </button>
           {dirtyCount > 0 && (
             <button onClick={saveAllDirty} disabled={!!savingId}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs transition-all">
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs transition-all">
               <Save size={13} />
               전체 저장 ({dirtyCount})
             </button>
           )}
-          {/* 다운로드 설정 토글 */}
           <button onClick={() => setShowExportSettings(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border font-black text-xs transition-all ${showExportSettings ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-surface-container border-neutral-200 text-on-surface-variant hover:border-primary/20'}`}>
             <Settings2 size={13} />
-            컬럼 설정
+            <span className="hidden sm:inline">컬럼 설정</span>
           </button>
           <button onClick={exportToExcel} disabled={!rows.length}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/80 text-white font-black text-xs transition-all shadow-sm disabled:opacity-40">
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary hover:bg-primary/80 text-white font-black text-xs transition-all shadow-sm disabled:opacity-40">
             <FileSpreadsheet size={14} />
-            나이스 엑셀 다운로드
+            <span className="hidden sm:inline">나이스 엑셀 다운로드</span>
+            <span className="sm:hidden">엑셀 다운로드</span>
           </button>
         </div>
       </div>
@@ -504,8 +504,8 @@ CREATE POLICY "teacher_own" ON student_evaluations
         </div>
       ) : (
         <div className="space-y-2">
-          {/* 컬럼 헤더 */}
-          <div className="hidden md:grid grid-cols-[40px_32px_80px_72px_1fr_80px_48px_90px_80px] gap-2 px-4 text-[10px] font-black text-on-surface-variant/40 uppercase tracking-wider">
+          {/* 컬럼 헤더 (데스크탑) */}
+          <div className="hidden sm:grid grid-cols-[40px_32px_80px_72px_1fr_80px_48px_90px_80px] gap-2 px-4 text-[10px] font-black text-on-surface-variant/40 uppercase tracking-wider">
             <span></span><span>번호</span><span>이름</span><span>성취도</span><span>세특 내용</span>
             <span className="text-right">글자수</span><span className="text-center">기록</span><span className="text-center">상태</span><span></span>
           </div>
@@ -527,9 +527,60 @@ CREATE POLICY "teacher_own" ON student_evaluations
 
             return (
               <div key={row.id} className={`layered-card overflow-hidden transition-all ${isExpanded ? 'shadow-ambient ring-2 ring-primary/10' : 'shadow-sm'}`}>
-                {/* 요약 행 */}
+                {/* ── 모바일 요약 카드 (sm 미만) ── */}
                 <div
-                  className="grid grid-cols-[40px_32px_80px_72px_1fr_80px_48px_90px_80px] gap-2 items-center px-4 py-3 cursor-pointer hover:bg-surface-container/30 transition-all"
+                  className="sm:hidden flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-container/30 transition-all"
+                  onClick={() => setExpandedId(isExpanded ? null : row.id)}
+                >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${row.status === 'final' ? 'bg-emerald-100 text-emerald-600' : row.status === 'draft' ? 'bg-amber-100 text-amber-500' : 'bg-neutral-100 text-neutral-300'}`}>
+                    {row.status === 'final' ? <Check size={14} strokeWidth={3} /> : row.status === 'draft' ? '✏️' : '·'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-black text-neutral-400 shrink-0">{row.student_number}</span>
+                      <span className="text-sm font-black text-on-surface truncate">{row.full_name}</span>
+                    </div>
+                    {row.setech_content ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                        </div>
+                        <span className={`text-[10px] font-black shrink-0 ${textColor}`}>{chars}/500</span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-neutral-300 italic">미작성</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                    <select
+                      value={row.achievement_level || ''}
+                      onChange={e => updateRow(row.id, { achievement_level: e.target.value as any || null })}
+                      className={`w-12 px-1 py-1 rounded-lg text-[10px] font-black border appearance-none outline-none text-center ${row.achievement_level ? LEVEL_COLORS[row.achievement_level] : 'bg-neutral-50 border-neutral-200 text-neutral-400'}`}
+                    >
+                      <option value="">-</option>
+                      <option value="상">상</option>
+                      <option value="중">중</option>
+                      <option value="하">하</option>
+                    </select>
+                    <span className={`text-[9px] font-black px-2 py-1 rounded-full whitespace-nowrap ${STATUS_COLORS[row.status]}`}>
+                      {STATUS_LABELS[row.status]}
+                    </span>
+                    {row.isDirty && (
+                      <button onClick={() => saveRow(row)} disabled={!!savingId}
+                        className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all">
+                        {isSavingThis ? <RotateCw size={12} className="animate-spin" /> : <Save size={12} />}
+                      </button>
+                    )}
+                    <button onClick={e => { e.stopPropagation(); setExpandedId(isExpanded ? null : row.id); }}
+                      className="p-1.5 rounded-lg hover:bg-surface-container text-neutral-400 transition-all">
+                      {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── 데스크탑 요약 행 (sm 이상) ── */}
+                <div
+                  className="hidden sm:grid grid-cols-[40px_32px_80px_72px_1fr_80px_48px_90px_80px] gap-2 items-center px-4 py-3 cursor-pointer hover:bg-surface-container/30 transition-all"
                   onClick={() => setExpandedId(isExpanded ? null : row.id)}
                 >
                   {/* 체크 아이콘 */}
