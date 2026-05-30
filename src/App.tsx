@@ -17,6 +17,7 @@ import TeachingTools from './pages/TeachingTools';
 import SuggestionsPage from './pages/SuggestionsPage';
 import QuizStudentView from './pages/QuizStudentView';
 import ClassBoard from './pages/ClassBoard';
+import ShareClassView from './pages/ShareClassView';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -62,6 +63,7 @@ function App() {
               <Route path="/quiz/:pin" element={<QuizStudentView />} />
               <Route path="/quiz" element={<QuizStudentView />} />
               <Route path="/board/:classId" element={<ProtectedRoute><ClassBoard /></ProtectedRoute>} />
+              <Route path="/share/:classId" element={<ShareClassView />} />
               
               <Route 
                 element={

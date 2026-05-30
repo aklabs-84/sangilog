@@ -57,6 +57,7 @@ const Classroom = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
+  const [shareTeacherSuccess, setShareTeacherSuccess] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [newClassData, setNewClassData] = useState({ 
@@ -706,6 +707,15 @@ const Classroom = () => {
       setTimeout(() => setCopySuccess(false), 2000);
       showToast('🔗 학생 입장 링크가 복사되었습니다.');
     }
+  };
+
+  const handleShareTeacher = () => {
+    if (!activeClassId) return;
+    const url = `${window.location.origin}/share/${activeClassId}`;
+    navigator.clipboard.writeText(url);
+    setShareTeacherSuccess(true);
+    setTimeout(() => setShareTeacherSuccess(false), 2000);
+    showToast('📋 학교 선생님 공유 링크가 복사되었습니다.');
   };
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -1464,6 +1474,8 @@ const Classroom = () => {
                     sortConfig={sortConfig}
                     onCopyLink={handleCopyLink}
                     copySuccess={copySuccess}
+                    onShareTeacher={handleShareTeacher}
+                    shareTeacherSuccess={shareTeacherSuccess}
                     selectedIds={selectedStudentIds}
                     onSelectStudent={handleSelectStudent}
                     onSelectAll={handleSelectAll}

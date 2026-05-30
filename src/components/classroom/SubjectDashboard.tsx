@@ -15,6 +15,7 @@ import {
   ArrowRight,
   ArrowLeftRight,
   Link as LinkIcon,
+  Share2,
   Check,
   X,
   CheckCheck,
@@ -51,6 +52,8 @@ interface SubjectDashboardProps {
   onSort: (key: any) => void;
   onCopyLink: () => void;
   copySuccess: boolean;
+  onShareTeacher: () => void;
+  shareTeacherSuccess: boolean;
   selectedIds: string[];
   onSelectStudent: (id: string) => void;
   onSelectAll: (isSelect: boolean) => void;
@@ -77,6 +80,8 @@ const SubjectDashboard = ({
   onSort,
   onCopyLink,
   copySuccess,
+  onShareTeacher,
+  shareTeacherSuccess,
   selectedIds,
   onSelectStudent,
   onSelectAll,
@@ -351,6 +356,13 @@ const SubjectDashboard = ({
             </button>
             <button onClick={onCopyLink} className={`w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft ${copySuccess ? 'text-primary' : 'text-on-surface-variant/60'}`} title="학생 기록 URL 복사">
               {copySuccess ? <Check size={17} /> : <LinkIcon size={17} />}
+            </button>
+            <button
+              onClick={onShareTeacher}
+              className={`w-10 h-10 bg-white hover:bg-indigo-500 hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft ${shareTeacherSuccess ? 'text-indigo-500' : 'text-on-surface-variant/60'}`}
+              title="학교 선생님 공유 링크 복사"
+            >
+              {shareTeacherSuccess ? <Check size={17} /> : <Share2 size={17} />}
             </button>
             <button onClick={onExport} className="w-10 h-10 bg-white hover:bg-on-surface hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft" title="데이터 내보내기">
               <Download size={17} />
