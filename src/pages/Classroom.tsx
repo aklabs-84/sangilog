@@ -70,7 +70,7 @@ const Classroom = () => {
     linked_class_id: '',
     student_guide_prompt: '',
     teacher_report_prompt: '',
-    weekly_plan: [{ week: 1, topic: '', url: '' }],
+    weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true }],
     min_obs_chars: 0,
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
@@ -1660,13 +1660,21 @@ const Classroom = () => {
                                    plan[idx].url = e.target.value;
                                    setNewClassData({ ...newClassData, weekly_plan: plan });
                                  }} placeholder="자료 링크 (URL)" className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs font-bold outline-none focus:border-secondary/40" />
+                                 <label onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 cursor-pointer mt-1">
+                                   <input type="checkbox" checked={item.requires_result !== false} onChange={(e) => {
+                                     const plan = [...newClassData.weekly_plan];
+                                     plan[idx].requires_result = e.target.checked;
+                                     setNewClassData({ ...newClassData, weekly_plan: plan });
+                                   }} className="w-3.5 h-3.5 rounded accent-secondary" />
+                                   <span className="text-[10px] font-black text-neutral-500">결과제출 필요</span>
+                                 </label>
                                </div>
                             </div>
                           </div>
                         ))}
                         <button type="button" onClick={() => {
                           const plan = newClassData.weekly_plan;
-                          setNewClassData({ ...newClassData, weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '' }] });
+                          setNewClassData({ ...newClassData, weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true }] });
                         }} className="w-full py-2 border-2 border-dashed border-neutral-200 rounded-xl text-[10px] font-black text-neutral-400 hover:border-secondary/40 hover:text-secondary transition-all">+ 주차 추가</button>
                       </div>
                     </div>
@@ -1767,7 +1775,7 @@ const Classroom = () => {
                               const plan = updateClassData.weekly_plan || [];
                               setUpdateClassData({
                                 ...updateClassData, 
-                                weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '' }]
+                                weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true }]
                               });
                             }}
                             className="text-[10px] font-black px-3 py-1 bg-primary/10 rounded-lg hover:bg-primary hover:text-white transition-all"
@@ -1824,6 +1832,14 @@ const Classroom = () => {
                                           : 'bg-white border-neutral-200'
                                       }`}
                                     />
+                                    <label className="flex items-center gap-2 cursor-pointer mt-1">
+                                      <input type="checkbox" checked={item.requires_result !== false} onChange={(e) => {
+                                        const plan = [...updateClassData.weekly_plan];
+                                        plan[idx].requires_result = e.target.checked;
+                                        setUpdateClassData({ ...updateClassData, weekly_plan: plan });
+                                      }} className="w-3.5 h-3.5 rounded accent-primary" />
+                                      <span className="text-[10px] font-black text-neutral-500">결과제출 필요</span>
+                                    </label>
                                   </div>
 
                                   {/* ── 에디터 자료 연결 ── */}

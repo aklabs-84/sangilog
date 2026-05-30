@@ -67,6 +67,11 @@ const StudentLog = () => {
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [guidePrompt, setGuidePrompt] = useState<string>('');
   const [minObsChars, setMinObsChars] = useState(0);
+  const [reminderModal, setReminderModal] = useState<{
+    type: 'need_result' | 'need_obs';
+    week: number;
+    topic: string;
+  } | null>(null);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<{reason: string, guide: string} | null>(null);
   
@@ -515,6 +520,23 @@ const StudentLog = () => {
       resetResultForm();
       await fetchResults();
       showToast(`${selectedWeek}주차 결과물이 제출되었습니다! ✅`);
+
+      // 관찰기록 리마인더 체크
+      if (selectedWeek) {
+        const norm2 = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
+        const weekPlan = (classResources as any[]).find(r => r.week === selectedWeek);
+        const weekTopic = weekPlan?.topic || '';
+        if (weekTopic) {
+          const hasObs = historyLogs.some((l: any) => norm2(l.activity_name || '') === norm2(weekTopic));
+          if (!hasObs) {
+            setTimeout(() => setReminderModal({
+              type: 'need_obs',
+              week: selectedWeek,
+              topic: weekTopic,
+            }), 1200);
+          }
+        }
+      }
     } catch { showToast('오류가 발생했습니다.', 'error'); }
     finally { setResultSubmitting(false); }
   };
@@ -997,6 +1019,21 @@ ${guidePrompt}
         });
 
       showToast('제출 완료! 선생님 승인 후 최종 기록에 반영됩니다. ✅');
+
+      // 결과제출 리마인더 체크
+      const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
+      const matchedWeekPlan = (classResources as any[]).find(r => norm(r.topic) === norm(title));
+      if (matchedWeekPlan && matchedWeekPlan.requires_result !== false) {
+        const hasResult = results.some((r: any) => r.week_number === matchedWeekPlan.week);
+        if (!hasResult) {
+          setTimeout(() => setReminderModal({
+            type: 'need_result',
+            week: matchedWeekPlan.week,
+            topic: matchedWeekPlan.topic,
+          }), 1200);
+        }
+      }
+
       setTitle('');
       setContent('');
       setFeeling('');
@@ -3588,6 +3625,76 @@ ${guidePrompt}
             </>
           );
         })()}
+      </AnimatePresence>
+
+      {/* ── 제출 리마인더 바텀시트 ── */}
+      <AnimatePresence>
+        {reminderModal && (
+          <div className="fixed inset-0 z-[1500] flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setReminderModal(null)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl"
+            >
+              {/* 드래그 핸들 */}
+              <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
+
+              <div className="flex items-start gap-4 mb-6">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 ${
+                  reminderModal.type === 'need_result' ? 'bg-emerald-100' : 'bg-violet-100'
+                }`}>
+                  {reminderModal.type === 'need_result' ? '📁' : '📝'}
+                </div>
+                <div className="flex-1">
+                  <p className="font-black text-on-surface text-base leading-snug">
+                    {reminderModal.type === 'need_result'
+                      ? `${reminderModal.week}주차 결과물도 제출해주세요!`
+                      : `${reminderModal.week}주차 관찰기록도 작성해주세요!`}
+                  </p>
+                  <p className="text-sm text-on-surface-variant/70 mt-1.5 leading-relaxed">
+                    {reminderModal.type === 'need_result'
+                      ? `"${reminderModal.topic}" 관찰기록은 제출됐어요.\n이번 주차 결과물도 함께 제출해야 완성돼요.`
+                      : `"${reminderModal.topic}" 결과물은 제출됐어요.\n관찰기록도 빠짐없이 작성해주세요.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const type = reminderModal.type;
+                    const week = reminderModal.week;
+                    setReminderModal(null);
+                    if (type === 'need_result') {
+                      setSelectedWeek(week);
+                      setActiveTab('results');
+                    } else {
+                      setActiveTab('record');
+                    }
+                  }}
+                  className="flex-1 py-4 btn-gradient rounded-2xl font-black text-sm"
+                >
+                  지금 {reminderModal.type === 'need_result' ? '결과물' : '관찰기록'} 작성하기 →
+                </button>
+                <button
+                  onClick={() => setReminderModal(null)}
+                  className="px-5 py-4 bg-neutral-100 hover:bg-neutral-200 rounded-2xl font-black text-sm text-neutral-500 transition-all"
+                >
+                  나중에
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
