@@ -20,7 +20,7 @@ import {
 interface StudentRow {
   id: string;
   full_name: string;
-  number: number | null;
+  student_number: number | null;
 }
 
 interface ObsRow {
@@ -94,9 +94,9 @@ const ShareClassView = () => {
 
       const { data: students, error: stuErr } = await supabase
         .from('students')
-        .select('id, full_name, number')
+        .select('id, full_name, student_number')
         .eq('class_id', classId)
-        .order('number', { ascending: true });
+        .order('student_number', { ascending: true });
 
       if (stuErr || !students) {
         setError('학생 데이터를 불러올 수 없습니다.\nSupabase 공유 권한 설정이 필요합니다.');
@@ -135,9 +135,7 @@ const ShareClassView = () => {
         let image_url: string | null = null;
         let file_url: string | null = null;
         if (r.result_type === 'image' && r.storage_path) {
-          const { data } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
-            transform: { width: 400, quality: 65 },
-          });
+          const { data } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
           image_url = data?.publicUrl || null;
         } else if (r.result_type === 'file' && r.storage_path) {
           const { data } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
@@ -362,7 +360,7 @@ const ShareClassView = () => {
                 >
                   <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
                     <span className="text-sm font-black text-gray-600">
-                      {student.number ?? '—'}
+                      {student.student_number ?? '—'}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
