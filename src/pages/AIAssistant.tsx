@@ -20,10 +20,12 @@ import { useAuth } from '../lib/auth';
 import { geminiPro, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
 
 interface StudentDraft {
+  studentId: string;
   name: string;
   content: string;
   isExpanded: boolean;
   isCopied: boolean;
+  isDeleting?: boolean;
 }
 
 const AIAssistant = () => {
@@ -71,17 +73,40 @@ const AIAssistant = () => {
 
   const fetchStudents = async (classId: string) => {
     try {
-      const cls = classes.find(c => c.id === classId);
+      const cls = classes.find(c => c.id === classId) || classes[0];
       const targetClassId = cls?.linked_class_id || classId;
       const { data } = await supabase.from('students').select('*').eq('class_id', targetClassId)
         .order('student_number', { ascending: true });
       if (data) {
         setStudents(data);
-        setSelectedStudentIds(data.map((s: any) => s.id)); // 전체 자동 선택
+        setSelectedStudentIds(data.map((s: any) => s.id));
+        await loadSavedDrafts(classId, data);
       }
     } catch (error) {
       console.error('Error fetching students:', error);
     }
+  };
+
+  const loadSavedDrafts = async (classId: string, studentList: any[]) => {
+    try {
+      const ids = studentList.map((s: any) => s.id);
+      const { data: evals } = await supabase
+        .from('student_evaluations')
+        .select('student_id, setech_content, status')
+        .in('student_id', ids)
+        .eq('class_id', classId)
+        .eq('academic_year', new Date().getFullYear())
+        .neq('setech_content', '');
+      if (evals && evals.length > 0) {
+        const drafts: StudentDraft[] = evals
+          .filter(e => e.setech_content)
+          .map(e => {
+            const stu = studentList.find((s: any) => s.id === e.student_id);
+            return { studentId: e.student_id, name: stu?.full_name || '알 수 없음', content: e.setech_content, isExpanded: false, isCopied: false };
+          });
+        if (drafts.length > 0) { setDraftResults(drafts); setShowDraft(true); }
+      }
+    } catch { /* 조용히 실패 */ }
   };
 
   const fetchObsStats = async (classId: string) => {
@@ -223,11 +248,11 @@ ${obsText}
           docType,
           teacherPrompt
         );
-        results.push({ name: student.full_name, content, isExpanded: true, isCopied: false });
+        results.push({ studentId: student.id, name: student.full_name, content, isExpanded: true, isCopied: false });
         setDraftResults([...results]);
         setShowDraft(true);
 
-        // 워크스테이션(student_evaluations)에 자동 저장
+        // student_evaluations에 자동 저장
         try {
           await supabase.from('student_evaluations').upsert({
             student_id: student.id,
@@ -238,7 +263,14 @@ ${obsText}
             status: 'draft',
             updated_at: new Date().toISOString(),
           }, { onConflict: 'student_id,class_id,academic_year' });
-        } catch { /* 워크스테이션 저장 실패해도 초안 생성은 계속 */ }
+        } catch { /* 저장 실패해도 생성 계속 */ }
+
+        // 행특(homeroom)이면 students.behavior_insight에도 저장
+        if (isHomeroom) {
+          try {
+            await supabase.from('students').update({ behavior_insight: content }).eq('id', student.id);
+          } catch { /* 조용히 실패 */ }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -276,6 +308,26 @@ ${obsText}
       reset[index] = { ...reset[index], isCopied: false };
       setDraftResults(reset);
     }, 1500);
+  };
+
+  const handleDeleteDraft = async (index: number) => {
+    const draft = draftResults[index];
+    if (!draft) return;
+    setDraftResults(prev => prev.map((d, i) => i === index ? { ...d, isDeleting: true } : d));
+    try {
+      await supabase.from('student_evaluations').update({
+        setech_content: '',
+        status: 'empty',
+        updated_at: new Date().toISOString(),
+      }).eq('student_id', draft.studentId).eq('class_id', selectedClassId).eq('academic_year', new Date().getFullYear());
+      if (isHomeroom) {
+        await supabase.from('students').update({ behavior_insight: '' }).eq('id', draft.studentId);
+      }
+      setDraftResults(prev => prev.filter((_, i) => i !== index));
+      if (draftResults.length <= 1) setShowDraft(false);
+    } catch {
+      setDraftResults(prev => prev.map((d, i) => i === index ? { ...d, isDeleting: false } : d));
+    }
   };
 
   const toggleExpand = (index: number) => {
@@ -502,6 +554,10 @@ ${obsText}
                           className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all ${draft.isCopied ? 'bg-primary/10 text-primary' : 'hover:bg-surface-container text-on-surface-variant'}`}>
                           {draft.isCopied ? <Check size={13} /> : <Copy size={13} />}
                           {draft.isCopied ? '복사됨' : '복사'}
+                        </button>
+                        <button onClick={() => handleDeleteDraft(index)} disabled={draft.isDeleting}
+                          className="p-1.5 rounded-xl hover:bg-red-50 hover:text-red-500 text-on-surface-variant/40 transition-all disabled:opacity-50" title="초안 삭제">
+                          {draft.isDeleting ? <ArrowRight size={14} className="animate-spin" /> : <Trash2 size={14} />}
                         </button>
                         <button onClick={() => toggleExpand(index)}
                           className="p-1.5 rounded-xl hover:bg-surface-container text-on-surface-variant transition-all">

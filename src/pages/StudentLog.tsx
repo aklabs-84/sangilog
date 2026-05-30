@@ -977,7 +977,7 @@ ${guidePrompt}
           activity_name: title,
           content: `${content}\n\n[배운 점 및 느낀 점]\n${feeling}`,
           is_student_record: true,
-          status: 'pending',
+          status: 'approved',
           category: session?.subject || '학생 제출'
         });
 
@@ -1531,7 +1531,14 @@ ${guidePrompt}
                                           <Clock size={10} />{formatRelativeTime(log.created_at)}
                                         </p>
                                       </div>
-                                      {log.status === 'pending' ? (
+                                      {log.status === 'rejected' ? (
+                                        <div className="flex flex-col items-center gap-1">
+                                          <div className="w-8 h-8 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center">
+                                            <X size={14} className="text-red-500" />
+                                          </div>
+                                          <span className="text-[9px] font-black text-red-500">반려됨</span>
+                                        </div>
+                                      ) : log.status === 'pending' ? (
                                         <div className="flex flex-col items-center gap-1">
                                           <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
                                             <Clock size={14} className="text-amber-500" />
@@ -1546,6 +1553,25 @@ ${guidePrompt}
                                       )}
                                     </div>
                                   </div>
+                                  {/* 선생님 피드백 (반려 시) */}
+                                  {log.status === 'rejected' && log.teacher_feedback && (
+                                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-2xl">
+                                      <p className="text-[10px] font-black text-red-500 mb-1">선생님 피드백</p>
+                                      <p className="text-xs font-bold text-red-700 leading-relaxed">{log.teacher_feedback}</p>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setTitle(log.activity_name || '');
+                                          setContent('');
+                                          setFeeling('');
+                                          setActiveTab('record');
+                                        }}
+                                        className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[10px] font-black transition-all"
+                                      >
+                                        <RefreshCw size={10} /> 수정 후 재제출
+                                      </button>
+                                    </div>
+                                  )}
                                   <div className="flex justify-end gap-2 pt-1 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button onClick={(e) => { e.stopPropagation(); handleStartEditLog(log); }}
                                       className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-surface-container hover:bg-primary/10 hover:text-primary text-on-surface-variant font-black text-xs transition-all">

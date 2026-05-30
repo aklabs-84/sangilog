@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Sparkles, User as UserIcon, BookOpen, Clock, Activity, FileText, CheckCircle2,
   FolderOpen, AlignLeft, Link2, ImageIcon, File, Upload, ExternalLink, Megaphone, MessageSquare, Loader2,
-  Reply, Send
+  Reply, Send, XCircle, MessageCircle, Check
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -24,6 +24,14 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
   const [replyingId, setReplyingId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [savingReplyId, setSavingReplyId] = useState<string | null>(null);
+  // 관찰기록 반려
+  const [rejectingObsId, setRejectingObsId] = useState<string | null>(null);
+  const [obsFeedback, setObsFeedback] = useState('');
+  const [savingObsReject, setSavingObsReject] = useState(false);
+  // 결과물 피드백
+  const [feedbackResultId, setFeedbackResultId] = useState<string | null>(null);
+  const [resultFeedback, setResultFeedback] = useState('');
+  const [savingResultFeedback, setSavingResultFeedback] = useState(false);
   const navigate = useNavigate();
 
   const handleSaveReply = async (suggestionId: string) => {
@@ -70,6 +78,58 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
     document.body.removeChild(link);
   };
 
+  const handleRejectObs = async () => {
+    if (!rejectingObsId || !obsFeedback.trim()) return;
+    setSavingObsReject(true);
+    try {
+      await supabase.from('observations').update({
+        status: 'rejected',
+        teacher_feedback: obsFeedback.trim(),
+      }).eq('id', rejectingObsId);
+      setStudent((prev: any) => ({
+        ...prev,
+        observations: prev.observations.map((o: any) =>
+          o.id === rejectingObsId ? { ...o, status: 'rejected', teacher_feedback: obsFeedback.trim() } : o
+        ),
+      }));
+      setRejectingObsId(null);
+      setObsFeedback('');
+    } catch (err) {
+      console.error('Reject obs error:', err);
+    } finally {
+      setSavingObsReject(false);
+    }
+  };
+
+  const handleApproveObs = async (obsId: string) => {
+    await supabase.from('observations').update({ status: 'approved', teacher_feedback: null }).eq('id', obsId);
+    setStudent((prev: any) => ({
+      ...prev,
+      observations: prev.observations.map((o: any) =>
+        o.id === obsId ? { ...o, status: 'approved', teacher_feedback: null } : o
+      ),
+    }));
+  };
+
+  const handleSaveResultFeedback = async () => {
+    if (!feedbackResultId || !resultFeedback.trim()) return;
+    setSavingResultFeedback(true);
+    try {
+      await supabase.from('student_results').update({
+        teacher_feedback: resultFeedback.trim(),
+      }).eq('id', feedbackResultId);
+      setResults(prev => prev.map(r =>
+        r.id === feedbackResultId ? { ...r, teacher_feedback: resultFeedback.trim() } : r
+      ));
+      setFeedbackResultId(null);
+      setResultFeedback('');
+    } catch (err) {
+      console.error('Result feedback error:', err);
+    } finally {
+      setSavingResultFeedback(false);
+    }
+  };
+
   useEffect(() => {
     const fetchStudentDetail = async () => {
       if (!studentId || !isOpen) return;
@@ -78,12 +138,12 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
         const [studentRes, resultsRes, suggestionsRes] = await Promise.all([
           supabase
             .from('students')
-            .select(`*, observations(id, content, activity_name, created_at, is_student_record, status)`)
+            .select(`*, observations(id, content, activity_name, created_at, is_student_record, status, teacher_feedback)`)
             .eq('id', studentId)
             .single(),
           supabase
             .from('student_results')
-            .select('*')
+            .select('*, teacher_feedback')
             .eq('student_id', studentId)
             .order('created_at', { ascending: false }),
           supabase
@@ -244,7 +304,17 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                 {new Date(obs.created_at).toLocaleDateString('ko-KR')}
                               </p>
                               {obs.is_student_record && (
-                                obs.status === 'pending' ? (
+                                obs.status === 'rejected' ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="flex items-center gap-1 text-[9px] font-black text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md">
+                                      <XCircle size={9} /> 반려됨
+                                    </span>
+                                    <button onClick={(e) => { e.stopPropagation(); handleApproveObs(obs.id); }}
+                                      className="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md hover:bg-emerald-100 transition-all">
+                                      승인으로 변경
+                                    </button>
+                                  </div>
+                                ) : obs.status === 'pending' ? (
                                   <span className="flex items-center gap-1 text-[9px] font-black text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
                                     <Clock size={9} /> 승인대기
                                   </span>
@@ -256,6 +326,44 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                               )}
                             </div>
                             <p className="text-sm font-black text-on-surface/80">{obs.activity_name}</p>
+                            {/* 기존 피드백 표시 */}
+                            {obs.teacher_feedback && obs.status === 'rejected' && (
+                              <p className="mt-1.5 text-[10px] font-bold text-red-600 bg-red-50 rounded-lg px-2 py-1">
+                                💬 {obs.teacher_feedback}
+                              </p>
+                            )}
+                            {/* 반려 버튼 / 인라인 피드백 입력 */}
+                            {obs.is_student_record && obs.status !== 'rejected' && (
+                              rejectingObsId === obs.id ? (
+                                <div className="mt-2 space-y-1.5" onClick={e => e.stopPropagation()}>
+                                  <textarea
+                                    value={obsFeedback}
+                                    onChange={e => setObsFeedback(e.target.value)}
+                                    placeholder="반려 사유를 입력하세요..."
+                                    className="w-full text-xs p-2.5 border border-red-200 rounded-xl resize-none bg-red-50 focus:outline-none focus:border-red-400"
+                                    rows={2}
+                                    autoFocus
+                                  />
+                                  <div className="flex gap-1.5">
+                                    <button onClick={handleRejectObs} disabled={savingObsReject || !obsFeedback.trim()}
+                                      className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black disabled:opacity-50 transition-all">
+                                      {savingObsReject ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 반려 전송
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); setRejectingObsId(null); setObsFeedback(''); }}
+                                      className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-[10px] font-black hover:bg-neutral-200 transition-all">
+                                      취소
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setRejectingObsId(obs.id); setObsFeedback(''); }}
+                                  className="mt-1.5 flex items-center gap-1 text-[9px] font-black text-red-400 hover:text-red-600 transition-colors"
+                                >
+                                  <XCircle size={10} /> 반려 + 피드백
+                                </button>
+                              )
+                            )}
                          </div>
                        ))}
                      </div>
@@ -344,6 +452,42 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                 </button>
                               )}
                             </div>
+                            {/* 기존 피드백 표시 */}
+                            {r.teacher_feedback && (
+                              <p className="mt-2 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded-lg px-2 py-1">
+                                💬 선생님 피드백: {r.teacher_feedback}
+                              </p>
+                            )}
+                            {/* 피드백 버튼 / 인라인 입력 */}
+                            {feedbackResultId === r.id ? (
+                              <div className="mt-2 space-y-1.5">
+                                <textarea
+                                  value={resultFeedback}
+                                  onChange={e => setResultFeedback(e.target.value)}
+                                  placeholder="피드백 내용을 입력하세요..."
+                                  className="w-full text-xs p-2.5 border border-indigo-200 rounded-xl resize-none bg-indigo-50 focus:outline-none focus:border-indigo-400"
+                                  rows={2}
+                                  autoFocus
+                                />
+                                <div className="flex gap-1.5">
+                                  <button onClick={handleSaveResultFeedback} disabled={savingResultFeedback || !resultFeedback.trim()}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-black disabled:opacity-50 transition-all">
+                                    {savingResultFeedback ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 전송
+                                  </button>
+                                  <button onClick={() => { setFeedbackResultId(null); setResultFeedback(''); }}
+                                    className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-[10px] font-black hover:bg-neutral-200 transition-all">
+                                    취소
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setFeedbackResultId(r.id); setResultFeedback(r.teacher_feedback || ''); }}
+                                className="mt-1.5 flex items-center gap-1 text-[9px] font-black text-indigo-400 hover:text-indigo-600 transition-colors"
+                              >
+                                <MessageCircle size={10} /> {r.teacher_feedback ? '피드백 수정' : '피드백 남기기'}
+                              </button>
+                            )}
                           </div>
                         );
                       })}
