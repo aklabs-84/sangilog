@@ -28,6 +28,7 @@ import {
   Loader2,
   Download,
   Headphones,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -44,6 +45,7 @@ import AIChatModal from '../components/classroom/AIChatModal';
 import StudentDetailDrawer from '../components/classroom/StudentDetailDrawer';
 import UnitManager from '../components/classroom/UnitManager';
 import AttendanceTab from '../components/classroom/AttendanceTab';
+import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 
 const Classroom = () => {
   const { user, profile } = useAuth();
@@ -58,6 +60,7 @@ const Classroom = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [shareTeacherSuccess, setShareTeacherSuccess] = useState(false);
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [newClassData, setNewClassData] = useState({ 
@@ -138,9 +141,21 @@ const Classroom = () => {
   useEffect(() => {
     if (user) {
       fetchClasses();
-      setSelectedStudentIds([]); // 학급 변경 시 선택 초기화
+      setSelectedStudentIds([]);
     }
   }, [user]);
+
+  // Cmd+K / Ctrl+K 전체 검색 단축키
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsGlobalSearchOpen(v => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // activeClassId가 바뀔 때마다 URL에 동기화 → 뒤로가기 시 선택 클래스 복원
   useEffect(() => {
@@ -1081,18 +1096,30 @@ const Classroom = () => {
         </div>
 
         <div className="p-4 md:p-8 lg:p-12 max-w-[1600px] mx-auto w-full">
-          {/* 이동 중 브리핑 버튼 */}
-          {activeClassId && (
-            <div className="flex justify-end mb-4 md:mb-6">
+          {/* 상단 버튼 행 */}
+          <div className="flex items-center justify-between mb-4 md:mb-6">
+            {/* 전체 학생 검색 버튼 */}
+            {classes.length > 0 && (
+              <button
+                onClick={() => setIsGlobalSearchOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/80 hover:bg-white border border-neutral-200 hover:border-primary/30 text-neutral-500 hover:text-primary font-black text-xs transition-all shadow-sm group"
+              >
+                <Search size={14} className="group-hover:scale-110 transition-transform" />
+                <span>전체 학생 검색</span>
+                <span className="hidden sm:inline text-[9px] font-bold text-neutral-300 bg-neutral-100 px-1.5 py-0.5 rounded-md">⌘K</span>
+              </button>
+            )}
+            {/* 이동 중 브리핑 버튼 */}
+            {activeClassId ? (
               <button
                 onClick={() => setIsBriefingOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-600 font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
+                className="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-600 font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
               >
                 <Headphones size={14} />
                 이동 중 브리핑
               </button>
-            </div>
-          )}
+            ) : <div />}
+          </div>
 
           {/* 2.1 Cohesive Segmented Control */}
           <div className="flex justify-center mb-8 md:mb-16">
@@ -1534,7 +1561,13 @@ const Classroom = () => {
       </AnimatePresence>
 
       {/* 3. 모달 레이어 */}
-      <TeacherInviteModal 
+      <GlobalStudentSearch
+        isOpen={isGlobalSearchOpen}
+        onClose={() => setIsGlobalSearchOpen(false)}
+        classes={classes}
+      />
+
+      <TeacherInviteModal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
         schoolName={profile?.school_name || ''}
