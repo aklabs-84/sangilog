@@ -53,7 +53,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
             animate={{ opacity: 1, x: 0 }}
           >
             <h1 className="text-lg font-black leading-tight tracking-tightest gradient-text">생기로그 AI</h1>
-            <p className="text-[10px] text-primary font-black uppercase tracking-[0.25em] opacity-40">Next-Gen Edu</p>
+            <p className="text-[10px] text-primary font-black tracking-[0.1em] opacity-40">수업 기록부터 세특까지</p>
           </motion.div>
         )}
       </div>
