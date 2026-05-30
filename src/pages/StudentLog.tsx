@@ -66,6 +66,7 @@ const StudentLog = () => {
   const [savingLogId, setSavingLogId] = useState<string | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [guidePrompt, setGuidePrompt] = useState<string>('');
+  const [minObsChars, setMinObsChars] = useState(0);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<{reason: string, guide: string} | null>(null);
   
@@ -189,13 +190,14 @@ const StudentLog = () => {
     try {
       const { data } = await supabase
         .from('classes')
-        .select('teacher_id, student_guide_prompt, weekly_plan')
+        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars')
         .eq('id', classId)
         .single();
 
       if (data) {
         setTeacherId(data.teacher_id);
         setGuidePrompt(data.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요.');
+        setMinObsChars(data.min_obs_chars || 0);
         if (data.weekly_plan && Array.isArray(data.weekly_plan) && data.weekly_plan.length > 0) {
           setClassResources(data.weekly_plan);
           setTitle(data.weekly_plan[0].topic);
@@ -913,6 +915,12 @@ const StudentLog = () => {
 
     if (!session?.student_id || !teacherId) return;
 
+    // ── 최소 글자수 검사 (하드 차단) ────────────────────────────────────────
+    if (minObsChars > 0 && content.trim().length < minObsChars) {
+      showToast(`주요 활동 내용을 최소 ${minObsChars}자 이상 작성해주세요. (현재 ${content.trim().length}자)`, 'error');
+      return;
+    }
+
     setSubmitting(true);
     try {
       // ── AI 가이드 검토 ──────────────────────────────────────────────────────
@@ -1304,12 +1312,47 @@ ${guidePrompt}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div className="space-y-4">
                     <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em] ml-2">주요 활동 내용</label>
-                    <textarea 
+                    <textarea
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="오늘 수업에서 내가 어떤 역할을 맡았고, 어떤 구체적인 활동 과정을 거쳤는지 자세히 입력하세요..."
-                      className="w-full min-h-[350px] p-10 bg-neutral-100/80 backdrop-blur-sm rounded-[2.5rem] text-base leading-relaxed font-semibold focus:ring-8 focus:ring-primary/10 transition-all border-2 border-neutral-200/50 focus:border-primary/30 resize-none shadow-sm"
+                      className={`w-full min-h-[350px] p-10 bg-neutral-100/80 backdrop-blur-sm rounded-[2.5rem] text-base leading-relaxed font-semibold focus:ring-8 transition-all border-2 resize-none shadow-sm ${
+                        minObsChars > 0 && content.trim().length < minObsChars && content.trim().length > 0
+                          ? 'border-amber-300 focus:border-amber-400 focus:ring-amber-100'
+                          : minObsChars > 0 && content.trim().length >= minObsChars
+                          ? 'border-emerald-300 focus:border-emerald-400 focus:ring-emerald-100'
+                          : 'border-neutral-200/50 focus:border-primary/30 focus:ring-primary/10'
+                      }`}
                     />
+                    {minObsChars > 0 && (
+                      <div className="mt-3 px-2 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-black ${
+                            content.trim().length === 0 ? 'text-neutral-400' :
+                            content.trim().length < minObsChars ? 'text-amber-500' : 'text-emerald-600'
+                          }`}>
+                            {content.trim().length === 0
+                              ? `최소 ${minObsChars}자 이상 작성해야 제출할 수 있어요`
+                              : content.trim().length < minObsChars
+                              ? `${minObsChars - content.trim().length}자 더 작성해야 제출할 수 있어요`
+                              : '✓ 충분히 작성됐어요!'}
+                          </span>
+                          <span className={`text-xs font-black tabular-nums ${
+                            content.trim().length < minObsChars ? 'text-amber-500' : 'text-emerald-600'
+                          }`}>
+                            {content.trim().length} / {minObsChars}자
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              content.trim().length >= minObsChars ? 'bg-emerald-400' : 'bg-amber-400'
+                            }`}
+                            style={{ width: `${Math.min((content.trim().length / minObsChars) * 100, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-10">

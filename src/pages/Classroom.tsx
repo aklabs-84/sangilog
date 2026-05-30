@@ -68,9 +68,10 @@ const Classroom = () => {
     subject: '', 
     class_type: 'subject', 
     linked_class_id: '',
-    student_guide_prompt: '', 
+    student_guide_prompt: '',
     teacher_report_prompt: '',
-    weekly_plan: [{ week: 1, topic: '', url: '' }]
+    weekly_plan: [{ week: 1, topic: '', url: '' }],
+    min_obs_chars: 0,
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -426,6 +427,7 @@ const Classroom = () => {
           linked_class_id: newClassData.class_type === 'subject' ? newClassData.linked_class_id || null : null,
           student_guide_prompt: newClassData.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 단답형이나 단순 감상평은 지양해 주세요.',
           teacher_report_prompt: newClassData.teacher_report_prompt || '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
+          min_obs_chars: newClassData.min_obs_chars || 0,
           weekly_plan: newClassData.weekly_plan.filter((item: any) => item.topic.trim()),
           entry_code: entryCode
         })
@@ -484,7 +486,8 @@ const Classroom = () => {
           subject: updateClassData.subject,
           student_guide_prompt: updateClassData.student_guide_prompt,
           teacher_report_prompt: updateClassData.teacher_report_prompt,
-          weekly_plan: updateClassData.weekly_plan || []
+          weekly_plan: updateClassData.weekly_plan || [],
+          min_obs_chars: updateClassData.min_obs_chars || 0,
         })
         .eq('id', updateClassData.id);
 
@@ -1686,6 +1689,21 @@ const Classroom = () => {
                         <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">AI 초안 작성 지침</label>
                         <textarea value={newClassData.teacher_report_prompt} onChange={e => setNewClassData({...newClassData, teacher_report_prompt: e.target.value})} placeholder="미입력 시 기본 지침이 적용됩니다." className="w-full h-24 px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold focus:bg-white outline-none resize-none" />
                       </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">최소 제출 글자수</label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min={0}
+                            max={500}
+                            value={newClassData.min_obs_chars || ''}
+                            onChange={e => setNewClassData({...newClassData, min_obs_chars: parseInt(e.target.value) || 0})}
+                            placeholder="0 (제한 없음)"
+                            className="w-40 px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-black focus:bg-white outline-none"
+                          />
+                          <span className="text-[10px] font-bold text-neutral-400">자 미만이면 제출 차단 (0 = 제한 없음)</span>
+                        </div>
+                      </div>
                     </div>
                   </details>
                 </div>
@@ -1915,12 +1933,30 @@ const Classroom = () => {
                           </label>
                           <span className="text-[9px] text-neutral-400 font-bold">AI 분석 및 생성 시 적용할 스타일</span>
                         </div>
-                        <textarea 
-                          value={updateClassData.teacher_report_prompt} 
-                          onChange={e => setUpdateClassData({...updateClassData, teacher_report_prompt: e.target.value})} 
+                        <textarea
+                          value={updateClassData.teacher_report_prompt}
+                          onChange={e => setUpdateClassData({...updateClassData, teacher_report_prompt: e.target.value})}
                           className="w-full h-32 px-5 py-4 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-secondary/40 focus:bg-white rounded-2xl font-bold text-sm text-neutral-800 transition-all outline-none resize-none"
                           placeholder="AI가 문구를 작성할 때 특별히 반영하길 원하는 스타일을 입력하세요..."
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between ml-1">
+                          <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest">최소 제출 글자수</label>
+                          <span className="text-[9px] text-neutral-400 font-bold">미달 시 학생 제출 차단</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min={0}
+                            max={500}
+                            value={updateClassData.min_obs_chars || ''}
+                            onChange={e => setUpdateClassData({...updateClassData, min_obs_chars: parseInt(e.target.value) || 0})}
+                            placeholder="0"
+                            className="w-40 px-5 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-rose-200 focus:border-rose-400 focus:bg-white rounded-2xl font-black text-sm outline-none transition-all"
+                          />
+                          <span className="text-xs font-bold text-neutral-500">자 미만 제출 차단 <span className="text-neutral-400">(0 = 제한 없음)</span></span>
+                        </div>
                       </div>
                     </motion.div>
                   ) : null}
