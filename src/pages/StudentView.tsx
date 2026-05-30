@@ -106,9 +106,14 @@ const StudentView = () => {
         .eq('class_id', studentData.class_id)
         .order('student_number', { ascending: true });
       const sorted = (classmatesData || []).slice().sort((a: any, b: any) => {
-        const na = parseInt(a.student_number) || 0;
-        const nb = parseInt(b.student_number) || 0;
-        return na - nb;
+        const na = parseInt(a.student_number);
+        const nb = parseInt(b.student_number);
+        const aHas = !isNaN(na) && a.student_number !== null && a.student_number !== '';
+        const bHas = !isNaN(nb) && b.student_number !== null && b.student_number !== '';
+        if (aHas && bHas) return na - nb;
+        if (aHas) return -1;
+        if (bHas) return 1;
+        return a.full_name.localeCompare(b.full_name, 'ko');
       });
       setClassmates(sorted);
 
