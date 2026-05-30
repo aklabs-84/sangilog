@@ -29,6 +29,7 @@ interface StudentRow {
   setech_content: string;
   status: 'empty' | 'draft' | 'final';
   isDirty: boolean;
+  behavior_insight: string;
 }
 
 const STATUS_LABELS = { empty: '미작성', draft: '초안', final: '완료' };
@@ -55,6 +56,38 @@ const sanitizeForNaiss = (text: string) =>
 interface Props {
   classes: any[];
 }
+
+const BehaviorInsightPanel = ({ insight, studentName }: { insight: string; studentName: string }) => {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(insight);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="border-t border-surface-container px-4 py-4 bg-indigo-50/40">
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">💡 행동특성 및 종합의견 초안</span>
+          <span className="text-[9px] font-bold text-indigo-400 bg-indigo-100 px-2 py-0.5 rounded-full">{studentName}</span>
+        </div>
+        <button
+          onClick={copy}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all border ${
+            copied
+              ? 'bg-indigo-100 text-indigo-600 border-indigo-200'
+              : 'bg-white text-indigo-500 border-indigo-200 hover:bg-indigo-50'
+          }`}
+        >
+          {copied ? <><Check size={11} /> 복사됨!</> : <><Save size={11} /> 나이스 붙여넣기용 복사</>}
+        </button>
+      </div>
+      <p className="text-xs text-on-surface/80 leading-relaxed whitespace-pre-wrap bg-white rounded-xl p-3 border border-indigo-100">
+        {insight}
+      </p>
+    </div>
+  );
+};
 
 const NaissWorkstation = ({ classes }: Props) => {
   const { user } = useAuth();
@@ -97,7 +130,7 @@ const NaissWorkstation = ({ classes }: Props) => {
       const targetClassId = cls?.linked_class_id || classId;
 
       const { data: students } = await supabase
-        .from('students').select('id, full_name, student_number')
+        .from('students').select('id, full_name, student_number, behavior_insight')
         .eq('class_id', targetClassId);
 
       if (!students?.length) { setRows([]); return; }
@@ -138,6 +171,7 @@ const NaissWorkstation = ({ classes }: Props) => {
               setech_content: ev?.setech_content || '',
               status: ev?.status || 'empty',
               isDirty: false,
+              behavior_insight: (s as any).behavior_insight || '',
             };
           })
       );
@@ -609,6 +643,11 @@ CREATE POLICY "teacher_own" ON student_evaluations
                           )}
                         </div>
                       </div>
+
+                      {/* 행동특성 및 종합의견 초안 패널 */}
+                      {row.behavior_insight && (
+                        <BehaviorInsightPanel insight={row.behavior_insight} studentName={row.full_name} />
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
