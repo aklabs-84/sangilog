@@ -503,8 +503,14 @@ CREATE POLICY "teacher_own" ON student_evaluations
             const isExpanded = expandedId === row.id;
             const chars = charCount(row.setech_content);
             const bytes = byteCount(row.setech_content);
-            const isOver = chars > 500;
+            const pct = Math.min((chars / 500) * 100, 100);
+            const isOver     = chars > 500;
+            const isDanger   = !isOver && chars > 480;
+            const isWarning  = !isDanger && chars > 450;
+            const isCaution  = !isWarning && chars > 400;
             const isNearLimit = chars > 440;
+            const barColor = isOver ? 'bg-red-500' : isDanger ? 'bg-orange-400' : isWarning ? 'bg-amber-400' : isCaution ? 'bg-yellow-300' : 'bg-emerald-400';
+            const textColor = isOver ? 'text-red-500' : isDanger ? 'text-orange-500' : isWarning ? 'text-amber-500' : isCaution ? 'text-yellow-600' : 'text-emerald-600';
             const isGenerating = generatingId === row.id;
             const isSavingThis = savingId === row.id;
 
@@ -540,10 +546,15 @@ CREATE POLICY "teacher_own" ON student_evaluations
                   <p className="text-xs text-on-surface-variant/60 truncate">
                     {row.setech_content || <span className="text-neutral-300 italic">미작성</span>}
                   </p>
-                  {/* 글자수 */}
-                  <span className={`text-[10px] font-black text-right ${isOver ? 'text-red-500' : isNearLimit ? 'text-amber-500' : 'text-neutral-400'}`}>
-                    {chars}/500
-                  </span>
+                  {/* 글자수 + 미니 진행바 */}
+                  <div className="flex flex-col items-end gap-1 min-w-0">
+                    <span className={`text-[10px] font-black ${textColor}`}>
+                      {chars}<span className="font-bold text-neutral-300">/500</span>
+                    </span>
+                    <div className="w-full h-1 bg-neutral-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
                   {/* 관찰 수 */}
                   <span className="text-[10px] font-bold text-center text-on-surface-variant/40">{row.obs_count}건</span>
                   {/* 상태 배지 */}
@@ -595,24 +606,59 @@ CREATE POLICY "teacher_own" ON student_evaluations
                             </div>
                           </div>
 
-                          <div className="relative">
-                            <textarea
-                              value={row.setech_content}
-                              onChange={e => updateRow(row.id, { setech_content: e.target.value })}
-                              placeholder="세특 내용을 직접 입력하거나 AI 생성 버튼을 눌러주세요..."
-                              className={`w-full min-h-[180px] p-3 rounded-xl text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 transition-all border ${isOver ? 'border-red-300 focus:ring-red-200 bg-red-50' : 'border-neutral-200 focus:ring-primary/20 bg-surface-container/40'}`}
-                            />
-                            {/* 글자수/바이트 카운터 */}
-                            <div className={`absolute bottom-2 right-3 text-[10px] font-black ${isOver ? 'text-red-500' : isNearLimit ? 'text-amber-500' : 'text-neutral-400'}`}>
-                              {chars}/500자 · {bytes}/1500bytes
-                            </div>
-                          </div>
+                          <textarea
+                            value={row.setech_content}
+                            onChange={e => updateRow(row.id, { setech_content: e.target.value })}
+                            placeholder="세특 내용을 직접 입력하거나 AI 생성 버튼을 눌러주세요..."
+                            className={`w-full min-h-[180px] p-3 pb-4 rounded-xl text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 transition-all border ${
+                              isOver    ? 'border-red-300 focus:ring-red-200 bg-red-50/50' :
+                              isDanger  ? 'border-orange-300 focus:ring-orange-200 bg-orange-50/30' :
+                              isWarning ? 'border-amber-200 focus:ring-amber-200' :
+                              'border-neutral-200 focus:ring-primary/20 bg-surface-container/40'
+                            }`}
+                          />
 
-                          {isOver && (
-                            <p className="text-[10px] font-black text-red-500 flex items-center gap-1">
-                              <AlertCircle size={11} /> {chars - 500}자 초과 — 나이스 입력 시 오류가 발생합니다
-                            </p>
-                          )}
+                          {/* 진행바 + 카운터 */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-[11px] font-black ${textColor}`}>
+                                  {chars} / 500자
+                                </span>
+                                <span className="text-[10px] font-bold text-neutral-400">
+                                  {bytes} bytes
+                                </span>
+                                {isOver ? (
+                                  <span className="text-[10px] font-black text-red-500 flex items-center gap-1">
+                                    <AlertCircle size={10} /> {chars - 500}자 초과
+                                  </span>
+                                ) : (
+                                  <span className={`text-[10px] font-bold ${isNearLimit ? textColor : 'text-neutral-400'}`}>
+                                    남은 {500 - chars}자
+                                  </span>
+                                )}
+                              </div>
+                              {isOver && (
+                                <button
+                                  onClick={() => updateRow(row.id, { setech_content: row.setech_content.slice(0, 500) })}
+                                  className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-600 text-[10px] font-black hover:bg-red-100 transition-all"
+                                >
+                                  <RefreshCw size={10} /> 500자로 자르기
+                                </button>
+                              )}
+                            </div>
+                            <div className="w-full h-2 bg-neutral-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-200 ${barColor}`}
+                                style={{ width: `${Math.min(pct, 100)}%` }}
+                              />
+                            </div>
+                            {isOver && (
+                              <p className="text-[10px] font-black text-red-500 flex items-center gap-1">
+                                <AlertCircle size={11} /> 나이스 입력 시 오류가 발생합니다 — 자르기 버튼으로 수정하세요
+                              </p>
+                            )}
+                          </div>
 
                           {/* 저장 버튼 */}
                           {row.isDirty && (
