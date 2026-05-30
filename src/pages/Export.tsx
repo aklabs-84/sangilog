@@ -12,9 +12,11 @@ import {
   Info,
   Settings2,
   Users,
-  Loader2
+  Loader2,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import NaissWorkstation from '../components/export/NaissWorkstation';
 
 type Scope = 'all' | 'specific';
 type Format = 'csv' | 'xlsx';
@@ -34,6 +36,7 @@ const Export = () => {
   const [format, setFormat] = useState<Format>('xlsx');
   const [startDate, setStartDate] = useState('2025-03-01');
   const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [activeTab, setActiveTab] = useState<'export' | 'naiss'>('naiss');
 
   useEffect(() => {
     fetchClasses();
@@ -223,10 +226,35 @@ const Export = () => {
         <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">Workspace Utility</p>
         <h1 className="text-2xl md:text-4xl font-extrabold font-manrope mb-4">데이터 내보내기 센터</h1>
         <p className="text-on-surface-variant text-base leading-relaxed max-w-2xl">
-          기록된 학생 데이터를 다양한 형식으로 추출할 수 있습니다. 성적, 출석, AI 피드백 초안이 포함된 통합 리포트를 생성하세요.
+          나이스 세특 제출 준비부터 활동기록 내보내기까지 관리합니다.
         </p>
       </div>
 
+      {/* 탭 */}
+      <div className="flex items-center gap-1 p-1.5 bg-surface-container/60 rounded-2xl w-fit border border-white/40 shadow-soft">
+        <button
+          onClick={() => setActiveTab('naiss')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all ${activeTab === 'naiss' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+        >
+          <ClipboardList size={16} />
+          나이스 제출 준비
+        </button>
+        <button
+          onClick={() => setActiveTab('export')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all ${activeTab === 'export' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+        >
+          <Download size={16} />
+          활동기록 내보내기
+        </button>
+      </div>
+
+      {/* 나이스 제출 준비 탭 */}
+      {activeTab === 'naiss' && (
+        <NaissWorkstation classes={classes} />
+      )}
+
+      {/* 활동기록 내보내기 탭 */}
+      {activeTab === 'export' && (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10 items-start">
         {/* Export Configuration */}
         <div className="col-span-12 lg:col-span-5 space-y-8">
@@ -447,6 +475,7 @@ const Export = () => {
           </div>
         </div>
       </div>
+      )}
     </motion.div>
   );
 };
