@@ -31,6 +31,7 @@ const AIAssistant = () => {
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatingName, setGeneratingName] = useState('');
@@ -72,8 +73,12 @@ const AIAssistant = () => {
     try {
       const cls = classes.find(c => c.id === classId);
       const targetClassId = cls?.linked_class_id || classId;
-      const { data } = await supabase.from('students').select('*').eq('class_id', targetClassId);
-      if (data) setStudents(data);
+      const { data } = await supabase.from('students').select('*').eq('class_id', targetClassId)
+        .order('student_number', { ascending: true });
+      if (data) {
+        setStudents(data);
+        setSelectedStudentIds(data.map((s: any) => s.id)); // 전체 자동 선택
+      }
     } catch (error) {
       console.error('Error fetching students:', error);
     }
@@ -100,14 +105,33 @@ const AIAssistant = () => {
   const handleClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
     setSelectedClassId(id);
+    setStudents([]);
+    setSelectedStudentIds([]);
+    setSearchQuery('');
     fetchStudents(id);
     setShowDraft(false);
     setDraftResults([]);
   };
 
-  const filteredStudents = students.filter(s =>
-    s.full_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const toggleStudent = (id: string) => {
+    setSelectedStudentIds(prev =>
+      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAll = () => {
+    const filtered = students.filter(s =>
+      s.full_name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    const filteredIds = filtered.map(s => s.id);
+    const allSelected = filteredIds.every(id => selectedStudentIds.includes(id));
+    if (allSelected) {
+      setSelectedStudentIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      setSelectedStudentIds(prev => [...new Set([...prev, ...filteredIds])]);
+    }
+  };
+
 
   // 학생 1명씩 Gemini 호출
   const generateForStudent = async (
@@ -146,19 +170,16 @@ ${obsText}
     setProgress({ current: 0, total: 0 });
 
     try {
-      const cls = classes.find(c => c.id === selectedClassId);
-      const targetClassId = cls?.linked_class_id || selectedClassId;
       const docType = isHomeroom ? '행동특성 및 종합의견(행특)' : '교과 세부능력 및 특기사항(세특)';
       const teacherPrompt = selectedClass?.teacher_report_prompt || '';
 
-      // 학생 목록 조회 (검색어 있으면 필터)
-      const { data: studentList } = await supabase
-        .from('students').select('id, full_name')
-        .eq('class_id', targetClassId)
-        .ilike('full_name', searchQuery ? `%${searchQuery}%` : '%');
+      // 선택된 학생 목록 사용 (selectedStudentIds 기반)
+      const studentList = students
+        .filter(s => selectedStudentIds.includes(s.id))
+        .map(s => ({ id: s.id, full_name: s.full_name }));
 
-      if (!studentList || studentList.length === 0) {
-        alert('선택한 학급에 학생이 없거나 검색 결과가 없습니다.');
+      if (studentList.length === 0) {
+        alert('생성할 학생을 1명 이상 선택해주세요.');
         setIsGenerating(false);
         return;
       }
@@ -313,26 +334,56 @@ ${obsText}
                 </div>
               </div>
 
-              {/* 학생 검색 (선택 사항) */}
-              <div className="space-y-2">
-                <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider ml-1">특정 학생만 생성 (선택)</label>
-                <div className="relative">
-                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                  <input type="text" placeholder="이름 검색 (비워두면 전체)" value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-3 bg-surface-container rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all" />
-                </div>
-                {searchQuery && filteredStudents.length > 0 && (
-                  <div className="mt-1 bg-surface-container-low rounded-xl border border-surface-container-high max-h-32 overflow-y-auto shadow-sm">
-                    {filteredStudents.map(s => (
-                      <button key={s.id} onClick={() => setSearchQuery(s.full_name)}
-                        className="w-full text-left px-4 py-2.5 hover:bg-surface-container text-xs font-bold transition-all border-b border-surface-container last:border-0">
-                        {s.full_name}
-                      </button>
-                    ))}
+              {/* 학생 선택 목록 */}
+              {students.length > 0 && (
+                <div className="space-y-2">
+                  {/* 검색 + 전체 선택 헤더 */}
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                      학생 선택
+                      <span className="ml-1.5 text-primary font-black">
+                        {selectedStudentIds.length}/{students.length}명
+                      </span>
+                    </label>
+                    <button onClick={toggleAll}
+                      className="text-[10px] font-black text-primary hover:text-secondary transition-colors">
+                      {students.filter(s => s.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .every(s => selectedStudentIds.includes(s.id)) ? '전체 해제' : '전체 선택'}
+                    </button>
                   </div>
-                )}
-              </div>
+
+                  {/* 검색 */}
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50" />
+                    <input type="text" placeholder="이름 검색..." value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-4 py-2 bg-surface-container rounded-xl text-xs font-bold focus:ring-2 focus:ring-primary/20 transition-all" />
+                  </div>
+
+                  {/* 학생 체크박스 목록 */}
+                  <div className="max-h-52 overflow-y-auto rounded-2xl border border-surface-container-high bg-surface-container-low custom-scrollbar">
+                    {students
+                      .filter(s => s.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map((s, idx) => {
+                        const isSelected = selectedStudentIds.includes(s.id);
+                        return (
+                          <button key={s.id} onClick={() => toggleStudent(s.id)}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all border-b border-surface-container last:border-0 ${isSelected ? 'bg-primary/5' : 'hover:bg-surface-container'}`}>
+                            <div className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${isSelected ? 'bg-primary border-primary' : 'border-neutral-300'}`}>
+                              {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
+                            </div>
+                            <span className="text-[10px] text-on-surface-variant/40 w-5 shrink-0">
+                              {s.student_number || idx + 1}
+                            </span>
+                            <span className={`text-xs font-bold flex-1 ${isSelected ? 'text-on-surface' : 'text-on-surface-variant/60'}`}>
+                              {s.full_name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
 
               {/* 관찰 현황 */}
               <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-2xl border border-surface-container-high">
@@ -353,21 +404,26 @@ ${obsText}
               </div>
 
               {/* 생성 버튼 */}
-              <button onClick={handleGenerate} disabled={isGenerating || obsCount === 0}
+              <button onClick={handleGenerate}
+                disabled={isGenerating || obsCount === 0 || selectedStudentIds.length === 0}
                 className="w-full btn-gradient py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                 {isGenerating ? (
                   <>
                     <RotateCw size={18} className="animate-spin" />
-                    <span>{generatingName ? `${generatingName} 생성 중... (${progress.current}/${progress.total})` : '준비 중...'}</span>
+                    <span>{generatingName ? `${generatingName} (${progress.current}/${progress.total})` : '준비 중...'}</span>
                   </>
                 ) : (
                   <>
                     <Sparkles size={18} />
-                    <span>{isHomeroom ? '행특 초안 생성' : '세특 초안 생성'}</span>
+                    <span>
+                      {isHomeroom ? '행특' : '세특'} 초안 생성
+                      {selectedStudentIds.length > 0 && ` (${selectedStudentIds.length}명)`}
+                    </span>
                   </>
                 )}
               </button>
-              {obsCount === 0 && <p className="text-center text-xs text-on-surface-variant/60">활동 기록을 먼저 등록해야 합니다.</p>}
+              {selectedStudentIds.length === 0 && <p className="text-center text-xs text-on-surface-variant/60">학생을 1명 이상 선택해주세요.</p>}
+              {obsCount === 0 && selectedStudentIds.length > 0 && <p className="text-center text-xs text-on-surface-variant/60">활동 기록을 먼저 등록해야 합니다.</p>}
             </div>
           </div>
 
