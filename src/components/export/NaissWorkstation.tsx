@@ -129,13 +129,24 @@ const NaissWorkstation = ({ classes }: Props) => {
       const cls = classes.find(c => c.id === classId);
       const targetClassId = cls?.linked_class_id || classId;
 
-      const { data: students } = await supabase
+      // behavior_insight 컬럼이 없을 수 있으므로 fallback 처리
+      let students: any[] | null = null;
+      const { data: s1, error: e1 } = await supabase
         .from('students').select('id, full_name, student_number, behavior_insight')
         .eq('class_id', targetClassId);
+      if (!e1) {
+        students = s1;
+      } else {
+        // behavior_insight 컬럼 없는 경우 fallback
+        const { data: s2 } = await supabase
+          .from('students').select('id, full_name, student_number')
+          .eq('class_id', targetClassId);
+        students = s2;
+      }
 
       if (!students?.length) { setRows([]); return; }
 
-      const ids = students.map(s => s.id);
+      const ids = students.map((s: any) => s.id);
 
       const { data: obs } = await supabase
         .from('observations').select('student_id, activity_name, content')
@@ -143,8 +154,8 @@ const NaissWorkstation = ({ classes }: Props) => {
         .in('status', ['approved', 'pending']);
 
       const obsByStudent: Record<string, { activity_name: string; content: string }[]> = {};
-      ids.forEach(id => { obsByStudent[id] = []; });
-      obs?.forEach(o => { if (obsByStudent[o.student_id]) obsByStudent[o.student_id].push(o); });
+      ids.forEach((id: string) => { obsByStudent[id] = []; });
+      obs?.forEach((o: any) => { if (obsByStudent[o.student_id]) obsByStudent[o.student_id].push(o); });
 
       let evalMap: Record<string, any> = {};
       try {
@@ -152,13 +163,13 @@ const NaissWorkstation = ({ classes }: Props) => {
           .from('student_evaluations').select('*')
           .in('student_id', ids).eq('class_id', classId).eq('academic_year', academicYear);
         if (error) setDbError(true);
-        evals?.forEach(e => { evalMap[e.student_id] = e; });
+        evals?.forEach((e: any) => { evalMap[e.student_id] = e; });
       } catch { setDbError(true); }
 
       setRows(
         students
-          .sort((a, b) => (parseInt(a.student_number) || 999) - (parseInt(b.student_number) || 999))
-          .map(s => {
+          .sort((a: any, b: any) => (parseInt(a.student_number) || 999) - (parseInt(b.student_number) || 999))
+          .map((s: any) => {
             const ev = evalMap[s.id];
             return {
               id: s.id,
@@ -171,7 +182,7 @@ const NaissWorkstation = ({ classes }: Props) => {
               setech_content: ev?.setech_content || '',
               status: ev?.status || 'empty',
               isDirty: false,
-              behavior_insight: (s as any).behavior_insight || '',
+              behavior_insight: s.behavior_insight || '',
             };
           })
       );
