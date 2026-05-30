@@ -7,7 +7,16 @@ import { useAuth } from '../../lib/auth';
 import {
   ChevronDown, ChevronUp, Check, RotateCw, Sparkles,
   Download, AlertCircle, Search, Save, FileSpreadsheet,
+  Settings2, RefreshCw,
 } from 'lucide-react';
+
+interface ExportColumn {
+  key: string;
+  label: string;
+  naissLabel: string; // 나이스 엑셀 실제 헤더명
+  checked: boolean;
+  required: boolean; // 필수 컬럼
+}
 
 interface StudentRow {
   id: string;
@@ -59,6 +68,18 @@ const NaissWorkstation = ({ classes }: Props) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [dbError, setDbError] = useState(false);
+  const [showExportSettings, setShowExportSettings] = useState(false);
+  const [isImportingDrafts, setIsImportingDrafts] = useState(false);
+  const [exportColumns, setExportColumns] = useState<ExportColumn[]>([
+    { key: 'class',    label: '반',               naissLabel: '반',                   checked: true,  required: false },
+    { key: 'number',   label: '번호',              naissLabel: '번호',                  checked: true,  required: true  },
+    { key: 'name',     label: '이름',              naissLabel: '이름',                  checked: true,  required: true  },
+    { key: 'level',    label: '성취도 (상중하)',    naissLabel: '성취도',                checked: true,  required: false },
+    { key: 'setech',   label: '세특 내용',          naissLabel: '세부능력및특기사항',    checked: true,  required: true  },
+    { key: 'obs',      label: '관찰기록 수',        naissLabel: '관찰기록수',            checked: false, required: false },
+    { key: 'chars',    label: '글자수',             naissLabel: '글자수',               checked: false, required: false },
+    { key: 'status',   label: '완료 상태',          naissLabel: '상태',                  checked: false, required: false },
+  ]);
 
   useEffect(() => {
     if (classes.length > 0 && !selectedClassId) setSelectedClassId(classes[0].id);
@@ -181,33 +202,80 @@ const NaissWorkstation = ({ classes }: Props) => {
     for (const row of dirtyRows) await saveRow(row);
   };
 
+  // AI 초안 DB에서 불러오기 (AI 초안 페이지에서 저장된 것)
+  const importFromAIDrafts = async () => {
+    setIsImportingDrafts(true);
+    try {
+      let updated = 0;
+      const newRows = [...rows];
+      for (let i = 0; i < newRows.length; i++) {
+        const r = newRows[i];
+        if (r.setech_content) continue; // 이미 내용 있으면 스킵
+        // student_evaluations에 AI가 저장한 draft 찾기
+        const { data } = await supabase
+          .from('student_evaluations')
+          .select('setech_content, achievement_level, status, id')
+          .eq('student_id', r.id)
+          .eq('class_id', selectedClassId)
+          .eq('academic_year', academicYear)
+          .single();
+        if (data?.setech_content && !r.setech_content) {
+          newRows[i] = {
+            ...r,
+            setech_content: data.setech_content,
+            achievement_level: data.achievement_level || r.achievement_level,
+            status: data.status || 'draft',
+            eval_id: data.id,
+            isDirty: false,
+          };
+          updated++;
+        }
+      }
+      setRows(newRows);
+      if (updated > 0) alert(`${updated}명의 AI 초안을 불러왔습니다.`);
+      else alert('불러올 새 AI 초안이 없습니다.\nAI 초안 페이지에서 먼저 생성해주세요.');
+    } finally {
+      setIsImportingDrafts(false);
+    }
+  };
+
   const exportToExcel = () => {
     const cls = classes.find(c => c.id === selectedClassId);
+    const checkedCols = exportColumns.filter(c => c.checked);
     const wb = XLSX.utils.book_new();
 
-    // 시트 1: 나이스 제출용
-    const naissData = rows.map(r => ({
-      '반': cls?.name || '',
-      '번호': r.student_number,
-      '이름': r.full_name,
-      '성취도': r.achievement_level || '',
-      '세부능력및특기사항': sanitizeForNaiss(r.setech_content),
-    }));
+    // 컬럼 선택 기반 데이터 빌드
+    const buildRow = (r: StudentRow) => {
+      const obj: Record<string, string | number> = {};
+      checkedCols.forEach(col => {
+        switch (col.key) {
+          case 'class':   obj[col.naissLabel] = cls?.name || ''; break;
+          case 'number':  obj[col.naissLabel] = r.student_number; break;
+          case 'name':    obj[col.naissLabel] = r.full_name; break;
+          case 'level':   obj[col.naissLabel] = r.achievement_level || ''; break;
+          case 'setech':  obj[col.naissLabel] = sanitizeForNaiss(r.setech_content); break;
+          case 'obs':     obj[col.naissLabel] = r.obs_count; break;
+          case 'chars':   obj[col.naissLabel] = charCount(r.setech_content); break;
+          case 'status':  obj[col.naissLabel] = STATUS_LABELS[r.status]; break;
+        }
+      });
+      return obj;
+    };
+
+    // 시트 1: 선택한 컬럼만 — 나이스 제출용
+    const naissData = rows.map(buildRow);
     const ws1 = XLSX.utils.json_to_sheet(naissData);
-    ws1['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 12 }, { wch: 8 }, { wch: 65 }];
+    const colWidths = checkedCols.map(c => ({ wch: c.key === 'setech' ? 65 : c.key === 'name' ? 12 : 10 }));
+    ws1['!cols'] = colWidths;
     XLSX.utils.book_append_sheet(wb, ws1, '나이스제출');
 
-    // 시트 2: 전체 현황
+    // 시트 2: 전체 현황 (고정)
     const fullData = rows.map(r => ({
-      '반': cls?.name || '',
-      '번호': r.student_number,
-      '이름': r.full_name,
+      '반': cls?.name || '', '번호': r.student_number, '이름': r.full_name,
       '성취도': r.achievement_level || '',
       '세특내용': r.setech_content,
-      '글자수': charCount(r.setech_content),
-      '바이트': byteCount(r.setech_content),
-      '관찰기록수': r.obs_count,
-      '상태': STATUS_LABELS[r.status],
+      '글자수': charCount(r.setech_content), '바이트': byteCount(r.setech_content),
+      '관찰기록수': r.obs_count, '상태': STATUS_LABELS[r.status],
     }));
     const ws2 = XLSX.utils.json_to_sheet(fullData);
     ws2['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 12 }, { wch: 8 }, { wch: 55 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }];
@@ -275,6 +343,12 @@ CREATE POLICY "teacher_own" ON student_evaluations
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* AI 초안 불러오기 */}
+          <button onClick={importFromAIDrafts} disabled={isImportingDrafts || !rows.length}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-black text-xs transition-all disabled:opacity-40">
+            {isImportingDrafts ? <RotateCw size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            AI 초안 불러오기
+          </button>
           {dirtyCount > 0 && (
             <button onClick={saveAllDirty} disabled={!!savingId}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs transition-all">
@@ -282,6 +356,12 @@ CREATE POLICY "teacher_own" ON student_evaluations
               전체 저장 ({dirtyCount})
             </button>
           )}
+          {/* 다운로드 설정 토글 */}
+          <button onClick={() => setShowExportSettings(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border font-black text-xs transition-all ${showExportSettings ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-surface-container border-neutral-200 text-on-surface-variant hover:border-primary/20'}`}>
+            <Settings2 size={13} />
+            컬럼 설정
+          </button>
           <button onClick={exportToExcel} disabled={!rows.length}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/80 text-white font-black text-xs transition-all shadow-sm disabled:opacity-40">
             <FileSpreadsheet size={14} />
@@ -306,6 +386,48 @@ CREATE POLICY "teacher_own" ON student_evaluations
           </div>
         </div>
       )}
+
+      {/* 컬럼 선택 패널 */}
+      <AnimatePresence>
+        {showExportSettings && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.15 }}
+            className="overflow-hidden"
+          >
+            <div className="p-4 bg-primary/5 border border-primary/10 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-black text-primary uppercase tracking-widest">나이스 엑셀 — 포함할 컬럼 선택</p>
+                <p className="text-[10px] text-on-surface-variant/50">시트1(나이스제출)에 반영 · 시트2(전체현황)는 항상 전체 포함</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {exportColumns.map((col, idx) => (
+                  <button key={col.key}
+                    onClick={() => {
+                      if (col.required) return;
+                      const updated = [...exportColumns];
+                      updated[idx] = { ...col, checked: !col.checked };
+                      setExportColumns(updated);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
+                      col.checked
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-on-surface-variant border-neutral-200 hover:border-primary/30'
+                    } ${col.required ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  >
+                    {col.checked && <Check size={11} strokeWidth={3} />}
+                    {col.label}
+                    {col.required && <span className="text-[8px] opacity-60">필수</span>}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-on-surface-variant/50">
+                나이스 헤더명: {exportColumns.filter(c => c.checked).map(c => c.naissLabel).join(' | ')}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 필터 + 검색 */}
       <div className="flex flex-col sm:flex-row gap-2">

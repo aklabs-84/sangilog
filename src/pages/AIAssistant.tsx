@@ -224,9 +224,21 @@ ${obsText}
           teacherPrompt
         );
         results.push({ name: student.full_name, content, isExpanded: true, isCopied: false });
-        // 중간 결과 즉시 표시
         setDraftResults([...results]);
         setShowDraft(true);
+
+        // 워크스테이션(student_evaluations)에 자동 저장
+        try {
+          await supabase.from('student_evaluations').upsert({
+            student_id: student.id,
+            class_id: selectedClassId,
+            teacher_id: user?.id,
+            academic_year: new Date().getFullYear(),
+            setech_content: content,
+            status: 'draft',
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'student_id,class_id,academic_year' });
+        } catch { /* 워크스테이션 저장 실패해도 초안 생성은 계속 */ }
       }
     } catch (err) {
       console.error(err);
