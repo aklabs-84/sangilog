@@ -26,8 +26,10 @@ import {
   Eye,
   EyeOff,
   Megaphone,
-  Share2
+  Share2,
+  SlidersHorizontal
 } from 'lucide-react';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -97,6 +99,18 @@ const HomeroomDashboard = ({
   const [activityTab, setActivityTab] = useState<'obs' | 'results'>('obs');
 
   // ── 주차별 제출 통계 ──
+  const HOMEROOM_COL_DEFAULTS = { number: true, linkedSubjects: true, approval: true };
+  const HOMEROOM_COL_LABELS: Record<string, string> = {
+    number: '번호 (NO.)',
+    linkedSubjects: '연동 과목',
+    approval: '승인 현황',
+  };
+  const { visibility: colVis, toggle: toggleCol, reset: resetCols } = useColumnVisibility(
+    'scholar_col_homeroom',
+    HOMEROOM_COL_DEFAULTS
+  );
+  const [showColDropdown, setShowColDropdown] = useState(false);
+
   const [showStats, setShowStats] = useState(true);
   const [statsLoading, setStatsLoading] = useState(false);
   const [selectedStatsWeek, setSelectedStatsWeek] = useState<number | null>(null);
@@ -362,6 +376,43 @@ const HomeroomDashboard = ({
                   >
                     {shareTeacherSuccess ? <Check size={16} /> : <Share2 size={16} />}
                   </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowColDropdown(v => !v)}
+                      className={`w-10 h-10 bg-white border-2 rounded-2xl flex items-center justify-center transition-all shadow-soft shrink-0 ${showColDropdown ? 'border-primary text-primary' : 'border-neutral-200 text-on-surface-variant/60 hover:border-primary/40 hover:text-primary'}`}
+                      title="컬럼 표시 설정"
+                    >
+                      <SlidersHorizontal size={16} />
+                    </button>
+                    {showColDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowColDropdown(false)} />
+                        <div className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-xl border border-neutral-100 p-4 min-w-[180px]">
+                          <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
+                          <div className="space-y-1">
+                            {Object.entries(HOMEROOM_COL_LABELS).map(([key, label]) => (
+                              <label
+                                key={key}
+                                onClick={() => toggleCol(key)}
+                                className="flex items-center gap-2.5 py-1.5 px-1 rounded-lg cursor-pointer hover:bg-neutral-50 group"
+                              >
+                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0 ${colVis[key] ? 'bg-primary border-primary' : 'border-neutral-300'}`}>
+                                  {colVis[key] && <Check size={10} className="text-white" strokeWidth={3.5} />}
+                                </div>
+                                <span className="text-sm font-bold text-neutral-700 group-hover:text-primary transition-colors">{label}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <button
+                            onClick={resetCols}
+                            className="mt-3 w-full text-[10px] font-black text-neutral-400 hover:text-neutral-700 transition-colors text-center py-1.5 rounded-lg hover:bg-neutral-50"
+                          >
+                            기본값으로 초기화
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   <button
                     onClick={onAddStudent}
                     className="btn-vibrant group flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm transition-all whitespace-nowrap flex-1 sm:flex-none justify-center"
@@ -567,10 +618,16 @@ const HomeroomDashboard = ({
                        </div>
                      </label>
                    </th>
-                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden sm:table-cell">NO.</th>
+                   {colVis.number && (
+                     <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden sm:table-cell">NO.</th>
+                   )}
                    <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap">학생 정보</th>
-                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap hidden lg:table-cell">연동 과목</th>
-                   <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
+                   {colVis.linkedSubjects && (
+                     <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap hidden lg:table-cell">연동 과목</th>
+                   )}
+                   {colVis.approval && (
+                     <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
+                   )}
                    {selectedStatsWeek !== null && (
                      <>
                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center whitespace-nowrap">
@@ -610,22 +667,24 @@ const HomeroomDashboard = ({
                          </td>
 
                          {/* NO. 셀 */}
-                         <td className="p-3 lg:p-6 w-20 lg:w-24 hidden sm:table-cell" onClick={(e) => isEditing && e.stopPropagation()}>
-                           {isEditing ? (
-                             <input
-                               type="text"
-                               value={editNumber}
-                               onChange={(e) => setEditNumber(e.target.value)}
-                               onClick={(e) => e.stopPropagation()}
-                               placeholder="번호"
-                               className="w-16 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
-                             />
-                           ) : (
-                             <span className="font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg">
-                               {s.number === '-' ? <span className="text-neutral-300 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
-                             </span>
-                           )}
-                         </td>
+                         {colVis.number && (
+                           <td className="p-3 lg:p-6 w-20 lg:w-24 hidden sm:table-cell" onClick={(e) => isEditing && e.stopPropagation()}>
+                             {isEditing ? (
+                               <input
+                                 type="text"
+                                 value={editNumber}
+                                 onChange={(e) => setEditNumber(e.target.value)}
+                                 onClick={(e) => e.stopPropagation()}
+                                 placeholder="번호"
+                                 className="w-16 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
+                               />
+                             ) : (
+                               <span className="font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg">
+                                 {s.number === '-' ? <span className="text-neutral-300 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
+                               </span>
+                             )}
+                           </td>
+                         )}
 
                          {/* 학생 정보 셀 */}
                          <td className="p-3 lg:p-6" onClick={(e) => isEditing && e.stopPropagation()}>
@@ -658,7 +717,8 @@ const HomeroomDashboard = ({
                            )}
                          </td>
 
-                         <td className="p-3 lg:p-6 text-center hidden lg:table-cell">
+                         {colVis.linkedSubjects && (
+                           <td className="p-3 lg:p-6 text-center hidden lg:table-cell">
                              <div className="flex items-center justify-center gap-1.5 overflow-hidden">
                                {linkedClasses.length > 0 ? (
                                  linkedClasses.map((linkedClass) => (
@@ -674,18 +734,21 @@ const HomeroomDashboard = ({
                                  <span className="text-[10px] font-bold text-on-surface-variant/20 italic">No linked subjects</span>
                                )}
                              </div>
-                         </td>
+                           </td>
+                         )}
 
                          {/* 승인 셀 */}
-                         <td className="p-3 lg:p-6 text-center">
-                           {(!s.activity || s.activity === '기록 없음') ? (
-                             <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
-                           ) : (s.pending_obs_ids?.length > 0) ? (
-                             <span className="px-2 lg:px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200 whitespace-nowrap">승인 대기</span>
-                           ) : (
-                             <span className="px-2 lg:px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20 whitespace-nowrap">승인 완료</span>
-                           )}
-                         </td>
+                         {colVis.approval && (
+                           <td className="p-3 lg:p-6 text-center">
+                             {(!s.activity || s.activity === '기록 없음') ? (
+                               <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
+                             ) : (s.pending_obs_ids?.length > 0) ? (
+                               <span className="px-2 lg:px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200 whitespace-nowrap">승인 대기</span>
+                             ) : (
+                               <span className="px-2 lg:px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20 whitespace-nowrap">승인 완료</span>
+                             )}
+                           </td>
+                         )}
 
                          {/* 주차별 관찰기록 / 결과제출 현황 셀 */}
                          {selectedStatsWeek !== null && (

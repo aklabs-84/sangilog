@@ -28,8 +28,10 @@ import {
   Eye,
   EyeOff,
   Save,
-  Megaphone
+  Megaphone,
+  SlidersHorizontal
 } from 'lucide-react';
+import { useColumnVisibility } from '../../hooks/useColumnVisibility';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -89,6 +91,19 @@ const SubjectDashboard = ({
   onResetPin
 }: SubjectDashboardProps) => {
   const navigate = useNavigate();
+  const SUBJECT_COL_DEFAULTS = { number: true, activity: true, status: true, approval: true };
+  const SUBJECT_COL_LABELS: Record<string, string> = {
+    number: '번호 (NO.)',
+    activity: '활동 기록',
+    status: '진행 상태',
+    approval: '승인 현황',
+  };
+  const { visibility: colVis, toggle: toggleCol, reset: resetCols } = useColumnVisibility(
+    'scholar_col_subject',
+    SUBJECT_COL_DEFAULTS
+  );
+  const [showColDropdown, setShowColDropdown] = useState(false);
+
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedActivityWeek, setSelectedActivityWeek] = useState<number | null>(null);
   const [activityTab, setActivityTab] = useState<'obs' | 'results'>('obs');
@@ -367,6 +382,43 @@ const SubjectDashboard = ({
             <button onClick={onExport} className="w-10 h-10 bg-white hover:bg-on-surface hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft" title="데이터 내보내기">
               <Download size={17} />
             </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowColDropdown(v => !v)}
+                className={`w-10 h-10 bg-white rounded-xl flex items-center justify-center transition-all shadow-soft ${showColDropdown ? 'text-primary bg-primary/10' : 'text-on-surface-variant/60 hover:bg-primary/10 hover:text-primary'}`}
+                title="컬럼 표시 설정"
+              >
+                <SlidersHorizontal size={17} />
+              </button>
+              {showColDropdown && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowColDropdown(false)} />
+                  <div className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-xl border border-neutral-100 p-4 min-w-[180px]">
+                    <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
+                    <div className="space-y-1">
+                      {Object.entries(SUBJECT_COL_LABELS).map(([key, label]) => (
+                        <label
+                          key={key}
+                          onClick={() => toggleCol(key)}
+                          className="flex items-center gap-2.5 py-1.5 px-1 rounded-lg cursor-pointer hover:bg-neutral-50 group"
+                        >
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0 ${colVis[key] ? 'bg-primary border-primary' : 'border-neutral-300'}`}>
+                            {colVis[key] && <Check size={10} className="text-white" strokeWidth={3.5} />}
+                          </div>
+                          <span className="text-sm font-bold text-neutral-700 group-hover:text-primary transition-colors">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      onClick={resetCols}
+                      className="mt-3 w-full text-[10px] font-black text-neutral-400 hover:text-neutral-700 transition-colors text-center py-1.5 rounded-lg hover:bg-neutral-50"
+                    >
+                      기본값으로 초기화
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* 전체승인 + 학생등록 */}
@@ -612,15 +664,23 @@ const SubjectDashboard = ({
                             </div>
                           </label>
                         </th>
-                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden sm:table-cell">
-                          <button className="flex items-center gap-2 group" onClick={() => onSort('number')}>
-                            NO. <ArrowRight size={14} className={`group-hover:text-primary transition-all rotate-90 ${sortConfig.key === 'number' ? 'text-primary' : 'opacity-20'}`} />
-                          </button>
-                        </th>
+                        {colVis.number && (
+                          <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden sm:table-cell">
+                            <button className="flex items-center gap-2 group" onClick={() => onSort('number')}>
+                              NO. <ArrowRight size={14} className={`group-hover:text-primary transition-all rotate-90 ${sortConfig.key === 'number' ? 'text-primary' : 'opacity-20'}`} />
+                            </button>
+                          </th>
+                        )}
                         <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap">학생 정보</th>
-                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden lg:table-cell">활동 및 관찰 기록</th>
-                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap hidden md:table-cell">진행 상태</th>
-                        <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
+                        {colVis.activity && (
+                          <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden lg:table-cell">활동 및 관찰 기록</th>
+                        )}
+                        {colVis.status && (
+                          <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap hidden md:table-cell">진행 상태</th>
+                        )}
+                        {colVis.approval && (
+                          <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
+                        )}
                         {selectedStatsWeek !== null && (
                           <>
                             <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center whitespace-nowrap">
@@ -657,22 +717,24 @@ const SubjectDashboard = ({
                               </div>
                             </label>
                           </td>
-                          <td className="p-3 lg:p-6 w-20 lg:w-24 hidden sm:table-cell" onClick={(e) => isEditing && e.stopPropagation()}>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={editNumber}
-                                onChange={(e) => setEditNumber(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                placeholder="번호"
-                                className="w-16 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
-                              />
-                            ) : (
-                              <span className="font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg">
-                                {s.number === '-' ? <span className="text-neutral-300 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
-                              </span>
-                            )}
-                          </td>
+                          {colVis.number && (
+                            <td className="p-3 lg:p-6 w-20 lg:w-24 hidden sm:table-cell" onClick={(e) => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editNumber}
+                                  onChange={(e) => setEditNumber(e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  placeholder="번호"
+                                  className="w-16 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
+                                />
+                              ) : (
+                                <span className="font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg">
+                                  {s.number === '-' ? <span className="text-neutral-300 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
+                                </span>
+                              )}
+                            </td>
+                          )}
                           <td className="p-3 lg:p-6" onClick={(e) => isEditing && e.stopPropagation()}>
                             {isEditing ? (
                               <input
@@ -702,33 +764,37 @@ const SubjectDashboard = ({
                             </div>
                             )}
                           </td>
-                          <td className="p-3 lg:p-6 hidden lg:table-cell">
-                             <div className="max-w-[400px]">
+                          {colVis.activity && (
+                            <td className="p-3 lg:p-6 hidden lg:table-cell">
+                              <div className="max-w-[400px]">
                                 <p className="text-sm font-medium text-on-surface/80 group-hover:text-on-surface transition-colors line-clamp-1 italic">
                                   {s.activity ? `"${s.activity}"` : <span className="text-on-surface-variant/30 not-italic">최근 기록 없음</span>}
                                 </p>
-                             </div>
-                          </td>
-                          <td className="p-3 lg:p-6 text-center hidden md:table-cell">
-                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border whitespace-nowrap ${
-                              s.status === '발행됨' ? 'bg-secondary/5 text-secondary border-secondary/20' :
-                              s.status === '미작성' ? 'bg-neutral-50 text-on-surface-variant/30 border-neutral-200' : 'bg-primary/5 text-primary border-primary/20'
-                            }`}>
-                              {s.status}
-                            </span>
-                          </td>
-                          <td className="p-6 text-center">
-                            {/* 주차 선택 시: 해당 주차에 관찰기록도 결과제출도 없으면 — 표시
-                                (전체 누적 기준 승인 완료가 다른 주차에 오해를 주는 문제 방지) */}
-                            {s.status === '미작성' ||
-                             (selectedStatsWeek !== null && !obsOnWeek.has(s.id) && !resultsOnWeek.has(s.id)) ? (
-                              <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
-                            ) : (s.pending_obs_ids?.length > 0) ? (
-                              <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200">승인 대기</span>
-                            ) : (
-                              <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20">승인 완료</span>
-                            )}
-                          </td>
+                              </div>
+                            </td>
+                          )}
+                          {colVis.status && (
+                            <td className="p-3 lg:p-6 text-center hidden md:table-cell">
+                              <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border whitespace-nowrap ${
+                                s.status === '발행됨' ? 'bg-secondary/5 text-secondary border-secondary/20' :
+                                s.status === '미작성' ? 'bg-neutral-50 text-on-surface-variant/30 border-neutral-200' : 'bg-primary/5 text-primary border-primary/20'
+                              }`}>
+                                {s.status}
+                              </span>
+                            </td>
+                          )}
+                          {colVis.approval && (
+                            <td className="p-6 text-center">
+                              {s.status === '미작성' ||
+                               (selectedStatsWeek !== null && !obsOnWeek.has(s.id) && !resultsOnWeek.has(s.id)) ? (
+                                <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
+                              ) : (s.pending_obs_ids?.length > 0) ? (
+                                <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200">승인 대기</span>
+                              ) : (
+                                <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20">승인 완료</span>
+                              )}
+                            </td>
+                          )}
                           {/* 주차별 관찰기록 / 결과제출 현황 셀 */}
                           {selectedStatsWeek !== null && (
                             <>
