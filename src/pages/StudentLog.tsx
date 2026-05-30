@@ -205,7 +205,6 @@ const StudentLog = () => {
         setMinObsChars(data.min_obs_chars || 0);
         if (data.weekly_plan && Array.isArray(data.weekly_plan) && data.weekly_plan.length > 0) {
           setClassResources(data.weekly_plan);
-          setTitle(data.weekly_plan[0].topic);
 
           // weekly_plan 중 material_id가 있는 항목의 자료 미리 로드
           const materialIds = data.weekly_plan
@@ -920,19 +919,14 @@ const StudentLog = () => {
   };
 
   const handleSubmit = async () => {
-    if (!title || !content) {
-      showToast('활동 제목과 내용을 입력해주세요.', 'error');
+    if (!title) {
+      const hasTopics = classResources && classResources.length > 0 && classResources[0]?.topic;
+      showToast(hasTopics ? '주차를 선택해주세요.' : '활동 제목을 입력해주세요.', 'error');
       return;
     }
-
-    // 주차별 주제가 등록된 수업이면 드롭다운 선택 필수
-    if (classResources && classResources.length > 0 && classResources[0]?.topic) {
-      const normStr = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-      const matched = (classResources as {topic: string}[]).some(item => normStr(item.topic) === normStr(title));
-      if (!matched) {
-        showToast('주차를 선택해주세요. 드롭다운에서 해당 주차를 선택하면 자동으로 입력됩니다.', 'error');
-        return;
-      }
+    if (!content) {
+      showToast('활동 내용을 입력해주세요.', 'error');
+      return;
     }
 
     if (!session?.student_id || !teacherId) return;
@@ -1020,12 +1014,17 @@ ${guidePrompt}
 
       showToast('제출 완료! 선생님 승인 후 최종 기록에 반영됩니다. ✅');
 
-      // 결과제출 리마인더 체크
-      const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
-      const matchedWeekPlan = (classResources as any[]).find(r => norm(r.topic) === norm(title));
+      // 결과제출 리마인더 체크 — stale state 대신 DB 직접 조회
+      const normR = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
+      const matchedWeekPlan = (classResources as any[]).find(r => normR(r.topic) === normR(title));
       if (matchedWeekPlan && matchedWeekPlan.requires_result !== false) {
-        const hasResult = results.some((r: any) => r.week_number === matchedWeekPlan.week);
-        if (!hasResult) {
+        const { count } = await supabase
+          .from('student_results')
+          .select('*', { count: 'exact', head: true })
+          .eq('student_id', session.student_id)
+          .eq('class_id', session.class_id)
+          .eq('week_number', matchedWeekPlan.week);
+        if ((count ?? 0) === 0) {
           setTimeout(() => setReminderModal({
             type: 'need_result',
             week: matchedWeekPlan.week,
@@ -1313,37 +1312,48 @@ ${guidePrompt}
                   <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-violet-400 hover:text-violet-600 shrink-0">홈으로 →</button>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between ml-2">
-                    <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">활동 주제</label>
-                    <span className="text-[10px] text-on-surface-variant/40 font-bold">* 명확한 핵심 활동명을 입력하세요</span>
-                  </div>
-                  <input 
-                    type="text" 
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="예: 구운몽의 환상 구조와 주제 의식 탐구"
-                    className="w-full px-10 py-6 bg-neutral-100 rounded-3xl text-xl font-black focus:ring-8 focus:ring-primary/10 transition-all border-2 border-neutral-200/50 focus:border-primary/30 shadow-inner"
-                  />
-                </div>
-                {classResources && classResources.length > 0 && classResources[0]?.topic && (
-                    <div className="space-y-4">
-                      <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em] ml-2">선생님이 등록한 주차별 주제 선택</label>
-                      <div className="relative">
-                        <select 
-                          onChange={(e) => setTitle(e.target.value)}
-                          className="w-full px-10 py-4 bg-surface-container/30 rounded-2xl text-base font-bold focus:ring-4 focus:ring-primary/10 transition-all border-2 border-primary/20 focus:border-primary/50 text-primary appearance-none cursor-pointer"
-                        >
-                          <option value="">항목을 선택하면 활동 주제창에 자동으로 붙여넣기 됩니다</option>
-                          {classResources.map((item: any, idx: number) => (
-                            <option key={idx} value={item.topic}>
-                              {item.week}주차: {item.topic}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-primary/60">▼</div>
-                      </div>
+                {classResources && classResources.length > 0 && classResources[0]?.topic ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between ml-2">
+                      <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">
+                        주차별 주제 선택 <span className="text-red-400 ml-0.5">*</span>
+                      </label>
+                      <span className="text-[10px] text-on-surface-variant/40 font-bold">주제를 선택해야 제출할 수 있습니다</span>
                     </div>
+                    <div className="relative">
+                      <select
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className={`w-full px-10 py-6 rounded-3xl text-xl font-black focus:ring-8 transition-all border-2 appearance-none cursor-pointer ${
+                          title
+                            ? 'bg-primary/5 border-primary/30 text-primary focus:ring-primary/10 focus:border-primary/50'
+                            : 'bg-neutral-100 border-neutral-200/50 text-neutral-400 focus:ring-primary/10 focus:border-primary/30'
+                        }`}
+                      >
+                        <option value="">주차를 선택하세요...</option>
+                        {classResources.map((item: any, idx: number) => (
+                          <option key={idx} value={item.topic}>
+                            {item.week}주차: {item.topic}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-primary/60">▼</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between ml-2">
+                      <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">활동 주제</label>
+                      <span className="text-[10px] text-on-surface-variant/40 font-bold">* 명확한 핵심 활동명을 입력하세요</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="예: 구운몽의 환상 구조와 주제 의식 탐구"
+                      className="w-full px-10 py-6 bg-neutral-100 rounded-3xl text-xl font-black focus:ring-8 focus:ring-primary/10 transition-all border-2 border-neutral-200/50 focus:border-primary/30 shadow-inner"
+                    />
+                  </div>
                 )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
