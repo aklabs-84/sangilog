@@ -74,6 +74,15 @@ const StudentLog = () => {
   } | null>(null);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<{reason: string, guide: string} | null>(null);
+
+  // 반려 실시간 알림 (폴링)
+  const [rejectionNotification, setRejectionNotification] = useState<{
+    type: 'obs' | 'result';
+    title: string;
+    feedback: string | null;
+  } | null>(null);
+  const isFirstRejectionPoll = useRef(true);
+  const seenRejectionIds = useRef(new Set<string>());
   
   // Resources State (weekly_plan + class_materials)
   const [classResources, setClassResources] = useState<any[]>([]);
@@ -179,6 +188,74 @@ const StudentLog = () => {
       setShowGuideModal(true);
     }
   }, []);
+
+  // 반려 알림 폴링 — 15초마다 새 반려 확인
+  useEffect(() => {
+    if (!session?.student_id) return;
+
+    const check = async () => {
+      try {
+        // 관찰기록 반려 체크
+        const { data: rejectedObs } = await supabase
+          .from('observations')
+          .select('id, activity_name, teacher_feedback')
+          .eq('student_id', session.student_id)
+          .eq('status', 'rejected')
+          .eq('is_student_record', true);
+
+        for (const obs of (rejectedObs || [])) {
+          const key = `obs-${obs.id}`;
+          if (isFirstRejectionPoll.current) {
+            seenRejectionIds.current.add(key);
+          } else if (!seenRejectionIds.current.has(key)) {
+            seenRejectionIds.current.add(key);
+            setRejectionNotification({
+              type: 'obs',
+              title: obs.activity_name || '관찰기록',
+              feedback: obs.teacher_feedback || null,
+            });
+            fetchHistory();
+            return;
+          }
+        }
+
+        // 결과물 반려 체크
+        const { data: rejectedResults } = await supabase
+          .from('student_results')
+          .select('id, submission_group, week_number, title, rejection_feedback')
+          .eq('student_id', session.student_id)
+          .eq('status', 'rejected');
+
+        const seenGroups = new Set<string>();
+        for (const r of (rejectedResults || [])) {
+          const gId = r.submission_group || r.id;
+          if (seenGroups.has(gId)) continue;
+          seenGroups.add(gId);
+          const key = `result-${gId}`;
+          if (isFirstRejectionPoll.current) {
+            seenRejectionIds.current.add(key);
+          } else if (!seenRejectionIds.current.has(key)) {
+            seenRejectionIds.current.add(key);
+            setRejectionNotification({
+              type: 'result',
+              title: r.title || (r.week_number ? `${r.week_number}주차 결과물` : '결과물'),
+              feedback: (r as any).rejection_feedback || null,
+            });
+            fetchResults();
+            return;
+          }
+        }
+      } catch {
+        // 백그라운드 폴링 오류 무시
+      } finally {
+        isFirstRejectionPoll.current = false;
+      }
+    };
+
+    check();
+    const interval = setInterval(check, 15000);
+    return () => clearInterval(interval);
+  }, [session?.student_id]);
 
   const fetchUnreadReplyCount = async (studentId: string, classId: string) => {
     const { count } = await supabase
@@ -3662,6 +3739,61 @@ ${guidePrompt}
             </>
           );
         })()}
+      </AnimatePresence>
+
+      {/* ── 반려 알림 바텀시트 ── */}
+      <AnimatePresence>
+        {rejectionNotification && (
+          <div className="fixed inset-0 z-[1600] flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setRejectionNotification(null)}
+            />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-red-400"
+            >
+              <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center text-2xl shrink-0">🚨</div>
+                <div className="flex-1">
+                  <p className="font-black text-on-surface text-base leading-snug">
+                    {rejectionNotification.type === 'obs'
+                      ? `"${rejectionNotification.title}" 관찰기록이 반려되었습니다`
+                      : `"${rejectionNotification.title}" 결과물이 반려되었습니다`}
+                  </p>
+                  {rejectionNotification.feedback && (
+                    <div className="mt-2 p-3 bg-red-50 border border-red-100 rounded-xl">
+                      <p className="text-[10px] font-black text-red-500 mb-1">선생님 피드백</p>
+                      <p className="text-sm font-bold text-red-700 leading-relaxed">{rejectionNotification.feedback}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-on-surface-variant/60 font-bold mt-2">수정 후 재제출할 수 있습니다.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const type = rejectionNotification.type;
+                    setRejectionNotification(null);
+                    handleTabChange(type === 'obs' ? 'record' : 'results');
+                  }}
+                  className="flex-1 py-4 btn-gradient rounded-2xl font-black text-sm"
+                >
+                  지금 수정하러 가기 →
+                </button>
+                <button
+                  onClick={() => setRejectionNotification(null)}
+                  className="px-5 py-4 bg-neutral-100 hover:bg-neutral-200 rounded-2xl font-black text-sm text-neutral-500 transition-all"
+                >
+                  확인
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* ── 제출 리마인더 바텀시트 ── */}
