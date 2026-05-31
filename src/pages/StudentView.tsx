@@ -42,6 +42,11 @@ const StudentView = () => {
   const [rejectFeedback, setRejectFeedback] = useState('');
   const [processingGroupId, setProcessingGroupId] = useState<string | null>(null);
 
+  // Obs Reject States
+  const [obsRejectModal, setObsRejectModal] = useState<{ obsId: string } | null>(null);
+  const [obsRejectFeedback, setObsRejectFeedback] = useState('');
+  const [obsRejectingId, setObsRejectingId] = useState<string | null>(null);
+
   // Reply States
   const [replyingId, setReplyingId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -253,6 +258,44 @@ const StudentView = () => {
       console.error('승인 처리 오류:', err);
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleRejectObs = async (obsId: string, feedback: string) => {
+    setObsRejectingId(obsId);
+    try {
+      const { error } = await supabase
+        .from('observations')
+        .update({ status: 'rejected', teacher_feedback: feedback.trim() || null })
+        .eq('id', obsId);
+      if (!error) {
+        setObservations(prev => prev.map(o =>
+          o.id === obsId ? { ...o, status: 'rejected', teacher_feedback: feedback.trim() || null } : o
+        ));
+      }
+    } catch (err) {
+      console.error('반려 처리 오류:', err);
+    } finally {
+      setObsRejectingId(null);
+      setObsRejectModal(null);
+      setObsRejectFeedback('');
+    }
+  };
+
+  const handleApproveFromRejected = async (obsId: string) => {
+    setObsRejectingId(obsId);
+    try {
+      const { error } = await supabase
+        .from('observations')
+        .update({ status: 'approved', teacher_feedback: null })
+        .eq('id', obsId);
+      if (!error) {
+        setObservations(prev => prev.map(o =>
+          o.id === obsId ? { ...o, status: 'approved', teacher_feedback: null } : o
+        ));
+      }
+    } finally {
+      setObsRejectingId(null);
     }
   };
 
@@ -694,7 +737,7 @@ ${activitiesContext}
                           </div>
 
                           {obs.is_student_record && (
-                            <div className="mt-3 flex items-center justify-between">
+                            <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
                               {obs.status === 'pending' ? (
                                 <div className="flex items-center gap-3">
                                   <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-500 uppercase tracking-widest bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
@@ -709,9 +752,35 @@ ${activitiesContext}
                                     승인하기
                                   </button>
                                 </div>
+                              ) : obs.status === 'rejected' ? (
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <span className="flex items-center gap-1.5 text-[10px] font-black text-red-500 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg">
+                                    <X size={11} /> 반려됨
+                                  </span>
+                                  {obs.teacher_feedback && (
+                                    <span className="text-[10px] font-bold text-red-600/80 italic">"{obs.teacher_feedback}"</span>
+                                  )}
+                                  <button
+                                    onClick={() => handleApproveFromRejected(obs.id)}
+                                    disabled={obsRejectingId === obs.id}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg text-[10px] font-black hover:bg-emerald-100 transition-all disabled:opacity-50"
+                                  >
+                                    {obsRejectingId === obs.id ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                                    반려 취소
+                                  </button>
+                                </div>
                               ) : (
-                                <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase tracking-widest">
-                                  <CheckCircle2 size={12} /> Student Submitted · 승인 완료
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase tracking-widest">
+                                    <CheckCircle2 size={12} /> Student Submitted · 승인 완료
+                                  </div>
+                                  <button
+                                    onClick={() => { setObsRejectModal({ obsId: obs.id }); setObsRejectFeedback(''); }}
+                                    disabled={obsRejectingId === obs.id}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-lg text-[10px] font-black hover:bg-amber-100 transition-all disabled:opacity-50"
+                                  >
+                                    <RotateCw size={11} /> 반려
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -1154,7 +1223,51 @@ ${activitiesContext}
         )}
       </AnimatePresence>
 
-      {/* 반려 피드백 입력 모달 */}
+      {/* 관찰기록 반려 모달 */}
+      <AnimatePresence>
+        {obsRejectModal && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 space-y-4">
+                <div>
+                  <h3 className="font-black text-lg">관찰기록 반려</h3>
+                  <p className="text-sm text-on-surface-variant/70 mt-1">학생에게 전달할 피드백을 입력하세요. (선택사항)</p>
+                </div>
+                <textarea
+                  value={obsRejectFeedback}
+                  onChange={e => setObsRejectFeedback(e.target.value)}
+                  placeholder="예: 활동 내용이 너무 간략합니다. 구체적인 활동 과정을 추가해서 다시 제출해주세요."
+                  className="w-full min-h-[100px] p-4 rounded-xl border border-neutral-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-200"
+                  autoFocus
+                />
+              </div>
+              <div className="px-6 pb-6 flex gap-3">
+                <button
+                  onClick={() => handleRejectObs(obsRejectModal.obsId, obsRejectFeedback)}
+                  disabled={!!obsRejectingId}
+                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-sm transition-all disabled:opacity-50"
+                >
+                  {obsRejectingId ? <Loader2 size={14} className="animate-spin inline mr-1" /> : null}
+                  반려 처리하기
+                </button>
+                <button
+                  onClick={() => { setObsRejectModal(null); setObsRejectFeedback(''); }}
+                  className="px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-500 rounded-2xl font-black text-sm transition-all"
+                >
+                  취소
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 결과물 반려 피드백 입력 모달 */}
       <AnimatePresence>
         {rejectModal && (
           <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">

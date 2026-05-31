@@ -29,7 +29,16 @@ import {
   EyeOff,
   Save,
   Megaphone,
-  SlidersHorizontal
+  SlidersHorizontal,
+  RotateCw,
+  Loader2,
+  FolderOpen,
+  AlignLeft,
+  Link2,
+  ImageIcon,
+  File,
+  ExternalLink,
+  AlertCircle,
 } from 'lucide-react';
 import { useColumnVisibility } from '../../hooks/useColumnVisibility';
 import { supabase } from '../../lib/supabase';
@@ -107,6 +116,64 @@ const SubjectDashboard = ({
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedActivityWeek, setSelectedActivityWeek] = useState<number | null>(null);
   const [activityTab, setActivityTab] = useState<'obs' | 'results'>('obs');
+
+  // 결과물 상세 (삭제/반려)
+  const [resultDetailStudent, setResultDetailStudent] = useState<any>(null);
+  const [resultDetailItems, setResultDetailItems] = useState<any[]>([]);
+  const [resultDetailLoading, setResultDetailLoading] = useState(false);
+  const [resultRejectModal, setResultRejectModal] = useState<{ groupId: string } | null>(null);
+  const [resultRejectFeedback, setResultRejectFeedback] = useState('');
+  const [resultProcessingGroupId, setResultProcessingGroupId] = useState<string | null>(null);
+
+  const handleResultStudentClick = async (student: any) => {
+    setResultDetailStudent(student);
+    setResultDetailItems([]);
+    setResultDetailLoading(true);
+    try {
+      let q = supabase.from('student_results').select('*').eq('student_id', student.id).order('created_at', { ascending: false });
+      if (selectedActivityWeek !== null) q = q.eq('week_number', selectedActivityWeek);
+      const { data } = await q;
+      setResultDetailItems(data || []);
+    } finally {
+      setResultDetailLoading(false);
+    }
+  };
+
+  const handleDashboardDeleteGroup = async (groupId: string) => {
+    if (!confirm('이 결과물을 삭제하시겠습니까?')) return;
+    setResultProcessingGroupId(groupId);
+    try {
+      const groupItems = resultDetailItems.filter((r: any) => (r.submission_group || r.id) === groupId);
+      const storagePaths = groupItems.map((r: any) => r.storage_path).filter(Boolean);
+      if (storagePaths.length > 0) await supabase.storage.from('student-attachments').remove(storagePaths);
+      if (groupItems[0]?.submission_group) {
+        await supabase.from('student_results').delete().eq('submission_group', groupId);
+      } else {
+        await supabase.from('student_results').delete().eq('id', groupId);
+      }
+      setResultDetailItems(prev => prev.filter((r: any) => (r.submission_group || r.id) !== groupId));
+    } catch { alert('삭제 중 오류가 발생했습니다.'); }
+    finally { setResultProcessingGroupId(null); }
+  };
+
+  const handleDashboardRejectGroup = async (feedback: string) => {
+    if (!resultRejectModal) return;
+    const { groupId } = resultRejectModal;
+    setResultProcessingGroupId(groupId);
+    try {
+      const firstItem = resultDetailItems.find((r: any) => (r.submission_group || r.id) === groupId);
+      const col = firstItem?.submission_group ? 'submission_group' : 'id';
+      await supabase.from('student_results')
+        .update({ status: 'rejected', rejection_feedback: feedback.trim() || null })
+        .eq(col, groupId);
+      setResultDetailItems(prev => prev.map((r: any) =>
+        (r.submission_group || r.id) === groupId ? { ...r, status: 'rejected', rejection_feedback: feedback.trim() || null } : r
+      ));
+      setResultRejectModal(null);
+      setResultRejectFeedback('');
+    } catch { alert('처리 중 오류가 발생했습니다.'); }
+    finally { setResultProcessingGroupId(null); }
+  };
   const [pinPopupId, setPinPopupId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNumber, setEditNumber] = useState('');
@@ -1083,7 +1150,10 @@ const SubjectDashboard = ({
                       submitted.map(s => (
                         <div
                           key={s.id}
-                          className={`flex items-center gap-3 px-8 py-3 transition-all group ${tabColor === 'violet' ? 'hover:bg-violet-50' : 'hover:bg-emerald-50'}`}
+                          onClick={() => activityTab === 'results' ? handleResultStudentClick(s) : undefined}
+                          className={`flex items-center gap-3 px-8 py-3 transition-all group ${
+                            activityTab === 'results' ? 'cursor-pointer' : ''
+                          } ${tabColor === 'violet' ? 'hover:bg-violet-50' : 'hover:bg-emerald-50'}`}
                         >
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tabColor === 'violet' ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'}`}>
                             <Users size={14} />
@@ -1094,7 +1164,11 @@ const SubjectDashboard = ({
                             </p>
                             <p className="text-[10px] text-neutral-400 font-medium truncate">{getActivityLabel(s)}</p>
                           </div>
-                          <CheckCircle2 size={14} className={`shrink-0 ${tabColor === 'violet' ? 'text-violet-500' : 'text-emerald-500'}`} />
+                          {activityTab === 'results' ? (
+                            <ExternalLink size={13} className="shrink-0 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          ) : (
+                            <CheckCircle2 size={14} className={`shrink-0 ${tabColor === 'violet' ? 'text-violet-500' : 'text-emerald-500'}`} />
+                          )}
                         </div>
                       ))
                     ) : (
@@ -1159,6 +1233,180 @@ const SubjectDashboard = ({
           </div>
         );
       })()}
+    </AnimatePresence>
+
+    {/* 결과물 상세 모달 (학생 클릭 시) */}
+    <AnimatePresence>
+      {resultDetailStudent && (
+        <div className="fixed inset-0 z-[950] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            style={{ maxHeight: 'calc(100vh - 4rem)' }}
+          >
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 shrink-0">
+              <div>
+                <p className="font-black text-base">
+                  {resultDetailStudent.number && resultDetailStudent.number !== '-' ? `${resultDetailStudent.number}번 ` : ''}
+                  {resultDetailStudent.name}
+                </p>
+                <p className="text-[11px] text-neutral-400 font-bold mt-0.5">
+                  {selectedActivityWeek ? `${selectedActivityWeek}주차 결과물` : '전체 결과물'} · 삭제/반려 처리
+                </p>
+              </div>
+              <button onClick={() => setResultDetailStudent(null)} className="p-2 rounded-xl hover:bg-neutral-100 text-neutral-400 transition-all">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* 목록 */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {resultDetailLoading ? (
+                <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-primary" /></div>
+              ) : resultDetailItems.length === 0 ? (
+                <div className="flex flex-col items-center py-12 text-neutral-400 gap-2">
+                  <FolderOpen size={36} className="opacity-40" />
+                  <p className="text-sm font-bold">결과물이 없습니다</p>
+                </div>
+              ) : (() => {
+                const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+                  text:  { icon: <AlignLeft size={13} />,  color: 'text-primary bg-primary/10',     label: '텍스트' },
+                  link:  { icon: <Link2 size={13} />,      color: 'text-blue-500 bg-blue-50',       label: '링크' },
+                  image: { icon: <ImageIcon size={13} />,  color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
+                  file:  { icon: <File size={13} />,       color: 'text-amber-500 bg-amber-50',     label: '파일' },
+                };
+                // submission_group 기준으로 그룹화
+                const groups = Object.values(
+                  resultDetailItems.reduce((acc: any, r: any) => {
+                    const gId = r.submission_group || r.id;
+                    if (!acc[gId]) acc[gId] = { groupId: gId, items: [], status: r.status || 'submitted', rejection_feedback: r.rejection_feedback, created_at: r.created_at, week_number: r.week_number };
+                    acc[gId].items.push(r);
+                    if (r.status === 'rejected') acc[gId].status = 'rejected';
+                    return acc;
+                  }, {})
+                ) as any[];
+
+                return groups.map((g: any) => {
+                  const isRejected = g.status === 'rejected';
+                  const isProcessing = resultProcessingGroupId === g.groupId;
+                  return (
+                    <div key={g.groupId} className={`p-4 rounded-2xl border-2 ${isRejected ? 'border-red-200 bg-red-50/30' : 'border-neutral-200 bg-neutral-50'}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {g.week_number && (
+                              <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">{g.week_number}주차</span>
+                            )}
+                            {g.items.map((r: any) => {
+                              const cfg = typeConfig[r.result_type] || typeConfig.file;
+                              return (
+                                <span key={r.id} className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md ${cfg.color}`}>
+                                  {cfg.icon}{cfg.label}
+                                </span>
+                              );
+                            })}
+                            {isRejected && (
+                              <span className="text-[10px] font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                <X size={9} /> 반려됨
+                              </span>
+                            )}
+                          </div>
+                          {g.items[0]?.title && <p className="text-sm font-black text-on-surface">{g.items[0].title}</p>}
+                          {g.rejection_feedback && isRejected && (
+                            <p className="text-xs text-red-600 font-bold bg-red-50 border border-red-100 rounded-xl px-3 py-2">{g.rejection_feedback}</p>
+                          )}
+                          <p className="text-[10px] text-neutral-400 font-bold">
+                            {new Date(g.created_at).toLocaleString('ko-KR')}
+                          </p>
+                        </div>
+                      </div>
+                      {/* 액션 버튼 */}
+                      <div className="flex gap-2 mt-3">
+                        {!isRejected ? (
+                          <button
+                            onClick={() => { setResultRejectModal({ groupId: g.groupId }); setResultRejectFeedback(''); }}
+                            disabled={isProcessing}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 rounded-xl font-black text-xs transition-all"
+                          >
+                            <RotateCw size={11} /> 반려
+                          </button>
+                        ) : (
+                          <button
+                            onClick={async () => {
+                              setResultProcessingGroupId(g.groupId);
+                              const col = g.items[0]?.submission_group ? 'submission_group' : 'id';
+                              await supabase.from('student_results').update({ status: 'submitted', rejection_feedback: null }).eq(col, g.groupId);
+                              setResultDetailItems(prev => prev.map((r: any) =>
+                                (r.submission_group || r.id) === g.groupId ? { ...r, status: 'submitted', rejection_feedback: null } : r
+                              ));
+                              setResultProcessingGroupId(null);
+                            }}
+                            disabled={isProcessing}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-xl font-black text-xs transition-all"
+                          >
+                            <Check size={11} /> 반려 취소
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDashboardDeleteGroup(g.groupId)}
+                          disabled={isProcessing}
+                          className="flex items-center justify-center gap-1.5 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-xl font-black text-xs transition-all"
+                        >
+                          {isProcessing ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />} 삭제
+                        </button>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+
+    {/* 반려 피드백 입력 모달 */}
+    <AnimatePresence>
+      {resultRejectModal && (
+        <div className="fixed inset-0 z-[960] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+          >
+            <div className="p-6 space-y-4">
+              <h3 className="font-black text-lg">반려 처리</h3>
+              <p className="text-sm text-neutral-500">학생에게 전달할 피드백을 입력하세요. (선택사항)</p>
+              <textarea
+                value={resultRejectFeedback}
+                onChange={e => setResultRejectFeedback(e.target.value)}
+                placeholder="예: 결과물 내용이 부족합니다. 보완 후 다시 제출해주세요."
+                className="w-full min-h-[90px] p-4 rounded-xl border border-neutral-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-200"
+                autoFocus
+              />
+            </div>
+            <div className="px-6 pb-6 flex gap-3">
+              <button
+                onClick={() => handleDashboardRejectGroup(resultRejectFeedback)}
+                disabled={!!resultProcessingGroupId}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-sm transition-all disabled:opacity-50"
+              >
+                반려 처리하기
+              </button>
+              <button
+                onClick={() => { setResultRejectModal(null); setResultRejectFeedback(''); }}
+                className="px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-500 rounded-2xl font-black text-sm transition-all"
+              >
+                취소
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </AnimatePresence>
     </>
   );
