@@ -179,10 +179,13 @@ const Navbar = () => {
                   {notifications.length > 0 ? notifications.map((n) => {
                     const dest: string | null = n.link ||
                       ((n.type === 'student_submission' || n.type === 'result_submission') ? '/classroom' : null);
+                    const isAiReview = n.type === 'ai_review_needed';
                     const baseClass = `p-4 rounded-xl transition-all border block ${
                       n.is_read
                         ? 'bg-surface-container/30 border-transparent opacity-60'
-                        : `bg-white border-primary/5 shadow-soft hover:border-primary/20 hover:scale-[1.01] ${dest ? 'cursor-pointer' : 'cursor-default'}`
+                        : isAiReview
+                          ? `bg-amber-50 border-amber-200 shadow-soft hover:border-amber-300 hover:scale-[1.01] ${dest ? 'cursor-pointer' : 'cursor-default'}`
+                          : `bg-white border-primary/5 shadow-soft hover:border-primary/20 hover:scale-[1.01] ${dest ? 'cursor-pointer' : 'cursor-default'}`
                     }`;
                     return (
                       <button key={n.id} className={`w-full text-left ${baseClass}`}

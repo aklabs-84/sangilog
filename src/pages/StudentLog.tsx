@@ -1025,11 +1025,15 @@ const StudentLog = () => {
     try {
       // ── AI 가이드 검토 ──────────────────────────────────────────────────────
       // guidePrompt가 있을 때만 실행. AI 오류가 나더라도 제출 자체는 막지 않음.
+      // AI 검토 결과를 저장해서 관찰기록 저장 시 함께 사용
+      let aiReviewFlag: 'good' | 'review_needed' | null = null;
+      let aiConcern = '';
+
       if (guidePrompt) {
         try {
           const prompt = `
-당신은 학생이 제출한 활동 기록을 정성껏 검토하고, 학생이 성실하게 참여했는지 판단하는 따뜻한 AI 가이드입니다.
-선생님의 지침(guidePrompt)을 참고하되, 학생이 수업에 능동적으로 참여했다는 진심이 느껴진다면 가급적 수용(pass)하는 방향으로 평가하세요.
+당신은 학생이 제출한 활동 기록을 검토하는 AI 가이드입니다.
+선생님의 지침을 참고하여 아래 3단계로 평가하세요.
 
 [교사의 지침]
 ${guidePrompt}
@@ -1040,17 +1044,16 @@ ${guidePrompt}
 배운 점 및 느낀 점: "${feeling}"
 
 평가 기준:
-1. 단순히 'ㅋ'나 'ㅎ' 같은 장난스러운 표현만 있거나, 내용이 아예 없는 '성의 부족'인 경우에만 반려(reject) 처리하세요.
-2. 문법적 완성도보다는 학생이 해당 활동에서 무엇을 했고, 어떤 기분을 느꼈는지 '진정성'이 보인다면 승인(pass)하세요.
-3. 지침을 완전히 따르지 않더라도, 수업 내용과 관련된 의미 있는 기록이라면 수용하세요.
+1. reject: 'ㅋ', 'ㅎ' 같은 장난, 무의미한 반복, 내용이 사실상 없는 경우에만 사용.
+2. review_needed: 내용이 너무 짧거나(3문장 이하), 수업 주제와 무관하거나, 다른 기록과 복붙이 강하게 의심되거나, 지침 핵심을 전혀 반영하지 않은 경우. concern 필드에 선생님께 전달할 검토 이유를 한 문장으로 작성.
+3. good: 진정성이 느껴지고 수업과 관련된 기록이면 문법/분량과 무관하게 good.
 
-반드시 아래 JSON 형식 그대로만 반환하세요 (다른 텍스트 없이):
-{"status":"pass","reason":"","guide":""}
+반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
+{"status":"good","concern":"","reason":"","guide":""}
 `;
           const aiResult = await geminiFlash.generateContent(prompt);
           const aiResponseText = aiResult.response.text();
 
-          // AI 응답에서 JSON 객체 추출 (마크다운 블록, 앞뒤 텍스트 제거)
           const jsonMatch = aiResponseText.match(/\{[\s\S]*?\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
@@ -1060,10 +1063,14 @@ ${guidePrompt}
               setSubmitting(false);
               return;
             }
+            if (parsed.status === 'review_needed' && parsed.concern) {
+              aiReviewFlag = 'review_needed';
+              aiConcern = parsed.concern;
+            } else {
+              aiReviewFlag = 'good';
+            }
           }
-          // JSON 파싱 실패 또는 pass → 제출 진행
         } catch (aiErr) {
-          // AI 검토 오류 → 경고만 남기고 제출 계속 진행
           console.warn('[AI 검토 오류 — 제출 진행]', aiErr);
         }
       }
@@ -1091,10 +1098,27 @@ ${guidePrompt}
           title: `📝 ${session.student_name}이(가) 활동을 제출했습니다`,
           content: `"${title}" — ${session.class_name}`,
           type: 'student_submission',
+          link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`,
         })
         .then(({ error }) => {
           if (error) console.warn('[알림 전송 실패]', error.message);
         });
+
+      // ── 3. AI 검토 권장 시 선생님에게 별도 알림 ─────────────────────────────
+      if (aiReviewFlag === 'review_needed' && aiConcern) {
+        supabase
+          .from('notifications')
+          .insert({
+            user_id: teacherId,
+            title: `🤖 AI 검토 권장 · ${session.student_name} "${title}"`,
+            content: `AI 의견: ${aiConcern}`,
+            type: 'ai_review_needed',
+            link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`,
+          })
+          .then(({ error }) => {
+            if (error) console.warn('[AI 검토 알림 실패]', error.message);
+          });
+      }
 
       showToast('제출 완료! 선생님 승인 후 최종 기록에 반영됩니다. ✅');
 
