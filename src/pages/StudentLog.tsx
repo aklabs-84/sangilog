@@ -1031,6 +1031,7 @@ const StudentLog = () => {
 
       if (guidePrompt) {
         try {
+          const contentLength = content.trim().length;
           const prompt = `
 당신은 학생이 제출한 활동 기록을 검토하는 AI 가이드입니다.
 선생님의 지침을 참고하여 아래 3단계로 평가하세요.
@@ -1040,13 +1041,33 @@ ${guidePrompt}
 
 [학생이 제출한 활동 정보]
 제목: "${title}"
-내용: "${content}"
+내용(${contentLength}자): "${content}"
 배운 점 및 느낀 점: "${feeling}"
 
-평가 기준:
-1. reject: 'ㅋ', 'ㅎ' 같은 장난, 무의미한 반복, 내용이 사실상 없는 경우에만 사용.
-2. review_needed: 내용이 너무 짧거나(3문장 이하), 수업 주제와 무관하거나, 다른 기록과 복붙이 강하게 의심되거나, 지침 핵심을 전혀 반영하지 않은 경우. concern 필드에 선생님께 전달할 검토 이유를 한 문장으로 작성.
-3. good: 진정성이 느껴지고 수업과 관련된 기록이면 문법/분량과 무관하게 good.
+━━ 평가 기준 ━━
+
+1. reject (제출 차단):
+   - 'ㅋ', 'ㅎ', '모름', '없음' 같은 무성의한 내용만 있는 경우
+   - 내용이 사실상 비어 있는 경우
+
+2. review_needed (자동 승인되나 선생님에게 검토 권장 알림):
+   【품질 부족】 다음 중 하나 이상:
+   - 3문장 이하로 너무 짧고 구체성 없음
+   - 수업 주제("${title}")와 전혀 무관한 내용
+   - 교사 지침의 핵심 항목을 전혀 반영하지 않음
+
+   【AI 생성 의심】 다음 중 2가지 이상:
+   - 중고등학생 수준을 넘는 격식체·학술어 다수 사용 (예: "함양", "도모", "고찰", "심층적 탐구", "역량 증진")
+   - AI 특유 한국어 상투어 다수 포함 (예: "다양한 관점에서", "비판적 사고력 향상", "융합적 사고", "깊이 있는 이해", "핵심 역량 함양", "통해 성장할 수 있었습니다")
+   - 개인 에피소드·감정·실수담이 전혀 없고 교과서식 일반 서술만 존재
+   - 구어체·개인 어투("~해서 신기했다", "솔직히", "처음엔 어려웠는데")가 전혀 없고 모두 격식 문어체
+   - 500자 초과이면서 위 특징을 2개 이상 포함
+
+   → concern 필드: 선생님께 전달할 검토 이유 한 문장. AI 생성 의심이면 "AI 생성 의심:" 으로 시작.
+
+3. good (승인):
+   - 개인 경험·진정성이 느껴지거나 수업과 관련된 내용이면 문법·분량 무관하게 good
+   - 한두 가지 특징만 해당되는 애매한 경우도 good으로 판단
 
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
 {"status":"good","concern":"","reason":"","guide":""}
@@ -1106,12 +1127,15 @@ ${guidePrompt}
 
       // ── 3. AI 검토 권장 시 선생님에게 별도 알림 ─────────────────────────────
       if (aiReviewFlag === 'review_needed' && aiConcern) {
+        const isAiGenerated = aiConcern.startsWith('AI 생성 의심');
         supabase
           .from('notifications')
           .insert({
             user_id: teacherId,
-            title: `🤖 AI 검토 권장 · ${session.student_name} "${title}"`,
-            content: `AI 의견: ${aiConcern}`,
+            title: isAiGenerated
+              ? `🤖 AI 생성 의심 · ${session.student_name} "${title}"`
+              : `⚠️ AI 검토 권장 · ${session.student_name} "${title}"`,
+            content: aiConcern,
             type: 'ai_review_needed',
             link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`,
           })
