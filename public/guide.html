@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>생기로그 AI — 사용 가이드</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --amber: #f59e0b;
+      --amber-dark: #d97706;
+      --amber-light: #fef3c7;
+      --emerald: #10b981;
+      --emerald-light: #d1fae5;
+      --violet: #8b5cf6;
+      --violet-light: #ede9fe;
+      --rose: #f43f5e;
+      --rose-light: #ffe4e6;
+      --blue: #3b82f6;
+      --blue-light: #dbeafe;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-600: #4b5563;
+      --gray-800: #1f2937;
+      --sidebar-width: 260px;
+      --warm-bg: #fffbf5;
+    }
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--warm-bg); color: var(--gray-800); display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-width); background: #fff; border-right: 1px solid var(--gray-200);
+      position: fixed; top: 0; left: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column;
+      transition: transform 0.3s ease; z-index: 100;
+    }
+    .sidebar-logo {
+      padding: 20px 20px 16px; border-bottom: 1px solid var(--gray-100);
+      display: flex; align-items: center; gap: 10px; text-decoration: none;
+    }
+    .sidebar-logo .logo-icon {
+      width: 36px; height: 36px; background: linear-gradient(135deg, #f59e0b, #ef4444);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .sidebar-logo .logo-text { font-weight: 900; font-size: 15px; color: #92400e; line-height: 1.2; }
+    .sidebar-logo .logo-sub { font-size: 10px; color: #b45309; font-weight: 600; }
+    .nav-section { padding: 12px 12px 4px; font-size: 10px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: .12em; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 16px; margin: 1px 8px;
+      border-radius: 10px; cursor: pointer; font-size: 13.5px; font-weight: 700; color: var(--gray-600);
+      text-decoration: none; transition: all 0.15s;
+    }
+    .nav-item:hover { background: var(--amber-light); color: #92400e; }
+    .nav-item.active { background: var(--amber-light); color: #92400e; font-weight: 800; }
+    .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+    .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid var(--gray-100); }
+    .sidebar-footer a { font-size: 12px; color: #9ca3af; text-decoration: none; display: block; text-align: center; }
+    .sidebar-footer a:hover { color: var(--amber-dark); }
+
+    /* ── Main ── */
+    .main { margin-left: var(--sidebar-width); flex: 1; padding: 40px 48px; max-width: 900px; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ── Typography ── */
+    .page-title { font-size: 28px; font-weight: 900; color: #92400e; margin-bottom: 6px; }
+    .page-subtitle { font-size: 15px; color: #a16207; margin-bottom: 32px; font-weight: 500; }
+    h2 { font-size: 18px; font-weight: 800; color: var(--gray-800); margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--gray-100); }
+    h3 { font-size: 15px; font-weight: 700; color: var(--gray-800); margin: 20px 0 8px; }
+    p { font-size: 14px; line-height: 1.75; color: var(--gray-600); margin-bottom: 12px; }
+    code { background: var(--gray-100); border: 1px solid var(--gray-200); padding: 1px 7px; border-radius: 5px; font-size: 12.5px; font-family: 'Monaco', monospace; color: #7c3aed; }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #fffbeb, #fff7ed);
+      border: 1px solid #fde68a; border-radius: 20px; padding: 32px 36px; margin-bottom: 32px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .hero-icon { font-size: 48px; }
+    .hero-text h1 { font-size: 24px; font-weight: 900; color: #92400e; margin-bottom: 6px; }
+    .hero-text p { font-size: 14px; color: #a16207; margin: 0; }
+    .hero-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .badge { padding: 3px 10px; border-radius: 100px; font-size: 11px; font-weight: 700; }
+    .badge-amber { background: var(--amber-light); color: #92400e; }
+    .badge-emerald { background: var(--emerald-light); color: #065f46; }
+    .badge-violet { background: var(--violet-light); color: #5b21b6; }
+
+    /* ── Feature Grid ── */
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin: 16px 0 24px; }
+    .feature-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 14px; padding: 18px 16px; transition: all 0.15s; }
+    .feature-card:hover { border-color: var(--amber); box-shadow: 0 4px 12px rgba(245,158,11,.1); transform: translateY(-1px); }
+    .feature-card-icon { font-size: 24px; margin-bottom: 8px; }
+    .feature-card-title { font-size: 13px; font-weight: 800; color: var(--gray-800); margin-bottom: 4px; }
+    .feature-card-desc { font-size: 12px; color: var(--gray-600); line-height: 1.5; }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 0; margin: 16px 0 24px; }
+    .step { display: flex; gap: 16px; align-items: flex-start; padding: 0 0 24px; position: relative; }
+    .step:not(:last-child)::before {
+      content: ''; position: absolute; left: 19px; top: 40px; width: 2px;
+      height: calc(100% - 16px); background: var(--gray-200);
+    }
+    .step-number {
+      width: 40px; height: 40px; background: var(--amber); color: #fff;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(245,158,11,.3);
+    }
+    .step-content { flex: 1; padding-top: 8px; }
+    .step-title { font-size: 14px; font-weight: 800; color: var(--gray-800); margin-bottom: 4px; }
+    .step-desc { font-size: 13px; color: var(--gray-600); line-height: 1.6; }
+
+    /* ── Callout ── */
+    .callout { display: flex; gap: 10px; padding: 14px 16px; border-radius: 12px; margin: 12px 0 20px; font-size: 13.5px; align-items: flex-start; }
+    .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .callout-text { line-height: 1.6; }
+    .callout.blue { background: var(--blue-light); border-left: 3px solid var(--blue); color: #1e40af; }
+    .callout.green { background: var(--emerald-light); border-left: 3px solid var(--emerald); color: #065f46; }
+    .callout.yellow { background: var(--amber-light); border-left: 3px solid var(--amber); color: #92400e; }
+    .callout.purple { background: var(--violet-light); border-left: 3px solid var(--violet); color: #5b21b6; }
+    .callout.rose { background: var(--rose-light); border-left: 3px solid var(--rose); color: #be123c; }
+
+    /* ── Tabs ── */
+    .tabs { margin: 16px 0 24px; }
+    .tab-list { display: flex; gap: 4px; background: var(--gray-100); padding: 4px; border-radius: 12px; margin-bottom: 0; flex-wrap: wrap; }
+    .tab-btn { padding: 8px 16px; border: none; background: transparent; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--gray-600); cursor: pointer; transition: all 0.15s; }
+    .tab-btn.active { background: #fff; color: #92400e; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .tab-panel { display: none; padding: 20px 0 0; }
+    .tab-panel.active { display: block; }
+
+    /* ── Accordion ── */
+    .accordion { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 24px; }
+    .accordion-item { border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; background: #fff; }
+    .accordion-btn {
+      width: 100%; padding: 14px 18px; background: #fff; border: none; text-align: left;
+      font-size: 13.5px; font-weight: 700; color: var(--gray-800); cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center; transition: background 0.15s;
+    }
+    .accordion-btn:hover { background: var(--gray-50); }
+    .accordion-btn.open { background: var(--amber-light); color: #92400e; }
+    .accordion-icon { font-size: 12px; transition: transform 0.2s; flex-shrink: 0; }
+    .accordion-btn.open .accordion-icon { transform: rotate(180deg); }
+    .accordion-body { display: none; padding: 0 18px 16px; font-size: 13.5px; color: var(--gray-600); line-height: 1.7; border-top: 1px solid var(--gray-100); }
+    .accordion-body.open { display: block; }
+
+    /* ── Table ── */
+    .guide-table { width: 100%; border-collapse: collapse; margin: 12px 0 24px; font-size: 13.5px; }
+    .guide-table th { background: var(--amber-light); color: #92400e; font-weight: 800; padding: 10px 14px; text-align: left; border-bottom: 2px solid #fcd34d; }
+    .guide-table td { padding: 10px 14px; border-bottom: 1px solid var(--gray-100); color: var(--gray-600); vertical-align: top; }
+    .guide-table tr:last-child td { border-bottom: none; }
+
+    /* ── TOC Grid ── */
+    .toc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 16px 0 28px; }
+    .toc-card { background: #fff; border: 1px solid var(--gray-200); border-radius: 12px; padding: 14px; cursor: pointer; transition: all 0.15s; text-align: center; }
+    .toc-card:hover { border-color: var(--amber); background: var(--amber-light); }
+    .toc-card .toc-icon { font-size: 22px; margin-bottom: 6px; }
+    .toc-card .toc-label { font-size: 12px; font-weight: 700; color: var(--gray-800); }
+
+    /* ── Mobile ── */
+    .mobile-header { display: none; }
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 99; }
+      .sidebar-overlay.show { display: block; }
+      .mobile-header {
+        display: flex; align-items: center; justify-content: space-between;
+        position: fixed; top: 0; left: 0; right: 0; z-index: 98;
+        background: #fff; padding: 12px 16px; border-bottom: 1px solid var(--gray-200);
+        box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      }
+      .mobile-header .logo { font-weight: 900; color: #92400e; font-size: 15px; }
+      .hamburger { background: none; border: 1px solid var(--gray-200); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 18px; }
+      .main { margin-left: 0; padding: 80px 20px 40px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- Mobile Header -->
+<div class="mobile-header">
+  <span class="logo">🎓 생기로그 AI 가이드</span>
+  <button class="hamburger" onclick="openSidebar()">☰</button>
+</div>
+
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar">
+  <a class="sidebar-logo" href="/">
+    <div class="logo-icon">🎓</div>
+    <div>
+      <div class="logo-text">생기로그 AI</div>
+      <div class="logo-sub">사용 가이드</div>
+    </div>
+  </a>
+
+  <div class="nav-section">시작하기</div>
+  <a class="nav-item active" data-section="intro" onclick="showSection('intro')">
+    <span class="icon">🏠</span> 소개
+  </a>
+  <a class="nav-item" data-section="start" onclick="showSection('start')">
+    <span class="icon">🚀</span> 처음 시작하기
+  </a>
+
+  <div class="nav-section">선생님 기능</div>
+  <a class="nav-item" data-section="classroom" onclick="showSection('classroom')">
+    <span class="icon">🏫</span> 학급 만들기
+  </a>
+  <a class="nav-item" data-section="observation" onclick="showSection('observation')">
+    <span class="icon">📝</span> 관찰기록 관리
+  </a>
+  <a class="nav-item" data-section="ai-setech" onclick="showSection('ai-setech')">
+    <span class="icon">✨</span> AI 세특 초안
+  </a>
+  <a class="nav-item" data-section="naiss" onclick="showSection('naiss')">
+    <span class="icon">📊</span> 나이스 내보내기
+  </a>
+  <a class="nav-item" data-section="tools" onclick="showSection('tools')">
+    <span class="icon">🛠️</span> 수업 도구
+  </a>
+
+  <div class="nav-section">학생 기능</div>
+  <a class="nav-item" data-section="student" onclick="showSection('student')">
+    <span class="icon">🎒</span> 학생 참여 방법
+  </a>
+
+  <div class="nav-section">도움말</div>
+  <a class="nav-item" data-section="faq" onclick="showSection('faq')">
+    <span class="icon">❓</span> 자주 묻는 질문
+  </a>
+  <a class="nav-item" data-section="trouble" onclick="showSection('trouble')">
+    <span class="icon">🔧</span> 문제 해결
+  </a>
+
+  <div class="sidebar-footer">
+    <a href="/">← 메인으로 돌아가기</a>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="main">
+
+  <!-- ── 소개 ── -->
+  <div class="section active" id="sec-intro">
+    <div class="hero">
+      <div class="hero-icon">🎓</div>
+      <div class="hero-text">
+        <h1>생기로그 AI 사용 가이드</h1>
+        <p>관찰기록 수집부터 AI 세특 초안 생성, 나이스 제출까지 — 한 곳에서 해결하세요.</p>
+        <div class="hero-badges">
+          <span class="badge badge-amber">선생님 전용</span>
+          <span class="badge badge-emerald">AI 세특 자동화</span>
+          <span class="badge badge-violet">나이스 연동</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout blue">
+      <span class="callout-icon">💡</span>
+      <span class="callout-text">생기로그 AI는 <strong>사전 승인된 선생님만</strong> 사용할 수 있습니다. 아직 계정이 없다면 <strong>사용 신청하기</strong>를 통해 신청해 주세요.</span>
+    </div>
+
+    <h2>핵심 기능 한눈에 보기</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-card-icon">📝</div>
+        <div class="feature-card-title">관찰기록 수집</div>
+        <div class="feature-card-desc">학생이 참여 코드로 직접 제출. 선생님은 승인만 합니다.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">✨</div>
+        <div class="feature-card-title">AI 세특 초안</div>
+        <div class="feature-card-desc">Gemini AI가 관찰기록을 분석해 세특 초안을 생성합니다.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📊</div>
+        <div class="feature-card-title">나이스 내보내기</div>
+        <div class="feature-card-desc">500자 맞춤 편집 후 나이스 엑셀로 한 번에 다운로드합니다.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">👨‍👩‍👧‍👦</div>
+        <div class="feature-card-title">학급 관리</div>
+        <div class="feature-card-desc">담임반·교과반을 구분해 학생과 수업을 체계적으로 관리합니다.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">🔗</div>
+        <div class="feature-card-title">교사 연동</div>
+        <div class="feature-card-desc">교과 선생님을 담임반에 초대해 세특을 함께 관리합니다.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">🎒</div>
+        <div class="feature-card-title">결과물 제출</div>
+        <div class="feature-card-desc">주차별 결과물을 학생이 직접 첨부·제출할 수 있습니다.</div>
+      </div>
+    </div>
+
+    <h2>빠른 이동</h2>
+    <div class="toc-grid">
+      <div class="toc-card" onclick="showSection('start')"><div class="toc-icon">🚀</div><div class="toc-label">처음 시작하기</div></div>
+      <div class="toc-card" onclick="showSection('classroom')"><div class="toc-icon">🏫</div><div class="toc-label">학급 만들기</div></div>
+      <div class="toc-card" onclick="showSection('observation')"><div class="toc-icon">📝</div><div class="toc-label">관찰기록</div></div>
+      <div class="toc-card" onclick="showSection('ai-setech')"><div class="toc-icon">✨</div><div class="toc-label">AI 세특 초안</div></div>
+      <div class="toc-card" onclick="showSection('naiss')"><div class="toc-icon">📊</div><div class="toc-label">나이스 내보내기</div></div>
+      <div class="toc-card" onclick="showSection('student')"><div class="toc-icon">🎒</div><div class="toc-label">학생 참여</div></div>
+      <div class="toc-card" onclick="showSection('faq')"><div class="toc-icon">❓</div><div class="toc-label">자주 묻는 질문</div></div>
+      <div class="toc-card" onclick="showSection('trouble')"><div class="toc-icon">🔧</div><div class="toc-label">문제 해결</div></div>
+    </div>
+  </div>
+
+  <!-- ── 처음 시작하기 ── -->
+  <div class="section" id="sec-start">
+    <div class="page-title">🚀 처음 시작하기</div>
+    <div class="page-subtitle">계정 신청부터 첫 로그인까지</div>
+
+    <div class="callout purple">
+      <span class="callout-icon">🔒</span>
+      <span class="callout-text">생기로그 AI는 <strong>초대 승인제</strong>로 운영됩니다. 일반 회원가입이 없으며, 관리자 승인 후 계정이 개설됩니다.</span>
+    </div>
+
+    <h2>계정 신청 방법</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">사용 신청서 작성</div>
+          <div class="step-desc">메인 화면 하단 <code>사용 신청하기</code> 폼에서 이름, 이메일, 학교명, 직책을 입력하고 제출합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">검토 대기</div>
+          <div class="step-desc">관리자가 신청 내용을 검토합니다. 보통 1~2 영업일 내에 결과를 안내해 드립니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">계정 초대 이메일 수신</div>
+          <div class="step-desc">승인되면 입력하신 이메일로 계정 설정 링크가 발송됩니다. 링크를 클릭해 비밀번호를 설정합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">로그인</div>
+          <div class="step-desc"><code>선생님 로그인</code> 버튼을 클릭하거나 <code>/login</code>으로 접속해 이메일과 비밀번호로 로그인합니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>로그인 후 첫 화면</h2>
+    <p>로그인에 성공하면 <strong>대시보드</strong>로 이동합니다. 대시보드에는 내 학급 목록, 최근 관찰기록, 초대 알림이 표시됩니다.</p>
+    <div class="callout green">
+      <span class="callout-icon">✅</span>
+      <span class="callout-text">처음 로그인했다면 <strong>학급 만들기</strong>부터 시작하세요. 학급 없이는 다른 기능을 사용할 수 없습니다.</span>
+    </div>
+  </div>
+
+  <!-- ── 학급 만들기 ── -->
+  <div class="section" id="sec-classroom">
+    <div class="page-title">🏫 학급 만들기</div>
+    <div class="page-subtitle">교과반과 담임반, 목적에 맞게 개설하세요</div>
+
+    <h2>학급 유형 선택</h2>
+    <table class="guide-table">
+      <thead><tr><th>유형</th><th>특징</th><th>주요 기능</th></tr></thead>
+      <tbody>
+        <tr><td><strong>교과반</strong></td><td>특정 과목을 가르치는 수업</td><td>세특 작성, 관찰기록, 결과물 제출</td></tr>
+        <tr><td><strong>담임반</strong></td><td>학급 전체를 담당하는 담임</td><td>행동특성·종합의견, 교과 교사 연동, 종합 관리</td></tr>
+      </tbody>
+    </table>
+
+    <h2>학급 만들기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">클래스룸 메뉴 접속</div>
+          <div class="step-desc">왼쪽 사이드바에서 <code>클래스룸</code>을 클릭합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">새 학급 만들기 클릭</div>
+          <div class="step-desc">우측 상단 <code>+ 새 학급 만들기</code> 버튼을 클릭합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">학급 정보 입력</div>
+          <div class="step-desc">학급명, 유형(교과반/담임반), 과목을 입력하고 생성합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">학생 추가</div>
+          <div class="step-desc">학생을 직접 추가하거나, 생성된 <strong>입장 코드</strong>를 학생에게 공유해 자동 등록할 수 있습니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>입장 코드 공유하기</h2>
+    <p>학급을 만들면 6자리 <strong>입장 코드</strong>가 자동 생성됩니다. 학생들이 이 코드를 입력하면 해당 학급에 자동으로 등록됩니다.</p>
+    <div class="tabs">
+      <div class="tab-list">
+        <button class="tab-btn active" onclick="switchTab(this, 'code-share-1')">코드 복사</button>
+        <button class="tab-btn" onclick="switchTab(this, 'code-share-2')">QR코드</button>
+        <button class="tab-btn" onclick="switchTab(this, 'code-share-3')">링크 공유</button>
+      </div>
+      <div class="tab-panel active" id="tab-code-share-1">
+        <p>대시보드 상단 아이콘 바에서 <code>🔑 입장 코드</code> 버튼을 클릭하면 코드가 클립보드에 복사됩니다. 복사된 코드를 학생들에게 직접 전달하세요.</p>
+      </div>
+      <div class="tab-panel" id="tab-code-share-2">
+        <p><code>QR 아이콘</code> 버튼을 클릭하면 입장 코드가 담긴 QR코드가 생성됩니다. 교실 화면에 띄우거나 출력해서 학생들이 스캔할 수 있게 하세요.</p>
+      </div>
+      <div class="tab-panel" id="tab-code-share-3">
+        <p><code>링크 아이콘</code> 버튼을 클릭하면 학생이 바로 입력 화면으로 이동하는 URL이 복사됩니다. 카카오톡, 문자 등으로 공유하세요.</p>
+      </div>
+    </div>
+
+    <h2>담임반 — 교과 선생님 연동</h2>
+    <p>담임반에서 여러 교과 선생님의 세특을 통합 관리할 수 있습니다.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">교과 선생님 초대</div>
+          <div class="step-desc">담임반 대시보드 상단 <code>👤 교사 초대</code> 버튼을 클릭합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">공유 링크 전달</div>
+          <div class="step-desc">생성된 링크를 교과 선생님에게 공유합니다. 선생님이 링크를 수락하면 연동이 완료됩니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">연동 확인</div>
+          <div class="step-desc">연동된 교과반의 세특이 담임반 학생별 화면에 통합되어 표시됩니다.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 관찰기록 ── -->
+  <div class="section" id="sec-observation">
+    <div class="page-title">📝 관찰기록 관리</div>
+    <div class="page-subtitle">학생의 활동 기록을 수집하고 관리합니다</div>
+
+    <h2>관찰기록 흐름</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">학생이 기록 제출</div>
+          <div class="step-desc">학생이 입장 코드로 접속해 활동 제목, 내용, 느낀 점을 작성하고 제출합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">AI 1차 검토 (선택)</div>
+          <div class="step-desc">선생님이 안내 지침을 설정한 경우, AI가 기록을 자동으로 검토해 <code>good</code> / <code>검토 필요</code> / <code>반려</code> 등급을 표시합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">선생님 승인 또는 반려</div>
+          <div class="step-desc">제출된 기록을 확인하고 <code>승인</code> 또는 <code>반려(피드백)</code>를 선택합니다. 반려 시 학생에게 알림이 발송됩니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">세특 초안 생성에 활용</div>
+          <div class="step-desc">승인된 기록들이 자동으로 AI 세특 초안 생성의 재료가 됩니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>세부 설정</h2>
+    <div class="tabs">
+      <div class="tab-list">
+        <button class="tab-btn active" onclick="switchTab(this, 'obs-1')">최소 글자수 설정</button>
+        <button class="tab-btn" onclick="switchTab(this, 'obs-2')">자동 승인</button>
+        <button class="tab-btn" onclick="switchTab(this, 'obs-3')">AI 안내 지침</button>
+        <button class="tab-btn" onclick="switchTab(this, 'obs-4')">주차별 결과 제출</button>
+      </div>
+      <div class="tab-panel active" id="tab-obs-1">
+        <p>학급 설정에서 <code>최소 제출 글자수</code>를 지정할 수 있습니다. 설정된 글자수 미달 시 학생이 제출 자체를 할 수 없습니다. 성의 없는 기록을 방지하는 데 효과적입니다.</p>
+      </div>
+      <div class="tab-panel" id="tab-obs-2">
+        <p><code>자동 승인</code>을 켜면 학생이 제출한 기록이 선생님 개입 없이 즉시 승인됩니다. 검토 부담을 줄이고 싶을 때 유용합니다.</p>
+      </div>
+      <div class="tab-panel" id="tab-obs-3">
+        <p>AI 검토 안내 지침을 작성하면, 학생 제출 시 Gemini AI가 해당 기준에 따라 기록을 자동 평가합니다. 선생님에게는 AI 판단 결과가 뱃지로 표시됩니다.</p>
+        <div class="callout yellow">
+          <span class="callout-icon">⚠️</span>
+          <span class="callout-text">AI 검토는 참고용입니다. 최종 승인/반려는 선생님이 판단합니다.</span>
+        </div>
+      </div>
+      <div class="tab-panel" id="tab-obs-4">
+        <p>주차별 수업 계획에서 <code>결과 제출 필요</code>를 체크하면, 해당 주차에 관찰기록만 제출한 학생에게 결과물도 제출하라는 알림이 표시됩니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AI 세특 초안 ── -->
+  <div class="section" id="sec-ai-setech">
+    <div class="page-title">✨ AI 세특 초안</div>
+    <div class="page-subtitle">승인된 관찰기록을 기반으로 AI가 세특을 자동 작성합니다</div>
+
+    <div class="callout green">
+      <span class="callout-icon">✅</span>
+      <span class="callout-text">AI 세특 초안은 <strong>승인된 관찰기록이 1개 이상</strong> 있어야 생성됩니다. 먼저 관찰기록을 수집하고 승인해 주세요.</span>
+    </div>
+
+    <h2>세특 초안 생성하기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">학생 상세 페이지 접속</div>
+          <div class="step-desc">학급 대시보드에서 학생 이름을 클릭해 <code>학생 뷰</code>로 이동합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">AI 초안 생성 버튼 클릭</div>
+          <div class="step-desc">세특 편집 영역 우측의 <code>✨ AI 초안 생성</code> 버튼을 클릭합니다. Gemini AI가 승인된 기록을 분석해 초안을 작성합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">초안 검토 및 편집</div>
+          <div class="step-desc">생성된 초안을 직접 수정합니다. 전체화면 편집 모드(<code>□ 확대</code> 버튼)에서 더 편하게 작업할 수 있습니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">500자 맞춤 처리</div>
+          <div class="step-desc">나이스 제출 기준인 500자를 초과하면 <code>AI 압축</code> 버튼으로 자동으로 줄여줍니다. 수동 편집도 가능합니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>일괄 생성 (AI 어시스턴트)</h2>
+    <p>개별 학생이 아닌 <strong>학급 전체</strong>의 세특을 한 번에 생성하려면 사이드바의 <code>AI 어시스턴트</code>를 이용하세요.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">AI 어시스턴트 메뉴 접속</div>
+          <div class="step-desc">왼쪽 사이드바에서 <code>AI 어시스턴트</code>를 클릭합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">학급 선택 후 일괄 생성</div>
+          <div class="step-desc">대상 학급을 선택하고 <code>전체 세특 초안 생성</code>을 클릭합니다. 학생 수에 따라 수 분이 소요될 수 있습니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>행동특성 및 종합의견 (담임반 전용)</h2>
+    <p>담임반에서는 학생별 <strong>행동특성·종합의견</strong> 초안도 AI가 자동 생성합니다. 학생 상세 페이지 하단에서 확인하고 복사할 수 있습니다.</p>
+
+    <div class="callout blue">
+      <span class="callout-icon">💡</span>
+      <span class="callout-text"><strong>되돌리기 기능:</strong> 세션 내에서는 이전 세특 내용으로 되돌릴 수 있습니다. 페이지를 새로고침하면 되돌리기 기록이 초기화됩니다.</span>
+    </div>
+  </div>
+
+  <!-- ── 나이스 내보내기 ── -->
+  <div class="section" id="sec-naiss">
+    <div class="page-title">📊 나이스 내보내기</div>
+    <div class="page-subtitle">완성된 세특을 나이스 엑셀 형식으로 다운로드합니다</div>
+
+    <h2>나이스 워크스테이션 사용하기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">데이터 내보내기 메뉴 접속</div>
+          <div class="step-desc">사이드바에서 <code>데이터 내보내기</code>를 클릭하고 <code>나이스 워크스테이션</code> 탭을 선택합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">학급 및 학생 선택</div>
+          <div class="step-desc">내보낼 학급을 선택합니다. 학생 목록이 표시됩니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">세특 내용 최종 확인</div>
+          <div class="step-desc">학생별 세특 내용을 확인하고 필요시 마지막 수정을 합니다. 500자 초과 학생은 빨간색으로 표시됩니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">엑셀 다운로드</div>
+          <div class="step-desc"><code>나이스 엑셀 다운로드</code> 버튼을 클릭합니다. 나이스 워크스테이션에서 바로 붙여넣기 할 수 있는 형식으로 저장됩니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout yellow">
+      <span class="callout-icon">⚠️</span>
+      <span class="callout-text">나이스 세특 입력 기준 <strong>500자</strong>를 초과하면 제출이 거부됩니다. 다운로드 전에 모든 학생의 세특이 500자 이하인지 확인하세요.</span>
+    </div>
+
+    <h2>엑셀 구성</h2>
+    <table class="guide-table">
+      <thead><tr><th>시트</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td><strong>세특 시트</strong></td><td>학생별 세부능력 및 특기사항 (번호, 이름, 세특 내용)</td></tr>
+        <tr><td><strong>행특 시트</strong> (담임반 전용)</td><td>학생별 행동특성 및 종합의견</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── 수업 도구 ── -->
+  <div class="section" id="sec-tools">
+    <div class="page-title">🛠️ 수업 도구</div>
+    <div class="page-subtitle">수업을 더 풍성하게 만드는 부가 기능들</div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-card-icon">⏱️</div>
+        <div class="feature-card-title">수업 타이머</div>
+        <div class="feature-card-desc">발표, 모둠 활동 등에 활용할 수 있는 카운트다운/스톱워치</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">🎰</div>
+        <div class="feature-card-title">모둠 뽑기</div>
+        <div class="feature-card-desc">학생 이름을 무작위로 섞어 모둠을 자동으로 구성합니다</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📚</div>
+        <div class="feature-card-title">수업 자료실</div>
+        <div class="feature-card-desc">주차별 학습 계획과 자료 링크를 등록해 학생과 공유합니다</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📋</div>
+        <div class="feature-card-title">퀴즈 게임</div>
+        <div class="feature-card-desc">OX·객관식 퀴즈를 만들어 수업 중 실시간으로 진행합니다</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📢</div>
+        <div class="feature-card-title">건의사항 관리</div>
+        <div class="feature-card-desc">학생 건의사항을 수집하고 답변할 수 있습니다</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">🔗</div>
+        <div class="feature-card-title">학급 공유 링크</div>
+        <div class="feature-card-desc">로그인 없이 학급 현황을 볼 수 있는 공개 링크를 생성합니다</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 학생 참여 ── -->
+  <div class="section" id="sec-student">
+    <div class="page-title">🎒 학생 참여 방법</div>
+    <div class="page-subtitle">학생 입장에서의 이용 방법을 안내합니다</div>
+
+    <div class="callout blue">
+      <span class="callout-icon">💡</span>
+      <span class="callout-text">학생은 별도 회원가입이 필요 없습니다. 선생님께 받은 <strong>입장 코드</strong>만 있으면 됩니다.</span>
+    </div>
+
+    <h2>학급 입장하기</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">생기로그 AI 접속</div>
+          <div class="step-desc">메인 화면(<code>생기로그 AI</code>) 접속 후 <code>수업 참여</code> 버튼을 클릭합니다. 또는 선생님이 공유한 링크로 바로 이동합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">입장 코드 입력</div>
+          <div class="step-desc">선생님께 받은 6자리 입장 코드를 입력합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">이름 확인</div>
+          <div class="step-desc">학생 목록에서 자신의 이름을 선택합니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>학생이 할 수 있는 것들</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-card-icon">📝</div>
+        <div class="feature-card-title">관찰기록 제출</div>
+        <div class="feature-card-desc">활동 제목, 내용, 느낀 점을 작성해 제출합니다</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📁</div>
+        <div class="feature-card-title">결과물 제출</div>
+        <div class="feature-card-desc">파일, 링크, 텍스트 형태로 결과물을 제출합니다</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📜</div>
+        <div class="feature-card-title">제출 내역 확인</div>
+        <div class="feature-card-desc">내가 제출한 기록과 승인 상태를 확인합니다</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📢</div>
+        <div class="feature-card-title">건의사항 등록</div>
+        <div class="feature-card-desc">선생님에게 건의사항을 남기고 답변을 받습니다</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📚</div>
+        <div class="feature-card-title">수업 자료 확인</div>
+        <div class="feature-card-desc">선생님이 등록한 주차별 학습 자료를 확인합니다</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">🎮</div>
+        <div class="feature-card-title">퀴즈 참여</div>
+        <div class="feature-card-desc">선생님이 개설한 실시간 퀴즈에 참여합니다</div>
+      </div>
+    </div>
+
+    <div class="callout yellow">
+      <span class="callout-icon">⚠️</span>
+      <span class="callout-text">반려된 기록은 선생님 피드백을 확인한 뒤 수정해 다시 제출할 수 있습니다. 알림 팝업이 뜨면 확인해 보세요.</span>
+    </div>
+  </div>
+
+  <!-- ── FAQ ── -->
+  <div class="section" id="sec-faq">
+    <div class="page-title">❓ 자주 묻는 질문</div>
+    <div class="page-subtitle">선생님들이 자주 질문하시는 내용을 모았습니다</div>
+
+    <h2>계정 및 접속</h2>
+    <div class="accordion">
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">회원가입을 어떻게 하나요? <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">생기로그 AI는 열린 회원가입이 없습니다. 메인 페이지에서 <code>사용 신청하기</code>를 통해 신청하면 관리자 검토 후 계정 초대 이메일을 발송합니다.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">비밀번호를 잊어버렸어요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">로그인 화면 하단 <code>도움이 필요하신가요?</code>를 클릭해 비밀번호 재설정 이메일을 받으세요. 또는 관리자에게 문의해 주세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">모바일에서도 사용할 수 있나요? <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">네. 모바일 브라우저에서도 사용 가능합니다. 단, 세특 작성 및 엑셀 다운로드는 PC 환경에서 더 편리합니다.</div>
+      </div>
+    </div>
+
+    <h2>학급 및 학생</h2>
+    <div class="accordion">
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">담임반과 교과반, 둘 다 만들 수 있나요? <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">네. 한 계정으로 담임반과 교과반을 모두 여러 개 만들 수 있습니다. 왼쪽 상단 학급 선택기로 전환합니다.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">학생이 입장 코드를 잃어버렸어요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">교과 대시보드 상단 아이콘 바에서 <code>🔑 입장 코드</code> 버튼을 클릭하면 코드를 바로 복사할 수 있습니다. 학생에게 다시 공유하세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">학생 이름을 잘못 입력했어요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">학생 목록에서 해당 학생의 이름을 클릭하면 인라인 편집이 가능합니다. 수정 후 Enter를 누르면 저장됩니다.</div>
+      </div>
+    </div>
+
+    <h2>관찰기록 및 세특</h2>
+    <div class="accordion">
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">AI 세특 초안이 마음에 들지 않아요. 다시 생성할 수 있나요? <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">네. <code>✨ AI 초안 생성</code> 버튼을 다시 클릭하면 새로운 초안이 생성됩니다. 이전 버전으로 되돌리려면 <code>되돌리기</code> 버튼을 사용하세요. (세션 내에서만 가능)</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">세특이 500자를 넘어요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">세특 편집창에서 <code>AI 압축</code> 버튼을 클릭하면 내용의 핵심을 유지하면서 500자 이하로 자동 압축합니다.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">관찰기록이 적어서 세특 초안이 부실해요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">AI 세특의 품질은 관찰기록의 양과 질에 따라 달라집니다. 학생이 더 많은 기록을 제출할 수 있도록 최소 글자수 설정과 주차별 학습 계획 등록을 권장합니다.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">나이스 엑셀을 다운로드했는데 어떻게 사용하나요? <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">다운로드된 엑셀 파일을 열면 학생별 세특이 정리되어 있습니다. 나이스 워크스테이션에서 세특 입력 시 해당 내용을 복사해 붙여넣으면 됩니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 문제 해결 ── -->
+  <div class="section" id="sec-trouble">
+    <div class="page-title">🔧 문제 해결</div>
+    <div class="page-subtitle">자주 발생하는 오류와 해결 방법</div>
+
+    <h2>로그인 문제</h2>
+    <div class="accordion">
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">로그인 버튼을 눌러도 반응이 없어요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">브라우저 캐시를 지우고 다시 시도해 보세요. 또는 시크릿 창에서 접속해 보세요. 문제가 계속되면 관리자에게 문의해 주세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">"이메일 또는 비밀번호가 올바르지 않습니다" 오류가 떠요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">계정 초대 이메일에서 설정한 비밀번호를 확인하세요. 기억이 나지 않으면 로그인 화면에서 <code>도움이 필요하신가요?</code>를 통해 재설정하세요.</div>
+      </div>
+    </div>
+
+    <h2>기능 오류</h2>
+    <div class="accordion">
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">AI 세특 초안이 생성되지 않아요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body"><strong>원인 1:</strong> 승인된 관찰기록이 없는 경우입니다. 먼저 학생 기록을 승인하세요.<br><strong>원인 2:</strong> 일시적인 AI 서버 오류일 수 있습니다. 30초 후 다시 시도해 보세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">학생이 입장 코드를 입력했는데 학급이 없다고 해요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">입장 코드를 다시 확인해 주세요. 대소문자가 구분됩니다. 교과 대시보드 상단에서 올바른 코드를 복사해 학생에게 다시 공유하세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">나이스 엑셀이 다운로드되지 않아요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">브라우저 팝업 차단 설정을 확인하세요. 다운로드가 차단된 경우 주소창 우측에 팝업 차단 아이콘이 표시됩니다. 허용 후 다시 시도하세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">페이지가 하얀 화면만 보여요. <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">브라우저를 새로고침(<code>F5</code> 또는 <code>Ctrl+R</code>)하거나, 캐시를 지우고(<code>Ctrl+Shift+Delete</code>) 다시 접속해 보세요.</div>
+      </div>
+    </div>
+
+    <div class="callout rose">
+      <span class="callout-icon">📧</span>
+      <span class="callout-text">위 방법으로 해결되지 않으면 <strong>관리자에게 문의</strong>해 주세요. 문의 시 오류 메시지와 스크린샷을 함께 보내주시면 빠른 도움이 가능합니다.</span>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    const sec = document.getElementById('sec-' + id);
+    if (sec) sec.classList.add('active');
+    document.querySelectorAll('.nav-item[data-section="' + id + '"]').forEach(n => n.classList.add('active'));
+    window.scrollTo(0, 0);
+    closeSidebar();
+  }
+
+  function switchTab(btn, id) {
+    const tabs = btn.closest('.tabs');
+    tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    tabs.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const panel = document.getElementById('tab-' + id);
+    if (panel) panel.classList.add('active');
+  }
+
+  function toggleAccordion(btn) {
+    const body = btn.nextElementSibling;
+    const isOpen = btn.classList.contains('open');
+    btn.classList.toggle('open', !isOpen);
+    body.classList.toggle('open', !isOpen);
+  }
+
+  function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('overlay').classList.remove('show');
+  }
+</script>
+</body>
+</html>

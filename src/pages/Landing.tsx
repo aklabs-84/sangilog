@@ -103,6 +103,14 @@ const Landing = () => {
             <span className="text-lg font-black tracking-tight text-amber-800">생기로그 AI</span>
           </div>
           <div className="flex items-center gap-2">
+            <a
+              href="/guide.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex px-4 py-2 text-amber-700 hover:text-amber-900 text-sm font-bold rounded-full transition-colors items-center gap-1.5 hover:bg-amber-50"
+            >
+              사용 가이드
+            </a>
             <button
               onClick={() => navigate('/classroom-entry')}
               className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm flex items-center gap-1.5"
@@ -401,7 +409,17 @@ const Landing = () => {
             </div>
             <span className="font-black text-amber-100">생기로그 AI</span>
           </div>
-          <p className="text-xs text-amber-400">© 2026 AK LABS. 선생님을 응원합니다.</p>
+          <div className="flex items-center gap-6 text-xs text-amber-400">
+            <a
+              href="/guide.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-amber-200 transition-colors underline underline-offset-2"
+            >
+              사용 가이드
+            </a>
+            <span>© 2026 AK LABS. 선생님을 응원합니다.</span>
+          </div>
         </div>
       </footer>
     </div>
