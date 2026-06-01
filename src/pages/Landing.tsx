@@ -104,6 +104,14 @@ const Landing = () => {
           </div>
           <div className="flex items-center gap-2">
             <a
+              href="/catalog.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex px-4 py-2 text-amber-700 hover:text-amber-900 text-sm font-bold rounded-full transition-colors items-center gap-1.5 hover:bg-amber-50"
+            >
+              제품 소개
+            </a>
+            <a
               href="/guide.html"
               target="_blank"
               rel="noopener noreferrer"
@@ -167,6 +175,14 @@ const Landing = () => {
                 기존 사용자 로그인
               </button>
             </div>
+            <a
+              href="/catalog.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-4 text-sm text-amber-600/80 hover:text-amber-700 font-semibold transition-colors underline underline-offset-4 decoration-amber-300"
+            >
+              📋 제품 카탈로그 · 도입 안내서 보기
+            </a>
           </motion.div>
 
           {/* Stats */}
