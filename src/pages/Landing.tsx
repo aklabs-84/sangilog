@@ -13,6 +13,7 @@ import {
   Clock,
   Heart,
   Send,
+  KeyRound,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -101,12 +102,21 @@ const Landing = () => {
             </div>
             <span className="text-lg font-black tracking-tight text-amber-800">생기로그 AI</span>
           </div>
-          <button
-            onClick={() => navigate('/login')}
-            className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
-          >
-            로그인
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/classroom-entry')}
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm flex items-center gap-1.5"
+            >
+              <KeyRound size={14} strokeWidth={2.5} />
+              수업 참여
+            </button>
+            <button
+              onClick={() => navigate('/login')}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
+            >
+              선생님 로그인
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -169,6 +179,33 @@ const Landing = () => {
                 <div className="text-xs text-amber-600/70 font-medium">{label}</div>
               </div>
             ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── Student CTA ── */}
+      <section className="bg-white py-6">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            onClick={() => navigate('/classroom-entry')}
+            className="cursor-pointer flex flex-col sm:flex-row items-center justify-between gap-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl px-7 py-5 hover:border-emerald-300 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-11 h-11 bg-emerald-500 rounded-xl flex items-center justify-center shadow-sm shrink-0">
+                <KeyRound size={20} className="text-white" strokeWidth={2.5} />
+              </div>
+              <div>
+                <p className="font-black text-emerald-800 text-base">학생이신가요?</p>
+                <p className="text-sm text-emerald-600/80">선생님께 받은 수업 코드로 바로 수업에 참여하세요</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 group-hover:bg-emerald-600 text-white font-bold text-sm rounded-xl transition-colors shrink-0">
+              수업코드로 참여하기
+              <ArrowRight size={16} strokeWidth={2.5} className="group-hover:translate-x-0.5 transition-transform" />
+            </div>
           </motion.div>
         </div>
       </section>
