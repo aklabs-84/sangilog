@@ -298,7 +298,7 @@ const Settings = () => {
       icon: School, 
       items: [
         { label: '소속 학교', value: profile?.school_name || '미지정', key: 'school_name', isImage: false, readOnly: false },
-        { label: '역할', value: profile?.role === 'teacher' ? '교사' : '학생', key: 'role', isImage: false, readOnly: true },
+        { label: '역할', value: '선생님', key: 'role', isImage: false, readOnly: true },
       ]
     }
   ];
