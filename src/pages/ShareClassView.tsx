@@ -15,6 +15,11 @@ import {
   Loader2,
   StickyNote,
   CheckCircle2,
+  Download,
+  X,
+  ZoomIn,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface StudentRow {
@@ -60,6 +65,7 @@ const ShareClassView = () => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!classId) return;
@@ -430,13 +436,26 @@ const ShareClassView = () => {
                         {r.text_content && (
                           <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
                         )}
-                        {r.image_url && (
-                          <img
-                            src={r.image_url}
-                            alt="결과물 이미지"
-                            className="mt-2 rounded-lg max-h-56 object-cover w-full"
-                          />
-                        )}
+                        {r.image_url && (() => {
+                          const allImgUrls = results
+                            .filter((x: any) => x.image_url)
+                            .map((x: any) => x.image_url as string);
+                          const imgIdx = allImgUrls.indexOf(r.image_url);
+                          return (
+                            <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, index: imgIdx })}>
+                              <img
+                                src={r.image_url}
+                                alt="결과물 이미지"
+                                className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="bg-black/50 rounded-full p-2">
+                                  <ZoomIn size={20} className="text-white" />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {r.link_url && (
                           <a
                             href={r.link_url}
@@ -450,11 +469,12 @@ const ShareClassView = () => {
                         {r.file_url && (
                           <a
                             href={r.file_url}
+                            download
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                            className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
                           >
-                            <ExternalLink size={12} /> 파일 열기
+                            <Download size={12} /> 파일 다운로드
                           </a>
                         )}
                       </div>
@@ -482,6 +502,69 @@ const ShareClassView = () => {
           </p>
         </div>
       </main>
+
+      {/* ── 이미지 라이트박스 ── */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[300] bg-black/90 flex items-center justify-center"
+          onClick={() => setLightbox(null)}
+        >
+          {/* 닫기 */}
+          <button
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            onClick={() => setLightbox(null)}
+          >
+            <X size={20} />
+          </button>
+
+          {/* 다운로드 */}
+          <a
+            href={lightbox.urls[lightbox.index]}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute top-4 right-16 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Download size={18} />
+          </a>
+
+          {/* 이전 */}
+          {lightbox.urls.length > 1 && (
+            <button
+              className="absolute left-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              onClick={(e) => { e.stopPropagation(); setLightbox(prev => prev ? { ...prev, index: (prev.index - 1 + prev.urls.length) % prev.urls.length } : null); }}
+            >
+              <ChevronLeft size={22} />
+            </button>
+          )}
+
+          {/* 이미지 */}
+          <img
+            src={lightbox.urls[lightbox.index]}
+            alt="확대 보기"
+            className="max-w-[90vw] max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {/* 다음 */}
+          {lightbox.urls.length > 1 && (
+            <button
+              className="absolute right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              onClick={(e) => { e.stopPropagation(); setLightbox(prev => prev ? { ...prev, index: (prev.index + 1) % prev.urls.length } : null); }}
+            >
+              <ChevronRight size={22} />
+            </button>
+          )}
+
+          {/* 페이지 표시 */}
+          {lightbox.urls.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+              {lightbox.index + 1} / {lightbox.urls.length}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
