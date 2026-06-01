@@ -112,6 +112,14 @@ const SubjectDashboard = ({
     SUBJECT_COL_DEFAULTS
   );
   const [showColDropdown, setShowColDropdown] = useState(false);
+  const [copyCodeSuccess, setCopyCodeSuccess] = useState(false);
+
+  const handleCopyEntryCode = () => {
+    if (!classInfo?.entry_code) return;
+    navigator.clipboard.writeText(classInfo.entry_code);
+    setCopyCodeSuccess(true);
+    setTimeout(() => setCopyCodeSuccess(false), 2000);
+  };
 
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedActivityWeek, setSelectedActivityWeek] = useState<number | null>(null);
@@ -430,6 +438,18 @@ const SubjectDashboard = ({
 
           {/* 아이콘 액션 버튼들 */}
           <div className="flex items-center gap-2 p-1.5 bg-white/20 rounded-2xl border border-white/40 backdrop-blur-md self-start sm:self-auto">
+            <button
+              onClick={handleCopyEntryCode}
+              className={`flex items-center gap-1.5 h-10 px-3 rounded-xl font-black text-xs transition-all shadow-soft border ${
+                copyCodeSuccess
+                  ? 'bg-emerald-500 text-white border-emerald-400'
+                  : 'bg-white hover:bg-emerald-500 hover:text-white text-on-surface-variant/60 border-transparent'
+              }`}
+              title="수업 입장 코드 복사"
+            >
+              {copyCodeSuccess ? <Check size={14} /> : <KeyRound size={14} />}
+              <span>{copyCodeSuccess ? '복사됨!' : (classInfo?.entry_code ?? '코드 없음')}</span>
+            </button>
             <button onClick={onOpenQR} className="w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft" title="QR 출결/입장">
               <QrCode size={17} />
             </button>
