@@ -46,6 +46,9 @@ import StudentDetailDrawer from '../components/classroom/StudentDetailDrawer';
 import UnitManager from '../components/classroom/UnitManager';
 import AttendanceTab from '../components/classroom/AttendanceTab';
 import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
+import UpgradeModal from '../components/UpgradeModal';
+
+const FREE_CLASS_LIMIT = 2;
 
 const Classroom = () => {
   const { user, profile } = useAuth();
@@ -62,6 +65,7 @@ const Classroom = () => {
   const [shareTeacherSuccess, setShareTeacherSuccess] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [upgradeModalReason, setUpgradeModalReason] = useState<'class_limit' | 'ai_limit' | 'ai_bulk' | 'teacher_invite' | null>(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [newClassData, setNewClassData] = useState({ 
     name: '', 
@@ -413,6 +417,20 @@ const Classroom = () => {
     e.preventDefault();
     const isSubjectRequired = newClassData.class_type === 'subject';
     if (!newClassData.name || (isSubjectRequired && !newClassData.subject) || !user) return;
+
+    // 무료 플랜 클래스 수 제한
+    if (profile?.plan === 'free') {
+      const { count } = await supabase
+        .from('classes')
+        .select('*', { count: 'exact', head: true })
+        .eq('teacher_id', user.id);
+      if ((count ?? 0) >= FREE_CLASS_LIMIT) {
+        setIsCreateModalOpen(false);
+        setUpgradeModalReason('class_limit');
+        return;
+      }
+    }
+
     const entryCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     try {
@@ -2276,6 +2294,12 @@ const Classroom = () => {
           </div>
         )}
       </AnimatePresence>
+
+      <UpgradeModal
+        isOpen={!!upgradeModalReason}
+        onClose={() => setUpgradeModalReason(null)}
+        reason={upgradeModalReason ?? 'class_limit'}
+      />
     </div>
   );
 };

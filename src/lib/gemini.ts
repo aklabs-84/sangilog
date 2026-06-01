@@ -2,6 +2,7 @@
 // 개발(npm run dev): VITE_GEMINI_API_KEY로 직접 호출
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { supabase } from './supabase';
 
 export const SYSTEM_INSTRUCTIONS = {
   BASE: `
@@ -71,13 +72,24 @@ async function callProxy(body: object): Promise<string> {
   }
 
   // 프로덕션: 서버 프록시 사용
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
+  }
+
   const res = await fetch('/api/gemini', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? 'AI API 오류');
+  if (!res.ok) {
+    if (data.error === 'AI_LIMIT_EXCEEDED') {
+      throw new Error('AI_LIMIT_EXCEEDED');
+    }
+    throw new Error(data.error ?? 'AI API 오류');
+  }
   return data.result as string;
 }
 

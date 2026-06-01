@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { geminiPro, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
+import UpgradeModal from '../components/UpgradeModal';
 
 interface StudentDraft {
   studentId: string;
@@ -29,7 +30,7 @@ interface StudentDraft {
 }
 
 const AIAssistant = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
@@ -42,6 +43,7 @@ const AIAssistant = () => {
   const [loading, setLoading] = useState(true);
   const [obsCount, setObsCount] = useState(0);
   const [recentObsTime, setRecentObsTime] = useState<string | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
@@ -189,6 +191,13 @@ ${obsText}
 
   const handleGenerate = async () => {
     if (!selectedClassId) return;
+
+    // 무료 플랜 — 일괄 생성 차단
+    if (profile?.plan === 'free') {
+      setUpgradeOpen(true);
+      return;
+    }
+
     setIsGenerating(true);
     setShowDraft(false);
     setDraftResults([]);
@@ -656,6 +665,12 @@ ${obsText}
           </div>
         </div>
       )}
+
+      <UpgradeModal
+        isOpen={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        reason="ai_bulk"
+      />
     </motion.div>
   );
 };

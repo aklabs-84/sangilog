@@ -16,6 +16,8 @@ import {
   RefreshCw,
   Copy,
   Check,
+  Crown,
+  Users,
 } from 'lucide-react';
 
 type Request = {
@@ -38,6 +40,13 @@ const statusConfig = {
   rejected: { label: '거절됨', color: 'bg-red-100 text-red-600', icon: XCircle },
 };
 
+const PLAN_OPTIONS = [
+  { value: 'free', label: '무료', color: 'bg-gray-100 text-gray-600' },
+  { value: 'pro', label: 'Pro', color: 'bg-amber-100 text-amber-700' },
+  { value: 'school', label: 'School', color: 'bg-violet-100 text-violet-700' },
+  { value: 'admin', label: '관리자', color: 'bg-emerald-100 text-emerald-700' },
+];
+
 const Admin = () => {
   const { profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -48,6 +57,10 @@ const Admin = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'requests' | 'users'>('requests');
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [planUpdating, setPlanUpdating] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && profile && !profile.is_admin) {
@@ -66,9 +79,35 @@ const Admin = () => {
     setLoading(false);
   };
 
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, plan, school_name, is_admin, ai_daily_count, ai_daily_date')
+      .order('created_at', { ascending: false });
+    if (data) setUsers(data);
+    setUsersLoading(false);
+  };
+
   useEffect(() => {
     fetchRequests();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'users') fetchUsers();
+  }, [activeTab]);
+
+  const updateUserPlan = async (userId: string, plan: string) => {
+    setPlanUpdating(userId);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ plan, is_admin: plan === 'admin' })
+      .eq('id', userId);
+    if (!error) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan, is_admin: plan === 'admin' } : u));
+    }
+    setPlanUpdating(null);
+  };
 
   const updateStatus = async (id: string, status: 'approved' | 'rejected') => {
     setActionLoading(id + status);
@@ -119,12 +158,12 @@ const Admin = () => {
             </div>
             <div>
               <h1 className="text-lg font-black text-amber-900">관리자 패널</h1>
-              <p className="text-xs text-amber-600/60">사용 신청 관리</p>
+              <p className="text-xs text-amber-600/60">사용 신청 · 플랜 관리</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={fetchRequests}
+              onClick={() => activeTab === 'requests' ? fetchRequests() : fetchUsers()}
               className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors"
             >
               <RefreshCw size={14} /> 새로고침
@@ -137,9 +176,77 @@ const Admin = () => {
             </button>
           </div>
         </div>
+        {/* 탭 */}
+        <div className="max-w-5xl mx-auto px-6 pb-0 flex gap-1">
+          {[
+            { id: 'requests', label: '사용 신청', icon: ShieldCheck },
+            { id: 'users', label: '사용자 · 플랜 관리', icon: Users },
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id as any)}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-colors ${
+                activeTab === id
+                  ? 'border-amber-500 text-amber-700'
+                  : 'border-transparent text-amber-400 hover:text-amber-600'
+              }`}
+            >
+              <Icon size={15} /> {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-6 py-8">
+
+        {/* ── 사용자 · 플랜 관리 탭 ── */}
+        {activeTab === 'users' && (
+          <div>
+            {usersLoading ? (
+              <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
+            ) : (
+              <div className="space-y-3">
+                {users.map((u) => {
+                  const todayDate = new Date().toISOString().split('T')[0];
+                  const aiToday = u.ai_daily_date === todayDate ? (u.ai_daily_count ?? 0) : 0;
+                  const planInfo = PLAN_OPTIONS.find(p => p.value === u.plan) ?? PLAN_OPTIONS[0];
+                  return (
+                    <div key={u.id} className="bg-white rounded-2xl border border-amber-100 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-black text-amber-900 text-sm">{u.full_name || '이름 없음'}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${planInfo.color}`}>{planInfo.label}</span>
+                        </div>
+                        <p className="text-xs text-amber-600/70 font-mono">{u.email}</p>
+                        {u.school_name && <p className="text-xs text-amber-500 mt-0.5">{u.school_name}</p>}
+                        {u.plan === 'free' && (
+                          <p className="text-xs text-gray-400 mt-1">오늘 AI 사용: {aiToday} / 10회</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Crown size={14} className="text-amber-400 shrink-0" />
+                        <select
+                          value={u.plan ?? 'free'}
+                          onChange={(e) => updateUserPlan(u.id, e.target.value)}
+                          disabled={planUpdating === u.id}
+                          className="text-sm font-bold border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-50"
+                        >
+                          {PLAN_OPTIONS.map(p => (
+                            <option key={p.value} value={p.value}>{p.label}</option>
+                          ))}
+                        </select>
+                        {planUpdating === u.id && <Loader2 size={14} className="animate-spin text-amber-400" />}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 사용 신청 탭 ── */}
+        {activeTab === 'requests' && <>
         {/* Filter Tabs */}
         <div className="flex gap-2 mb-8">
           {(['all', 'pending', 'approved', 'rejected'] as Filter[]).map((f) => (
@@ -299,6 +406,7 @@ const Admin = () => {
             })}
           </div>
         )}
+        </>}
       </div>
     </div>
   );

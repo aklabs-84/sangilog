@@ -22,7 +22,10 @@ import {
   ChevronUp,
   Copy,
   Edit3,
-  Trash2
+  Trash2,
+  Crown,
+  Zap,
+  Sparkles
 } from 'lucide-react';
 
 const Settings = () => {
@@ -303,12 +306,94 @@ const Settings = () => {
     }
   ];
 
+  const plan = profile?.plan ?? 'free';
+  const aiUsedToday = (() => {
+    if (!profile?.ai_daily_date) return 0;
+    const today = new Date().toISOString().split('T')[0];
+    return profile.ai_daily_date === today ? (profile.ai_daily_count ?? 0) : 0;
+  })();
+
+  const PLAN_LABEL: Record<string, string> = {
+    free: '무료 플랜',
+    pro: 'Pro 플랜',
+    school: 'School 플랜',
+    admin: '관리자',
+  };
+  const PLAN_COLOR: Record<string, string> = {
+    free: 'bg-gray-100 text-gray-600',
+    pro: 'bg-amber-100 text-amber-700',
+    school: 'bg-violet-100 text-violet-700',
+    admin: 'bg-emerald-100 text-emerald-700',
+  };
+
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-4xl mx-auto space-y-10 pb-20"
     >
+      {/* 플랜 현황 카드 */}
+      <div className="layered-card rounded-3xl p-6 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
+              <Crown size={18} className="text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-base text-amber-900">현재 플랜</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${PLAN_COLOR[plan]}`}>
+                  {PLAN_LABEL[plan]}
+                </span>
+              </div>
+              {plan === 'free' && (
+                <p className="text-xs text-amber-600 mt-0.5">
+                  클래스 최대 2개 · AI 세특 하루 10회
+                </p>
+              )}
+            </div>
+          </div>
+          {plan === 'free' && (
+            <a
+              href="mailto:mosebb@gmail.com?subject=생기로그 AI Pro 업그레이드 문의"
+              className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors"
+            >
+              <Zap size={14} /> Pro 업그레이드
+            </a>
+          )}
+        </div>
+
+        {plan === 'free' && (
+          <div className="mt-4 pt-4 border-t border-amber-200 grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-bold text-amber-600 mb-1">오늘 AI 사용</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 bg-amber-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-400 rounded-full transition-all"
+                    style={{ width: `${Math.min((aiUsedToday / 10) * 100, 100)}%` }}
+                  />
+                </div>
+                <span className="text-sm font-black text-amber-800 whitespace-nowrap">
+                  {aiUsedToday} / 10
+                </span>
+              </div>
+              <p className="text-[10px] text-amber-500 mt-1">자정에 자동 초기화</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-600 mb-2">Pro 플랜에서 가능한 것</p>
+              <div className="space-y-1">
+                {['AI 세특 무제한', '클래스 무제한', '일괄 AI 생성', '교사 연동'].map(item => (
+                  <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
+                    <Sparkles size={10} className="text-amber-400" /> {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="px-2 flex items-center justify-between">
         <div>
           <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">System Preferences</p>
