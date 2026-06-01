@@ -93,7 +93,7 @@ const Navbar = () => {
   };
 
   const navItems = [
-    { label: '대시보드', path: '/', icon: LayoutDashboard },
+    { label: '대시보드', path: '/dashboard', icon: LayoutDashboard },
     { label: '클래스룸', path: '/classroom', icon: School },
     { label: '수업 도구', path: '/teaching-tools', icon: Wrench },
     { label: 'AI 초안', path: '/ai-assistant', icon: Sparkles },

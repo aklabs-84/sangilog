@@ -4,6 +4,8 @@ import { TimerProvider } from './lib/timerContext';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
+import Landing from './pages/Landing';
+import Admin from './pages/Admin';
 import Classroom from './pages/Classroom';
 import AIAssistant from './pages/AIAssistant';
 import ActivityLog from './pages/ActivityLog';
@@ -19,10 +21,10 @@ import QuizStudentView from './pages/QuizStudentView';
 import ClassBoard from './pages/ClassBoard';
 import ShareClassView from './pages/ShareClassView';
 
-// Protected Route Component
+// 비로그인이면 /login 으로, 로그인이면 children 렌더
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface">
@@ -33,15 +35,36 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <>{children}</>;
 };
 
-// Remaining Placeholders
+// 루트 경로: 로그인 상태면 /dashboard, 아니면 랜딩
+const RootRedirect = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-bold text-on-surface-variant font-manrope">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Landing />;
+};
+
 const Help = () => <div className="p-10 font-manrope text-2xl font-bold">Help Center (Coming Soon)</div>;
 
 function App() {
@@ -49,23 +72,31 @@ function App() {
     <AuthProvider>
       <TimerProvider>
       <div className="relative min-h-screen bg-surface overflow-hidden">
-        {/* Global Background Glow Effects */}
         <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="fixed top-[20%] right-[-5%] w-[30%] h-[30%] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
-        
+
         <BrowserRouter>
           <div className="relative z-10">
             <Routes>
+              {/* 공개 라우트 */}
+              <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
               <Route path="/classroom-entry" element={<ClassroomEntry />} />
               <Route path="/student-log" element={<StudentLog />} />
               <Route path="/quiz/:pin" element={<QuizStudentView />} />
               <Route path="/quiz" element={<QuizStudentView />} />
-              <Route path="/board/:classId" element={<ProtectedRoute><ClassBoard /></ProtectedRoute>} />
               <Route path="/share/:classId" element={<ShareClassView />} />
-              
-              <Route 
+
+              {/* 관리자 라우트 */}
+              <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+
+              {/* 보드 */}
+              <Route path="/board/:classId" element={<ProtectedRoute><ClassBoard /></ProtectedRoute>} />
+
+              {/* 보호된 레이아웃 라우트 (/dashboard 아래) */}
+              <Route
+                path="/dashboard"
                 element={
                   <ProtectedRoute>
                     <MainLayout />
@@ -73,6 +104,15 @@ function App() {
                 }
               >
                 <Route index element={<Dashboard />} />
+              </Route>
+
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <MainLayout />
+                  </ProtectedRoute>
+                }
+              >
                 <Route path="classroom" element={<Classroom />} />
                 <Route path="student-view/:id" element={<StudentView />} />
                 <Route path="ai-assistant" element={<AIAssistant />} />
@@ -84,6 +124,7 @@ function App() {
                 <Route path="settings" element={<Settings />} />
                 <Route path="help" element={<Help />} />
               </Route>
+
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

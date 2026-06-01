@@ -115,7 +115,7 @@ const ActivityLog = () => {
       if (error) throw error;
 
       alert('활동 기록이 성공적으로 저장되었습니다.');
-      if (isComplete) navigate('/');
+      if (isComplete) navigate('/dashboard');
     } catch (error: any) {
       alert('저장 중 오류가 발생했습니다: ' + error.message);
     } finally {

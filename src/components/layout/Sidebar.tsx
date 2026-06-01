@@ -25,7 +25,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
   const { signOut } = useAuth();
   
   const menuItems = [
-    { icon: LayoutDashboard, label: '대시보드', path: '/' },
+    { icon: LayoutDashboard, label: '대시보드', path: '/dashboard' },
     { icon: Users, label: '클래스룸', path: '/classroom' },
     { icon: Wrench, label: '수업 도구', path: '/teaching-tools' },
     { icon: Sparkles, label: 'AI 어시스턴트', path: '/ai-assistant' },
