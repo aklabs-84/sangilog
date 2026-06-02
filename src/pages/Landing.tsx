@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const ROLES = ['담임 선생님', '교과 선생님', '강사', '교육 행정직', '기타'];
+const ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
 const features = [
   {
@@ -150,7 +150,7 @@ const Landing = () => {
             transition={{ duration: 0.6 }}
           >
             <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full mb-6">
-              <Heart size={12} fill="currentColor" /> 선생님을 위한 AI 도구
+              <Heart size={12} fill="currentColor" /> 선생님 · 학원 강사를 위한 AI 도구
             </span>
             <h1 className="text-4xl md:text-6xl font-black leading-tight tracking-tight mb-6 text-amber-900">
               선생님의 소중한 시간을<br />
@@ -290,6 +290,55 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* ── Academy Section ── */}
+      <section className="py-20 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-3xl border border-violet-100 p-10 md:p-14"
+          >
+            <div className="flex flex-col md:flex-row md:items-center gap-8">
+              <div className="flex-1">
+                <span className="inline-flex items-center gap-2 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-bold rounded-full mb-4">
+                  🏫 학원·교습소에서도 사용하세요
+                </span>
+                <h2 className="text-2xl md:text-3xl font-black text-violet-900 mb-4 leading-tight">
+                  세특만이 아닙니다.<br />
+                  <span className="text-violet-500">학부모 보고서</span>도 AI가 씁니다.
+                </h2>
+                <p className="text-violet-800/70 text-sm leading-relaxed mb-6">
+                  수강생의 수업 태도·성취 기록을 쌓아두면,<br />
+                  AI가 학부모에게 보낼 성장 보고서 문구를 자동으로 작성해 드립니다.
+                </p>
+                <button
+                  onClick={() => document.getElementById('request-section')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="px-6 py-3 bg-violet-500 hover:bg-violet-600 text-white font-black rounded-2xl text-sm transition-all shadow-md hover:shadow-violet-200 hover:scale-105 flex items-center gap-2 w-fit"
+                >
+                  학원으로 신청하기 <ArrowRight size={16} strokeWidth={3} />
+                </button>
+              </div>
+              <div className="flex-1 grid grid-cols-1 gap-3">
+                {[
+                  { emoji: '📝', title: '수강생 관찰 기록', desc: '수업 중 메모를 학생 코드로 직접 받거나, 강사가 직접 기록' },
+                  { emoji: '🤖', title: 'AI 학부모 보고서', desc: '관찰 기록 기반으로 따뜻하고 구체적인 보고서 초안 자동 생성' },
+                  { emoji: '📤', title: '간편 공유', desc: '초안을 복사해 문자·앱·알림장에 바로 붙여넣기' },
+                ].map(({ emoji, title, desc }) => (
+                  <div key={title} className="flex items-start gap-4 bg-white rounded-2xl p-4 border border-violet-100 shadow-sm">
+                    <span className="text-2xl shrink-0">{emoji}</span>
+                    <div>
+                      <p className="text-sm font-black text-violet-900">{title}</p>
+                      <p className="text-xs text-violet-700/60 mt-0.5 leading-relaxed">{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* ── Access Request Form ── */}
       <section id="request-section" className="py-24 bg-white">
         <div className="max-w-2xl mx-auto px-6">
@@ -300,7 +349,7 @@ const Landing = () => {
             <h2 className="text-3xl font-black text-amber-900 mb-3">사용 신청하기</h2>
             <p className="text-amber-700/70 text-sm leading-relaxed">
               신청 후 검토를 거쳐 계정 생성 안내 이메일을 보내드립니다.<br />
-              학교 규모와 무관하게 모두 환영합니다.
+              학교·학원 규모와 무관하게 모두 환영합니다.
             </p>
           </div>
 
@@ -350,12 +399,12 @@ const Landing = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-amber-700 ml-1">학교 이름 *</label>
+                <label className="text-xs font-bold text-amber-700 ml-1">학교 / 학원 이름 *</label>
                 <input
                   required
                   value={schoolName}
                   onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="아크고등학교"
+                  placeholder="아크고등학교 / 아크수학학원"
                   className="w-full px-4 py-3 bg-white border border-amber-200 rounded-xl text-sm font-medium focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all"
                 />
               </div>

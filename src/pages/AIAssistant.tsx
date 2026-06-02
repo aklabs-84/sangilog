@@ -48,6 +48,7 @@ const AIAssistant = () => {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'ai_bulk' | 'ai_limit'>('ai_bulk');
   const [todayAiCount, setTodayAiCount] = useState(0);
+  const [reportMode, setReportMode] = useState<'school' | 'academy'>('school');
   const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
@@ -174,13 +175,30 @@ const AIAssistant = () => {
     studentName: string,
     observations: { activity_name: string; content: string }[],
     docType: string,
-    teacherPrompt: string
+    teacherPrompt: string,
+    mode: 'school' | 'academy' = 'school'
   ): Promise<string> => {
     const obsText = observations.length > 0
       ? observations.map(o => `활동명: ${o.activity_name}\n내용: ${o.content}`).join('\n---\n')
       : '제출된 관찰 기록이 없습니다.';
 
-    const prompt = `
+    const isAcademy = mode === 'academy';
+    const prompt = isAcademy
+      ? `
+${SYSTEM_INSTRUCTIONS.BASE}
+${SYSTEM_INSTRUCTIONS.PARENT_REPORT_GUIDE}
+${SYSTEM_INSTRUCTIONS.PRIVACY}
+
+${teacherPrompt ? `[강사 추가 지침]\n${teacherPrompt}\n` : ''}
+
+아래는 ${studentName} 수강생의 수업 관찰 기록입니다.
+이 기록을 바탕으로 학부모에게 전달할 성장 보고서 문구를 작성해주세요.
+문구만 출력하고 학생 이름, 마크다운, 설명 등은 포함하지 마세요.
+
+[${studentName} 수강생 관찰 기록]
+${obsText}
+`
+      : `
 ${SYSTEM_INSTRUCTIONS.BASE}
 ${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}
 ${SYSTEM_INSTRUCTIONS.PRIVACY}
@@ -277,7 +295,8 @@ ${obsText}
           student.full_name,
           obsByStudent[student.id],
           docType,
-          teacherPrompt
+          teacherPrompt,
+          reportMode
         );
         results.push({ studentId: student.id, name: student.full_name, content, isExpanded: true, isCopied: false });
         setDraftResults([...results]);
@@ -502,10 +521,37 @@ ${obsText}
                 </div>
               </div>
 
+              {/* 용도 선택 */}
+              <div className="p-3 bg-surface-container-low rounded-2xl border border-surface-container-high">
+                <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest mb-2">사용 목적</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { value: 'school', label: '🏫 학교 세특/행특', desc: '생활기록부용' },
+                    { value: 'academy', label: '📋 학원 보고서', desc: '학부모 전달용' },
+                  ].map(({ value, label, desc }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setReportMode(value as 'school' | 'academy')}
+                      className={`px-3 py-2.5 rounded-xl text-left transition-all border ${
+                        reportMode === value
+                          ? 'bg-primary/10 border-primary/30 text-primary'
+                          : 'bg-white border-surface-container-high text-on-surface-variant/60 hover:bg-surface-container'
+                      }`}
+                    >
+                      <p className="text-[11px] font-black">{label}</p>
+                      <p className="text-[9px] mt-0.5 opacity-70">{desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* 생성 타입 안내 */}
               <div className="p-3 bg-primary/5 rounded-2xl border border-primary/10">
                 <p className="text-[11px] font-black text-primary uppercase tracking-widest mb-1">생성 유형</p>
-                <p className="text-xs font-bold text-on-surface-variant">{docType}</p>
+                <p className="text-xs font-bold text-on-surface-variant">
+                  {reportMode === 'academy' ? '학부모 성장 보고서' : docType}
+                </p>
                 <p className="text-[10px] text-on-surface-variant/50 mt-1">학생 1명 × 1개 초안 순차 생성</p>
               </div>
 
