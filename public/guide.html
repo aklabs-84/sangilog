@@ -225,6 +225,11 @@
     <span class="icon">🎒</span> 학생 참여 방법
   </a>
 
+  <div class="nav-section">학원 · 강사</div>
+  <a class="nav-item" data-section="academy" onclick="showSection('academy')">
+    <span class="icon">🏫</span> 학원 활용 가이드
+  </a>
+
   <div class="nav-section">도움말</div>
   <a class="nav-item" data-section="faq" onclick="showSection('faq')">
     <span class="icon">❓</span> 자주 묻는 질문
@@ -249,8 +254,8 @@
         <h1>생기로그 AI 사용 가이드</h1>
         <p>관찰기록 수집부터 AI 세특 초안 생성, 나이스 제출까지 — 한 곳에서 해결하세요.</p>
         <div class="hero-badges">
-          <span class="badge badge-amber">선생님 전용</span>
-          <span class="badge badge-emerald">AI 세특 자동화</span>
+          <span class="badge badge-amber">선생님 · 강사</span>
+          <span class="badge badge-emerald">AI 세특 · 보고서 자동화</span>
           <span class="badge badge-violet">나이스 연동</span>
         </div>
       </div>
@@ -258,7 +263,7 @@
 
     <div class="callout blue">
       <span class="callout-icon">💡</span>
-      <span class="callout-text">생기로그 AI는 <strong>사전 승인된 선생님만</strong> 사용할 수 있습니다. 아직 계정이 없다면 <strong>사용 신청하기</strong>를 통해 신청해 주세요.</span>
+      <span class="callout-text">생기로그 AI는 <strong>사전 승인된 선생님·강사만</strong> 사용할 수 있습니다. 아직 계정이 없다면 <strong>사용 신청하기</strong>를 통해 신청해 주세요.</span>
     </div>
 
     <h2>핵심 기능 한눈에 보기</h2>
@@ -266,27 +271,27 @@
       <div class="feature-card">
         <div class="feature-card-icon">📝</div>
         <div class="feature-card-title">관찰기록 수집</div>
-        <div class="feature-card-desc">학생이 참여 코드로 직접 제출. 선생님은 승인만 합니다.</div>
+        <div class="feature-card-desc">학생·수강생이 참여 코드로 직접 제출. 선생님·강사는 승인만 합니다.</div>
       </div>
       <div class="feature-card">
         <div class="feature-card-icon">✨</div>
         <div class="feature-card-title">AI 세특 초안</div>
-        <div class="feature-card-desc">Gemini AI가 관찰기록을 분석해 세특 초안을 생성합니다.</div>
+        <div class="feature-card-desc">Gemini AI가 관찰기록을 분석해 세특 초안을 생성합니다. (학교)</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📋</div>
+        <div class="feature-card-title">AI 학부모 보고서</div>
+        <div class="feature-card-desc">관찰기록을 기반으로 학부모 전달용 성장 보고서 초안을 자동 생성합니다. (학원)</div>
       </div>
       <div class="feature-card">
         <div class="feature-card-icon">📊</div>
         <div class="feature-card-title">나이스 내보내기</div>
-        <div class="feature-card-desc">500자 맞춤 편집 후 나이스 엑셀로 한 번에 다운로드합니다.</div>
+        <div class="feature-card-desc">500자 맞춤 편집 후 나이스 엑셀로 한 번에 다운로드합니다. (학교)</div>
       </div>
       <div class="feature-card">
         <div class="feature-card-icon">👨‍👩‍👧‍👦</div>
-        <div class="feature-card-title">학급 관리</div>
-        <div class="feature-card-desc">담임반·교과반을 구분해 학생과 수업을 체계적으로 관리합니다.</div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-card-icon">🔗</div>
-        <div class="feature-card-title">교사 연동</div>
-        <div class="feature-card-desc">교과 선생님을 담임반에 초대해 세특을 함께 관리합니다.</div>
+        <div class="feature-card-title">학급·수강반 관리</div>
+        <div class="feature-card-desc">담임반·교과반·수강반을 구분해 학생과 수업을 체계적으로 관리합니다.</div>
       </div>
       <div class="feature-card">
         <div class="feature-card-icon">🎒</div>
@@ -303,6 +308,7 @@
       <div class="toc-card" onclick="showSection('ai-setech')"><div class="toc-icon">✨</div><div class="toc-label">AI 세특 초안</div></div>
       <div class="toc-card" onclick="showSection('naiss')"><div class="toc-icon">📊</div><div class="toc-label">나이스 내보내기</div></div>
       <div class="toc-card" onclick="showSection('student')"><div class="toc-icon">🎒</div><div class="toc-label">학생 참여</div></div>
+      <div class="toc-card" onclick="showSection('academy')"><div class="toc-icon">🏫</div><div class="toc-label">학원 활용</div></div>
       <div class="toc-card" onclick="showSection('faq')"><div class="toc-icon">❓</div><div class="toc-label">자주 묻는 질문</div></div>
       <div class="toc-card" onclick="showSection('trouble')"><div class="toc-icon">🔧</div><div class="toc-label">문제 해결</div></div>
     </div>
@@ -578,6 +584,32 @@
     <h2>행동특성 및 종합의견 (담임반 전용)</h2>
     <p>담임반에서는 학생별 <strong>행동특성·종합의견</strong> 초안도 AI가 자동 생성합니다. 학생 상세 페이지 하단에서 확인하고 복사할 수 있습니다.</p>
 
+    <h2>학원 강사 — 학부모 보고서 모드</h2>
+    <p>학원에서는 세특 대신 <strong>학부모 성장 보고서</strong>를 생성할 수 있습니다. AI 어시스턴트 화면에서 사용 목적을 전환하기만 하면 됩니다.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">사용 목적 선택</div>
+          <div class="step-desc">AI 어시스턴트 화면의 <code>사용 목적</code> 섹션에서 <code>📋 학원 보고서</code>를 선택합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">수강생 1명 선택 후 생성</div>
+          <div class="step-desc">무료 플랜은 1명씩만 생성됩니다. 수강생을 1명 선택하고 생성 버튼을 클릭합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">보고서 복사 후 전달</div>
+          <div class="step-desc">생성된 보고서를 복사해 학부모에게 문자·카카오톡으로 전달합니다.</div>
+        </div>
+      </div>
+    </div>
+
     <div class="callout blue">
       <span class="callout-icon">💡</span>
       <span class="callout-text"><strong>되돌리기 기능:</strong> 세션 내에서는 이전 세특 내용으로 되돌릴 수 있습니다. 페이지를 새로고침하면 되돌리기 기록이 초기화됩니다.</span>
@@ -747,6 +779,94 @@
     <div class="callout yellow">
       <span class="callout-icon">⚠️</span>
       <span class="callout-text">반려된 기록은 선생님 피드백을 확인한 뒤 수정해 다시 제출할 수 있습니다. 알림 팝업이 뜨면 확인해 보세요.</span>
+    </div>
+  </div>
+
+  <!-- ── 학원 활용 가이드 ── -->
+  <div class="section" id="sec-academy">
+    <div class="page-title">🏫 학원 활용 가이드</div>
+    <div class="page-subtitle">학원·교습소·개인 강사를 위한 생기로그 AI 활용법</div>
+
+    <div class="callout purple">
+      <span class="callout-icon">💡</span>
+      <span class="callout-text">학원 강사는 <strong>세특 대신 학부모 성장 보고서</strong>를 생성하는 모드를 사용합니다. AI 어시스턴트에서 <strong>"학원 보고서"</strong>를 선택하세요.</span>
+    </div>
+
+    <h2>학교 선생님과의 차이점</h2>
+    <table class="guide-table">
+      <thead><tr><th>기능</th><th>학교 선생님</th><th>학원 강사</th></tr></thead>
+      <tbody>
+        <tr><td>AI 문서 생성</td><td>세특 / 행특 초안</td><td>학부모 성장 보고서</td></tr>
+        <tr><td>나이스 내보내기</td><td>✅ 사용 가능</td><td>해당 없음 (복사 후 직접 전달)</td></tr>
+        <tr><td>수강생 관리</td><td>학생 등록 · 관리</td><td>동일하게 사용</td></tr>
+        <tr><td>관찰기록 수집</td><td>수업 중 기록 수집</td><td>동일하게 사용</td></tr>
+        <tr><td>수업 도구</td><td>타이머 · 퀴즈 등</td><td>동일하게 사용</td></tr>
+      </tbody>
+    </table>
+
+    <h2>학원에서 시작하는 방법</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">수강반 만들기</div>
+          <div class="step-desc">클래스룸에서 <code>+ 새 학급 만들기</code>를 클릭해 수강반을 개설합니다. 이름 예시: "중등 수학 A반", "초등 영어 3시반"</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">수강생 등록 및 코드 공유</div>
+          <div class="step-desc">수강생을 직접 추가하거나 입장 코드를 수강생에게 공유합니다. 수강생은 회원가입 없이 코드만으로 접속합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">수업 관찰기록 쌓기</div>
+          <div class="step-desc">수강생이 수업 후 느낀 점·활동 내용을 직접 제출하거나, 강사가 직접 수강생별 메모를 입력합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <div class="step-title">AI 학부모 보고서 생성</div>
+          <div class="step-desc">AI 어시스턴트 메뉴에서 수강반을 선택하고 <strong>사용 목적 → 📋 학원 보고서</strong>를 선택한 뒤 생성합니다.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">5</div>
+        <div class="step-content">
+          <div class="step-title">학부모에게 전달</div>
+          <div class="step-desc">생성된 보고서 초안을 검토·수정 후 복사해 문자, 카카오톡, 알림장 앱 등에 붙여넣어 전달합니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>학부모 보고서 작성 팁</h2>
+    <div class="callout green">
+      <span class="callout-icon">✅</span>
+      <span class="callout-text">관찰기록이 많을수록 보고서 품질이 높아집니다. 매 수업 후 수강생이 짧게라도 기록을 제출하도록 습관을 만들어 주세요.</span>
+    </div>
+    <div class="callout yellow">
+      <span class="callout-icon">⚠️</span>
+      <span class="callout-text">AI가 생성한 보고서는 초안입니다. 학부모에게 전달하기 전 반드시 내용을 검토하고 수강생에게 맞게 수정해 주세요.</span>
+    </div>
+
+    <h2>자주 묻는 질문 (학원)</h2>
+    <div class="accordion">
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">학원 강사도 무료로 사용할 수 있나요? <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">네. 학교 선생님과 동일하게 무료(Free) 플랜으로 시작할 수 있습니다. 수강반 2개, AI 보고서 하루 10회까지 무료입니다. 더 많이 사용하려면 Pro 플랜으로 업그레이드하세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">나이스 내보내기는 학원에서 사용할 수 없나요? <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">나이스는 학교 교사 전용 시스템이므로 학원에서는 해당 기능을 사용할 필요가 없습니다. 대신 AI가 생성한 학부모 보고서를 복사해 직접 전달하는 방식을 사용하세요.</div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-btn" onclick="toggleAccordion(this)">학부모 보고서를 PDF로 만들 수 있나요? <span class="accordion-icon">▼</span></button>
+        <div class="accordion-body">현재 PDF 직접 내보내기 기능은 없습니다. 브라우저의 인쇄 기능(Ctrl+P)을 이용해 PDF로 저장하거나, 텍스트를 복사해 워드·한글 문서로 만들어 사용하세요.</div>
+      </div>
     </div>
   </div>
 
