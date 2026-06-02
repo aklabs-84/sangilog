@@ -20,6 +20,8 @@ import { useAuth } from '../lib/auth';
 import { geminiPro, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 
+const FREE_AI_DAILY_LIMIT = 10;
+
 interface StudentDraft {
   studentId: string;
   name: string;
@@ -30,7 +32,7 @@ interface StudentDraft {
 }
 
 const AIAssistant = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
@@ -44,6 +46,8 @@ const AIAssistant = () => {
   const [obsCount, setObsCount] = useState(0);
   const [recentObsTime, setRecentObsTime] = useState<string | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState<'ai_bulk' | 'ai_limit'>('ai_bulk');
+  const [todayAiCount, setTodayAiCount] = useState(0);
   const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
@@ -52,6 +56,11 @@ const AIAssistant = () => {
 
   useEffect(() => { fetchInitialData(); }, []);
   useEffect(() => { if (selectedClassId) fetchObsStats(selectedClassId); }, [selectedClassId]);
+  useEffect(() => {
+    if (!profile?.ai_daily_date) { setTodayAiCount(0); return; }
+    const today = new Date().toISOString().split('T')[0];
+    setTodayAiCount(profile.ai_daily_date === today ? (profile.ai_daily_count ?? 0) : 0);
+  }, [profile]);
 
   const fetchInitialData = async () => {
     setLoading(true);
@@ -192,16 +201,29 @@ ${obsText}
   const handleGenerate = async () => {
     if (!selectedClassId) return;
 
-    // 무료 플랜 — 일괄 생성 차단
-    if (profile?.plan === 'free') {
-      setUpgradeOpen(true);
-      return;
+    const isFree = profile?.plan === 'free';
+
+    if (isFree) {
+      // 무료 — 다중 학생 일괄 생성 차단
+      if (selectedStudentIds.length > 1) {
+        setUpgradeReason('ai_bulk');
+        setUpgradeOpen(true);
+        return;
+      }
+      // 무료 — 일일 10회 한도 체크
+      if (todayAiCount >= FREE_AI_DAILY_LIMIT) {
+        setUpgradeReason('ai_limit');
+        setUpgradeOpen(true);
+        return;
+      }
     }
 
     setIsGenerating(true);
     setShowDraft(false);
     setDraftResults([]);
     setProgress({ current: 0, total: 0 });
+
+    let localAiCount = todayAiCount;
 
     try {
       const docType = isHomeroom ? '행동특성 및 종합의견(행특)' : '교과 세부능력 및 특기사항(세특)';
@@ -279,6 +301,17 @@ ${obsText}
           try {
             await supabase.from('students').update({ behavior_insight: content }).eq('id', student.id);
           } catch { /* 조용히 실패 */ }
+        }
+
+        // 무료 플랜 — 학생 1명 생성마다 카운트 증가
+        if (isFree) {
+          localAiCount += 1;
+          const today = new Date().toISOString().split('T')[0];
+          setTodayAiCount(localAiCount);
+          supabase.from('profiles').update({
+            ai_daily_count: localAiCount,
+            ai_daily_date: today,
+          }).eq('id', user?.id).then(() => refreshProfile());
         }
       }
     } catch (err) {
@@ -497,6 +530,42 @@ ${obsText}
               </button>
               {selectedStudentIds.length === 0 && <p className="text-center text-xs text-on-surface-variant/60">학생을 1명 이상 선택해주세요.</p>}
               {obsCount === 0 && selectedStudentIds.length > 0 && <p className="text-center text-xs text-on-surface-variant/60">활동 기록을 먼저 등록해야 합니다.</p>}
+
+              {/* 무료 플랜 일일 사용량 표시 */}
+              {profile?.plan === 'free' && (
+                <div className={`flex items-center justify-between px-4 py-3 rounded-2xl border ${
+                  todayAiCount >= FREE_AI_DAILY_LIMIT
+                    ? 'bg-red-50 border-red-200'
+                    : todayAiCount >= FREE_AI_DAILY_LIMIT * 0.7
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-surface-container-low border-surface-container-high'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={13} className={
+                      todayAiCount >= FREE_AI_DAILY_LIMIT ? 'text-red-400' :
+                      todayAiCount >= FREE_AI_DAILY_LIMIT * 0.7 ? 'text-amber-400' : 'text-primary/50'
+                    } />
+                    <span className="text-[11px] font-bold text-on-surface-variant">오늘 AI 사용량</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: FREE_AI_DAILY_LIMIT }).map((_, i) => (
+                        <div key={i} className={`w-2 h-2 rounded-full ${
+                          i < todayAiCount
+                            ? todayAiCount >= FREE_AI_DAILY_LIMIT ? 'bg-red-400' : 'bg-primary'
+                            : 'bg-surface-container-high'
+                        }`} />
+                      ))}
+                    </div>
+                    <span className={`text-[11px] font-black ${
+                      todayAiCount >= FREE_AI_DAILY_LIMIT ? 'text-red-500' :
+                      todayAiCount >= FREE_AI_DAILY_LIMIT * 0.7 ? 'text-amber-500' : 'text-on-surface-variant'
+                    }`}>
+                      {todayAiCount}/{FREE_AI_DAILY_LIMIT}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -669,7 +738,7 @@ ${obsText}
       <UpgradeModal
         isOpen={upgradeOpen}
         onClose={() => setUpgradeOpen(false)}
-        reason="ai_bulk"
+        reason={upgradeReason}
       />
     </motion.div>
   );
