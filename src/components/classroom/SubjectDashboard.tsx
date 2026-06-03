@@ -187,6 +187,16 @@ const SubjectDashboard = ({
   const [editNumber, setEditNumber] = useState('');
   const [editName, setEditName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editingMemoId, setEditingMemoId] = useState<string | null>(null);
+  const [memoDraft, setMemoDraft] = useState('');
+
+  const saveMemo = async (studentId: string, text: string) => {
+    try {
+      await supabase.from('students').update({ memo: text.trim() }).eq('id', studentId);
+    } catch (e) {
+      console.error('[SubjectDashboard] memo save error:', e);
+    }
+  };
 
   const handleStartEdit = (e: React.MouseEvent, s: any) => {
     e.stopPropagation();
@@ -715,6 +725,32 @@ const SubjectDashboard = ({
                         </div>
                       )}
 
+                      {/* 메모 */}
+                      <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                        {editingMemoId === s.id ? (
+                          <textarea
+                            autoFocus
+                            rows={2}
+                            className="w-full text-xs font-medium bg-surface-container/60 rounded-xl px-3 py-2 resize-none outline-none focus:ring-1 focus:ring-primary/30 border border-surface-container"
+                            value={memoDraft}
+                            onChange={(e) => setMemoDraft(e.target.value)}
+                            onBlur={() => { saveMemo(s.id, memoDraft); setEditingMemoId(null); }}
+                            placeholder="메모 입력..."
+                          />
+                        ) : (
+                          <button
+                            onClick={() => { setEditingMemoId(s.id); setMemoDraft(s.memo || ''); }}
+                            className={`w-full text-left text-xs font-medium rounded-xl px-3 py-2 transition-all ${
+                              s.memo
+                                ? 'bg-amber-50 border border-amber-100 text-on-surface-variant'
+                                : 'bg-neutral-50 text-neutral-300 italic hover:bg-neutral-100'
+                            }`}
+                          >
+                            {s.memo || '+ 메모 추가'}
+                          </button>
+                        )}
+                      </div>
+
                       {/* 관리 버튼 */}
                       <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                         <button onClick={(e) => handleStartEdit(e, s)} className="p-2 hover:bg-primary/10 text-neutral-400 hover:text-primary transition-all rounded-lg"><Pencil size={14} /></button>
@@ -957,51 +993,121 @@ const SubjectDashboard = ({
               </motion.div>
               </>
             ) : (
-              <motion.div 
+              <motion.div
                 key="grid"
                 variants={containerVariants}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 px-2"
+                className="grid grid-cols-2 lg:grid-cols-3 gap-3 px-2"
               >
                 {filteredStudents.map((s) => (
-                  <motion.div 
-                    key={s.id} 
+                  <motion.div
+                    key={s.id}
                     variants={itemVariants}
-                    onClick={() => onNavigateAI(s.id)}
-                    className="layered-card p-10 rounded-[2.5rem] border-white/60 shadow-soft group cursor-pointer h-[400px] flex flex-col items-center justify-center text-center bg-white/60 hover:bg-white relative overflow-hidden"
+                    className="layered-card rounded-2xl bg-white/90 shadow-soft border border-white/60 hover:bg-white hover:shadow-md transition-all flex flex-col overflow-hidden"
                   >
-                    <div className="relative mb-8">
-                       <div className="w-28 h-28 rounded-[2rem] flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5 text-primary/30 shadow-inner group-hover:scale-105 group-hover:from-primary/10 group-hover:to-secondary/10 group-hover:text-primary/50 transition-all duration-700">
-                          <Users size={48} strokeWidth={1.5} />
-                       </div>
-                       <div className="absolute -top-3 -right-3 w-10 h-10 bg-on-surface text-surface rounded-xl flex items-center justify-center text-sm font-black shadow-lg group-hover:bg-primary transition-all">
-                          {s.number.toString().padStart(2, '0')}
-                       </div>
+                    {/* 상단: 아바타 + 이름 + 상태 */}
+                    <div
+                      className="p-4 pb-2 flex items-start gap-2.5 cursor-pointer"
+                      onClick={() => onNavigateAI(s.id)}
+                    >
+                      <div className="relative shrink-0">
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/15 to-secondary/15 flex items-center justify-center font-black text-primary text-base select-none">
+                          {s.name.charAt(0)}
+                        </div>
+                        {s.number && s.number !== '-' && (
+                          <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 bg-on-surface text-surface rounded text-[9px] font-black flex items-center justify-center shadow-sm leading-none">
+                            {s.number}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0 pt-0.5">
+                        <p className="font-black text-sm leading-tight truncate">{s.name}</p>
+                        <span className={`inline-block mt-1 text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                          s.status === '발행됨'    ? 'bg-secondary/10 text-secondary' :
+                          s.status === '미작성'    ? 'bg-on-surface/5 text-on-surface/40' :
+                          s.status === '초안 완료' ? 'bg-primary/10 text-primary' :
+                                                     'bg-amber-50 text-amber-600'
+                        }`}>
+                          {s.status}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="space-y-1.5 mb-8">
-                      <h3 className="text-2xl font-black group-hover:text-primary transition-colors tracking-tight leading-tight">{s.name}</h3>
-                      <span className="px-3 py-1 bg-primary/5 text-[9px] font-black text-primary/70 uppercase tracking-widest rounded-md border border-primary/10">{s.tag || 'Regular'}</span>
-                    </div>
-
-                    <div className="w-full p-6 layered-card bg-surface-container/30 border-transparent min-h-[90px] flex items-center justify-center mb-8 group-hover:bg-primary/5 transition-all">
-                      <p className="text-sm font-bold text-on-surface-variant/70 leading-relaxed italic line-clamp-2">
-                        {s.activity ? `"${s.activity}"` : '활동 기록 없음'}
+                    {/* 최근 활동 */}
+                    <div
+                      className="px-4 py-1.5 cursor-pointer"
+                      onClick={() => onNavigateAI(s.id)}
+                    >
+                      <p className="text-[11px] text-on-surface-variant/55 font-medium line-clamp-2 leading-relaxed">
+                        {s.activity && s.activity !== '기록 없음'
+                          ? <span className="italic">"{s.activity}"</span>
+                          : <span className="opacity-40">활동 기록 없음</span>
+                        }
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between w-full mt-auto">
-                       <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] ${
-                          s.status === '발행됨' ? 'bg-secondary/10 text-secondary border border-secondary/20' : 
-                          s.status === '미작성' ? 'bg-on-surface/5 text-on-surface/30' : 'bg-primary/10 text-primary border border-primary/20'
-                       }`}>
-                         {s.status}
-                       </span>
-                       <ArrowRight size={20} className="text-primary transition-all" />
+                    {/* 메모 영역 */}
+                    <div className="px-3 pb-2" onClick={(e) => e.stopPropagation()}>
+                      {editingMemoId === s.id ? (
+                        <textarea
+                          autoFocus
+                          rows={2}
+                          className="w-full text-[11px] font-medium bg-surface-container/60 rounded-lg px-2.5 py-1.5 resize-none outline-none focus:ring-1 focus:ring-primary/30 border border-surface-container"
+                          value={memoDraft}
+                          onChange={(e) => setMemoDraft(e.target.value)}
+                          onBlur={() => {
+                            saveMemo(s.id, memoDraft);
+                            setEditingMemoId(null);
+                          }}
+                          placeholder="메모 입력..."
+                        />
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingMemoId(s.id);
+                            setMemoDraft(s.memo || '');
+                          }}
+                          className={`w-full text-left text-[11px] font-medium rounded-lg px-2.5 py-1.5 transition-all min-h-[30px] ${
+                            s.memo
+                              ? 'text-on-surface-variant bg-amber-50/70 border border-amber-100 hover:bg-amber-50'
+                              : 'text-on-surface-variant/30 italic bg-surface-container/20 hover:bg-surface-container/40'
+                          }`}
+                        >
+                          {s.memo
+                            ? <span className="line-clamp-2 not-italic">{s.memo}</span>
+                            : '+ 메모 추가'
+                          }
+                        </button>
+                      )}
                     </div>
 
-                    <div className="absolute top-6 left-6 flex flex-col gap-3">
-                       <button onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }} className="w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl shadow-md flex items-center justify-center text-on-surface-variant/40 transition-all hover:scale-110"><Pencil size={16} /></button>
-                       <button onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }} className="w-10 h-10 bg-white hover:bg-error hover:text-white rounded-xl shadow-md flex items-center justify-center text-error/30 transition-all hover:scale-110"><Trash2 size={16} /></button>
+                    {/* 하단 액션 버튼 */}
+                    <div
+                      className="mt-auto px-4 py-2.5 border-t border-surface-container/40 flex items-center justify-between"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() => onNavigateAI(s.id)}
+                        className="text-[10px] font-black text-primary flex items-center gap-0.5 hover:gap-1.5 transition-all"
+                      >
+                        기록 보기 <ArrowRight size={11} />
+                      </button>
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          onClick={(e) => handleStartEdit(e, s)}
+                          className="p-1.5 hover:bg-primary/10 text-on-surface-variant/30 hover:text-primary rounded-lg transition-all"
+                          title="이름/번호 수정"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }}
+                          className="p-1.5 hover:bg-error/10 text-on-surface-variant/30 hover:text-error rounded-lg transition-all"
+                          title="삭제"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 ))}

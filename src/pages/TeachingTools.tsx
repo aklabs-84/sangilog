@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic } from 'lucide-react';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
 import QuizGame from './tools/QuizGame';
 import MaterialEditor from './tools/MaterialEditor';
+import ClassTranscription from './tools/ClassTranscription';
 
 interface Tool {
   id: string;
@@ -50,6 +51,15 @@ const tools: Tool[] = [
     badge: 'NEW',
     available: true,
     component: <MaterialEditor />,
+  },
+  {
+    id: 'transcription',
+    icon: <Mic size={28} />,
+    label: '수업 전사 & AI 분석',
+    description: '수업을 실시간 전사하고 AI가 학생별 관찰 기록과 수업 품질을 자동 분석합니다',
+    badge: 'NEW',
+    available: true,
+    component: <ClassTranscription />,
   },
   {
     id: 'random-pick',

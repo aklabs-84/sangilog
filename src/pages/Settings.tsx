@@ -760,33 +760,33 @@ const Settings = () => {
         )}
         {showLangModal && (
           <div className="fixed inset-0 flex items-center justify-center z-[100] px-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowLangModal(false)}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-md surface-card shadow-ambient border border-surface-container-highest p-8"
+              className="relative w-full max-w-md rounded-3xl bg-surface-container-lowest border border-surface-container-highest shadow-[0_20px_60px_rgba(0,0,0,0.25)] p-8"
             >
               <div className="text-center space-y-6">
                 <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto text-primary">
                   <Globe size={32} />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-2xl font-black">언어 설정</h3>
+                  <h3 className="text-2xl font-black text-on-surface">언어 설정</h3>
                   <p className="text-on-surface-variant leading-relaxed">
-                    현재 <strong>생기로그(SaenggiLog)</strong>는 한국어(KO) 서비스를 기본으로 제공하고 있습니다. 
+                    현재 <strong className="text-on-surface">생기로그(SaenggiLog)</strong>는 한국어(KO) 서비스를 기본으로 제공하고 있습니다.
                     추후 글로벌 서비스 확장을 통해 더 많은 언어를 지원할 예정입니다.
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowLangModal(false)}
-                  className="w-full py-4 bg-surface-container-high rounded-2xl font-black text-sm hover:bg-surface-container-highest transition-all"
+                  className="w-full py-4 bg-primary text-white rounded-2xl font-black text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/20"
                 >
                   확인했습니다
                 </button>
@@ -797,18 +797,18 @@ const Settings = () => {
 
         {showInfoModal && (
           <div className="fixed inset-0 flex items-center justify-center z-[100] px-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowInfoModal(false)}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg surface-card shadow-ambient border border-surface-container-highest p-10"
+              className="relative w-full max-w-lg rounded-3xl bg-surface-container-lowest border border-surface-container-highest shadow-[0_20px_60px_rgba(0,0,0,0.25)] p-10"
             >
               <div className="space-y-8">
                 <div className="flex items-center gap-6">
@@ -816,29 +816,23 @@ const Settings = () => {
                     <Check size={40} strokeWidth={4} />
                   </div>
                   <div className="flex-1">
-                    <h2 className="text-3xl font-black">생기로그 SaenggiLog</h2>
+                    <h2 className="text-3xl font-black text-on-surface">생기로그 SaenggiLog</h2>
                     <p className="text-on-surface-variant font-bold">Version 1.0.0 (Production Build)</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-5 bg-surface-container rounded-2xl">
-                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Developer</p>
-                    <p className="font-bold">Antigravity AI Team</p>
-                  </div>
-                  <div className="p-5 bg-surface-container rounded-2xl">
-                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Platform</p>
-                    <p className="font-bold">Aklabs Professional</p>
-                  </div>
+                <div className="p-5 bg-surface-container rounded-2xl">
+                  <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Developer</p>
+                  <p className="font-bold text-on-surface">AKLABS</p>
                 </div>
 
                 <div className="space-y-4">
                   <p className="text-sm text-on-surface-variant leading-relaxed">
                     생기로그는 AI 기술을 활용하여 교사의 업무 부담을 줄이고 학생들의 성장을 더 깊이 있게 관찰할 수 있도록 돕는 스마트 교육 솔루션입니다.
                   </p>
-                  <a 
-                    href="https://litt.ly/aklabs" 
-                    target="_blank" 
+                  <a
+                    href="https://litt.ly/aklabs"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-between p-5 bg-primary/5 border border-primary/20 rounded-2xl group hover:bg-primary/10 transition-all"
                   >
@@ -852,9 +846,9 @@ const Settings = () => {
                   </a>
                 </div>
 
-                <button 
+                <button
                   onClick={() => setShowInfoModal(false)}
-                  className="w-full py-4 bg-on-surface text-surface rounded-2xl font-black text-sm hover:opacity-90 transition-all shadow-lg"
+                  className="w-full py-4 bg-primary text-white rounded-2xl font-black text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/20"
                 >
                   닫기
                 </button>

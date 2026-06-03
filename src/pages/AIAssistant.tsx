@@ -185,15 +185,22 @@ const AIAssistant = () => {
     const isAcademy = mode === 'academy';
     const prompt = isAcademy
       ? `
-${SYSTEM_INSTRUCTIONS.BASE}
+당신은 학원·교습소에서 학부모에게 학생의 성장을 안내하는 전문 AI 어시스턴트입니다.
 ${SYSTEM_INSTRUCTIONS.PARENT_REPORT_GUIDE}
 ${SYSTEM_INSTRUCTIONS.PRIVACY}
 
 ${teacherPrompt ? `[강사 추가 지침]\n${teacherPrompt}\n` : ''}
 
 아래는 ${studentName} 수강생의 수업 관찰 기록입니다.
-이 기록을 바탕으로 학부모에게 전달할 성장 보고서 문구를 작성해주세요.
-문구만 출력하고 학생 이름, 마크다운, 설명 등은 포함하지 마세요.
+이 기록을 바탕으로 학부모에게 전달할 학원 성장 보고서를 작성해주세요.
+
+[보고서 구성 — 하나의 자연스러운 문단으로]
+1. 이번 기간 주요 학습 성취 및 활동
+2. 수업 태도 및 참여도
+3. 두드러진 강점 및 성장한 부분
+4. 앞으로의 학습 방향과 응원 메시지
+
+문구만 출력하고 학생 이름, 마크다운, 번호 목록, 설명 등은 포함하지 마세요.
 
 [${studentName} 수강생 관찰 기록]
 ${obsText}
@@ -406,10 +413,10 @@ ${obsText}
   const handlePrintAll = () => {
     const w = window.open('', '_blank');
     if (w) {
-      const docType = isHomeroom ? '행동특성 및 종합의견' : '교과 세부능력 및 특기사항';
+      const printLabel = reportMode === 'academy' ? '학원 학부모 보고서' : (isHomeroom ? '행동특성 및 종합의견' : '교과 세부능력 및 특기사항');
       const html = draftResults.map(d => `
         <div style="margin-bottom:40px;border-bottom:1px solid #eee;padding-bottom:40px">
-          <h3 style="font-size:16px;font-weight:bold;margin-bottom:12px">${d.name} — ${docType}</h3>
+          <h3 style="font-size:16px;font-weight:bold;margin-bottom:12px">${d.name} — ${printLabel}</h3>
           <p style="line-height:2;font-size:14px;white-space:pre-wrap">${d.content}</p>
         </div>
       `).join('');
@@ -419,6 +426,7 @@ ${obsText}
   };
 
   const docType = isHomeroom ? '행동특성 및 종합의견(행특)' : '교과 세부능력 및 특기사항(세특)';
+  const displayType = reportMode === 'academy' ? '학원 학부모 보고서' : docType;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
@@ -544,13 +552,26 @@ ${obsText}
                     </button>
                   ))}
                 </div>
+
+                {/* 학원 보고서 형식 미리보기 */}
+                {reportMode === 'academy' && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1.5">보고서 형식 예시</p>
+                    <p className="text-[11px] text-blue-800 leading-relaxed">
+                      이번 달 ○○ 학생은 수업 중 적극적으로 질문하며 개념 이해도가 크게 향상되었습니다.
+                      특히 문제 풀이 후 오답 원인을 스스로 분석하는 습관이 자리 잡혀 눈에 띄는 성장을 보였습니다.
+                      앞으로도 현재 페이스를 유지한다면 목표 달성이 충분히 가능합니다. 함께 응원하겠습니다!
+                    </p>
+                    <p className="text-[9px] text-blue-500 mt-2">· 친근한 문어체 · 200~300자 · 성장 중심 서술</p>
+                  </div>
+                )}
               </div>
 
               {/* 생성 타입 안내 */}
               <div className="p-3 bg-primary/5 rounded-2xl border border-primary/10">
                 <p className="text-[11px] font-black text-primary uppercase tracking-widest mb-1">생성 유형</p>
                 <p className="text-xs font-bold text-on-surface-variant">
-                  {reportMode === 'academy' ? '학부모 성장 보고서' : docType}
+                  {reportMode === 'academy' ? '학원 학부모 성장 보고서' : docType}
                 </p>
                 <p className="text-[10px] text-on-surface-variant/50 mt-1">학생 1명 × 1개 초안 순차 생성</p>
               </div>
@@ -568,7 +589,7 @@ ${obsText}
                   <>
                     <Sparkles size={18} />
                     <span>
-                      {isHomeroom ? '행특' : '세특'} 초안 생성
+                      {reportMode === 'academy' ? '학원 보고서' : (isHomeroom ? '행특' : '세특')} 초안 생성
                       {selectedStudentIds.length > 0 && ` (${selectedStudentIds.length}명)`}
                     </span>
                   </>
@@ -637,7 +658,7 @@ ${obsText}
                   <div>
                     <h2 className="text-lg font-bold flex items-center gap-2">
                       <FileText size={20} className="text-primary" />
-                      {docType} 초안
+                      {displayType} 초안
                     </h2>
                     <p className="text-xs text-on-surface-variant/60 mt-0.5">
                       {draftResults.length}명 생성됨
@@ -670,7 +691,7 @@ ${obsText}
                         </div>
                         <div>
                           <p className="font-black text-sm">{draft.name}</p>
-                          <p className="text-[10px] text-on-surface-variant/50 font-bold">{docType}</p>
+                          <p className="text-[10px] text-on-surface-variant/50 font-bold">{displayType}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-1">

@@ -1097,6 +1097,8 @@ ${guidePrompt}
       }
 
       // ── 1. 관찰 기록 저장 ──────────────────────────────────────────────────
+      // AI 검토 권장인 경우 pending으로 저장 (선생님 확인 필요)
+      const obsStatus = aiReviewFlag === 'review_needed' ? 'pending' : 'approved';
       const { error: obsError } = await supabase
         .from('observations')
         .insert({
@@ -1105,7 +1107,8 @@ ${guidePrompt}
           activity_name: title,
           content: `${content}\n\n[배운 점 및 느낀 점]\n${feeling}`,
           is_student_record: true,
-          status: 'approved',
+          status: obsStatus,
+          ai_concern: aiReviewFlag === 'review_needed' ? aiConcern : null,
           category: session?.subject || '학생 제출'
         });
 
@@ -1144,7 +1147,11 @@ ${guidePrompt}
           });
       }
 
-      showToast('제출 완료! 선생님 승인 후 최종 기록에 반영됩니다. ✅');
+      showToast(
+        aiReviewFlag === 'review_needed'
+          ? '제출 완료! AI 검토가 필요하여 선생님 확인 후 반영됩니다. ⚠️'
+          : '제출 완료! ✅'
+      );
 
       // 결과제출 리마인더 체크 — stale state 대신 DB 직접 조회
       const normR = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';

@@ -138,7 +138,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
         const [studentRes, resultsRes, suggestionsRes] = await Promise.all([
           supabase
             .from('students')
-            .select(`*, observations(id, content, activity_name, created_at, is_student_record, status, teacher_feedback)`)
+            .select(`*, observations(id, content, activity_name, created_at, is_student_record, status, teacher_feedback, ai_concern)`)
             .eq('id', studentId)
             .single(),
           supabase
@@ -326,6 +326,12 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                               )}
                             </div>
                             <p className="text-sm font-black text-on-surface/80">{obs.activity_name}</p>
+                            {/* AI 검토 사유 표시 */}
+                            {obs.ai_concern && (
+                              <p className="mt-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 flex items-start gap-1">
+                                <span className="shrink-0">⚠️</span> {obs.ai_concern}
+                              </p>
+                            )}
                             {/* 기존 피드백 표시 */}
                             {obs.teacher_feedback && obs.status === 'rejected' && (
                               <p className="mt-1.5 text-[10px] font-bold text-red-600 bg-red-50 rounded-lg px-2 py-1">

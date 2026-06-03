@@ -737,7 +737,15 @@ ${activitiesContext}
                           </div>
 
                           {obs.is_student_record && (
-                            <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
+                            <div className="mt-3 flex flex-col gap-2">
+                              {/* AI 검토 사유 — pending 상태에서만 표시 */}
+                              {obs.ai_concern && obs.status === 'pending' && (
+                                <div className="flex items-start gap-2 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                                  <span className="shrink-0 mt-0.5">⚠️</span>
+                                  <span>{obs.ai_concern}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between flex-wrap gap-2">
                               {obs.status === 'pending' ? (
                                 <div className="flex items-center gap-3">
                                   <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-500 uppercase tracking-widest bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
@@ -783,6 +791,7 @@ ${activitiesContext}
                                   </button>
                                 </div>
                               )}
+                              </div>
                             </div>
                           )}
                         </>
