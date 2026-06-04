@@ -738,11 +738,22 @@ ${activitiesContext}
 
                           {obs.is_student_record && (
                             <div className="mt-3 flex flex-col gap-2">
-                              {/* AI 검토 사유 — pending 상태에서만 표시 */}
-                              {obs.ai_concern && obs.status === 'pending' && (
+                              {/* AI 검토 사유 — 상태 무관하게 항상 표시 + 처리 결과 뱃지 */}
+                              {obs.ai_concern && (
                                 <div className="flex items-start gap-2 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                                   <span className="shrink-0 mt-0.5">⚠️</span>
-                                  <span>{obs.ai_concern}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="leading-relaxed">{obs.ai_concern}</p>
+                                    <p className={`mt-1 text-[10px] font-black ${
+                                      obs.status === 'approved' ? 'text-emerald-600' :
+                                      obs.status === 'rejected' ? 'text-red-500' :
+                                      'text-amber-500'
+                                    }`}>
+                                      {obs.status === 'approved' && '→ 선생님이 검토 후 승인함'}
+                                      {obs.status === 'rejected' && '→ 선생님이 검토 후 반려함'}
+                                      {obs.status === 'pending'  && '→ 선생님 검토 대기 중'}
+                                    </p>
+                                  </div>
                                 </div>
                               )}
                               <div className="flex items-center justify-between flex-wrap gap-2">
