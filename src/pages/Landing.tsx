@@ -345,6 +345,131 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* ── Pricing Section ── */}
+      <section className="py-20 bg-amber-50">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full mb-4">
+              💳 플랜 안내
+            </span>
+            <h2 className="text-3xl font-black text-amber-900 mb-3">역할에 맞는 플랜을 선택하세요</h2>
+            <p className="text-amber-700/70 text-sm">모든 플랜은 관리자 승인 후 활성화됩니다.</p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              {
+                name: '무료',
+                badge: 'FREE',
+                badgeColor: 'bg-gray-200 text-gray-600',
+                headerColor: 'bg-gray-50',
+                borderColor: 'border-gray-200',
+                emoji: '🌱',
+                desc: '처음 시작하는 선생님',
+                features: [
+                  { text: '클래스 최대 2개', ok: true },
+                  { text: 'AI 세특 하루 10회', ok: true },
+                  { text: '학생 관찰 기록', ok: true },
+                  { text: '일괄 AI 생성', ok: false },
+                  { text: '교사 연동', ok: false },
+                  { text: 'NAISS 내보내기', ok: false },
+                ],
+              },
+              {
+                name: 'Pro',
+                badge: 'PRO',
+                badgeColor: 'bg-amber-500 text-white',
+                headerColor: 'bg-gradient-to-br from-amber-50 to-orange-50',
+                borderColor: 'border-amber-300',
+                emoji: '⚡',
+                desc: '적극적으로 활용하는 선생님',
+                highlight: true,
+                features: [
+                  { text: '클래스 무제한', ok: true },
+                  { text: 'AI 세특 무제한', ok: true },
+                  { text: '학생 관찰 기록', ok: true },
+                  { text: '일괄 AI 생성', ok: true },
+                  { text: '교사 연동', ok: true },
+                  { text: 'NAISS 내보내기', ok: true },
+                ],
+              },
+              {
+                name: 'School',
+                badge: 'SCHOOL',
+                badgeColor: 'bg-violet-500 text-white',
+                headerColor: 'bg-gradient-to-br from-violet-50 to-indigo-50',
+                borderColor: 'border-violet-200',
+                emoji: '🏫',
+                desc: '교장·교감·장학사 등 관찰자',
+                features: [
+                  { text: '초대된 클래스 열람', ok: true },
+                  { text: '학교 현황 대시보드', ok: true },
+                  { text: '클래스 직접 생성', ok: false },
+                  { text: 'AI 기능', ok: false },
+                  { text: '교사 연동', ok: false },
+                  { text: 'NAISS 내보내기', ok: false },
+                ],
+              },
+              {
+                name: '관리자',
+                badge: 'ADMIN',
+                badgeColor: 'bg-emerald-500 text-white',
+                headerColor: 'bg-gradient-to-br from-emerald-50 to-teal-50',
+                borderColor: 'border-emerald-200',
+                emoji: '👑',
+                desc: '시스템 전체 관리',
+                features: [
+                  { text: 'Pro 모든 기능', ok: true },
+                  { text: '관리자 패널', ok: true },
+                  { text: '사용자 승인·차단', ok: true },
+                  { text: '플랜 변경', ok: true },
+                  { text: '데이터 전체 조회', ok: true },
+                  { text: '공지사항 발송', ok: true },
+                ],
+              },
+            ].map((plan, i) => (
+              <motion.div
+                key={plan.name}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.08 }}
+                className={`rounded-2xl border-2 ${plan.borderColor} overflow-hidden shadow-sm ${plan.highlight ? 'shadow-amber-100 scale-[1.02]' : ''}`}
+              >
+                <div className={`${plan.headerColor} px-5 py-5 relative`}>
+                  {plan.highlight && (
+                    <div className="absolute top-3 right-3 bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">추천</div>
+                  )}
+                  <div className="text-2xl mb-2">{plan.emoji}</div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg font-black text-gray-900">{plan.name}</span>
+                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${plan.badgeColor}`}>{plan.badge}</span>
+                  </div>
+                  <p className="text-xs text-gray-500">{plan.desc}</p>
+                </div>
+                <div className="bg-white px-5 py-4 space-y-2.5">
+                  {plan.features.map((f) => (
+                    <div key={f.text} className="flex items-center gap-2.5">
+                      <span className={`text-xs font-black shrink-0 ${f.ok ? 'text-emerald-500' : 'text-gray-300'}`}>
+                        {f.ok ? '✓' : '✕'}
+                      </span>
+                      <span className={`text-xs ${f.ok ? 'text-gray-700 font-medium' : 'text-gray-300'}`}>{f.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.p
+            initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
+            className="text-center text-xs text-amber-600/60 mt-8"
+          >
+            플랜 변경 및 문의: mosebb@gmail.com · 관리자가 직접 플랜을 지정합니다.
+          </motion.p>
+        </div>
+      </section>
+
       {/* ── Access Request Form ── */}
       <section id="request-section" className="py-24 bg-white">
         <div className="max-w-2xl mx-auto px-6">

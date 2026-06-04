@@ -251,11 +251,20 @@ const Export = () => {
       {/* 탭 */}
       <div className="flex items-center gap-1 p-1.5 bg-surface-container/60 rounded-2xl w-fit border border-white/40 shadow-soft">
         <button
-          onClick={() => setActiveTab('naiss')}
+          onClick={() => {
+            if (profile?.plan === 'free' || profile?.plan === 'school') {
+              alert('나이스 제출 준비는 Pro 플랜 전용 기능입니다.\nmosebb@gmail.com으로 업그레이드 문의해 주세요.');
+              return;
+            }
+            setActiveTab('naiss');
+          }}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all ${activeTab === 'naiss' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
         >
           <ClipboardList size={16} />
           나이스 제출 준비
+          {(profile?.plan === 'free' || profile?.plan === 'school') && (
+            <span className="text-[9px] bg-amber-500 text-white px-1.5 py-0.5 rounded-full font-black">PRO</span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('export')}

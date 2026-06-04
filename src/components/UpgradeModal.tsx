@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, GraduationCap, Zap, Crown } from 'lucide-react';
 
-type Reason = 'class_limit' | 'ai_limit' | 'ai_bulk' | 'teacher_invite';
+type Reason = 'class_limit' | 'ai_limit' | 'ai_bulk' | 'teacher_invite' | 'naiss_export' | 'school_block';
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -44,6 +44,20 @@ const REASON_CONFIG: Record<Reason, {
     freeLimit: '교사 연동 불가',
     proGain: '교사 연동 무제한',
   },
+  naiss_export: {
+    emoji: '📤',
+    title: 'Pro 기능 — NAISS 내보내기',
+    desc: 'NAISS 워크스테이션 및 나이스 포맷 내보내기는 Pro 플랜 전용 기능입니다.',
+    freeLimit: '기본 CSV 내보내기만 가능',
+    proGain: 'NAISS 포맷 내보내기 무제한',
+  },
+  school_block: {
+    emoji: '🏫',
+    title: 'School 플랜 — 열람 전용',
+    desc: 'School 플랜은 초대된 클래스를 열람하는 관찰자 역할입니다.\n클래스 생성 및 AI 기능은 지원되지 않습니다.',
+    freeLimit: '',
+    proGain: '',
+  },
 };
 
 const UpgradeModal = ({ isOpen, onClose, reason }: UpgradeModalProps) => {
@@ -79,62 +93,75 @@ const UpgradeModal = ({ isOpen, onClose, reason }: UpgradeModalProps) => {
               <p className="text-sm text-white/80 whitespace-pre-line">{config.desc}</p>
             </div>
 
-            {/* Plan Compare */}
-            <div className="px-6 -mt-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-center">
-                  <div className="flex items-center justify-center gap-1.5 mb-2">
-                    <GraduationCap size={14} className="text-gray-400" />
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Free</span>
+            {/* Plan Compare — school_block은 숨김 */}
+            {reason !== 'school_block' && (
+              <div className="px-6 -mt-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-2">
+                      <GraduationCap size={14} className="text-gray-400" />
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Free</span>
+                    </div>
+                    <p className="text-sm font-bold text-gray-700">{config.freeLimit}</p>
                   </div>
-                  <p className="text-sm font-bold text-gray-700">{config.freeLimit}</p>
-                </div>
-                <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-center relative">
-                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                    PRO
+                  <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-center relative">
+                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                      PRO
+                    </div>
+                    <div className="flex items-center justify-center gap-1.5 mb-2">
+                      <Crown size={14} className="text-amber-500" />
+                      <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">Pro</span>
+                    </div>
+                    <p className="text-sm font-black text-amber-800">{config.proGain}</p>
                   </div>
-                  <div className="flex items-center justify-center gap-1.5 mb-2">
-                    <Crown size={14} className="text-amber-500" />
-                    <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">Pro</span>
-                  </div>
-                  <p className="text-sm font-black text-amber-800">{config.proGain}</p>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Pro 기능 목록 */}
-            <div className="px-6 py-4">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Pro 플랜에서 가능한 것들</p>
-              <div className="space-y-2">
-                {[
-                  '클래스 무제한 생성',
-                  'AI 세특 초안 무제한',
-                  '학급 전체 일괄 AI 생성',
-                  '교과 교사 연동 초대',
-                  '학생 수 무제한',
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-sm text-gray-700">
-                    <Sparkles size={13} className="text-amber-400 flex-shrink-0" />
-                    {item}
-                  </div>
-                ))}
+            {/* Pro 기능 목록 — school_block은 숨김 */}
+            {reason !== 'school_block' && (
+              <div className="px-6 py-4">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Pro 플랜에서 가능한 것들</p>
+                <div className="space-y-2">
+                  {[
+                    '클래스 무제한 생성',
+                    'AI 세특 초안 무제한',
+                    '학급 전체 일괄 AI 생성',
+                    '교과 교사 연동 초대',
+                    'NAISS 포맷 내보내기',
+                  ].map((item) => (
+                    <div key={item} className="flex items-center gap-2 text-sm text-gray-700">
+                      <Sparkles size={13} className="text-amber-400 flex-shrink-0" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* CTA */}
             <div className="px-6 pb-6 space-y-2">
-              <a
-                href="mailto:mosebb@gmail.com?subject=생기로그 AI Pro 업그레이드 문의"
-                className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-amber-200 transition-all hover:scale-[1.02] active:scale-95"
-              >
-                <Zap size={16} />
-                Pro 업그레이드 문의하기
-              </a>
+              {reason === 'school_block' ? (
+                <button
+                  onClick={onClose}
+                  className="w-full py-3.5 bg-violet-500 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:bg-violet-600 transition-all active:scale-95"
+                >
+                  확인
+                </button>
+              ) : (
+                <a
+                  href="mailto:mosebb@gmail.com?subject=생기로그 AI Pro 업그레이드 문의"
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-amber-200 transition-all hover:scale-[1.02] active:scale-95"
+                >
+                  <Zap size={16} />
+                  Pro 업그레이드 문의하기
+                </a>
+              )}
               <button
                 onClick={onClose}
                 className="w-full py-3 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors"
               >
-                나중에 하기
+                {reason === 'school_block' ? '' : '나중에 하기'}
               </button>
             </div>
           </motion.div>

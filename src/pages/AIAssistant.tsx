@@ -428,6 +428,28 @@ ${obsText}
   const docType = isHomeroom ? '행동특성 및 종합의견(행특)' : '교과 세부능력 및 특기사항(세특)';
   const displayType = reportMode === 'academy' ? '학원 학부모 보고서' : docType;
 
+  // School 플랜 차단
+  if (profile?.plan === 'school') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="max-w-md text-center space-y-5 p-10 bg-white rounded-3xl border border-violet-100 shadow-xl">
+          <div className="w-16 h-16 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto text-3xl">🏫</div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-black text-violet-900">School 플랜 — 열람 전용</h2>
+            <p className="text-sm text-violet-700 leading-relaxed">
+              School 플랜은 초대된 클래스를 열람하는 관찰자 역할입니다.<br />
+              AI 세특 기능은 Free 또는 Pro 플랜에서 사용 가능합니다.
+            </p>
+          </div>
+          <a href="mailto:mosebb@gmail.com?subject=생기로그 플랜 문의"
+            className="inline-block px-6 py-3 bg-violet-500 text-white text-sm font-bold rounded-xl hover:bg-violet-600 transition-colors">
+            플랜 문의하기
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
       {/* Header */}

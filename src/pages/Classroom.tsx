@@ -65,7 +65,7 @@ const Classroom = () => {
   const [shareTeacherSuccess, setShareTeacherSuccess] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [upgradeModalReason, setUpgradeModalReason] = useState<'class_limit' | 'ai_limit' | 'ai_bulk' | 'teacher_invite' | null>(null);
+  const [upgradeModalReason, setUpgradeModalReason] = useState<'class_limit' | 'ai_limit' | 'ai_bulk' | 'teacher_invite' | 'naiss_export' | 'school_block' | null>(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [newClassData, setNewClassData] = useState({ 
     name: '', 
@@ -417,6 +417,13 @@ const Classroom = () => {
     e.preventDefault();
     const isSubjectRequired = newClassData.class_type === 'subject';
     if (!newClassData.name || (isSubjectRequired && !newClassData.subject) || !user) return;
+
+    // School 플랜 클래스 생성 차단
+    if (profile?.plan === 'school') {
+      setIsCreateModalOpen(false);
+      setUpgradeModalReason('school_block');
+      return;
+    }
 
     // 무료 플랜 클래스 수 제한
     if (profile?.plan === 'free') {
@@ -1220,7 +1227,11 @@ const Classroom = () => {
                         </div>
                       )}
                       <button
-                        onClick={() => setIsInviteModalOpen(true)}
+                        onClick={() => {
+                          if (profile?.plan === 'school') { setUpgradeModalReason('school_block'); return; }
+                          if (profile?.plan === 'free') { setUpgradeModalReason('teacher_invite'); return; }
+                          setIsInviteModalOpen(true);
+                        }}
                         className="w-full p-6 border-2 border-dashed border-primary/10 rounded-2xl text-[11px] font-black text-primary/40 hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all uppercase tracking-[0.2em] flex items-center justify-center gap-2 group"
                       >
                         <Plus size={16} className="group-hover:rotate-90 transition-transform duration-500" />

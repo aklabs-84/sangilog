@@ -230,6 +230,11 @@
     <span class="icon">🏫</span> 학원 활용 가이드
   </a>
 
+  <div class="nav-section">플랜 안내</div>
+  <a class="nav-item" data-section="plans" onclick="showSection('plans')">
+    <span class="icon">💳</span> 플랜별 기능 비교
+  </a>
+
   <div class="nav-section">도움말</div>
   <a class="nav-item" data-section="faq" onclick="showSection('faq')">
     <span class="icon">❓</span> 자주 묻는 질문
@@ -867,6 +872,93 @@
         <button class="accordion-btn" onclick="toggleAccordion(this)">학부모 보고서를 PDF로 만들 수 있나요? <span class="accordion-icon">▼</span></button>
         <div class="accordion-body">현재 PDF 직접 내보내기 기능은 없습니다. 브라우저의 인쇄 기능(Ctrl+P)을 이용해 PDF로 저장하거나, 텍스트를 복사해 워드·한글 문서로 만들어 사용하세요.</div>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Plans ── -->
+  <div class="section" id="sec-plans">
+    <div class="page-title">💳 플랜별 기능 비교</div>
+    <div class="page-subtitle">역할과 목적에 맞는 플랜을 확인하세요. 모든 플랜은 관리자 승인 후 활성화됩니다.</div>
+
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px;">
+        <thead>
+          <tr style="background:#fef3c7;">
+            <th style="padding:12px 16px;text-align:left;border-bottom:2px solid #fde68a;font-weight:900;color:#92400e;">기능</th>
+            <th style="padding:12px 16px;text-align:center;border-bottom:2px solid #fde68a;color:#6b7280;">🌱 무료</th>
+            <th style="padding:12px 16px;text-align:center;border-bottom:2px solid #fde68a;color:#d97706;font-weight:900;">⚡ Pro</th>
+            <th style="padding:12px 16px;text-align:center;border-bottom:2px solid #fde68a;color:#7c3aed;">🏫 School</th>
+            <th style="padding:12px 16px;text-align:center;border-bottom:2px solid #fde68a;color:#059669;">👑 관리자</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:11px 16px;font-weight:700;color:#374151;">클래스 생성</td>
+            <td style="padding:11px 16px;text-align:center;color:#6b7280;">최대 2개</td>
+            <td style="padding:11px 16px;text-align:center;color:#d97706;font-weight:800;">무제한</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;font-weight:800;">무제한</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;background:#fafafa;">
+            <td style="padding:11px 16px;font-weight:700;color:#374151;">AI 세특 초안</td>
+            <td style="padding:11px 16px;text-align:center;color:#6b7280;">하루 10회</td>
+            <td style="padding:11px 16px;text-align:center;color:#d97706;font-weight:800;">무제한</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;font-weight:800;">무제한</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:11px 16px;font-weight:700;color:#374151;">학생 관찰 기록</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;">✓</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;">✓</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;">✓</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;background:#fafafa;">
+            <td style="padding:11px 16px;font-weight:700;color:#374151;">일괄 AI 생성</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;font-weight:800;">✓</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;">✓</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:11px 16px;font-weight:700;color:#374151;">교사 연동</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;font-weight:800;">✓</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;">✓</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;background:#fafafa;">
+            <td style="padding:11px 16px;font-weight:700;color:#374151;">NAISS 내보내기</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;font-weight:800;">✓</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;">✓</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:11px 16px;font-weight:700;color:#374151;">초대된 클래스 열람</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;">✓</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;">✓</td>
+            <td style="padding:11px 16px;text-align:center;color:#7c3aed;font-weight:800;">✓ (열람만)</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;">✓</td>
+          </tr>
+          <tr style="background:#fafafa;">
+            <td style="padding:11px 16px;font-weight:700;color:#374151;">관리자 패널</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#d1d5db;">✕</td>
+            <td style="padding:11px 16px;text-align:center;color:#059669;font-weight:800;">✓</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-top:8px;">
+      <p style="margin:0;font-size:13px;color:#92400e;font-weight:700;">💡 플랜 안내</p>
+      <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;color:#78350f;line-height:1.8;">
+        <li><strong>무료 → Pro 업그레이드</strong>: mosebb@gmail.com으로 문의</li>
+        <li><strong>School 플랜</strong>: 교장·교감·장학사 등 학교 관리자용. 교사가 클래스에 초대해야 열람 가능</li>
+        <li><strong>관리자</strong>: 시스템 관리 목적. 별도 신청 불필요</li>
+      </ul>
     </div>
   </div>
 
