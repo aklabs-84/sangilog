@@ -20,6 +20,7 @@ import SuggestionsPage from './pages/SuggestionsPage';
 import QuizStudentView from './pages/QuizStudentView';
 import ClassBoard from './pages/ClassBoard';
 import ShareClassView from './pages/ShareClassView';
+import SetPassword from './pages/SetPassword';
 
 // 비로그인이면 /login 으로, 로그인이면 children 렌더
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -82,6 +83,7 @@ function App() {
               {/* 공개 라우트 */}
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/set-password" element={<SetPassword />} />
               <Route path="/classroom-entry" element={<ClassroomEntry />} />
               <Route path="/student-log" element={<StudentLog />} />
               <Route path="/quiz/:pin" element={<QuizStudentView />} />

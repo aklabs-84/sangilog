@@ -22,8 +22,14 @@ export default async function handler(req: any, res: any) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // 요청 origin에서 사이트 URL 추출 (로컬/프로덕션 자동 대응)
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'sangilog.vercel.app';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const siteUrl = `${protocol}://${host}`;
+
   const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: name || '' },
+    redirectTo: `${siteUrl}/set-password`,
   });
 
   if (error) {
