@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { motion } from 'framer-motion';
-import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, MousePointer2, Loader2, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, MousePointer2, Loader2, CheckCircle2, KeyRound } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -14,7 +14,34 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // 비밀번호 재설정
+  const [showForgot, setShowForgot]     = useState(false);
+  const [forgotEmail, setForgotEmail]   = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotDone, setForgotDone]     = useState(false);
+  const [forgotError, setForgotError]   = useState<string | null>(null);
+
   const navigate = useNavigate();
+
+  const handleForgot = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+    setForgotLoading(true);
+    setForgotError(null);
+    try {
+      const res = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      if (!res.ok) throw new Error('요청 실패');
+      setForgotDone(true);
+    } catch {
+      setForgotError('요청 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleAuth = async (e: FormEvent) => {
     e.preventDefault();
@@ -133,6 +160,78 @@ const Login = () => {
               </button>
             </div>
           </div>
+
+          {/* 비밀번호 찾기 버튼 */}
+          <div className="text-right -mt-2">
+            <button
+              type="button"
+              onClick={() => { setShowForgot(v => !v); setForgotDone(false); setForgotError(null); }}
+              className="text-[11px] font-bold text-on-surface-variant/40 hover:text-primary transition-colors"
+            >
+              비밀번호를 잊으셨나요?
+            </button>
+          </div>
+
+          {/* 비밀번호 재설정 인라인 섹션 */}
+          <AnimatePresence>
+            {showForgot && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl space-y-4">
+                  <div className="flex items-center gap-2">
+                    <KeyRound size={15} className="text-amber-600 shrink-0" />
+                    <p className="text-xs font-black text-amber-800">비밀번호 재설정 링크를 이메일로 발송합니다</p>
+                  </div>
+
+                  {forgotDone ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="flex items-center gap-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl"
+                    >
+                      <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                      <p className="text-xs font-bold text-emerald-700">
+                        이메일을 발송했습니다. 받은 편지함을 확인해주세요.
+                      </p>
+                    </motion.div>
+                  ) : (
+                    <form onSubmit={handleForgot} className="flex gap-2">
+                      <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-amber-400">
+                          <Mail size={15} />
+                        </div>
+                        <input
+                          type="email"
+                          required
+                          value={forgotEmail}
+                          onChange={e => setForgotEmail(e.target.value)}
+                          placeholder="가입한 이메일 주소"
+                          className="w-full pl-10 pr-3 py-3 bg-white border border-amber-200 rounded-xl text-sm font-medium outline-none focus:border-amber-400 transition-colors"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={forgotLoading}
+                        className="px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-colors flex items-center gap-1.5 shrink-0"
+                      >
+                        {forgotLoading ? <Loader2 size={13} className="animate-spin" /> : <ArrowRight size={13} />}
+                        발송
+                      </button>
+                    </form>
+                  )}
+
+                  {forgotError && (
+                    <p className="text-xs font-bold text-red-500">{forgotError}</p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <button
             type="submit"
