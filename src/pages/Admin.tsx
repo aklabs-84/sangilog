@@ -195,6 +195,10 @@ const Admin = () => {
   const [annContent, setAnnContent]       = useState('');
   const [annSaving, setAnnSaving]         = useState(false);
 
+  // ── 사용자 삭제 ─────────────────────────────────────────────────────────────
+  const [userDeleteConfirm, setUserDeleteConfirm] = useState<string | null>(null);
+  const [userDeleting, setUserDeleting]           = useState<string | null>(null);
+
   // ── 버그신고 ────────────────────────────────────────────────────────────────
   const [bugs, setBugs]               = useState<any[]>([]);
   const [bugsLoading, setBugsLoading] = useState(false);
@@ -369,6 +373,28 @@ const Admin = () => {
       .order('created_at', { ascending: false });
     if (data) setBugs(data);
     setBugsLoading(false);
+  };
+
+  const deleteUser = async (userId: string) => {
+    setUserDeleting(userId);
+    try {
+      const res = await fetch('/api/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(`삭제 실패: ${data.error}`);
+        return;
+      }
+      setUsers(prev => prev.filter(u => u.id !== userId));
+    } catch {
+      alert('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setUserDeleting(null);
+      setUserDeleteConfirm(null);
+    }
   };
 
   const updateBugStatus = async (id: string, status: string) => {
@@ -807,24 +833,74 @@ const Admin = () => {
               const aiToday = u.ai_daily_date === today ? (u.ai_daily_count ?? 0) : 0;
               const planInfo = PLAN_OPTIONS.find(p => p.value === u.plan) ?? PLAN_OPTIONS[0];
               return (
-                <div key={u.id} className="bg-white rounded-2xl border border-amber-100 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-black text-amber-900 text-sm">{u.full_name || '이름 없음'}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${planInfo.color}`}>{planInfo.label}</span>
+                <div key={u.id} className={`bg-white rounded-2xl border p-5 flex flex-col gap-3 transition-all ${userDeleteConfirm === u.id ? 'border-red-300 bg-red-50/30' : 'border-amber-100'}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-black text-amber-900 text-sm">{u.full_name || '이름 없음'}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${planInfo.color}`}>{planInfo.label}</span>
+                      </div>
+                      <p className="text-xs text-amber-600/70 font-mono">{u.email}</p>
+                      {u.school_name && <p className="text-xs text-amber-500 mt-0.5">{u.school_name}</p>}
+                      {u.plan === 'free' && <p className="text-xs text-gray-400 mt-1">오늘 AI 사용: {aiToday} / 10회</p>}
                     </div>
-                    <p className="text-xs text-amber-600/70 font-mono">{u.email}</p>
-                    {u.school_name && <p className="text-xs text-amber-500 mt-0.5">{u.school_name}</p>}
-                    {u.plan === 'free' && <p className="text-xs text-gray-400 mt-1">오늘 AI 사용: {aiToday} / 10회</p>}
+                    <div className="flex items-center gap-2">
+                      <Crown size={14} className="text-amber-400 shrink-0" />
+                      <select value={u.plan ?? 'free'} onChange={e => updateUserPlan(u.id, e.target.value)} disabled={planUpdating === u.id}
+                        className="text-sm font-bold border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-50">
+                        {PLAN_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                      </select>
+                      {planUpdating === u.id && <Loader2 size={14} className="animate-spin text-amber-400" />}
+                      {/* 삭제 버튼 */}
+                      <button
+                        onClick={() => setUserDeleteConfirm(userDeleteConfirm === u.id ? null : u.id)}
+                        className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                        title="회원 탈퇴 처리"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Crown size={14} className="text-amber-400 shrink-0" />
-                    <select value={u.plan ?? 'free'} onChange={e => updateUserPlan(u.id, e.target.value)} disabled={planUpdating === u.id}
-                      className="text-sm font-bold border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-50">
-                      {PLAN_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                    </select>
-                    {planUpdating === u.id && <Loader2 size={14} className="animate-spin text-amber-400" />}
-                  </div>
+
+                  {/* 인라인 삭제 확인 */}
+                  <AnimatePresence>
+                    {userDeleteConfirm === u.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="flex items-center justify-between gap-3 pt-3 border-t border-red-200">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle size={14} className="text-red-500 shrink-0" />
+                            <p className="text-xs font-bold text-red-700">
+                              <span className="font-black">{u.full_name || u.email}</span> 계정을 완전히 삭제합니다.<br />
+                              <span className="font-normal text-red-500">auth.users · profiles · 관련 데이터 모두 삭제됩니다. 되돌릴 수 없습니다.</span>
+                            </p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              onClick={() => setUserDeleteConfirm(null)}
+                              className="px-3 py-1.5 text-xs font-bold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                            >
+                              취소
+                            </button>
+                            <button
+                              onClick={() => deleteUser(u.id)}
+                              disabled={userDeleting === u.id}
+                              className="px-3 py-1.5 text-xs font-black text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded-xl flex items-center gap-1.5 transition-colors"
+                            >
+                              {userDeleting === u.id
+                                ? <Loader2 size={12} className="animate-spin" />
+                                : <Trash2 size={12} />}
+                              삭제 확인
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               );
             })}
