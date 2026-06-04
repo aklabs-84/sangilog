@@ -1,13 +1,15 @@
 import { useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
-import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, MousePointer2, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, MousePointer2, Loader2, CheckCircle2 } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const setupDone = searchParams.get('setup') === 'done';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -67,6 +69,17 @@ const Login = () => {
             Educator Authentication
           </p>
         </div>
+
+        {setupDone && (
+          <motion.div
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="mb-8 p-5 bg-emerald-50 border-2 border-emerald-100 rounded-2xl text-emerald-700 text-[13px] font-black tracking-tight flex items-center gap-3"
+          >
+            <CheckCircle2 size={18} className="shrink-0" />
+            비밀번호 설정 완료! 이메일과 비밀번호로 로그인해주세요.
+          </motion.div>
+        )}
 
         {error && (
           <motion.div

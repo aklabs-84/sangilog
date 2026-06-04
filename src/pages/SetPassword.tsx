@@ -61,7 +61,9 @@ const SetPassword = () => {
       return;
     }
 
-    navigate('/dashboard');
+    // 비밀번호 설정 후 세션 정리 — 로그인 페이지에서 직접 로그인하도록 유도
+    await supabase.auth.signOut();
+    navigate('/login?setup=done');
   };
 
   if (!sessionReady) {
