@@ -12,7 +12,8 @@ interface AIInsightBannerProps {
 
 const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIInsightBannerProps) => {
   const [insight, setInsight] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [started, setStarted] = useState(false);
 
   const fetchInsight = async () => {
     const allObservations = students.flatMap(s => s.all_observations || []);
@@ -40,19 +41,101 @@ const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIIn
     }
   };
 
-  useEffect(() => {
+  const handleStart = () => {
+    setStarted(true);
     fetchInsight();
+  };
+
+  // className 변경(학급 전환) 시 분석 초기화
+  useEffect(() => {
+    setStarted(false);
+    setInsight('');
+    setLoading(false);
   }, [className]);
 
+  // ── 분석 시작 전 — 대기 화면 ────────────────────────────────────────────
+  if (!started) {
+    const obsCount = students.flatMap(s => s.all_observations || []).length;
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative group mb-10 w-full max-w-3xl mx-auto"
+      >
+        <div className="absolute -inset-1 bg-gradient-to-r from-primary/15 via-secondary/8 to-primary/15 rounded-3xl blur-xl opacity-25" />
+        <div className="relative glass rounded-3xl p-10 md:p-14 border border-white/50 shadow-soft flex flex-col items-center text-center gap-8 overflow-hidden bg-white/60">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/5 rounded-full blur-[80px] translate-y-1/2 -translate-x-1/2" />
+
+          {/* 아이콘 */}
+          <div className="w-20 h-20 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-3xl flex items-center justify-center relative z-10 border border-primary/10">
+            <Sparkles size={36} className="text-primary/50" />
+          </div>
+
+          {/* 설명 */}
+          <div className="space-y-3 z-10">
+            <h3 className="text-2xl font-black tracking-tight">AI 인사이트 분석</h3>
+            <p className="text-base text-on-surface-variant leading-relaxed max-w-md">
+              누적된 관찰기록을 AI가 분석하여 <span className="font-black text-on-surface">학급 현황 인사이트</span>를 생성합니다.
+            </p>
+            {/* 데이터 현황 */}
+            <div className="flex items-center justify-center gap-6 pt-2">
+              <div className="text-center">
+                <p className="text-2xl font-black text-primary">{students.length}</p>
+                <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">학생</p>
+              </div>
+              <div className="w-px h-8 bg-surface-container-high" />
+              <div className="text-center">
+                <p className="text-2xl font-black text-primary">{obsCount}</p>
+                <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">관찰기록</p>
+              </div>
+            </div>
+            {obsCount === 0 && (
+              <p className="text-xs text-on-surface-variant/50 mt-1">
+                관찰기록이 없으면 분석 결과가 제한적일 수 있습니다.
+              </p>
+            )}
+          </div>
+
+          {/* 시작 버튼 */}
+          <button
+            onClick={handleStart}
+            className="relative z-10 flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-primary to-primary-dim text-white rounded-2xl font-black text-sm shadow-xl shadow-primary/25 hover:scale-[1.03] active:scale-95 transition-all"
+          >
+            <Sparkles size={18} />
+            인사이트 분석 시작
+          </button>
+
+          {/* 보조 버튼 */}
+          <div className="flex gap-3 z-10 w-full max-w-sm">
+            <button
+              onClick={onOpenReport}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-surface-container-high rounded-2xl text-xs font-black text-on-surface-variant hover:bg-surface-container transition-all"
+            >
+              <BarChart3 size={14} /> 상세 리포트
+            </button>
+            <button
+              onClick={onOpenChat}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-surface-container-high rounded-2xl text-xs font-black text-on-surface-variant hover:bg-surface-container transition-all"
+            >
+              <MessageSquare size={14} /> AI 질문하기
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // ── 분석 중 / 결과 화면 ──────────────────────────────────────────────────
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="relative group mb-10 w-full max-w-5xl mx-auto"
     >
       {/* Premium Glow Background */}
       <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-secondary/10 to-primary/20 rounded-3xl blur-xl opacity-30 group-hover:opacity-40 transition duration-1000 animate-pulse" />
-      
+
       <div className="relative glass rounded-3xl p-10 md:p-14 border border-white/50 shadow-soft flex flex-col items-center text-center gap-8 overflow-hidden bg-white/50">
         {/* Dynamic Abstract Background Elements */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
@@ -82,11 +165,12 @@ const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIIn
             </div>
             <div className="flex items-center gap-2 text-[9px] font-bold text-on-surface-variant/40 uppercase tracking-widest bg-surface-container/50 px-3 py-1 rounded-full whitespace-nowrap">
               <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
-              업데이트: {new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-              <button 
+              {new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+              <button
                 onClick={fetchInsight}
                 className="ml-1.5 p-1 hover:bg-white rounded-md transition-all active:scale-90"
                 disabled={loading}
+                title="다시 분석"
               >
                 <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
               </button>
@@ -95,18 +179,19 @@ const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIIn
 
           <AnimatePresence mode="wait">
             {loading ? (
-              <motion.div 
+              <motion.div
                 key="loading"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="space-y-2"
               >
+                <p className="text-sm font-bold text-on-surface-variant/50 mb-4">AI가 분석하는 중...</p>
                 <div className="h-6 bg-surface-container/50 rounded-lg w-full lg:w-4/5 animate-pulse mx-auto" />
                 <div className="h-6 bg-surface-container/50 rounded-lg w-3/4 lg:w-1/2 animate-pulse mx-auto" />
               </motion.div>
             ) : (
-              <motion.p 
+              <motion.p
                 key="content"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -120,15 +205,15 @@ const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIIn
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full max-w-xl mx-auto z-10 pt-2">
-          <button 
+          <button
             onClick={onOpenReport}
             className="group/btn flex-1 px-6 py-4 bg-on-surface text-surface rounded-2xl font-black text-xs hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-2.5 shadow-xl shadow-on-surface/10 whitespace-nowrap"
           >
             <span>상세 분석 레포트</span>
             <ArrowRight size={18} className="group-hover/btn:translate-x-1 transition-transform" />
           </button>
-          
-          <button 
+
+          <button
             onClick={onOpenChat}
             className="flex-1 px-6 py-4 bg-white text-on-surface border border-on-surface/10 rounded-2xl font-black text-xs hover:bg-surface-container transition-all flex items-center justify-center gap-2.5 shadow-soft whitespace-nowrap group/chat"
           >
