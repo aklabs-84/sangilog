@@ -41,7 +41,7 @@ const ClassSelector = ({
   };
 
   return (
-    <nav className="w-full glass border-b border-white/10 px-6 py-3 shrink-0 z-50 sticky top-0 shadow-soft backdrop-blur-2xl">
+    <nav className="w-full bg-surface-container-lowest border-b border-surface-container-high px-6 py-3 shrink-0 z-50 sticky top-0 shadow-soft">
       <div className="max-w-[1600px] mx-auto flex items-center gap-6">
         {/* Brand/Label */}
         <div className="hidden lg:flex flex-col items-start shrink-0 mr-2">
@@ -94,10 +94,10 @@ const ClassSelector = ({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.96 }}
                 transition={{ duration: 0.15 }}
-                className="absolute top-full left-0 mt-3 w-72 glass rounded-2xl shadow-elevated border border-white/60 overflow-hidden z-[100]"
+                className="absolute top-full left-0 mt-3 w-72 bg-surface-container-lowest rounded-2xl shadow-elevated border border-surface-container-high overflow-hidden z-[100]"
               >
                 {/* 헤더 */}
-                <div className="px-5 py-3 border-b border-neutral-100/60">
+                <div className="px-5 py-3 border-b border-surface-container-high">
                   <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-[0.2em]">
                     전체 학급 목록 ({classes.length})
                   </p>
@@ -113,7 +113,7 @@ const ClassSelector = ({
                         className={`flex items-center justify-between px-4 py-3 mx-2 rounded-xl transition-all group/item ${
                           isActive
                             ? 'bg-primary/5 border border-primary/15'
-                            : 'hover:bg-surface-container/60 cursor-pointer'
+                            : 'hover:bg-surface-container cursor-pointer'
                         }`}
                         onClick={() => !isActive && handleSelect(c.id)}
                       >
@@ -160,7 +160,7 @@ const ClassSelector = ({
                 </div>
 
                 {/* 푸터 액션 */}
-                <div className="px-4 py-3 border-t border-neutral-100/60 flex gap-2">
+                <div className="px-4 py-3 border-t border-surface-container-high flex gap-2">
                   <button
                     onClick={() => { onCreateClass(); setOpen(false); }}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary text-white rounded-xl text-xs font-black hover:bg-primary/90 active:scale-95 transition-all shadow-md shadow-primary/20"
