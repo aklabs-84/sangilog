@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 
 const Settings = () => {
-  const { user, profile: authProfile, refreshProfile, signOut } = useAuth();
+  const { user, profile: authProfile, loading: authLoading, refreshProfile, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -90,8 +90,11 @@ const Settings = () => {
         avatar_url: authProfile.avatar_url || ''
       });
       setLoading(false);
+    } else if (!authLoading) {
+      // 인증 완료됐지만 프로필이 없는 경우에도 로딩 해제
+      setLoading(false);
     }
-  }, [authProfile]);
+  }, [authProfile, authLoading]);
 
   // Image Optimization (Canvas API)
   const optimizeImage = (file: File): Promise<Blob> => {
