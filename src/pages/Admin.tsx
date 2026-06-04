@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
@@ -152,6 +152,12 @@ const Admin = () => {
   const [noteInputs, setNoteInputs]     = useState<Record<string, string>>({});
   const [copiedId, setCopiedId]         = useState<string | null>(null);
   const [reqPage, setReqPage]           = useState(1);
+
+  // 승인 진행 상태 오버레이
+  type ApprovalStep = 'db' | 'email' | 'done' | 'error';
+  const [approvalProgress, setApprovalProgress] = useState<{
+    step: ApprovalStep; name: string; email: string; message?: string;
+  } | null>(null);
 
   // ── 사용자 ─────────────────────────────────────────────────────────────────
   const [users, setUsers]               = useState<any[]>([]);
@@ -373,6 +379,12 @@ const Admin = () => {
 
   const updateStatus = async (id: string, status: 'approved' | 'rejected') => {
     setActionLoading(id + status);
+    const req = requests.find(r => r.id === id);
+
+    if (status === 'approved' && req) {
+      setApprovalProgress({ step: 'db', name: req.name, email: req.email });
+    }
+
     const { error } = await supabase.from('access_requests')
       .update({ status, admin_note: noteInputs[id] || null, updated_at: new Date().toISOString() })
       .eq('id', id);
@@ -380,27 +392,38 @@ const Admin = () => {
     if (!error) {
       setRequests(prev => prev.map(r => r.id === id ? { ...r, status, admin_note: noteInputs[id] || null } : r));
 
-      if (status === 'approved') {
-        const req = requests.find(r => r.id === id);
-        if (req) {
-          try {
-            const res = await fetch('/api/invite-user', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: req.email, name: req.name }),
+      if (status === 'approved' && req) {
+        setApprovalProgress({ step: 'email', name: req.name, email: req.email });
+        try {
+          const res = await fetch('/api/invite-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: req.email, name: req.name }),
+          });
+          const resData = await res.json();
+          if (!res.ok) {
+            setApprovalProgress({
+              step: 'error', name: req.name, email: req.email,
+              message: `이메일 발송 실패: ${resData.error}`,
             });
-            const resData = await res.json();
-            if (!res.ok) {
-              alert(`승인 완료, 이메일 발송 실패\n이유: ${resData.error}\n수동으로 처리해주세요: ${req.email}`);
-            } else if (resData.type === 'reset') {
-              alert(`이미 계정이 있는 사용자입니다.\n비밀번호 재설정 이메일을 발송했습니다. (${req.email})`);
-            }
-          } catch {
-            alert(`승인 완료, 이메일 발송 실패 (네트워크 오류)\n수동으로 처리해주세요: ${req.email}`);
+          } else {
+            setApprovalProgress({
+              step: 'done', name: req.name, email: req.email,
+              message: resData.type === 'reset' ? '(기존 계정 — 비밀번호 재설정 이메일 발송)' : undefined,
+            });
+            setTimeout(() => setApprovalProgress(null), 4000);
           }
+        } catch {
+          setApprovalProgress({
+            step: 'error', name: req.name, email: req.email,
+            message: '네트워크 오류로 이메일 발송 실패. 수동 처리 필요.',
+          });
         }
       }
+    } else if (error && status === 'approved' && req) {
+      setApprovalProgress({ step: 'error', name: req.name, email: req.email, message: 'DB 업데이트 실패' });
     }
+
     setActionLoading(null);
   };
 
@@ -1041,6 +1064,96 @@ const Admin = () => {
 
       </div>
     </div>
+
+    {/* 승인 진행 오버레이 */}
+    <AnimatePresence>
+      {approvalProgress && (
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 24, scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+          className="fixed bottom-8 right-8 z-[200] w-80 rounded-2xl shadow-2xl border border-gray-100 overflow-hidden bg-white"
+        >
+          {/* 헤더 */}
+          <div className={`px-5 py-3.5 flex items-center gap-2.5 ${
+            approvalProgress.step === 'error' ? 'bg-red-500' :
+            approvalProgress.step === 'done'  ? 'bg-emerald-500' : 'bg-amber-500'
+          }`}>
+            {approvalProgress.step === 'done' ? (
+              <CheckCircle2 size={16} className="text-white" />
+            ) : approvalProgress.step === 'error' ? (
+              <XCircle size={16} className="text-white" />
+            ) : (
+              <Loader2 size={16} className="text-white animate-spin" />
+            )}
+            <p className="text-white font-black text-sm">
+              {approvalProgress.step === 'done'  ? '승인 완료!' :
+               approvalProgress.step === 'error' ? '오류 발생' : '승인 처리 중...'}
+            </p>
+          </div>
+
+          {/* 스텝 목록 */}
+          <div className="px-5 py-4 space-y-3">
+            {/* Step 1: DB */}
+            <div className="flex items-center gap-3">
+              {approvalProgress.step === 'db' ? (
+                <Loader2 size={15} className="text-amber-500 animate-spin shrink-0" />
+              ) : (
+                <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+              )}
+              <div>
+                <p className={`text-xs font-bold ${approvalProgress.step === 'db' ? 'text-amber-600' : 'text-emerald-600'}`}>
+                  신청 DB 승인
+                </p>
+              </div>
+            </div>
+
+            {/* Step 2: Email */}
+            <div className="flex items-center gap-3">
+              {approvalProgress.step === 'db' ? (
+                <div className="w-[15px] h-[15px] rounded-full border-2 border-gray-200 shrink-0" />
+              ) : approvalProgress.step === 'email' ? (
+                <Loader2 size={15} className="text-amber-500 animate-spin shrink-0" />
+              ) : approvalProgress.step === 'error' ? (
+                <XCircle size={15} className="text-red-400 shrink-0" />
+              ) : (
+                <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+              )}
+              <div>
+                <p className={`text-xs font-bold ${
+                  approvalProgress.step === 'db'    ? 'text-gray-300' :
+                  approvalProgress.step === 'email' ? 'text-amber-600' :
+                  approvalProgress.step === 'error' ? 'text-red-400' : 'text-emerald-600'
+                }`}>
+                  {approvalProgress.step === 'email' ? '승인 이메일 발송 중...' : '승인 이메일 발송'}
+                </p>
+              </div>
+            </div>
+
+            {/* 대상자 정보 */}
+            <div className="pt-2 border-t border-gray-100 space-y-0.5">
+              <p className="text-xs font-black text-gray-700">{approvalProgress.name} 선생님</p>
+              <p className="text-[11px] text-gray-400 font-mono">{approvalProgress.email}</p>
+              {approvalProgress.message && (
+                <p className={`text-[11px] font-bold mt-1 ${
+                  approvalProgress.step === 'error' ? 'text-red-500' : 'text-amber-600'
+                }`}>{approvalProgress.message}</p>
+              )}
+            </div>
+
+            {approvalProgress.step === 'error' && (
+              <button
+                onClick={() => setApprovalProgress(null)}
+                className="w-full py-2 text-xs font-bold text-red-500 border border-red-200 rounded-xl hover:bg-red-50 transition-colors"
+              >
+                닫기
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 
