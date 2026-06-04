@@ -195,7 +195,7 @@ const Admin = () => {
   // ── Auth Guard ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!authLoading && profile && !profile.is_admin) navigate('/dashboard');
+    if (!authLoading && (!profile || !profile.is_admin)) navigate('/dashboard');
   }, [authLoading, profile, navigate]);
 
   // ── 탭 전환 시 로드 ────────────────────────────────────────────────────────
