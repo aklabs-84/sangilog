@@ -14,25 +14,45 @@ const SetPassword = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Supabase v2: URL 해시의 access_token을 자동으로 세션으로 변환
+    const searchParams = new URLSearchParams(window.location.search);
+    const tokenHash = searchParams.get('token_hash');
+    const tokenType = searchParams.get('type') as 'invite' | 'recovery' | null;
+
+    if (tokenHash && tokenType) {
+      // 초대/복구 token_hash 직접 교환 (Supabase redirect_to 경유 없음)
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: tokenType })
+        .then(({ data, error: otpError }) => {
+          if (!otpError && data.session) {
+            setSessionReady(true);
+            // URL 정리 (토큰 파라미터 제거)
+            window.history.replaceState({}, '', '/set-password');
+          } else {
+            console.error('[set-password] verifyOtp error:', otpError?.message);
+            setError('인증 링크가 만료되었거나 유효하지 않습니다. 관리자에게 재발급을 요청해주세요.');
+            setTimeout(() => navigate('/login'), 3000);
+          }
+        });
+      return;
+    }
+
+    // 기존 세션 감지 (해시 기반 토큰, 이미 세션 있는 경우)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setSessionReady(true);
-      }
+      if (session) setSessionReady(true);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       if (session) setSessionReady(true);
     });
 
-    // 해시도 없고 세션도 없으면 로그인으로
     const timer = setTimeout(() => {
       supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session && !window.location.hash.includes('access_token')) {
+        const hasToken = window.location.hash.includes('access_token') ||
+                         new URLSearchParams(window.location.search).has('code');
+        if (!session && !hasToken) {
           navigate('/login');
         }
       });
-    }, 2000);
+    }, 3000);
 
     return () => {
       subscription.unsubscribe();

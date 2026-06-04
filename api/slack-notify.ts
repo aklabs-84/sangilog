@@ -5,8 +5,10 @@ export default async function handler(req: any, res: any) {
 
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
   if (!webhookUrl) {
+    console.error('[slack-notify] SLACK_WEBHOOK_URL env var is not set');
     return res.status(500).json({ error: 'SLACK_WEBHOOK_URL not configured' });
   }
+  console.log('[slack-notify] sending to webhook, email:', req.body?.email);
 
   const { name, email, school_name, role, message } = req.body;
 
