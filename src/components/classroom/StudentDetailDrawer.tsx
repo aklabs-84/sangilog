@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Sparkles, User as UserIcon, BookOpen, Clock, Activity, FileText, CheckCircle2,
   FolderOpen, AlignLeft, Link2, ImageIcon, File, Upload, ExternalLink, Megaphone, MessageSquare, Loader2,
-  Reply, Send, XCircle, MessageCircle, Check
+  Reply, Send, XCircle, MessageCircle, Check, AlertTriangle
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -326,11 +326,26 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                               )}
                             </div>
                             <p className="text-sm font-black text-on-surface/80">{obs.activity_name}</p>
-                            {/* AI 검토 사유 표시 */}
+                            {/* AI 검토 권장 카드 */}
                             {obs.ai_concern && (
-                              <p className="mt-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 flex items-start gap-1">
-                                <span className="shrink-0">⚠️</span> {obs.ai_concern}
-                              </p>
+                              <div className="mt-2 rounded-xl border-2 border-amber-300 bg-amber-50 overflow-hidden">
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border-b border-amber-200">
+                                  <AlertTriangle size={11} className="text-amber-600 shrink-0" />
+                                  <span className="text-[9px] font-black text-amber-800 uppercase tracking-widest flex-1">AI 검토 권장</span>
+                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                                    obs.status === 'approved'
+                                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                      : obs.status === 'rejected'
+                                      ? 'bg-red-100 text-red-600 border-red-200'
+                                      : 'bg-amber-200 text-amber-700 border-amber-300'
+                                  }`}>
+                                    {obs.status === 'approved' && '✓ 승인됨'}
+                                    {obs.status === 'rejected' && '✕ 반려됨'}
+                                    {obs.status === 'pending'  && '⏳ 대기'}
+                                  </span>
+                                </div>
+                                <p className="px-3 py-2 text-[11px] font-bold text-amber-900 leading-relaxed">{obs.ai_concern}</p>
+                              </div>
                             )}
                             {/* 기존 피드백 표시 */}
                             {obs.teacher_feedback && obs.status === 'rejected' && (
