@@ -4,18 +4,18 @@ import { useAuth } from '../lib/auth';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeMode } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  User, 
-  Camera, 
-  School, 
-  Globe, 
-  LogOut, 
-  Moon, 
+import {
+  User,
+  Camera,
+  School,
+  Globe,
+  LogOut,
+  Moon,
   Sun,
   Monitor,
-  Info, 
-  Check, 
-  X, 
+  Info,
+  Check,
+  X,
   Loader2,
   Upload,
   ExternalLink,
@@ -25,7 +25,11 @@ import {
   Trash2,
   Crown,
   Zap,
-  Sparkles
+  Sparkles,
+  Mic,
+  Eye,
+  EyeOff,
+  KeyRound,
 } from 'lucide-react';
 
 const Settings = () => {
@@ -51,6 +55,26 @@ const Settings = () => {
     school_code: '',
     avatar_url: ''
   });
+
+  // Groq API Key (localStorage)
+  const [groqKey, setGroqKey]           = useState('');
+  const [groqKeySaved, setGroqKeySaved] = useState(false);
+  const [showGroqKey, setShowGroqKey]   = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('groq_api_key') || '';
+    setGroqKey(saved);
+  }, []);
+
+  const saveGroqKey = () => {
+    if (groqKey.trim()) {
+      localStorage.setItem('groq_api_key', groqKey.trim());
+    } else {
+      localStorage.removeItem('groq_api_key');
+    }
+    setGroqKeySaved(true);
+    setTimeout(() => setGroqKeySaved(false), 2000);
+  };
 
   const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
   const [schoolAction, setSchoolAction] = useState<'create' | 'join'>('create');
@@ -598,6 +622,76 @@ const Settings = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── AI 전사 설정 (Groq API Key) ── */}
+      <div className="surface-card shadow-ambient overflow-hidden">
+        <div className="px-5 md:px-10 py-4 md:py-6 border-b border-surface-container bg-surface-container-low/30 flex items-center gap-3">
+          <Mic size={22} className="text-primary" />
+          <div>
+            <h3 className="text-lg font-bold">AI 전사 설정</h3>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              Groq API Key를 등록하면 Web Speech 대비 훨씬 높은 품질의 한국어 전사가 가능합니다
+            </p>
+          </div>
+        </div>
+        <div className="px-5 md:px-10 py-6 space-y-4">
+          <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/15">
+            <KeyRound size={16} className="text-primary mt-0.5 shrink-0" />
+            <div className="text-xs text-on-surface-variant leading-relaxed">
+              <span className="font-bold text-primary">Groq Whisper large-v3</span> 사용 — 무료 API Key 발급:{' '}
+              <span className="font-mono text-primary">console.groq.com</span> 에서 가입 후 발급
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+              Groq API Key
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showGroqKey ? 'text' : 'password'}
+                  value={groqKey}
+                  onChange={e => setGroqKey(e.target.value)}
+                  placeholder="gsk_xxxxxxxxxxxxxxxxxxxx"
+                  className="w-full px-4 py-3 pr-10 bg-surface-container rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-primary/20 border border-transparent focus:border-primary/30"
+                />
+                <button
+                  onClick={() => setShowGroqKey(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-on-surface-variant transition-colors"
+                >
+                  {showGroqKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+              <button
+                onClick={saveGroqKey}
+                className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                  groqKeySaved
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-primary text-white hover:bg-primary/90 active:scale-95'
+                }`}
+              >
+                {groqKeySaved ? <Check size={15} /> : <KeyRound size={15} />}
+                {groqKeySaved ? '저장됨' : '저장'}
+              </button>
+            </div>
+            <p className="text-[11px] text-on-surface-variant/60">
+              키는 이 기기의 브라우저에만 저장됩니다. 등록 후 수업 도구 → 수업 전사에서 자동으로 적용됩니다.
+            </p>
+            {groqKey && !groqKey.startsWith('gsk_') && (
+              <p className="text-[11px] text-amber-600 font-bold">
+                Groq API Key는 보통 "gsk_"로 시작합니다. 키를 다시 확인해주세요.
+              </p>
+            )}
+            {localStorage.getItem('groq_api_key') && (
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                <span className="text-[11px] text-green-600 font-bold">Groq Whisper 모드 활성화됨</span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Action Footer */}

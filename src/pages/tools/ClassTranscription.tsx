@@ -6,7 +6,7 @@ import { geminiPro } from '../../lib/gemini';
 import {
   Mic, Square, Loader2, ChevronDown, ChevronUp,
   Check, Users, BarChart3, MessageSquare, AlertCircle,
-  Plus, Sparkles, RefreshCw, BookOpen,
+  Plus, Sparkles, RefreshCw, BookOpen, Zap,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -56,6 +56,9 @@ const PARTICIPATION_STYLE: Record<string, string> = {
   '소극적': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 };
 
+const GROQ_CHUNK_MS = 15000; // 15초마다 Groq 전송
+const GROQ_API_URL  = 'https://api.groq.com/openai/v1/audio/transcriptions';
+
 // ── Score Bar ─────────────────────────────────────────────────────────────────
 
 const ScoreBar = ({ label, score }: { label: string; score: number }) => (
@@ -82,28 +85,47 @@ const ScoreBar = ({ label, score }: { label: string; score: number }) => (
 const ClassTranscription = () => {
   const { user } = useAuth();
 
-  const [classes, setClasses]               = useState<any[]>([]);
-  const [students, setStudents]             = useState<any[]>([]);
+  // ── Data ───────────────────────────────────────────────────────────────────
+  const [classes, setClasses]                 = useState<any[]>([]);
+  const [students, setStudents]               = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState('');
-  const [status, setStatus]                 = useState<RecordingStatus>('idle');
-  const [transcript, setTranscript]         = useState('');
-  const [interimText, setInterimText]       = useState('');
+
+  // ── Recording state ────────────────────────────────────────────────────────
+  const [status, setStatus]           = useState<RecordingStatus>('idle');
+  const [transcript, setTranscript]   = useState('');
+  const [interimText, setInterimText] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isChunkProcessing, setIsChunkProcessing] = useState(false);
+
+  // ── Result state ───────────────────────────────────────────────────────────
   const [activeTab, setActiveTab]           = useState<ResultTab>('students');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [showFullTranscript, setShowFullTranscript] = useState(false);
   const [errorMsg, setErrorMsg]             = useState('');
 
-  const recognitionRef   = useRef<any>(null);
-  const isRecordingRef   = useRef(false);
-  const transcriptRef    = useRef('');
-  const timerRef         = useRef<ReturnType<typeof setInterval> | null>(null);
-  const transcriptEndRef = useRef<HTMLDivElement>(null);
+  // ── Refs ───────────────────────────────────────────────────────────────────
+  const isRecordingRef     = useRef(false);
+  const transcriptRef      = useRef('');
+  const timerRef           = useRef<ReturnType<typeof setInterval> | null>(null);
+  const transcriptEndRef   = useRef<HTMLDivElement>(null);
 
-  const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  // Web Speech API refs
+  const recognitionRef = useRef<any>(null);
+
+  // Groq / MediaRecorder refs
+  const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
+  const streamRef         = useRef<MediaStream | null>(null);
+  const chunkTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopRequestedRef  = useRef(false);
+  const chunkBlobsRef     = useRef<Blob[]>([]);
+
+  // ── Mode detection ─────────────────────────────────────────────────────────
+  const groqKey      = localStorage.getItem('groq_api_key') || '';
+  const useGroqMode  = !!groqKey;
+  const SpeechAPI    = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const isSpeechSupported = !!SpeechAPI;
 
-  // ── Data Fetching ───────────────────────────────────────────────────────────
+  // ── Fetch ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     (async () => {
@@ -118,15 +140,14 @@ const ClassTranscription = () => {
       }
     })();
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (recognitionRef.current) {
-        isRecordingRef.current = false;
-        recognitionRef.current.stop();
-      }
+      stopTimer();
+      isRecordingRef.current = false;
+      recognitionRef.current?.stop();
+      mediaRecorderRef.current?.stop();
+      streamRef.current?.getTracks().forEach(t => t.stop());
     };
   }, []);
 
-  // Auto-scroll live transcript
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcript, interimText]);
@@ -148,7 +169,7 @@ const ClassTranscription = () => {
     resetAll();
   };
 
-  // ── Timer ───────────────────────────────────────────────────────────────────
+  // ── Timer ─────────────────────────────────────────────────────────────────
 
   const startTimer = () => {
     setElapsedSeconds(0);
@@ -162,62 +183,183 @@ const ClassTranscription = () => {
   const formatTime = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-  // ── Speech Recognition ──────────────────────────────────────────────────────
+  // ── Web Speech API (Bug Fixed — 새 인스턴스 생성 방식) ────────────────────
 
-  const startRecording = useCallback(() => {
+  const startWebSpeech = useCallback(() => {
     if (!SpeechAPI) return;
 
-    const recognition = new SpeechAPI();
-    recognition.continuous     = true;
-    recognition.interimResults = true;
-    recognition.lang           = 'ko-KR';
+    const createInstance = (): any => {
+      const rec = new SpeechAPI();
+      rec.continuous     = true;
+      rec.interimResults = true;
+      rec.lang           = 'ko-KR';
 
-    recognition.onresult = (event: any) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const text = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          transcriptRef.current += text + ' ';
-          setTranscript(transcriptRef.current);
-        } else {
-          interim += text;
+      rec.onresult = (event: any) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const text = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            transcriptRef.current += text + ' ';
+            setTranscript(transcriptRef.current);
+          } else {
+            interim += text;
+          }
         }
-      }
-      setInterimText(interim);
+        setInterimText(interim);
+      };
+
+      // 새 인스턴스를 생성해서 재시작 — 기존 인스턴스 재사용 시 Chrome 중복 버그 방지
+      rec.onend = () => {
+        setInterimText('');
+        if (isRecordingRef.current) {
+          recognitionRef.current = createInstance();
+        }
+      };
+
+      rec.onerror = (e: any) => {
+        if (e.error === 'no-speech') return;
+        if (e.error === 'not-allowed') {
+          isRecordingRef.current = false;
+          stopTimer();
+          setStatus('error');
+          setErrorMsg('마이크 접근 권한이 필요합니다. 브라우저 설정에서 마이크를 허용해주세요.');
+        }
+      };
+
+      rec.start();
+      return rec;
     };
 
-    // Auto-restart on unexpected stop (e.g., silence timeout)
-    recognition.onend = () => {
-      setInterimText('');
-      if (isRecordingRef.current) {
-        try { recognition.start(); } catch { /* already started */ }
-      }
-    };
-
-    recognition.onerror = (e: any) => {
-      if (e.error === 'no-speech') return; // normal pause, onend handles restart
-      if (e.error === 'not-allowed') {
-        isRecordingRef.current = false;
-        stopTimer();
-        setStatus('error');
-        setErrorMsg('마이크 접근 권한이 필요합니다. 브라우저 설정에서 마이크를 허용해주세요.');
-      }
-    };
-
-    recognitionRef.current = recognition;
-    isRecordingRef.current = true;
-    transcriptRef.current  = '';
+    isRecordingRef.current  = true;
+    transcriptRef.current   = '';
     setTranscript('');
     setInterimText('');
     setStatus('recording');
-    recognition.start();
+    recognitionRef.current = createInstance();
     startTimer();
   }, [SpeechAPI]);
 
-  const stopRecording = useCallback(async () => {
+  const stopWebSpeech = useCallback(async () => {
     isRecordingRef.current = false;
     recognitionRef.current?.stop();
     stopTimer();
+    setInterimText('');
+    await finalize();
+  }, []);
+
+  // ── Groq Whisper Mode (MediaRecorder + 15초 청크) ─────────────────────────
+
+  const transcribeChunk = async (blob: Blob): Promise<void> => {
+    if (blob.size < 1000) return; // 너무 짧은 청크 무시
+    setIsChunkProcessing(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', blob, 'audio.webm');
+      formData.append('model', 'whisper-large-v3');
+      formData.append('language', 'ko');
+      formData.append('response_format', 'text');
+
+      const res = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${groqKey}` },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const text = (await res.text()).trim();
+        if (text) {
+          transcriptRef.current += text + ' ';
+          setTranscript(transcriptRef.current);
+        }
+      } else if (res.status === 401) {
+        isRecordingRef.current = false;
+        stopTimer();
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        setStatus('error');
+        setErrorMsg('Groq API Key가 올바르지 않습니다. 설정에서 키를 확인해주세요.');
+      }
+    } catch {
+      // 네트워크 오류 — 해당 청크 건너뜀, 계속 진행
+    } finally {
+      setIsChunkProcessing(false);
+    }
+  };
+
+  const startNextChunk = (stream: MediaStream) => {
+    if (!isRecordingRef.current) return;
+
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm')
+      ? 'audio/webm'
+      : 'audio/ogg';
+
+    chunkBlobsRef.current = [];
+    const recorder = new MediaRecorder(stream, { mimeType });
+
+    recorder.ondataavailable = e => {
+      if (e.data.size > 0) chunkBlobsRef.current.push(e.data);
+    };
+
+    recorder.onstop = async () => {
+      const blob = new Blob(chunkBlobsRef.current, { type: mimeType });
+      await transcribeChunk(blob);
+
+      if (stopRequestedRef.current) {
+        stopRequestedRef.current = false;
+        await finalize();
+      } else if (isRecordingRef.current) {
+        startNextChunk(stream);
+      }
+    };
+
+    recorder.start(500); // 500ms마다 ondataavailable 발생
+    mediaRecorderRef.current = recorder;
+
+    chunkTimerRef.current = setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop();
+    }, GROQ_CHUNK_MS);
+  };
+
+  const startGroqRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current       = stream;
+      isRecordingRef.current  = true;
+      stopRequestedRef.current = false;
+      transcriptRef.current   = '';
+      setTranscript('');
+      setInterimText('');
+      setStatus('recording');
+      startTimer();
+      startNextChunk(stream);
+    } catch {
+      setStatus('error');
+      setErrorMsg('마이크 접근 권한이 필요합니다. 브라우저 설정에서 마이크를 허용해주세요.');
+    }
+  };
+
+  const stopGroqRecording = () => {
+    isRecordingRef.current = false;
+    if (chunkTimerRef.current) { clearTimeout(chunkTimerRef.current); chunkTimerRef.current = null; }
+    stopTimer();
+    setInterimText('마지막 구간 변환 중...');
+
+    if (mediaRecorderRef.current?.state === 'recording') {
+      stopRequestedRef.current = true;
+      mediaRecorderRef.current.stop();
+      // onstop → transcribeChunk → finalize 로 이어짐
+    } else {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      setInterimText('');
+      finalize();
+    }
+  };
+
+  // ── 공통 종료 처리 ─────────────────────────────────────────────────────────
+
+  const finalize = async () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
     setInterimText('');
 
     const finalText = transcriptRef.current.trim();
@@ -227,9 +369,21 @@ const ClassTranscription = () => {
     }
     setStatus('processing');
     await analyzeTranscript(finalText);
-  }, []); // analyzeTranscript uses refs + state at call time
+  };
 
-  // ── Gemini Analysis ─────────────────────────────────────────────────────────
+  // ── 통합 시작/중지 ─────────────────────────────────────────────────────────
+
+  const startRecording = () => {
+    if (useGroqMode) startGroqRecording();
+    else startWebSpeech();
+  };
+
+  const stopRecording = () => {
+    if (useGroqMode) stopGroqRecording();
+    else stopWebSpeech();
+  };
+
+  // ── Gemini 분석 ────────────────────────────────────────────────────────────
 
   const analyzeTranscript = async (transcriptText: string) => {
     try {
@@ -298,9 +452,7 @@ ${transcriptText}
 
       const response = await geminiPro.generateContent(prompt);
       const raw      = response.response.text().trim();
-
-      // Strip markdown code blocks if present
-      const jsonStr = raw
+      const jsonStr  = raw
         .replace(/^```json\s*/m, '')
         .replace(/^```\s*/m, '')
         .replace(/\s*```$/m, '')
@@ -308,7 +460,6 @@ ${transcriptText}
 
       const parsed: AnalysisResult = JSON.parse(jsonStr);
       parsed.studentObservations = parsed.studentObservations.map(o => ({ ...o, saved: false }));
-
       setAnalysisResult(parsed);
       setStatus('complete');
     } catch (err) {
@@ -318,11 +469,23 @@ ${transcriptText}
     }
   };
 
-  // ── Save Observation ────────────────────────────────────────────────────────
+  // ── 저장 (이름 매칭 개선 + 오류 피드백) ──────────────────────────────────
+
+  const findStudent = (name: string) =>
+    students.find(s =>
+      s.full_name === name ||
+      s.full_name.includes(name) ||
+      name.includes(s.full_name)
+    );
 
   const saveObservation = async (obs: StudentObservation) => {
-    const student = students.find(s => s.full_name === obs.name);
-    if (!student || obs.saved) return;
+    if (obs.saved) return;
+
+    const student = findStudent(obs.name);
+    if (!student) {
+      alert(`'${obs.name}' 학생을 명단에서 찾을 수 없습니다.\nAI가 반환한 이름과 등록된 이름이 다를 수 있습니다.`);
+      return;
+    }
 
     const content = [
       obs.summary,
@@ -368,39 +531,54 @@ ${transcriptText}
     transcriptRef.current = '';
   };
 
-  // ── Average Score ───────────────────────────────────────────────────────────
-
   const avgScore = (ev: ClassEvaluation) => {
     const sum = EVAL_ITEMS.reduce((acc, { key }) => acc + (ev[key] as number), 0);
     return (sum / EVAL_ITEMS.length).toFixed(1);
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6 max-w-4xl">
 
-      {/* Browser compatibility notice */}
-      {!isSpeechSupported && (
+      {/* 브라우저 호환 안내 */}
+      {!isSpeechSupported && !useGroqMode && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
           <AlertCircle size={18} className="text-amber-500 mt-0.5 shrink-0" />
           <div>
-            <p className="text-sm font-black text-amber-800">Chrome 브라우저가 필요합니다</p>
+            <p className="text-sm font-black text-amber-800">Chrome 브라우저 또는 Groq API Key가 필요합니다</p>
             <p className="text-xs text-amber-600 mt-0.5">
-              수업 전사 기능은 Google Chrome에서만 지원됩니다. Chrome으로 접속 후 사용해주세요.
+              기본 전사는 Chrome에서만 지원됩니다. 또는 설정에서 Groq API Key를 등록하면 모든 브라우저에서 고품질 전사가 가능합니다.
             </p>
           </div>
         </div>
       )}
 
-      {/* ── Class Selector (idle/error only) ── */}
+      {/* 전사 모드 뱃지 */}
+      <div className="flex items-center gap-2">
+        {useGroqMode ? (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-700 rounded-full text-xs font-black border border-violet-200">
+            <Zap size={12} />
+            Groq Whisper — 고품질 AI 전사
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container text-on-surface-variant rounded-full text-xs font-bold">
+            <Mic size={12} />
+            기본 전사 모드 (Chrome)
+          </span>
+        )}
+        {useGroqMode && (
+          <span className="text-[11px] text-on-surface-variant/60">15초 단위로 변환됩니다</span>
+        )}
+      </div>
+
+      {/* 학급 선택 */}
       {(status === 'idle' || status === 'error') && (
         <div className="surface-card p-6 shadow-ambient space-y-4">
           <h3 className="text-base font-black flex items-center gap-2">
             <Users size={18} className="text-primary" />
             수업 설정
           </h3>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">학급 선택</label>
@@ -424,7 +602,6 @@ ${transcriptText}
               </div>
             </div>
           </div>
-
           {students.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {students.map(s => (
@@ -437,7 +614,7 @@ ${transcriptText}
         </div>
       )}
 
-      {/* ── Recording Panel ── */}
+      {/* 녹음 패널 */}
       <div className="surface-card p-6 shadow-ambient">
 
         {/* Idle */}
@@ -449,15 +626,14 @@ ${transcriptText}
             <div className="text-center space-y-1">
               <h3 className="text-xl font-black">수업 전사 준비 완료</h3>
               <p className="text-sm text-on-surface-variant">
-                시작 버튼을 누르면 마이크가 켜지며 자동으로 전사됩니다
-              </p>
-              <p className="text-[11px] text-on-surface-variant/50">
-                수업 중 말하는 모든 내용이 실시간으로 텍스트로 변환됩니다
+                {useGroqMode
+                  ? 'Groq Whisper 모드 — 15초마다 자동으로 고품질 변환합니다'
+                  : '시작 버튼을 누르면 마이크가 켜지며 자동으로 전사됩니다'}
               </p>
             </div>
             <button
               onClick={startRecording}
-              disabled={!isSpeechSupported || !selectedClassId || students.length === 0}
+              disabled={(!isSpeechSupported && !useGroqMode) || !selectedClassId || students.length === 0}
               className="btn-gradient px-10 py-4 rounded-2xl font-black text-base flex items-center gap-3 shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Mic size={20} />
@@ -482,6 +658,12 @@ ${transcriptText}
                 <span className="font-mono text-sm font-black text-on-surface-variant tabular-nums">
                   {formatTime(elapsedSeconds)}
                 </span>
+                {useGroqMode && isChunkProcessing && (
+                  <span className="flex items-center gap-1 text-[11px] text-violet-600 font-bold">
+                    <Loader2 size={11} className="animate-spin" />
+                    AI 변환 중
+                  </span>
+                )}
               </div>
               <button
                 onClick={stopRecording}
@@ -492,12 +674,16 @@ ${transcriptText}
               </button>
             </div>
 
-            {/* Live transcript */}
+            {/* 실시간 전사 화면 */}
             <div className="bg-surface-container-low rounded-2xl p-4 border border-surface-container min-h-52 max-h-80 overflow-y-auto text-sm leading-loose font-medium">
               {transcript ? (
                 <span className="text-on-surface">{transcript}</span>
               ) : (
-                <span className="text-on-surface-variant/40 italic">말씀하시면 여기에 실시간으로 전사됩니다...</span>
+                <span className="text-on-surface-variant/40 italic">
+                  {useGroqMode
+                    ? '말씀하시면 15초마다 여기에 변환됩니다...'
+                    : '말씀하시면 여기에 실시간으로 전사됩니다...'}
+                </span>
               )}
               {interimText && (
                 <span className="text-on-surface-variant/50 italic"> {interimText}</span>
@@ -543,14 +729,14 @@ ${transcriptText}
         )}
       </div>
 
-      {/* ── Results ── */}
+      {/* 분석 결과 */}
       {status === 'complete' && analysisResult && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4"
         >
-          {/* Result tab bar */}
+          {/* 탭 바 */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex p-1 bg-surface-container rounded-xl gap-1">
               <button
@@ -593,7 +779,7 @@ ${transcriptText}
             )}
           </div>
 
-          {/* Tab: Students */}
+          {/* 학생별 관찰 */}
           {activeTab === 'students' && (
             <div className="space-y-3">
               {analysisResult.studentObservations.map((obs, i) => (
@@ -616,10 +802,13 @@ ${transcriptText}
                             추가 지도 필요
                           </span>
                         )}
+                        {!findStudent(obs.name) && (
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-600">
+                            명단 불일치
+                          </span>
+                        )}
                       </div>
-
                       <p className="text-sm text-on-surface-variant leading-relaxed">{obs.summary}</p>
-
                       {obs.mentions.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 pt-0.5">
                           {obs.mentions.map((m, j) => (
@@ -630,7 +819,6 @@ ${transcriptText}
                         </div>
                       )}
                     </div>
-
                     <button
                       onClick={() => saveObservation(obs)}
                       disabled={obs.saved}
@@ -647,7 +835,6 @@ ${transcriptText}
                 </motion.div>
               ))}
 
-              {/* Not mentioned */}
               {analysisResult.notMentioned.length > 0 && (
                 <div className="p-4 bg-surface-container-low rounded-2xl border border-surface-container">
                   <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-2">
@@ -665,14 +852,13 @@ ${transcriptText}
             </div>
           )}
 
-          {/* Tab: Class Evaluation */}
+          {/* 수업 품질 평가 */}
           {activeTab === 'evaluation' && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="surface-card p-6 shadow-ambient space-y-6"
             >
-              {/* Score bars */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base font-black flex items-center gap-2">
@@ -687,19 +873,13 @@ ${transcriptText}
                     </p>
                   </div>
                 </div>
-
                 <div className="space-y-3 pt-1">
                   {EVAL_ITEMS.map(({ key, label }) => (
-                    <ScoreBar
-                      key={key}
-                      label={label}
-                      score={analysisResult.classEvaluation[key] as number}
-                    />
+                    <ScoreBar key={key} label={label} score={analysisResult.classEvaluation[key] as number} />
                   ))}
                 </div>
               </div>
 
-              {/* Qualitative feedback */}
               <div className="space-y-3 pt-2 border-t border-surface-container">
                 <div className="p-4 bg-green-50 rounded-2xl border border-green-100">
                   <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1.5">잘된 점</p>
@@ -717,7 +897,7 @@ ${transcriptText}
             </motion.div>
           )}
 
-          {/* Full transcript collapsible */}
+          {/* 전체 전사본 */}
           <div className="surface-card shadow-ambient overflow-hidden">
             <button
               onClick={() => setShowFullTranscript(v => !v)}
@@ -751,7 +931,7 @@ ${transcriptText}
             </AnimatePresence>
           </div>
 
-          {/* New session button */}
+          {/* 새 수업 */}
           <div className="flex justify-center pt-2">
             <button
               onClick={resetAll}
