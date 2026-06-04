@@ -389,12 +389,14 @@ const Admin = () => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email: req.email, name: req.name }),
             });
+            const resData = await res.json();
             if (!res.ok) {
-              const data = await res.json();
-              alert(`승인 완료, 초대 이메일 발송 실패\n이유: ${data.error}\n수동으로 계정을 생성해주세요: ${req.email}`);
+              alert(`승인 완료, 이메일 발송 실패\n이유: ${resData.error}\n수동으로 처리해주세요: ${req.email}`);
+            } else if (resData.type === 'reset') {
+              alert(`이미 계정이 있는 사용자입니다.\n비밀번호 재설정 이메일을 발송했습니다. (${req.email})`);
             }
           } catch {
-            alert(`승인 완료, 초대 이메일 발송 실패 (네트워크 오류)\n수동으로 계정을 생성해주세요: ${req.email}`);
+            alert(`승인 완료, 이메일 발송 실패 (네트워크 오류)\n수동으로 처리해주세요: ${req.email}`);
           }
         }
       }

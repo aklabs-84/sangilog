@@ -5,11 +5,12 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const supabaseUrl      = process.env.VITE_SUPABASE_URL;
-  const serviceRoleKey   = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl    = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey        = process.env.VITE_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error('[api/invite-user] Missing env: VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+    console.error('[api/invite-user] Missing env variables');
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
@@ -18,26 +19,46 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
-  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+  const host     = req.headers['x-forwarded-host'] || req.headers.host || 'sangilog.vercel.app';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const siteUrl  = `${protocol}://${host}`;
+
+  const supabaseAdmin  = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const supabasePublic = createClient(supabaseUrl, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // 요청 origin에서 사이트 URL 추출 (로컬/프로덕션 자동 대응)
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'sangilog.vercel.app';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  const siteUrl = `${protocol}://${host}`;
-
+  // 신규 사용자 초대 시도
   const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: name || '' },
     redirectTo: `${siteUrl}/set-password`,
   });
 
   if (error) {
-    console.error('[api/invite-user] error:', error.message);
+    // 이미 계정이 있는 경우 → 비밀번호 재설정 이메일 발송
+    const isAlreadyRegistered =
+      error.status === 422 ||
+      error.message.toLowerCase().includes('already') ||
+      error.message.toLowerCase().includes('registered');
+
+    if (isAlreadyRegistered) {
+      const { error: resetError } = await supabasePublic.auth.resetPasswordForEmail(email, {
+        redirectTo: `${siteUrl}/set-password`,
+      });
+      if (resetError) {
+        console.error('[api/invite-user] resetPassword error:', resetError.message);
+        return res.status(500).json({ error: resetError.message });
+      }
+      return res.status(200).json({ ok: true, type: 'reset' });
+    }
+
+    console.error('[api/invite-user] invite error:', error.message);
     return res.status(500).json({ error: error.message });
   }
 
-  // 트리거가 생성한 profiles 행에 이름을 직접 덮어씀 (트리거 기본값 '사용자' 방지)
+  // 신규 유저: profiles 이름 업데이트 (트리거 기본값 '사용자' 방지)
   if (data.user && name) {
     await supabaseAdmin
       .from('profiles')
@@ -45,5 +66,5 @@ export default async function handler(req: any, res: any) {
       .eq('id', data.user.id);
   }
 
-  return res.status(200).json({ ok: true });
+  return res.status(200).json({ ok: true, type: 'invite' });
 }
