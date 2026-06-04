@@ -391,6 +391,14 @@ const Admin = () => {
     if (!error) {
       setRequests(prev => prev.map(r => r.id === id ? { ...r, status, admin_note: noteInputs[id] || null } : r));
 
+      // 프로필 is_approved 동기화
+      if (req) {
+        const isApproved = status === 'approved';
+        await supabase.from('profiles')
+          .update({ is_approved: isApproved })
+          .eq('email', req.email);
+      }
+
       if (status === 'approved' && req) {
         setApprovalProgress({ step: 'email', name: req.name, email: req.email });
         try {

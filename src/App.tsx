@@ -34,7 +34,7 @@ import SetPassword from './pages/SetPassword';
 
 // 비로그인이면 /login 으로, 로그인이면 children 렌더
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, profile } = useAuth();
 
   if (loading) {
     return (
@@ -49,6 +49,32 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // 승인 취소된 계정 차단
+  if (profile && profile.is_approved === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FFFBF5] px-4">
+        <div className="max-w-md w-full text-center space-y-6 p-10 bg-white rounded-3xl shadow-xl border border-amber-100">
+          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto">
+            <span className="text-3xl">🔒</span>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-black text-amber-900">접근이 제한되었습니다</h2>
+            <p className="text-sm text-amber-700 leading-relaxed">
+              계정 승인이 취소되었습니다.<br />
+              관리자에게 문의해 주세요.
+            </p>
+          </div>
+          <a
+            href="mailto:mosebb@gmail.com?subject=생기로그 계정 문의"
+            className="inline-block px-6 py-3 bg-amber-500 text-white text-sm font-bold rounded-xl hover:bg-amber-600 transition-colors"
+          >
+            관리자에게 문의하기
+          </a>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;

@@ -69,9 +69,9 @@ export default async function handler(req: any, res: any) {
       ? `${siteUrl}/set-password?token_hash=${encodeURIComponent(hashedToken)}&type=invite`
       : inviteLink.properties?.action_link ?? `${siteUrl}/set-password`;
 
-    // 프로필: 이름 + role=teacher + email 동시 설정 (트리거 기본값 student 덮어쓰기)
+    // 프로필: 이름 + role=teacher + email + is_approved 설정
     await supabaseAdmin.from('profiles')
-      .update({ full_name: name || '', role: 'teacher', email })
+      .update({ full_name: name || '', role: 'teacher', email, is_approved: true })
       .eq('id', inviteLink.user.id);
 
     await sendCustomEmail(
@@ -115,7 +115,7 @@ export default async function handler(req: any, res: any) {
         user_metadata: { full_name: name || '', name: name || '' },
       });
       await supabaseAdmin.from('profiles')
-        .update({ full_name: name || '', role: 'teacher', email })
+        .update({ full_name: name || '', role: 'teacher', email, is_approved: true })
         .eq('id', linkData.user.id);
     }
 
