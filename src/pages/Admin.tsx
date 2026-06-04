@@ -368,7 +368,29 @@ const Admin = () => {
     const { error } = await supabase.from('access_requests')
       .update({ status, admin_note: noteInputs[id] || null, updated_at: new Date().toISOString() })
       .eq('id', id);
-    if (!error) setRequests(prev => prev.map(r => r.id === id ? { ...r, status, admin_note: noteInputs[id] || null } : r));
+
+    if (!error) {
+      setRequests(prev => prev.map(r => r.id === id ? { ...r, status, admin_note: noteInputs[id] || null } : r));
+
+      if (status === 'approved') {
+        const req = requests.find(r => r.id === id);
+        if (req) {
+          try {
+            const res = await fetch('/api/invite-user', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: req.email, name: req.name }),
+            });
+            if (!res.ok) {
+              const data = await res.json();
+              alert(`승인 완료, 초대 이메일 발송 실패\n이유: ${data.error}\n수동으로 계정을 생성해주세요: ${req.email}`);
+            }
+          } catch {
+            alert(`승인 완료, 초대 이메일 발송 실패 (네트워크 오류)\n수동으로 계정을 생성해주세요: ${req.email}`);
+          }
+        }
+      }
+    }
     setActionLoading(null);
   };
 
