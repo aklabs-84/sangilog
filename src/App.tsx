@@ -1,6 +1,16 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { TimerProvider } from './lib/timerContext';
+
+// Supabase가 redirect_to 미허용 시 루트(/)로 fallback하는 경우 대응
+// 초대·복구 토큰이 해시에 있으면 /set-password로 즉시 리다이렉트
+if (
+  typeof window !== 'undefined' &&
+  window.location.pathname === '/' &&
+  window.location.hash.includes('access_token')
+) {
+  window.history.replaceState({}, '', '/set-password' + window.location.hash);
+}
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';

@@ -80,12 +80,18 @@ const Landing = () => {
 
     // 슬랙 알림 (실패해도 신청은 이미 저장됐으므로 무시)
     try {
-      await fetch('/api/slack-notify', {
+      const slackRes = await fetch('/api/slack-notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, school_name: schoolName, role, message: message || null }),
       });
-    } catch (_) {}
+      if (!slackRes.ok) {
+        const err = await slackRes.json().catch(() => ({}));
+        console.warn('[slack-notify] failed:', slackRes.status, err);
+      }
+    } catch (e) {
+      console.warn('[slack-notify] network error:', e);
+    }
 
     setSubmitting(false);
     setSubmitted(true);
