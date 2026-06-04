@@ -125,31 +125,35 @@ function inviteEmailHtml(name: string, siteUrl: string): string {
 <html lang="ko">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#FFFBF5;font-family:'Apple SD Gothic Neo',AppleGothic,'Malgun Gothic',sans-serif;">
-  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-    <div style="background:linear-gradient(135deg,#F59E0B,#EA580C);padding:32px;text-align:center;">
-      <h1 style="margin:0;color:#fff;font-size:22px;font-weight:900;">생기로그 AI</h1>
-      <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">수업 기록부터 세특까지</p>
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.10);">
+    <div style="background:linear-gradient(135deg,#F59E0B 0%,#EA580C 100%);padding:36px 32px;text-align:center;position:relative;">
+      <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:14px;padding:10px 18px;margin-bottom:12px;">
+        <span style="color:#fff;font-size:11px;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;">생기로그 AI</span>
+      </div>
+      <h1 style="margin:0;color:#fff;font-size:26px;font-weight:900;letter-spacing:-0.5px;">사용 신청이 승인되었습니다 🎉</h1>
+      <p style="margin:8px 0 0;color:rgba(255,255,255,0.80);font-size:13px;">수업 기록부터 세특까지</p>
     </div>
-    <div style="padding:36px 32px;">
-      <h2 style="margin:0 0 12px;color:#92400E;font-size:18px;font-weight:900;">사용 신청이 승인되었습니다 🎉</h2>
-      <p style="margin:0 0 24px;color:#78350F;font-size:15px;line-height:1.7;">
-        안녕하세요${name ? `, <strong>${name}</strong> 선생님` : ''}!<br>
+    <div style="padding:40px 36px;">
+      <p style="margin:0 0 28px;color:#44403C;font-size:15px;line-height:1.8;">
+        안녕하세요${name ? `, <strong style="color:#92400E;">${name}</strong> 선생님` : ''}!<br>
         생기로그 AI 사용 신청이 승인되었습니다.<br>
         아래 버튼을 클릭해 비밀번호를 설정하고 바로 시작해보세요.
       </p>
-      <div style="text-align:center;margin:28px 0;">
+      <div style="text-align:center;margin:32px 0;">
         <a href="${siteUrl}/set-password"
-           style="display:inline-block;background:linear-gradient(135deg,#F59E0B,#EA580C);color:#fff;font-size:15px;font-weight:900;text-decoration:none;padding:14px 36px;border-radius:12px;box-shadow:0 4px 12px rgba(245,158,11,0.35);">
-          비밀번호 설정하기
+           style="display:inline-block;background:linear-gradient(135deg,#F59E0B 0%,#EA580C 100%);color:#fff;font-size:15px;font-weight:900;text-decoration:none;padding:16px 44px;border-radius:14px;box-shadow:0 6px 20px rgba(245,158,11,0.40);letter-spacing:-0.2px;">
+          비밀번호 설정하기 →
         </a>
       </div>
-      <p style="margin:0;color:#B45309;font-size:12px;text-align:center;line-height:1.6;">
-        링크는 발송 후 24시간 동안 유효합니다.<br>
-        본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.
-      </p>
+      <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:16px 20px;margin-top:8px;">
+        <p style="margin:0;color:#92400E;font-size:12px;line-height:1.7;text-align:center;">
+          ⏱ 링크는 발송 후 24시간 동안 유효합니다.<br>
+          본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.
+        </p>
+      </div>
     </div>
-    <div style="background:#FEF3C7;padding:16px 32px;text-align:center;">
-      <p style="margin:0;color:#92400E;font-size:12px;">감사합니다. AKLABS 드림</p>
+    <div style="background:linear-gradient(135deg,#FEF3C7,#FDE68A);padding:18px 36px;text-align:center;border-top:1px solid #FDE68A;">
+      <p style="margin:0;color:#92400E;font-size:12px;font-weight:700;">감사합니다. AKLABS 드림 ✦</p>
     </div>
   </div>
 </body>
@@ -162,30 +166,34 @@ function resetEmailHtml(name: string, resetUrl: string): string {
 <html lang="ko">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#FFFBF5;font-family:'Apple SD Gothic Neo',AppleGothic,'Malgun Gothic',sans-serif;">
-  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-    <div style="background:linear-gradient(135deg,#F59E0B,#EA580C);padding:32px;text-align:center;">
-      <h1 style="margin:0;color:#fff;font-size:22px;font-weight:900;">생기로그 AI</h1>
-      <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">수업 기록부터 세특까지</p>
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.10);">
+    <div style="background:linear-gradient(135deg,#F59E0B 0%,#EA580C 100%);padding:36px 32px;text-align:center;position:relative;">
+      <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:14px;padding:10px 18px;margin-bottom:12px;">
+        <span style="color:#fff;font-size:11px;font-weight:900;letter-spacing:0.15em;text-transform:uppercase;">생기로그 AI</span>
+      </div>
+      <h1 style="margin:0;color:#fff;font-size:26px;font-weight:900;letter-spacing:-0.5px;">비밀번호 재설정 안내</h1>
+      <p style="margin:8px 0 0;color:rgba(255,255,255,0.80);font-size:13px;">수업 기록부터 세특까지</p>
     </div>
-    <div style="padding:36px 32px;">
-      <h2 style="margin:0 0 12px;color:#92400E;font-size:18px;font-weight:900;">비밀번호 재설정 안내</h2>
-      <p style="margin:0 0 24px;color:#78350F;font-size:15px;line-height:1.7;">
-        안녕하세요${name ? `, <strong>${name}</strong> 선생님` : ''}!<br>
+    <div style="padding:40px 36px;">
+      <p style="margin:0 0 28px;color:#44403C;font-size:15px;line-height:1.8;">
+        안녕하세요${name ? `, <strong style="color:#92400E;">${name}</strong> 선생님` : ''}!<br>
         아래 버튼을 클릭해 비밀번호를 재설정해주세요.
       </p>
-      <div style="text-align:center;margin:28px 0;">
+      <div style="text-align:center;margin:32px 0;">
         <a href="${resetUrl}"
-           style="display:inline-block;background:linear-gradient(135deg,#F59E0B,#EA580C);color:#fff;font-size:15px;font-weight:900;text-decoration:none;padding:14px 36px;border-radius:12px;box-shadow:0 4px 12px rgba(245,158,11,0.35);">
-          비밀번호 재설정하기
+           style="display:inline-block;background:linear-gradient(135deg,#F59E0B 0%,#EA580C 100%);color:#fff;font-size:15px;font-weight:900;text-decoration:none;padding:16px 44px;border-radius:14px;box-shadow:0 6px 20px rgba(245,158,11,0.40);letter-spacing:-0.2px;">
+          비밀번호 재설정하기 →
         </a>
       </div>
-      <p style="margin:0;color:#B45309;font-size:12px;text-align:center;line-height:1.6;">
-        링크는 발송 후 1시간 동안 유효합니다.<br>
-        본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.
-      </p>
+      <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:16px 20px;margin-top:8px;">
+        <p style="margin:0;color:#92400E;font-size:12px;line-height:1.7;text-align:center;">
+          ⏱ 링크는 발송 후 1시간 동안 유효합니다.<br>
+          본인이 요청하지 않은 경우 이 메일을 무시하셔도 됩니다.
+        </p>
+      </div>
     </div>
-    <div style="background:#FEF3C7;padding:16px 32px;text-align:center;">
-      <p style="margin:0;color:#92400E;font-size:12px;">감사합니다. AKLABS 드림</p>
+    <div style="background:linear-gradient(135deg,#FEF3C7,#FDE68A);padding:18px 36px;text-align:center;border-top:1px solid #FDE68A;">
+      <p style="margin:0;color:#92400E;font-size:12px;font-weight:700;">감사합니다. AKLABS 드림 ✦</p>
     </div>
   </div>
 </body>

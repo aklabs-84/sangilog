@@ -192,14 +192,14 @@ const Settings = () => {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          id: user?.id,
           full_name: editForm.full_name,
           school_name: editForm.school_name,
           school_code: editForm.school_code,
           avatar_url: editForm.avatar_url,
           updated_at: new Date().toISOString()
-        })
-        .eq('id', user?.id);
+        }, { onConflict: 'id' });
 
       if (error) throw error;
       
