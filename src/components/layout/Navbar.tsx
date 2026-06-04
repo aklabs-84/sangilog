@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import {
   Bell, Settings, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
-  ActivitySquare,
+  ActivitySquare, Bug,
 } from 'lucide-react';
+import BugReportModal from '../BugReportModal';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
@@ -15,6 +16,7 @@ const Navbar = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [bugReportOpen, setBugReportOpen] = useState(false);
 
   useEffect(() => {
     setAvatarError(false);
@@ -216,6 +218,15 @@ const Navbar = () => {
           </AnimatePresence>
         </div>
 
+        {/* 버그 신고 — PC만 */}
+        <button
+          onClick={() => setBugReportOpen(true)}
+          title="버그 신고"
+          className="hidden md:flex w-9 h-9 rounded-xl hover:bg-red-50 hover:shadow-soft transition-all text-on-surface-variant/30 hover:text-red-400 items-center justify-center"
+        >
+          <Bug size={16} />
+        </button>
+
         {/* 설정 아이콘 — PC만 */}
         <NavLink to="/settings"
           className="hidden md:flex w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary items-center justify-center"
@@ -333,6 +344,7 @@ const Navbar = () => {
         </>
       )}
     </AnimatePresence>
+    <BugReportModal isOpen={bugReportOpen} onClose={() => setBugReportOpen(false)} />
     </>
   );
 };

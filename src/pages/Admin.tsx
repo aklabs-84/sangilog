@@ -8,14 +8,14 @@ import {
   MessageSquare, Loader2, RefreshCw, Copy, Check, Crown, Users,
   Trash2, BookOpen, GraduationCap, ClipboardList, AlertTriangle,
   BarChart3, FileCheck, Megaphone, Bell, Download, Plus, Send,
-  TrendingUp, Zap,
+  TrendingUp, Zap, Bug,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActiveTab =
   | 'dashboard' | 'requests' | 'users' | 'classes'
-  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements';
+  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs';
 
 type ReqFilter = 'all' | 'pending' | 'approved' | 'rejected';
 type ObsFilter = 'all' | 'pending' | 'approved' | 'rejected';
@@ -94,6 +94,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'results',       label: '결과제출',   icon: FileCheck },
   { id: 'suggestions',   label: '건의사항',   icon: Megaphone },
   { id: 'announcements', label: '공지사항',   icon: Bell },
+  { id: 'bugs',          label: '버그신고',   icon: Bug },
 ];
 
 // ── CSV Helper ─────────────────────────────────────────────────────────────────
@@ -194,6 +195,10 @@ const Admin = () => {
   const [annContent, setAnnContent]       = useState('');
   const [annSaving, setAnnSaving]         = useState(false);
 
+  // ── 버그신고 ────────────────────────────────────────────────────────────────
+  const [bugs, setBugs]               = useState<any[]>([]);
+  const [bugsLoading, setBugsLoading] = useState(false);
+
   // ── 공통 삭제 ──────────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting]         = useState(false);
@@ -216,6 +221,7 @@ const Admin = () => {
     if (activeTab === 'results')       fetchResults();
     if (activeTab === 'suggestions')   fetchSuggestions();
     if (activeTab === 'announcements') fetchAnnouncements();
+    if (activeTab === 'bugs')          fetchBugs();
   }, [activeTab]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -354,6 +360,20 @@ const Admin = () => {
       .order('created_at', { ascending: false });
     if (data) setAnnouncements(data);
     setAnnLoading(false);
+  };
+
+  const fetchBugs = async () => {
+    setBugsLoading(true);
+    const { data } = await supabase.from('bug_reports')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (data) setBugs(data);
+    setBugsLoading(false);
+  };
+
+  const updateBugStatus = async (id: string, status: string) => {
+    await supabase.from('bug_reports').update({ status }).eq('id', id);
+    setBugs(prev => prev.map(b => b.id === id ? { ...b, status } : b));
   };
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -1067,6 +1087,75 @@ const Admin = () => {
                 </motion.div>
               ))}
             </div>}
+          </>
+        )}
+
+        {/* ── 버그 신고 탭 ── */}
+        {activeTab === 'bugs' && (
+          <>
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-sm text-amber-700 font-bold">총 {bugs.length}건</p>
+              <button onClick={fetchBugs} className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
+                <RefreshCw size={13} /> 새로고침
+              </button>
+            </div>
+            {bugsLoading ? (
+              <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
+            ) : bugs.length === 0 ? (
+              <div className="text-center py-20 text-amber-400">
+                <Bug size={40} className="mx-auto mb-3 opacity-40" />
+                <p>접수된 버그 신고가 없습니다</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {bugs.map((bug, i) => (
+                  <motion.div key={bug.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                    className="bg-white rounded-2xl border border-amber-100 p-5 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            bug.status === 'open'     ? 'bg-red-100 text-red-600' :
+                            bug.status === 'progress' ? 'bg-amber-100 text-amber-700' :
+                                                        'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {bug.status === 'open' ? '🔴 접수' : bug.status === 'progress' ? '🟡 처리중' : '✅ 완료'}
+                          </span>
+                          <span className="text-[10px] text-amber-400">{new Date(bug.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <p className="font-black text-amber-900">{bug.title}</p>
+                        <p className="text-sm text-amber-700 mt-1 leading-relaxed">{bug.description}</p>
+                        {bug.page_url && (
+                          <p className="text-[10px] text-amber-400 mt-1.5 font-mono truncate">📍 {bug.page_url}</p>
+                        )}
+                        <p className="text-[11px] text-amber-500 mt-1">신고자: {bug.user_name || '익명'} {bug.user_email ? `(${bug.user_email})` : ''}</p>
+                      </div>
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        {bug.status !== 'progress' && (
+                          <button onClick={() => updateBugStatus(bug.id, 'progress')}
+                            className="px-3 py-1.5 text-[10px] font-black bg-amber-100 text-amber-700 rounded-xl hover:bg-amber-200 transition-colors">
+                            처리중
+                          </button>
+                        )}
+                        {bug.status !== 'resolved' && (
+                          <button onClick={() => updateBugStatus(bug.id, 'resolved')}
+                            className="px-3 py-1.5 text-[10px] font-black bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors">
+                            완료
+                          </button>
+                        )}
+                        {bug.status !== 'open' && (
+                          <button onClick={() => updateBugStatus(bug.id, 'open')}
+                            className="px-3 py-1.5 text-[10px] font-black bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 transition-colors">
+                            재오픈
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </>
         )}
 
