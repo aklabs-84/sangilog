@@ -154,9 +154,8 @@ const Admin = () => {
   const [reqPage, setReqPage]           = useState(1);
 
   // 승인 진행 상태 오버레이
-  type ApprovalStep = 'db' | 'email' | 'done' | 'error';
   const [approvalProgress, setApprovalProgress] = useState<{
-    step: ApprovalStep; name: string; email: string; message?: string;
+    step: 'db' | 'email' | 'done' | 'error'; name: string; email: string; message?: string;
   } | null>(null);
 
   // ── 사용자 ─────────────────────────────────────────────────────────────────
