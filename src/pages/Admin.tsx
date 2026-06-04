@@ -397,14 +397,25 @@ const Admin = () => {
   const createAnnouncement = async () => {
     if (!annTitle.trim() || !annContent.trim()) return;
     setAnnSaving(true);
+    const title   = annTitle.trim();
+    const content = annContent.trim();
+
     const { data, error } = await supabase.from('announcements')
-      .insert({ title: annTitle.trim(), content: annContent.trim() })
+      .insert({ title, content })
       .select().single();
+
     if (!error && data) {
       setAnnouncements(prev => [data, ...prev]);
       setAnnTitle(''); setAnnContent('');
+
+      // Slack 알림 발송 (실패해도 공지 저장은 성공으로 처리)
+      fetch('/api/slack-announcement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content }),
+      }).catch(() => {});
     } else {
-      alert('공지사항 저장 실패. 테이블이 생성되어 있는지 확인해주세요.');
+      alert('공지사항 저장 실패. announcements 테이블이 생성되어 있는지 확인해주세요.');
     }
     setAnnSaving(false);
   };
