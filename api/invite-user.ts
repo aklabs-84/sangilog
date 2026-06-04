@@ -51,14 +51,16 @@ export default async function handler(req: any, res: any) {
   // ── 신규 유저: 초대 링크 생성 후 커스텀 메일 발송 ──────────────────────────
   const { data: inviteData, error: inviteError } =
     await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: name || '' },
+      data: { full_name: name || '', name: name || '' }, // name: Supabase Display name 표시용
       redirectTo: `${siteUrl}/set-password`,
     });
 
   if (!inviteError) {
-    // 프로필 이름 업데이트
-    if (inviteData.user && name) {
-      await supabaseAdmin.from('profiles').update({ full_name: name }).eq('id', inviteData.user.id);
+    if (inviteData.user) {
+      // 프로필: 이름 + role=teacher 동시 설정 (트리거 기본값 student 덮어쓰기)
+      await supabaseAdmin.from('profiles')
+        .update({ full_name: name || '', role: 'teacher' })
+        .eq('id', inviteData.user.id);
     }
 
     // 커스텀 초대 메일 발송 (Gmail 설정 있을 때)
@@ -93,6 +95,16 @@ export default async function handler(req: any, res: any) {
     const resetUrl = linkData.properties?.action_link;
     if (!resetUrl) {
       return res.status(500).json({ error: 'Failed to generate reset link' });
+    }
+
+    if (linkData.user) {
+      // 기존 유저도 Display name + role 갱신
+      await supabaseAdmin.auth.admin.updateUserById(linkData.user.id, {
+        user_metadata: { full_name: name || '', name: name || '' },
+      });
+      await supabaseAdmin.from('profiles')
+        .update({ full_name: name || '', role: 'teacher' })
+        .eq('id', linkData.user.id);
     }
 
     const sent = await sendCustomEmail(
