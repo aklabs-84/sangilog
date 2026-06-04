@@ -550,6 +550,7 @@ const Admin = () => {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div className="min-h-screen bg-[#FFFBF5] font-pretendard">
 
       {/* Header */}
@@ -1065,6 +1066,7 @@ const Admin = () => {
     </div>
 
     {/* 승인 진행 오버레이 */}
+
     <AnimatePresence>
       {approvalProgress && (
         <motion.div
@@ -1153,6 +1155,7 @@ const Admin = () => {
         </motion.div>
       )}
     </AnimatePresence>
+    </>
   );
 };
 
