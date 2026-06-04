@@ -27,7 +27,7 @@ export default async function handler(req: any, res: any) {
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const siteUrl = `${protocol}://${host}`;
 
-  const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+  const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: name || '' },
     redirectTo: `${siteUrl}/set-password`,
   });
@@ -35,6 +35,14 @@ export default async function handler(req: any, res: any) {
   if (error) {
     console.error('[api/invite-user] error:', error.message);
     return res.status(500).json({ error: error.message });
+  }
+
+  // 트리거가 생성한 profiles 행에 이름을 직접 덮어씀 (트리거 기본값 '사용자' 방지)
+  if (data.user && name) {
+    await supabaseAdmin
+      .from('profiles')
+      .update({ full_name: name })
+      .eq('id', data.user.id);
   }
 
   return res.status(200).json({ ok: true });
