@@ -151,6 +151,7 @@ const Admin = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [noteInputs, setNoteInputs]     = useState<Record<string, string>>({});
   const [copiedId, setCopiedId]         = useState<string | null>(null);
+  const [reqPage, setReqPage]           = useState(1);
 
   // ── 사용자 ─────────────────────────────────────────────────────────────────
   const [users, setUsers]               = useState<any[]>([]);
@@ -253,10 +254,11 @@ const Admin = () => {
 
   const fetchUsers = async () => {
     setUsersLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('id, full_name, email, plan, school_name, is_admin, ai_daily_count, ai_daily_date')
-      .order('created_at', { ascending: false });
+      .order('full_name', { ascending: true });
+    if (error) console.error('[fetchUsers]', error.message);
     if (data) setUsers(data);
     setUsersLoading(false);
   };
@@ -361,6 +363,12 @@ const Admin = () => {
     if (activeTab === 'results')       fetchResults();
     if (activeTab === 'suggestions')   fetchSuggestions();
     if (activeTab === 'announcements') fetchAnnouncements();
+  };
+
+  const deleteRequest = async (id: string) => {
+    if (!window.confirm('이 신청 내역을 삭제하시겠습니까?')) return;
+    const { error } = await supabase.from('access_requests').delete().eq('id', id);
+    if (!error) setRequests(prev => prev.filter(r => r.id !== id));
   };
 
   const updateStatus = async (id: string, status: 'approved' | 'rejected') => {
@@ -484,9 +492,15 @@ const Admin = () => {
     `건의사항_${new Date().toISOString().slice(0, 10)}.csv`
   );
 
+  // 필터 변경 시 페이지 초기화
+  useEffect(() => { setReqPage(1); }, [reqFilter]);
+
   // ── Derived ────────────────────────────────────────────────────────────────
 
+  const REQ_PAGE_SIZE = 10;
   const filteredRequests = reqFilter === 'all' ? requests : requests.filter(r => r.status === reqFilter);
+  const totalReqPages    = Math.ceil(filteredRequests.length / REQ_PAGE_SIZE);
+  const pagedRequests    = filteredRequests.slice((reqPage - 1) * REQ_PAGE_SIZE, reqPage * REQ_PAGE_SIZE);
   const reqCounts = {
     all: requests.length,
     pending:  requests.filter(r => r.status === 'pending').length,
@@ -653,7 +667,7 @@ const Admin = () => {
               <div className="text-center py-20 text-amber-400"><ShieldCheck size={40} className="mx-auto mb-3 opacity-40" /><p className="font-medium">신청 내역이 없습니다</p></div>
             ) : (
               <div className="space-y-4">
-                {filteredRequests.map((req, i) => {
+                {pagedRequests.map((req, i) => {
                   const sc = STATUS_CFG[req.status]; const StatusIcon = sc.icon;
                   return (
                     <motion.div key={req.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
@@ -663,6 +677,9 @@ const Admin = () => {
                           <div className="flex items-center gap-3">
                             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${sc.color}`}><StatusIcon size={12} />{sc.label}</span>
                             <span className="text-xs text-amber-400">{new Date(req.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                            <button onClick={() => deleteRequest(req.id)} className="ml-auto p-1.5 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="삭제">
+                              <Trash2 size={13} />
+                            </button>
                           </div>
                           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                             <div className="flex items-center gap-2 text-amber-800"><User size={14} className="text-amber-400 shrink-0" /><span className="font-bold">{req.name}</span></div>
@@ -703,6 +720,26 @@ const Admin = () => {
                     </motion.div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* 페이징 */}
+            {totalReqPages > 1 && (
+              <div className="flex items-center justify-center gap-2 pt-4">
+                <button onClick={() => setReqPage(p => Math.max(1, p - 1))} disabled={reqPage === 1}
+                  className="px-4 py-2 text-sm font-bold text-amber-700 border border-amber-200 rounded-xl hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  이전
+                </button>
+                {Array.from({ length: totalReqPages }, (_, i) => i + 1).map(p => (
+                  <button key={p} onClick={() => setReqPage(p)}
+                    className={`w-9 h-9 text-sm font-bold rounded-xl transition-colors ${reqPage === p ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700 border border-amber-200 hover:bg-amber-50'}`}>
+                    {p}
+                  </button>
+                ))}
+                <button onClick={() => setReqPage(p => Math.min(totalReqPages, p + 1))} disabled={reqPage === totalReqPages}
+                  className="px-4 py-2 text-sm font-bold text-amber-700 border border-amber-200 rounded-xl hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  다음
+                </button>
               </div>
             )}
           </>
