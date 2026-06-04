@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
+import { useTheme } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users2,
@@ -11,14 +12,15 @@ import {
   Loader2,
   ExternalLink,
   File,
-  ArrowLeft,
   X,
   Download,
 } from 'lucide-react';
 
 const ClassBoard = () => {
   const { classId } = useParams<{ classId: string }>();
-  const navigate = useNavigate();
+
+  // 이 페이지는 MainLayout 바깥(새 탭)이므로 직접 테마 적용
+  useTheme();
 
   const [className, setClassName] = useState('');
   const [posts, setPosts] = useState<any[]>([]);
@@ -34,7 +36,6 @@ const ClassBoard = () => {
     try {
       const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
 
-      // 1. 클래스 정보 + 학생 목록 병렬 조회
       const [{ data: classInfo }, { data: studentList }] = await Promise.all([
         supabase.from('classes').select('name, subject, weekly_plan').eq('id', classId).single(),
         supabase.from('students').select('id, full_name').eq('class_id', classId),
@@ -46,7 +47,6 @@ const ClassBoard = () => {
         (studentList || []).map((s: any) => [s.id, s.full_name])
       );
 
-      // activity_name → week_number 매핑 (weekly_plan 기반)
       const topicWeekMap: Record<string, number> = {};
       ((classInfo?.weekly_plan as any[]) || []).forEach((p: any) => {
         if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week);
@@ -54,7 +54,6 @@ const ClassBoard = () => {
 
       if (studentIds.length === 0) { setPosts([]); setLoading(false); return; }
 
-      // 2. 관찰기록 + 결과 병렬 조회 (최신 150건씩 제한)
       const [{ data: obs }, { data: results }] = await Promise.all([
         supabase
           .from('observations')
@@ -72,59 +71,63 @@ const ClassBoard = () => {
           .limit(150),
       ]);
 
-      // 3. student_name 매핑 + 이미지 URL 변환 + 관찰기록에 week_number 부여
       const obsPosts = (obs || []).map((o: any) => ({
         ...o,
         week_number: topicWeekMap[norm(o.activity_name)] ?? null,
         student_name: nameMap[o.student_id] || '학생',
         _type: 'obs' as const,
       }));
-      const resPosts = (results || []).map((r: any) => {
-        let image_url = null;
-        let image_original_url = null;
-        let file_url = null;
-        if (r.result_type === 'image' && r.storage_path) {
-          const { data: orig } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
-          image_original_url = orig?.publicUrl || null;
-          const { data: thumb } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
-            transform: { width: 600, quality: 70 },
-          });
-          image_url = thumb?.publicUrl || image_original_url;
-        } else if (r.result_type === 'file' && r.storage_path) {
-          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
-          file_url = urlData?.publicUrl || null;
-        }
-        return { ...r, image_url, image_original_url, file_url, student_name: nameMap[r.student_id] || '학생', _type: 'result' as const };
-      });
 
-      setPosts([...obsPosts, ...resPosts].sort(
+      const resultPosts = await Promise.all(
+        (results || []).map(async (r: any) => {
+          let image_url: string | null = null;
+          let image_original_url: string | null = null;
+          let file_url: string | null = null;
+
+          if (r.storage_path) {
+            const { data: urlData } = supabase.storage
+              .from('student-attachments')
+              .getPublicUrl(r.storage_path);
+            const url = urlData?.publicUrl || null;
+
+            if (r.result_type === 'image' && url) {
+              image_original_url = url;
+              image_url = url;
+            } else if (r.result_type === 'file' && url) {
+              file_url = url;
+            }
+          }
+
+          return {
+            ...r,
+            student_name: nameMap[r.student_id] || '학생',
+            image_url,
+            image_original_url,
+            file_url,
+            _type: 'result' as const,
+          };
+        })
+      );
+
+      const all = [...obsPosts, ...resultPosts].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ));
+      );
+      setPosts(all);
       setLastUpdated(new Date());
-    } catch (err) {
-      console.error('ClassBoard fetch error:', err);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   }, [classId]);
 
-  // 최초 로드 + 60초마다 자동 갱신 (탭이 숨겨지면 중단)
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') fetchData();
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ESC 키로 모달 닫기
+  // 30초 자동 새로고침
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelectedPost(null);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    const id = setInterval(fetchData, 30_000);
+    return () => clearInterval(id);
+  }, [fetchData]);
 
   const filtered = useMemo(() => posts.filter(p => {
     if (typeFilter !== 'all' && p._type !== typeFilter) return false;
@@ -138,58 +141,48 @@ const ClassBoard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
-      {/* 헤더 */}
-      <header className="flex items-center justify-between px-8 py-5 border-b border-white/10 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 flex items-center justify-center">
-              <Users2 size={20} className="text-indigo-400" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">우리반 보드</p>
-              <h1 className="text-lg font-black leading-tight">{className || '보드'}</h1>
-            </div>
+    <div className="min-h-screen bg-surface text-on-surface flex flex-col">
+
+      {/* ── 헤더 ── */}
+      <header className="flex items-center justify-between px-8 py-4 border-b border-surface-container-high bg-surface-container-lowest sticky top-0 z-10 shadow-soft">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center shrink-0">
+            <Users2 size={20} className="text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">우리반 보드</p>
+            <h1 className="text-lg font-black leading-tight text-on-surface">{className || '보드'}</h1>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           {lastUpdated && (
-            <span className="text-[10px] text-white/30 font-bold hidden sm:block">
+            <span className="text-[10px] text-on-surface-variant font-bold hidden sm:block">
               {lastUpdated.toLocaleTimeString('ko-KR')} 업데이트
             </span>
           )}
           <button
             onClick={fetchData}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black text-xs transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-xs transition-all border border-surface-container-high"
           >
             <RefreshCw size={13} /> 새로고침
           </button>
           <button
             onClick={() => {
-              if (document.fullscreenElement) {
-                document.exitFullscreen();
-              } else {
-                document.documentElement.requestFullscreen();
-              }
+              if (document.fullscreenElement) document.exitFullscreen();
+              else document.documentElement.requestFullscreen();
             }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 font-black text-xs transition-all border border-indigo-500/30"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 font-black text-xs transition-all border border-indigo-200 dark:border-indigo-700/40"
           >
             <Minimize2 size={13} /> 전체화면 해제
           </button>
         </div>
       </header>
 
-      {/* 필터 바 */}
-      <div className="sticky top-[69px] z-10 px-8 py-3 bg-slate-900/60 backdrop-blur-xl border-b border-white/5 flex items-center gap-3 flex-wrap">
+      {/* ── 필터 바 ── */}
+      <div className="sticky top-[65px] z-10 px-8 py-3 bg-surface-container-low border-b border-surface-container-high flex items-center gap-3 flex-wrap">
         {/* 타입 필터 */}
-        <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-surface-container rounded-xl p-1">
           {[
             { key: 'all', label: '전체' },
             { key: 'obs', label: '📝 관찰기록' },
@@ -199,7 +192,9 @@ const ClassBoard = () => {
               key={f.key}
               onClick={() => setTypeFilter(f.key as any)}
               className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                typeFilter === f.key ? 'bg-indigo-500 text-white shadow-sm' : 'text-white/50 hover:text-white/80'
+                typeFilter === f.key
+                  ? 'bg-indigo-500 text-white shadow-sm'
+                  : 'text-on-surface-variant hover:text-on-surface'
               }`}
             >
               {f.label}
@@ -214,7 +209,7 @@ const ClassBoard = () => {
             className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
               weekFilter === 'all'
                 ? 'bg-indigo-500 text-white border-indigo-500'
-                : 'bg-white/5 text-white/50 border-white/10 hover:border-indigo-400 hover:text-white/80'
+                : 'bg-surface-container text-on-surface-variant border-surface-container-high hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300'
             }`}
           >
             전체 주차
@@ -226,7 +221,7 @@ const ClassBoard = () => {
               className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${
                 weekFilter === w
                   ? 'bg-indigo-500 text-white border-indigo-500'
-                  : 'bg-white/5 text-white/50 border-white/10 hover:border-indigo-400 hover:text-white/80'
+                  : 'bg-surface-container text-on-surface-variant border-surface-container-high hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300'
               }`}
             >
               {w}주차
@@ -234,25 +229,24 @@ const ClassBoard = () => {
           ))}
         </div>
 
-        {/* 게시물 수 */}
-        <span className="ml-auto text-[11px] text-white/30 font-black hidden sm:block">
+        <span className="ml-auto text-[11px] text-on-surface-variant font-black hidden sm:block">
           {filtered.length}개 게시물
         </span>
       </div>
 
-      {/* 콘텐츠 */}
+      {/* ── 콘텐츠 ── */}
       <main className="flex-1 p-8">
         {loading ? (
           <div className="flex items-center justify-center py-32">
-            <Loader2 size={36} className="animate-spin text-indigo-400" />
+            <Loader2 size={36} className="animate-spin text-indigo-500" />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center py-32 space-y-4">
-            <div className="w-24 h-24 rounded-3xl bg-white/5 flex items-center justify-center">
-              <StickyNote size={40} className="text-white/20" />
+            <div className="w-24 h-24 rounded-3xl bg-surface-container flex items-center justify-center">
+              <StickyNote size={40} className="text-on-surface-variant/30" />
             </div>
-            <p className="font-black text-white/30 text-lg">아직 승인된 게시물이 없어요</p>
-            <p className="text-sm text-white/20 font-bold">학생 제출물을 승인하면 이 보드에 나타납니다</p>
+            <p className="font-black text-on-surface-variant text-lg">아직 승인된 게시물이 없어요</p>
+            <p className="text-sm text-on-surface-variant/60 font-bold">학생 제출물을 승인하면 이 보드에 나타납니다</p>
           </div>
         ) : (
           <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 gap-4 space-y-4">
@@ -266,30 +260,34 @@ const ClassBoard = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i, 15) * 0.03 }}
                     onClick={() => setSelectedPost(post)}
-                    className={`break-inside-avoid rounded-3xl border p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl ${
+                    className={`break-inside-avoid rounded-3xl border p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${
                       isObs
-                        ? 'bg-violet-900/30 border-violet-700/40 hover:border-violet-500/60 hover:bg-violet-900/50'
-                        : 'bg-emerald-900/30 border-emerald-700/40 hover:border-emerald-500/60 hover:bg-emerald-900/50'
+                        ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700/40 hover:bg-violet-100 dark:hover:bg-violet-900/40 hover:border-violet-300 dark:hover:border-violet-500/60'
+                        : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:border-emerald-300 dark:hover:border-emerald-500/60'
                     }`}
                   >
                     {/* 카드 헤더 */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[12px] shrink-0 ${
-                          isObs ? 'bg-violet-700/40' : 'bg-emerald-700/40'
+                          isObs
+                            ? 'bg-violet-100 dark:bg-violet-700/40'
+                            : 'bg-emerald-100 dark:bg-emerald-700/40'
                         }`}>
                           {isObs ? '📝' : '📁'}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-black truncate text-white">{post.student_name}</p>
-                          <p className="text-[10px] text-white/40 font-bold">
+                          <p className="text-sm font-black truncate text-on-surface">{post.student_name}</p>
+                          <p className="text-[10px] text-on-surface-variant font-bold">
                             {post.week_number ? `${post.week_number}주차 · ` : ''}
                             {new Date(post.created_at).toLocaleDateString('ko-KR')}
                           </p>
                         </div>
                       </div>
                       <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
-                        isObs ? 'bg-violet-700/40 text-violet-300' : 'bg-emerald-700/40 text-emerald-300'
+                        isObs
+                          ? 'bg-violet-100 dark:bg-violet-700/40 text-violet-700 dark:text-violet-300'
+                          : 'bg-emerald-100 dark:bg-emerald-700/40 text-emerald-700 dark:text-emerald-300'
                       }`}>
                         {isObs ? '관찰기록' : '결과'}
                       </span>
@@ -297,17 +295,17 @@ const ClassBoard = () => {
 
                     {/* 카드 내용 */}
                     <div className="space-y-2">
-                      <p className="text-sm font-black text-white leading-snug line-clamp-2">
+                      <p className="text-sm font-black text-on-surface leading-snug line-clamp-2">
                         {isObs ? post.activity_name : post.title}
                       </p>
                       {isObs && post.content && (
-                        <p className="text-xs text-white/60 font-bold leading-relaxed line-clamp-5">{post.content}</p>
+                        <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-5">{post.content}</p>
                       )}
                       {isObs && post.feeling && (
-                        <p className="text-[11px] text-white/40 font-bold italic line-clamp-2">💬 {post.feeling}</p>
+                        <p className="text-[11px] text-on-surface-variant font-bold italic line-clamp-2">💬 {post.feeling}</p>
                       )}
                       {!isObs && post.text_content && (
-                        <p className="text-xs text-white/60 font-bold leading-relaxed line-clamp-5">{post.text_content}</p>
+                        <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-5">{post.text_content}</p>
                       )}
                       {!isObs && post.image_url && (
                         <img
@@ -323,16 +321,18 @@ const ClassBoard = () => {
                         />
                       )}
                       {!isObs && post.link_url && (
-                        <div className="flex items-center gap-1.5 text-xs font-black text-blue-400">
+                        <div className="flex items-center gap-1.5 text-xs font-black text-blue-600 dark:text-blue-400">
                           <ExternalLink size={11} />
                           <span className="truncate">{post.link_url}</span>
                         </div>
                       )}
                       {!isObs && post.file_url && (
-                        <div className="flex items-center gap-2 px-3 py-2 bg-amber-900/30 border border-amber-700/30 rounded-xl">
-                          <File size={13} className="text-amber-400 shrink-0" />
-                          <span className="text-xs font-black text-amber-300 truncate flex-1">{post.display_name || '파일'}</span>
-                          <Download size={11} className="text-amber-400/60 shrink-0" />
+                        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
+                          'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/30'
+                        }`}>
+                          <File size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                          <span className="text-xs font-black text-amber-700 dark:text-amber-300 truncate flex-1">{post.display_name || '파일'}</span>
+                          <Download size={11} className="text-amber-500/60 shrink-0" />
                         </div>
                       )}
                     </div>
@@ -344,33 +344,30 @@ const ClassBoard = () => {
         )}
       </main>
 
-      {/* 하단 상태 바 */}
-      <footer className="px-8 py-3 bg-slate-900/50 border-t border-white/5 flex items-center justify-between">
-        <span className="text-[10px] text-white/20 font-black uppercase tracking-widest">
+      {/* ── 하단 상태 바 ── */}
+      <footer className="px-8 py-3 bg-surface-container-lowest border-t border-surface-container-high flex items-center justify-between">
+        <span className="text-[10px] text-on-surface-variant font-black uppercase tracking-widest">
           생기로그 · 우리반 보드
         </span>
-        <span className="text-[10px] text-white/20 font-bold">
+        <span className="text-[10px] text-on-surface-variant/50 font-bold">
           30초마다 자동 새로고침
         </span>
       </footer>
 
-      {/* 상세 모달 */}
+      {/* ── 상세 모달 ── */}
       <AnimatePresence>
         {selectedPost && (() => {
           const isObs = selectedPost._type === 'obs';
           return (
             <>
-              {/* 배경 오버레이 */}
               <motion.div
                 key="backdrop"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setSelectedPost(null)}
-                className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+                className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
               />
-
-              {/* 모달 패널 */}
               <motion.div
                 key="modal"
                 initial={{ opacity: 0, scale: 0.92, y: 24 }}
@@ -381,29 +378,31 @@ const ClassBoard = () => {
               >
                 <div
                   onClick={e => e.stopPropagation()}
-                  className={`pointer-events-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl border shadow-2xl ${
-                    isObs
-                      ? 'bg-slate-900 border-violet-700/50'
-                      : 'bg-slate-900 border-emerald-700/50'
+                  className={`pointer-events-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl border shadow-2xl bg-surface-container-lowest ${
+                    isObs ? 'border-violet-200 dark:border-violet-700/50' : 'border-emerald-200 dark:border-emerald-700/50'
                   }`}
                 >
                   {/* 모달 헤더 */}
                   <div className={`sticky top-0 flex items-center justify-between gap-3 px-6 py-4 border-b backdrop-blur-xl ${
-                    isObs ? 'bg-violet-900/40 border-violet-700/30' : 'bg-emerald-900/40 border-emerald-700/30'
+                    isObs
+                      ? 'bg-violet-50 dark:bg-violet-900/40 border-violet-200 dark:border-violet-700/30'
+                      : 'bg-emerald-50 dark:bg-emerald-900/40 border-emerald-200 dark:border-emerald-700/30'
                   }`}>
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-base shrink-0 ${
-                        isObs ? 'bg-violet-700/50' : 'bg-emerald-700/50'
+                        isObs
+                          ? 'bg-violet-100 dark:bg-violet-700/50'
+                          : 'bg-emerald-100 dark:bg-emerald-700/50'
                       }`}>
                         {isObs ? '📝' : '📁'}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-black text-white truncate">{selectedPost.student_name}</p>
-                        <p className="text-[11px] text-white/40 font-bold">
+                        <p className="font-black text-on-surface truncate">{selectedPost.student_name}</p>
+                        <p className="text-[11px] text-on-surface-variant font-bold">
                           {selectedPost.week_number ? `${selectedPost.week_number}주차 · ` : ''}
                           {new Date(selectedPost.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                           &nbsp;·&nbsp;
-                          <span className={isObs ? 'text-violet-400' : 'text-emerald-400'}>
+                          <span className={isObs ? 'text-violet-600 dark:text-violet-400' : 'text-emerald-600 dark:text-emerald-400'}>
                             {isObs ? '관찰기록' : '결과물'}
                           </span>
                         </p>
@@ -411,7 +410,7 @@ const ClassBoard = () => {
                     </div>
                     <button
                       onClick={() => setSelectedPost(null)}
-                      className="shrink-0 w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+                      className="shrink-0 w-9 h-9 rounded-xl bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-all text-on-surface-variant"
                     >
                       <X size={16} />
                     </button>
@@ -419,39 +418,35 @@ const ClassBoard = () => {
 
                   {/* 모달 본문 */}
                   <div className="p-6 space-y-5">
-                    {/* 제목 */}
-                    <h2 className="text-lg font-black text-white leading-snug">
+                    <h2 className="text-lg font-black text-on-surface leading-snug">
                       {isObs ? selectedPost.activity_name : selectedPost.title}
                     </h2>
 
-                    {/* 관찰기록 내용 */}
                     {isObs && selectedPost.content && (
                       <div className="space-y-1.5">
-                        <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest">관찰 내용</p>
-                        <p className="text-sm text-white/80 font-bold leading-relaxed whitespace-pre-wrap">
+                        <p className="text-[10px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest">관찰 내용</p>
+                        <p className="text-sm text-on-surface font-bold leading-relaxed whitespace-pre-wrap">
                           {selectedPost.content}
                         </p>
                       </div>
                     )}
                     {isObs && selectedPost.feeling && (
-                      <div className="px-4 py-3 rounded-2xl bg-violet-900/30 border border-violet-700/30">
-                        <p className="text-sm text-white/70 font-bold italic leading-relaxed">
+                      <div className="px-4 py-3 rounded-2xl bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700/30">
+                        <p className="text-sm text-on-surface-variant font-bold italic leading-relaxed">
                           💬 {selectedPost.feeling}
                         </p>
                       </div>
                     )}
 
-                    {/* 결과물 텍스트 */}
                     {!isObs && selectedPost.text_content && (
                       <div className="space-y-1.5">
-                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">내용</p>
-                        <p className="text-sm text-white/80 font-bold leading-relaxed whitespace-pre-wrap">
+                        <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">내용</p>
+                        <p className="text-sm text-on-surface font-bold leading-relaxed whitespace-pre-wrap">
                           {selectedPost.text_content}
                         </p>
                       </div>
                     )}
 
-                    {/* 결과물 이미지 — 클릭 시 원본 새 탭 */}
                     {!isObs && selectedPost.image_url && (
                       <a
                         href={selectedPost.image_original_url || selectedPost.image_url}
@@ -471,38 +466,36 @@ const ClassBoard = () => {
                             }
                           }}
                         />
-                        <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
-                          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-black bg-black/50 px-3 py-1.5 rounded-full transition-all">
+                        <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-black bg-black/40 px-3 py-1.5 rounded-full transition-all">
                             새 탭에서 보기
                           </span>
                         </div>
                       </a>
                     )}
 
-                    {/* 결과물 링크 */}
                     {!isObs && selectedPost.link_url && (
                       <a
                         href={selectedPost.link_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-900/30 border border-blue-700/30 text-blue-400 font-black text-sm hover:bg-blue-900/50 transition-all"
+                        className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
                       >
                         <ExternalLink size={15} />
                         <span className="truncate">{selectedPost.link_url}</span>
                       </a>
                     )}
 
-                    {/* 결과물 파일 — 열기/다운로드 */}
                     {!isObs && selectedPost.file_url && (
                       <button
                         onClick={() => openFile(selectedPost.file_url, selectedPost.display_name || '첨부파일')}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-900/30 border border-amber-700/40 rounded-2xl hover:bg-amber-900/50 transition-all group text-left"
+                        className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-2xl hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all group text-left"
                       >
-                        <File size={16} className="text-amber-400 shrink-0" />
-                        <span className="text-sm font-black text-amber-300 truncate flex-1">
+                        <File size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span className="text-sm font-black text-amber-700 dark:text-amber-300 truncate flex-1">
                           {selectedPost.display_name || '첨부 파일'}
                         </span>
-                        <Download size={14} className="text-amber-400/60 shrink-0 group-hover:text-amber-300 transition-colors" />
+                        <Download size={14} className="text-amber-500/60 shrink-0 group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors" />
                       </button>
                     )}
                   </div>
