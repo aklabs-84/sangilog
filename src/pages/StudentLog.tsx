@@ -73,6 +73,7 @@ const StudentLog = () => {
     topic: string;
   } | null>(null);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectModalType, setRejectModalType] = useState<'block' | 'auto_reject'>('block');
   const [aiFeedback, setAiFeedback] = useState<{reason: string, guide: string} | null>(null);
 
   // 반려 실시간 알림 (폴링)
@@ -1028,13 +1029,13 @@ const StudentLog = () => {
       // AI 검토 결과를 저장해서 관찰기록 저장 시 함께 사용
       let aiReviewFlag: 'good' | 'review_needed' | null = null;
       let aiConcern = '';
+      let aiFeedbackForModal: { reason: string; guide: string } | null = null;
 
       if (guidePrompt) {
         try {
           const contentLength = content.trim().length;
           const prompt = `
 당신은 학생이 제출한 활동 기록을 검토하는 AI 가이드입니다.
-선생님의 지침을 참고하여 아래 3단계로 평가하세요.
 
 [교사의 지침]
 ${guidePrompt}
@@ -1046,31 +1047,25 @@ ${guidePrompt}
 
 ━━ 평가 기준 ━━
 
-1. reject (제출 차단):
-   - 'ㅋ', 'ㅎ', '모름', '없음' 같은 무성의한 내용만 있는 경우
-   - 내용이 사실상 비어 있는 경우
+1. reject (즉시 차단 — 명백한 불성실):
+   - 'ㅋ', 'ㅎ', '모름', '없음' 등 무성의한 단어만 있는 경우
+   - 내용이 사실상 비어 있거나 의미 없는 반복만 있는 경우
+   → reason: 학생에게 보여줄 간단한 안내
+   → guide: 어떻게 다시 써야 하는지 한 문장
 
-2. review_needed (자동 승인되나 선생님에게 검토 권장 알림):
-   【품질 부족】 다음 중 하나 이상:
-   - 3문장 이하로 너무 짧고 구체성 없음
-   - 수업 주제("${title}")와 전혀 무관한 내용
-   - 교사 지침의 핵심 항목을 전혀 반영하지 않음
+2. review_needed (자동 반려 — 교사 지침 미충족):
+   - 교사 지침의 핵심 요구사항을 명백히 충족하지 못한 경우
+   - 구체적인 활동 내용 없이 단순 감상·감정만 작성한 경우
+   → reason: 학생에게 보여줄 반려 사유 (한두 문장, 왜 반려됐는지 구체적으로)
+   → guide: 어떻게 수정하면 승인될 수 있는지 친절한 개선 방향 (한두 문장)
 
-   【AI 생성 의심】 다음 중 2가지 이상:
-   - 중고등학생 수준을 넘는 격식체·학술어 다수 사용 (예: "함양", "도모", "고찰", "심층적 탐구", "역량 증진")
-   - AI 특유 한국어 상투어 다수 포함 (예: "다양한 관점에서", "비판적 사고력 향상", "융합적 사고", "깊이 있는 이해", "핵심 역량 함양", "통해 성장할 수 있었습니다")
-   - 개인 에피소드·감정·실수담이 전혀 없고 교과서식 일반 서술만 존재
-   - 구어체·개인 어투("~해서 신기했다", "솔직히", "처음엔 어려웠는데")가 전혀 없고 모두 격식 문어체
-   - 500자 초과이면서 위 특징을 2개 이상 포함
-
-   → concern 필드: 선생님께 전달할 검토 이유 한 문장. AI 생성 의심이면 "AI 생성 의심:" 으로 시작.
-
-3. good (승인):
-   - 개인 경험·진정성이 느껴지거나 수업과 관련된 내용이면 문법·분량 무관하게 good
-   - 한두 가지 특징만 해당되는 애매한 경우도 good으로 판단
+3. good (자동 승인):
+   - 교사 지침을 어느 정도 충족하거나 수업과 관련된 내용이 있으면 승인
+   - 분량·문체·맞춤법 무관, 진정성 있는 내용이면 승인
+   - 애매한 경우는 good으로 처리
 
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
-{"status":"good","concern":"","reason":"","guide":""}
+{"status":"good","reason":"","guide":""}
 `;
           const aiResult = await geminiFlash.generateContent(prompt);
           const aiResponseText = aiResult.response.text();
@@ -1079,14 +1074,16 @@ ${guidePrompt}
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
             if (parsed.status === 'reject') {
-              setAiFeedback({ reason: parsed.reason || '', guide: parsed.guide || '' });
+              setAiFeedback({ reason: parsed.reason || '내용이 너무 짧거나 불성실합니다.', guide: parsed.guide || '활동한 내용을 구체적으로 작성해주세요.' });
+              setRejectModalType('block');
               setIsRejectModalOpen(true);
               setSubmitting(false);
               return;
             }
-            if (parsed.status === 'review_needed' && parsed.concern) {
+            if (parsed.status === 'review_needed' && parsed.reason) {
               aiReviewFlag = 'review_needed';
-              aiConcern = parsed.concern;
+              aiConcern = parsed.reason;
+              aiFeedbackForModal = { reason: parsed.reason, guide: parsed.guide || '교사 지침을 참고하여 구체적인 활동 내용을 추가해 주세요.' };
             } else {
               aiReviewFlag = 'good';
             }
@@ -1097,8 +1094,8 @@ ${guidePrompt}
       }
 
       // ── 1. 관찰 기록 저장 ──────────────────────────────────────────────────
-      // AI 검토 권장인 경우 pending으로 저장 (선생님 확인 필요)
-      const obsStatus = aiReviewFlag === 'review_needed' ? 'pending' : 'approved';
+      // review_needed → rejected 자동 반려 (teacher_feedback = AI 사유)
+      const obsStatus = aiReviewFlag === 'review_needed' ? 'rejected' : 'approved';
       const { error: obsError } = await supabase
         .from('observations')
         .insert({
@@ -1108,50 +1105,55 @@ ${guidePrompt}
           content: `${content}\n\n[배운 점 및 느낀 점]\n${feeling}`,
           is_student_record: true,
           status: obsStatus,
-          ai_concern: aiReviewFlag === 'review_needed' ? aiConcern : null,
+          ai_concern: aiConcern || null,
+          teacher_feedback: aiReviewFlag === 'review_needed' ? aiConcern : null,
           category: session?.subject || '학생 제출'
         });
 
       if (obsError) throw new Error(`기록 저장 오류: ${obsError.message}`);
 
       // ── 2. 교사 알림 전송 (실패해도 제출 성공으로 처리) ───────────────────
-      supabase
-        .from('notifications')
-        .insert({
-          user_id: teacherId,
-          title: `📝 ${session.student_name}이(가) 활동을 제출했습니다`,
-          content: `"${title}" — ${session.class_name}`,
-          type: 'student_submission',
-          link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`,
-        })
-        .then(({ error }) => {
-          if (error) console.warn('[알림 전송 실패]', error.message);
-        });
-
-      // ── 3. AI 검토 권장 시 선생님에게 별도 알림 ─────────────────────────────
-      if (aiReviewFlag === 'review_needed' && aiConcern) {
-        const isAiGenerated = aiConcern.startsWith('AI 생성 의심');
+      if (aiReviewFlag !== 'review_needed') {
+        // 승인된 제출만 일반 알림 전송
         supabase
           .from('notifications')
           .insert({
             user_id: teacherId,
-            title: isAiGenerated
-              ? `🤖 AI 생성 의심 · ${session.student_name} "${title}"`
-              : `⚠️ AI 검토 권장 · ${session.student_name} "${title}"`,
-            content: aiConcern,
+            title: `📝 ${session.student_name}이(가) 활동을 제출했습니다`,
+            content: `"${title}" — ${session.class_name}`,
+            type: 'student_submission',
+            link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`,
+          })
+          .then(({ error }) => {
+            if (error) console.warn('[알림 전송 실패]', error.message);
+          });
+      } else {
+        // 자동 반려 → 선생님에게 "재검토 가능" 알림
+        supabase
+          .from('notifications')
+          .insert({
+            user_id: teacherId,
+            title: `🔄 AI 자동 반려 · ${session.student_name} "${title}"`,
+            content: `반려 사유: ${aiConcern} (승인으로 변경 가능)`,
             type: 'ai_review_needed',
             link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`,
           })
           .then(({ error }) => {
-            if (error) console.warn('[AI 검토 알림 실패]', error.message);
+            if (error) console.warn('[자동반려 알림 실패]', error.message);
           });
       }
 
-      showToast(
-        aiReviewFlag === 'review_needed'
-          ? '제출 완료! AI 검토가 필요하여 선생님 확인 후 반영됩니다. ⚠️'
-          : '제출 완료! ✅'
-      );
+      // ── 3. 자동 반려인 경우 즉시 반려 모달 표시 후 종료 ──────────────────
+      if (aiReviewFlag === 'review_needed' && aiFeedbackForModal) {
+        setAiFeedback(aiFeedbackForModal);
+        setRejectModalType('auto_reject');
+        setIsRejectModalOpen(true);
+        await fetchHistory();
+        setSubmitting(false);
+        return;
+      }
+
+      showToast('제출 완료! ✅');
 
       // 결과제출 리마인더 체크 — stale state 대신 DB 직접 조회
       const normR = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
@@ -3434,44 +3436,76 @@ ${guidePrompt}
       <AnimatePresence>
         {isRejectModalOpen && aiFeedback && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }} 
-              animate={{ opacity: 1, scale: 1, y: 0 }} 
-              exit={{ opacity: 0, scale: 0.9, y: 20 }} 
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="w-full max-w-lg bg-white p-10 rounded-[3rem] space-y-8 shadow-2xl relative overflow-hidden"
             >
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-error/60 to-error" />
+              {/* 상단 색상 바 */}
+              <div className={`absolute top-0 left-0 w-full h-2 bg-gradient-to-r ${
+                rejectModalType === 'auto_reject'
+                  ? 'from-amber-400 to-orange-500'
+                  : 'from-error/60 to-error'
+              }`} />
+
               <div className="flex justify-center mb-4">
-                <div className="w-20 h-20 bg-error/5 text-error rounded-3xl flex items-center justify-center shadow-inner border border-error/10">
-                  <Lightbulb size={36} />
-                </div>
-              </div>
-              <div className="text-center space-y-2">
-                <h3 className="text-3xl font-black text-slate-900 font-manrope">잠깐만요! ✨</h3>
-                <p className="text-sm font-bold text-slate-500">조금만 더 내용을 다듬어볼까요?</p>
-              </div>
-              
-              <div className="space-y-6 pt-4">
-                <div className="space-y-2 bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                  <h4 className="text-xs font-black text-error uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-error" /> AI 피드백
-                  </h4>
-                  <p className="text-sm font-bold text-slate-600 leading-relaxed">{aiFeedback.reason}</p>
-                </div>
-                <div className="space-y-2 bg-primary/5 p-6 rounded-3xl border border-primary/10">
-                  <h4 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary" /> 이렇게 해보세요
-                  </h4>
-                  <p className="text-sm font-bold text-primary/80 leading-relaxed">{aiFeedback.guide}</p>
+                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-inner border ${
+                  rejectModalType === 'auto_reject'
+                    ? 'bg-amber-50 text-amber-500 border-amber-100'
+                    : 'bg-error/5 text-error border-error/10'
+                }`}>
+                  {rejectModalType === 'auto_reject' ? '🔄' : <Lightbulb size={36} />}
                 </div>
               </div>
 
-              <div className="pt-4">
-                <button 
+              <div className="text-center space-y-2">
+                {rejectModalType === 'auto_reject' ? (
+                  <>
+                    <h3 className="text-2xl font-black text-slate-900 font-manrope">기록이 반려되었어요</h3>
+                    <p className="text-sm font-bold text-slate-500">아래 피드백을 참고해서 수정 후 다시 제출해주세요.</p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-3xl font-black text-slate-900 font-manrope">잠깐만요! ✨</h3>
+                    <p className="text-sm font-bold text-slate-500">조금만 더 내용을 다듬어볼까요?</p>
+                  </>
+                )}
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="space-y-2 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                  <h4 className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 ${
+                    rejectModalType === 'auto_reject' ? 'text-amber-600' : 'text-error'
+                  }`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      rejectModalType === 'auto_reject' ? 'bg-amber-500' : 'bg-error'
+                    }`} />
+                    {rejectModalType === 'auto_reject' ? '반려 사유' : 'AI 피드백'}
+                  </h4>
+                  <p className="text-sm font-bold text-slate-600 leading-relaxed">{aiFeedback.reason}</p>
+                </div>
+                {aiFeedback.guide && (
+                  <div className="space-y-2 bg-primary/5 p-6 rounded-3xl border border-primary/10">
+                    <h4 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary" /> 이렇게 수정해보세요
+                    </h4>
+                    <p className="text-sm font-bold text-primary/80 leading-relaxed">{aiFeedback.guide}</p>
+                  </div>
+                )}
+                {rejectModalType === 'auto_reject' && (
+                  <p className="text-[11px] text-slate-400 font-bold text-center">
+                    선생님이 직접 검토 후 승인으로 변경할 수도 있습니다.
+                  </p>
+                )}
+              </div>
+
+              <div className="pt-2">
+                <button
                   onClick={() => setIsRejectModalOpen(false)}
                   className="w-full py-5 rounded-2xl bg-slate-900 text-white font-black hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95"
                 >
-                  내용 수정하러 가기
+                  {rejectModalType === 'auto_reject' ? '수정 후 재제출하기 →' : '내용 수정하러 가기'}
                 </button>
               </div>
             </motion.div>
