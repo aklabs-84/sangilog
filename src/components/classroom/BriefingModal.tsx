@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import {
   X, Play, Pause, SkipForward, SkipBack,
-  Volume2, Loader2, CheckCircle2, Circle,
+  Volume2, Loader2, CheckCircle2, Circle, Download, BookOpen,
 } from 'lucide-react';
 
 interface BriefingModalProps {
@@ -289,6 +289,57 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
     onClose();
   };
 
+  // NotebookLM 소스용 텍스트 내보내기
+  const handleNotebookLMExport = () => {
+    if (byStudent.length === 0) return;
+
+    const weekLabel = weekFilter === 'all' ? '전체 주차' : `${weekFilter}주차`;
+    const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+    const weekTopic = weekFilter !== 'all' ? weeklyPlan.find(p => p.week === weekFilter)?.topic : null;
+
+    let doc = '';
+    doc += `학급 관찰 기록 브리핑\n`;
+    doc += `${'═'.repeat(46)}\n\n`;
+    doc += `학급명 : ${className}\n`;
+    doc += `대상   : ${weekLabel}${weekTopic ? ` (${weekTopic})` : ''}\n`;
+    doc += `생성일 : ${today}\n`;
+    doc += `학생 수: ${byStudent.length}명\n`;
+
+    const pendingCnt = byStudent.filter(s => s.status === 'pending').length;
+    const approvedCnt = byStudent.filter(s => s.status === 'approved').length;
+    if (pendingCnt > 0) doc += `승인 대기: ${pendingCnt}건 / 승인 완료: ${approvedCnt}건\n`;
+
+    doc += `\n${'─'.repeat(46)}\n\n`;
+    doc += `[활용 안내]\n`;
+    doc += `이 문서는 Google NotebookLM에 소스로 추가하여\n`;
+    doc += `"오디오 개요(Audio Overview)" 기능으로 학급 기록을\n`;
+    doc += `자연스러운 팟캐스트 형식으로 들을 수 있습니다.\n`;
+    doc += `\n${'═'.repeat(46)}\n\n`;
+
+    byStudent.forEach((r, i) => {
+      const numStr = r.student_number !== '-' ? `${r.student_number}번 ` : '';
+      const dateStr = new Date(r.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+      const statusStr = r.status === 'pending' ? '승인 대기 중' : '승인 완료';
+
+      doc += `■ 학생 ${i + 1}. ${numStr}${r.student_name}  [${statusStr}]\n`;
+      doc += `활동명: ${r.activity_name || '(활동명 없음)'}\n`;
+      doc += `제출일: ${dateStr}\n`;
+      doc += `\n`;
+      doc += `${r.content || '(내용 없음)'}\n`;
+      doc += `\n${'─'.repeat(46)}\n\n`;
+    });
+
+    doc += `[생기로그(SaengiLog) 학급 관찰 기록 · 총 ${byStudent.length}명]\n`;
+
+    const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `브리핑_${className}_${weekLabel}_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const current = byStudent[currentIndex];
 
   return (
@@ -507,6 +558,24 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                 </button>
               ))}
             </div>
+
+            {/* NotebookLM 내보내기 */}
+            {byStudent.length > 0 && (
+              <div className="pt-1 space-y-2">
+                <div className="h-px bg-white/5" />
+                <button
+                  onClick={handleNotebookLMExport}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-indigo-500/15 border border-white/10 hover:border-indigo-500/40 rounded-2xl text-xs font-black text-slate-400 hover:text-indigo-300 transition-all group"
+                >
+                  <Download size={13} className="group-hover:-translate-y-0.5 transition-transform" />
+                  NotebookLM 소스 텍스트 내보내기
+                  <BookOpen size={13} className="opacity-50" />
+                </button>
+                <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
+                  .txt 다운로드 → NotebookLM 소스 추가 → 오디오 개요 생성
+                </p>
+              </div>
+            )}
           </div>
 
           {/* 학생 목록 (스크롤) */}
