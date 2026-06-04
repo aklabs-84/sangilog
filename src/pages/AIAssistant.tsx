@@ -441,7 +441,7 @@ ${obsText}
               AI 세특 기능은 Free 또는 Pro 플랜에서 사용 가능합니다.
             </p>
           </div>
-          <a href="mailto:mosebb@gmail.com?subject=생기로그 플랜 문의"
+          <a href="mailto:aklabs84@naver.com?subject=생기로그 플랜 문의"
             className="inline-block px-6 py-3 bg-violet-500 text-white text-sm font-bold rounded-xl hover:bg-violet-600 transition-colors">
             플랜 문의하기
           </a>

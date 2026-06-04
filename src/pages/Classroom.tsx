@@ -2048,7 +2048,7 @@ const Classroom = () => {
                 <p className="text-on-surface-variant font-bold">학생 입장용 QR 코드</p>
               </div>
               <div className="bg-white p-6 rounded-[2.5rem] shadow-inner inline-block aspect-square">
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`${window.location.origin}/classroom-entry?code=${classInfo.entry_code}`)}`} alt="QR Code" className="w-full h-full object-contain" />
+                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://sangilog.vercel.app/classroom-entry?code=${classInfo.entry_code}`)}`} alt="QR Code" className="w-full h-full object-contain" />
               </div>
               <div className="bg-primary/5 p-6 rounded-3xl space-y-2">
                 <p className="text-[11px] font-black text-primary uppercase tracking-widest">입장 코드</p>

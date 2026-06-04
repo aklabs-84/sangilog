@@ -382,7 +382,7 @@ const Settings = () => {
           </div>
           {plan === 'free' && (
             <a
-              href="mailto:mosebb@gmail.com?subject=생기로그 AI Pro 업그레이드 문의"
+              href="mailto:aklabs84@naver.com?subject=생기로그 AI Pro 업그레이드 문의"
               className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors"
             >
               <Zap size={14} /> Pro 업그레이드

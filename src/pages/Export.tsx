@@ -253,7 +253,7 @@ const Export = () => {
         <button
           onClick={() => {
             if (profile?.plan === 'free' || profile?.plan === 'school') {
-              alert('나이스 제출 준비는 Pro 플랜 전용 기능입니다.\nmosebb@gmail.com으로 업그레이드 문의해 주세요.');
+              alert('나이스 제출 준비는 Pro 플랜 전용 기능입니다.\naklabs84@naver.com으로 업그레이드 문의해 주세요.');
               return;
             }
             setActiveTab('naiss');

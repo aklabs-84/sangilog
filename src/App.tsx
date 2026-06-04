@@ -67,7 +67,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             </p>
           </div>
           <a
-            href="mailto:mosebb@gmail.com?subject=생기로그 계정 문의"
+            href="mailto:aklabs84@naver.com?subject=생기로그 계정 문의"
             className="inline-block px-6 py-3 bg-amber-500 text-white text-sm font-bold rounded-xl hover:bg-amber-600 transition-colors"
           >
             관리자에게 문의하기

@@ -465,7 +465,7 @@ const Landing = () => {
             initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
             className="text-center text-xs text-amber-600/60 mt-8"
           >
-            플랜 변경 및 문의: mosebb@gmail.com · 관리자가 직접 플랜을 지정합니다.
+            플랜 변경 및 문의: aklabs84@naver.com · 관리자가 직접 플랜을 지정합니다.
           </motion.p>
         </div>
       </section>
