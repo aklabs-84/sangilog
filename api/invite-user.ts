@@ -61,13 +61,9 @@ export default async function handler(req: any, res: any) {
     });
 
   if (!inviteError && inviteLink?.user) {
-    const hashedToken = inviteLink.properties?.hashed_token;
-
-    // hashed_token을 URL 파라미터로 직접 전달 → 앱 내 verifyOtp() 교환
-    // Supabase redirect_to 경유 없이 동작하므로 URL 허용 목록 의존 없음
-    const setPasswordUrl = hashedToken
-      ? `${siteUrl}/set-password?token_hash=${encodeURIComponent(hashedToken)}&type=invite`
-      : inviteLink.properties?.action_link ?? `${siteUrl}/set-password`;
+    // action_link 사용: Supabase 인증 서버를 거쳐 /set-password 로 리다이렉트
+    // hashed_token + verifyOtp() 방식은 invite 타입에서 불안정하므로 표준 방식으로 복귀
+    const actionUrl = inviteLink.properties?.action_link;
 
     // 프로필: 이름 + role=teacher + email + is_approved 설정
     await supabaseAdmin.from('profiles')
@@ -77,10 +73,10 @@ export default async function handler(req: any, res: any) {
     await sendCustomEmail(
       email,
       '생기로그 AI 사용 승인 안내',
-      inviteEmailHtml(name, setPasswordUrl),
+      inviteEmailHtml(name, actionUrl ?? `${siteUrl}/set-password`),
     );
 
-    console.log('[api/invite-user] invite sent, setPasswordUrl:', setPasswordUrl);
+    console.log('[api/invite-user] invite sent via action_link');
     return res.status(200).json({ ok: true, type: 'invite' });
   }
 

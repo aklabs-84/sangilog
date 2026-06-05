@@ -14,40 +14,28 @@ const SetPassword = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const tokenHash = searchParams.get('token_hash');
-    const tokenType = searchParams.get('type') as 'invite' | 'recovery' | null;
+    // Supabase action_link 클릭 후 /set-password#access_token=xxx 로 도착
+    // 또는 /set-password?code=xxx (PKCE) 로 도착
+    // Supabase 클라이언트가 URL에서 자동으로 세션을 감지하고 SIGNED_IN 이벤트를 발생시킴
 
-    if (tokenHash && tokenType) {
-      // 초대/복구 token_hash 직접 교환 (Supabase redirect_to 경유 없음)
-      supabase.auth.verifyOtp({ token_hash: tokenHash, type: tokenType })
-        .then(({ data, error: otpError }) => {
-          if (!otpError && data.session) {
-            setSessionReady(true);
-            // URL 정리 (토큰 파라미터 제거)
-            window.history.replaceState({}, '', '/set-password');
-          } else {
-            console.error('[set-password] verifyOtp error:', otpError?.message);
-            setError('인증 링크가 만료되었거나 유효하지 않습니다. 관리자에게 재발급을 요청해주세요.');
-            setTimeout(() => navigate('/login'), 3000);
-          }
-        });
-      return;
-    }
-
-    // 기존 세션 감지 (해시 기반 토큰, 이미 세션 있는 경우)
+    // 이미 세션이 있으면 즉시 표시
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setSessionReady(true);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      if (session) setSessionReady(true);
+    // Supabase가 URL 토큰을 처리한 후 세션 생성 시 감지
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setSessionReady(true);
+      }
     });
 
+    // 3초 후에도 세션이 없고 토큰도 없으면 로그인으로
     const timer = setTimeout(() => {
       supabase.auth.getSession().then(({ data: { session } }) => {
-        const hasToken = window.location.hash.includes('access_token') ||
-                         new URLSearchParams(window.location.search).has('code');
+        const hasToken =
+          window.location.hash.includes('access_token') ||
+          new URLSearchParams(window.location.search).has('code');
         if (!session && !hasToken) {
           navigate('/login');
         }
