@@ -28,24 +28,38 @@ export default async function handler(req: any, res: any) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Recovery 링크 생성 (token_hash 방식 — /set-password 에서 처리)
-  const { data: linkData, error: linkError } =
+  // 1차: recovery 링크 시도 (기존 비밀번호 있는 계정)
+  let { data: linkData, error: linkError } =
     await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email,
       options: { redirectTo: `${siteUrl}/set-password` },
     });
 
+  let linkType: 'recovery' | 'invite' = 'recovery';
+
+  // recovery 실패 시 → invite 링크로 재시도 (비밀번호 미설정 신규 계정 대응)
   if (linkError) {
-    // 가입되지 않은 이메일이어도 보안상 동일한 응답 반환
-    console.warn('[api/reset-password] generateLink error:', linkError.message);
-    return res.status(200).json({ ok: true });
+    console.warn('[api/reset-password] recovery failed, trying invite:', linkError.message);
+    const inviteResult = await supabaseAdmin.auth.admin.generateLink({
+      type: 'invite',
+      email,
+      options: { redirectTo: `${siteUrl}/set-password` },
+    });
+    if (inviteResult.error) {
+      // 가입되지 않은 이메일도 보안상 동일한 응답 반환
+      console.warn('[api/reset-password] invite also failed:', inviteResult.error.message);
+      return res.status(200).json({ ok: true });
+    }
+    linkData  = inviteResult.data;
+    linkError = null;
+    linkType  = 'invite';
   }
 
-  const hashedToken = linkData.properties?.hashed_token;
+  const hashedToken = linkData!.properties?.hashed_token;
   const resetUrl = hashedToken
-    ? `${siteUrl}/set-password?token_hash=${encodeURIComponent(hashedToken)}&type=recovery`
-    : linkData.properties?.action_link ?? `${siteUrl}/set-password`;
+    ? `${siteUrl}/set-password?token_hash=${encodeURIComponent(hashedToken)}&type=${linkType}`
+    : linkData!.properties?.action_link ?? `${siteUrl}/set-password`;
 
   // Gmail 발송
   if (gmailUser && gmailPassword) {
