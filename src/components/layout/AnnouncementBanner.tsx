@@ -15,12 +15,14 @@ const AnnouncementBanner = () => {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('announcements')
         .select('id, title, content')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      if (error) return;
 
       if (data) {
         const dismissedId = localStorage.getItem(DISMISSED_KEY);
