@@ -518,11 +518,57 @@ const Landing = () => {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-16 bg-emerald-50 rounded-3xl border border-emerald-100"
+              className="bg-emerald-50 rounded-3xl border border-emerald-100 overflow-hidden"
             >
-              <CheckCircle2 size={48} className="text-emerald-500 mx-auto mb-4" />
-              <h3 className="text-xl font-black text-emerald-800 mb-2">신청이 접수되었습니다!</h3>
-              <p className="text-emerald-700/70 text-sm">검토 후 이메일로 안내해 드리겠습니다.<br />감사합니다 😊</p>
+              {/* 상단 헤더 */}
+              <div className="bg-emerald-500 px-8 py-8 text-center">
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 size={36} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-black text-white mb-1">신청이 완료되었습니다!</h3>
+                <p className="text-emerald-100 text-sm font-medium">생기로그 AI에 관심 가져주셔서 감사합니다</p>
+              </div>
+
+              {/* 안내 내용 */}
+              <div className="px-8 py-8 space-y-4">
+                <div className="flex items-start gap-4 p-4 bg-white rounded-2xl border border-emerald-100">
+                  <span className="text-2xl shrink-0">📬</span>
+                  <div>
+                    <p className="text-sm font-black text-emerald-900 mb-1">승인 안내 이메일을 보내드립니다</p>
+                    <p className="text-xs text-emerald-700/70 leading-relaxed">
+                      관리자 검토 후 <strong>신청하신 이메일</strong>로 비밀번호 설정 링크를 보내드립니다.<br />
+                      받은 편지함(스팸 폴더 포함)을 확인해 주세요.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 p-4 bg-white rounded-2xl border border-emerald-100">
+                  <span className="text-2xl shrink-0">⏱️</span>
+                  <div>
+                    <p className="text-sm font-black text-emerald-900 mb-1">평일 기준 24시간 내 처리됩니다</p>
+                    <p className="text-xs text-emerald-700/70 leading-relaxed">
+                      주말·공휴일에는 처리가 다소 늦어질 수 있습니다.<br />
+                      승인 전까지는 로그인이 제한됩니다.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4 p-4 bg-white rounded-2xl border border-emerald-100">
+                  <span className="text-2xl shrink-0">💬</span>
+                  <div>
+                    <p className="text-sm font-black text-emerald-900 mb-1">문의가 있으신가요?</p>
+                    <p className="text-xs text-emerald-700/70 leading-relaxed">
+                      오래 기다리셨다면 아래 이메일로 문의해 주세요.
+                    </p>
+                    <a
+                      href="mailto:aklabs84@naver.com?subject=생기로그 AI 사용 신청 문의"
+                      className="inline-block mt-2 text-xs font-black text-emerald-600 hover:text-emerald-800 underline underline-offset-2 transition-colors"
+                    >
+                      aklabs84@naver.com →
+                    </a>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           ) : (
             <form
