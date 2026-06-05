@@ -531,7 +531,14 @@ const Settings = () => {
             </>
           )}
           <div className="flex gap-2 pt-2">
-            <span className="px-3 py-1 bg-primary-container text-primary font-bold text-[11px] rounded-lg tracking-widest uppercase shadow-sm shadow-primary/10 transition-all hover:scale-105">PREMIUM PRO</span>
+            <span className={`px-3 py-1 font-bold text-[11px] rounded-lg tracking-widest uppercase shadow-sm transition-all hover:scale-105 ${
+              plan === 'admin'  ? 'bg-emerald-100 text-emerald-700 shadow-emerald-100' :
+              plan === 'pro'    ? 'bg-amber-100 text-amber-700 shadow-amber-100' :
+              plan === 'school' ? 'bg-violet-100 text-violet-700 shadow-violet-100' :
+                                  'bg-gray-100 text-gray-500'
+            }`}>
+              {plan === 'admin' ? 'ADMIN' : plan === 'pro' ? 'PRO' : plan === 'school' ? 'SCHOOL' : 'FREE'}
+            </span>
             <span className="px-3 py-1 bg-surface-container-highest text-on-surface-variant font-bold text-[11px] rounded-lg tracking-widest uppercase">ACTIVE</span>
           </div>
         </div>

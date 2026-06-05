@@ -90,9 +90,11 @@ const Login = () => {
         <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />
 
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-black mb-3 tracking-tightest">다시 오셨군요!</h2>
+          <h2 className="text-3xl font-black mb-3 tracking-tightest">
+            {setupDone ? '반갑습니다, 선생님!' : '다시 오셨군요!'}
+          </h2>
           <p className="text-[10px] text-on-surface-variant/40 uppercase tracking-[0.25em] font-black">
-            Educator Authentication
+            {setupDone ? 'Welcome to SAENGGI LOG AI' : 'Educator Authentication'}
           </p>
         </div>
 
