@@ -23,8 +23,7 @@ const Login = () => {
 
   const navigate = useNavigate();
 
-  const handleForgot = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleForgot = async () => {
     if (!forgotEmail.trim()) return;
     setForgotLoading(true);
     setForgotError(null);
@@ -200,29 +199,30 @@ const Login = () => {
                       </p>
                     </motion.div>
                   ) : (
-                    <form onSubmit={handleForgot} className="flex gap-2">
+                    <div className="flex gap-2">
                       <div className="relative flex-1">
                         <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-amber-400">
                           <Mail size={15} />
                         </div>
                         <input
                           type="email"
-                          required
                           value={forgotEmail}
                           onChange={e => setForgotEmail(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleForgot(); }}
                           placeholder="가입한 이메일 주소"
                           className="w-full pl-10 pr-3 py-3 bg-white border border-amber-200 rounded-xl text-sm font-medium outline-none focus:border-amber-400 transition-colors"
                         />
                       </div>
                       <button
-                        type="submit"
+                        type="button"
+                        onClick={handleForgot}
                         disabled={forgotLoading}
                         className="px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-colors flex items-center gap-1.5 shrink-0"
                       >
                         {forgotLoading ? <Loader2 size={13} className="animate-spin" /> : <ArrowRight size={13} />}
                         발송
                       </button>
-                    </form>
+                    </div>
                   )}
 
                   {forgotError && (

@@ -56,10 +56,7 @@ export default async function handler(req: any, res: any) {
     linkType  = 'invite';
   }
 
-  const hashedToken = linkData!.properties?.hashed_token;
-  const resetUrl = hashedToken
-    ? `${siteUrl}/set-password?token_hash=${encodeURIComponent(hashedToken)}&type=${linkType}`
-    : linkData!.properties?.action_link ?? `${siteUrl}/set-password`;
+  const resetUrl = linkData!.properties?.action_link ?? `${siteUrl}/set-password`;
 
   // Gmail 발송
   if (gmailUser && gmailPassword) {

@@ -142,7 +142,7 @@ function inviteEmailHtml(name: string, siteUrl: string): string {
         아래 버튼을 클릭해 비밀번호를 설정하고 바로 시작해보세요.
       </p>
       <div style="text-align:center;margin:32px 0;">
-        <a href="${siteUrl}/set-password"
+        <a href="${siteUrl}"
            style="display:inline-block;background:linear-gradient(135deg,#F59E0B 0%,#EA580C 100%);color:#fff;font-size:15px;font-weight:900;text-decoration:none;padding:16px 44px;border-radius:14px;box-shadow:0 6px 20px rgba(245,158,11,0.40);letter-spacing:-0.2px;">
           비밀번호 설정하기 →
         </a>
