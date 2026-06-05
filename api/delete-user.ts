@@ -21,12 +21,21 @@ export default async function handler(req: any, res: any) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // auth.users 삭제 → profiles(ON DELETE CASCADE) 자동 삭제
+  // 1. 이메일 조회 (access_requests 삭제에 필요)
+  const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
+  const email = userData?.user?.email;
+
+  // 2. auth.users 삭제 → profiles(ON DELETE CASCADE) 자동 삭제
   const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
   if (error) {
     console.error('[api/delete-user] error:', error.message);
     return res.status(500).json({ error: error.message });
+  }
+
+  // 3. 사용 신청 기록도 이메일 기준으로 삭제
+  if (email) {
+    await supabaseAdmin.from('access_requests').delete().eq('email', email);
   }
 
   return res.status(200).json({ ok: true });
