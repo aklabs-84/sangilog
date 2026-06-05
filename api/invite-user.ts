@@ -48,8 +48,10 @@ export default async function handler(req: any, res: any) {
     }
   };
 
-  // ── 신규 유저: 초대 링크(토큰 포함) 생성 후 커스텀 메일 발송 ─────────────
-  // generateLink 사용: 실제 토큰 링크 반환, 기본 이메일 미발송
+  // ── Step 1: 유저 생성 또는 기존 유저 ID 확보 ────────────────────────────────
+  let userId: string | null = null;
+
+  // 신규 유저 생성 시도 (invite 방식)
   const { data: inviteLink, error: inviteError } =
     await supabaseAdmin.auth.admin.generateLink({
       type: 'invite',
@@ -61,80 +63,60 @@ export default async function handler(req: any, res: any) {
     });
 
   if (!inviteError && inviteLink?.user) {
-    // action_link 사용: Supabase 인증 서버를 거쳐 /set-password 로 리다이렉트
-    // hashed_token + verifyOtp() 방식은 invite 타입에서 불안정하므로 표준 방식으로 복귀
-    const actionUrl = inviteLink.properties?.action_link;
-
-    // 프로필: 이름 + role=teacher + email + is_approved 설정
-    await supabaseAdmin.from('profiles')
-      .update({ full_name: name || '', role: 'teacher', email, is_approved: true })
-      .eq('id', inviteLink.user.id);
-
-    await sendCustomEmail(
-      email,
-      '생기로그 AI 사용 승인 안내',
-      inviteEmailHtml(name, actionUrl ?? `${siteUrl}/set-password`),
-    );
-
-    console.log('[api/invite-user] invite sent via action_link');
-    return res.status(200).json({ ok: true, type: 'invite' });
+    userId = inviteLink.user.id;
+    console.log('[api/invite-user] new user created via invite, userId:', userId);
+  } else {
+    // 이미 존재하는 유저 → profiles 테이블에서 ID 조회
+    const { data: profileData } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+    userId = profileData?.id ?? null;
+    console.log('[api/invite-user] existing user found, userId:', userId, 'inviteError:', inviteError?.message);
   }
 
-  // ── 기존 유저: 비밀번호 재설정 링크 생성 후 커스텀 메일 발송 ──────────────
-  const isAlreadyRegistered =
-    !inviteLink ||
-    (inviteError?.status === 422) ||
-    (inviteError?.message?.toLowerCase().includes('already')) ||
-    (inviteError?.message?.toLowerCase().includes('registered'));
-
-  if (isAlreadyRegistered) {
-    const { data: linkData, error: linkError } =
-      await supabaseAdmin.auth.admin.generateLink({
-        type: 'recovery',
-        email,
-        options: { redirectTo: `${siteUrl}/set-password` },
-      });
-
-    if (linkError) {
-      console.error('[api/invite-user] generateLink error:', linkError.message);
-      return res.status(500).json({ error: linkError.message });
-    }
-
-    const resetUrl = linkData.properties?.action_link;
-    if (!resetUrl) {
-      return res.status(500).json({ error: 'Failed to generate reset link' });
-    }
-
-    if (linkData.user) {
-      // 기존 유저도 Display name + role 갱신
-      await supabaseAdmin.auth.admin.updateUserById(linkData.user.id, {
-        user_metadata: { full_name: name || '', name: name || '' },
-      });
-      await supabaseAdmin.from('profiles')
-        .update({ full_name: name || '', role: 'teacher', email, is_approved: true })
-        .eq('id', linkData.user.id);
-    }
-
-    const sent = await sendCustomEmail(
-      email,
-      '생기로그 AI 비밀번호 재설정 안내',
-      resetEmailHtml(name, resetUrl),
-    );
-
-    if (!sent) {
-      // Gmail 미설정 시 Supabase 기본 메일로 폴백
-      const { error: resetError } = await (createClient(supabaseUrl, process.env.VITE_SUPABASE_ANON_KEY || serviceRoleKey, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      })).auth.resetPasswordForEmail(email, { redirectTo: `${siteUrl}/set-password` });
-
-      if (resetError) return res.status(500).json({ error: resetError.message });
-    }
-
-    return res.status(200).json({ ok: true, type: 'reset' });
+  if (!userId) {
+    console.error('[api/invite-user] could not find or create user for:', email);
+    return res.status(500).json({ error: 'Could not find or create user' });
   }
 
-  console.error('[api/invite-user] invite error:', inviteError.message);
-  return res.status(500).json({ error: inviteError.message });
+  // ── Step 2: 이메일 확인 처리 + 메타데이터 갱신 ─────────────────────────────
+  // unconfirmed 상태이면 recovery 링크가 동작하지 않으므로 강제 confirm
+  await supabaseAdmin.auth.admin.updateUserById(userId, {
+    email_confirm: true,
+    user_metadata: { full_name: name || '', name: name || '' },
+  });
+
+  // ── Step 3: 프로필 업데이트 ───────────────────────────────────────────────
+  await supabaseAdmin.from('profiles')
+    .update({ full_name: name || '', role: 'teacher', email, is_approved: true })
+    .eq('id', userId);
+
+  // ── Step 4: Recovery 링크 생성 (confirmed 유저에서 100% 동작) ────────────
+  const { data: recoveryLink, error: recoveryError } =
+    await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: { redirectTo: `${siteUrl}/set-password` },
+    });
+
+  if (recoveryError || !recoveryLink?.properties?.action_link) {
+    console.error('[api/invite-user] recovery link error:', recoveryError?.message);
+    return res.status(500).json({ error: 'Failed to generate recovery link' });
+  }
+
+  const actionUrl = recoveryLink.properties.action_link;
+  console.log('[api/invite-user] recovery action_link generated, sending email to:', email);
+
+  // ── Step 5: 승인 이메일 발송 ─────────────────────────────────────────────
+  await sendCustomEmail(
+    email,
+    '생기로그 AI 사용 승인 안내',
+    inviteEmailHtml(name, actionUrl),
+  );
+
+  return res.status(200).json({ ok: true, type: 'invite' });
 }
 
 // ── 이메일 HTML 템플릿 ────────────────────────────────────────────────────────
