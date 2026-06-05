@@ -64,6 +64,36 @@ const Landing = () => {
     setSubmitting(true);
     setSubmitError(null);
 
+    // 중복 신청 / 이미 가입된 계정 사전 확인
+    try {
+      const checkRes = await fetch('/api/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (checkRes.ok) {
+        const { status } = await checkRes.json();
+        if (status === 'registered') {
+          setSubmitError('이미 가입된 계정입니다. 로그인 화면에서 접속하거나 비밀번호 찾기를 이용해주세요.');
+          setSubmitting(false);
+          return;
+        }
+        if (status === 'pending') {
+          setSubmitError('이미 신청이 접수되어 검토 중입니다. 승인 완료 후 이메일로 안내드립니다.');
+          setSubmitting(false);
+          return;
+        }
+        if (status === 'approved') {
+          setSubmitError('이미 승인된 계정입니다. 받은 이메일을 확인하거나 비밀번호 찾기를 이용해주세요.');
+          setSubmitting(false);
+          return;
+        }
+        // status === 'available' 또는 'rejected' → 신청 진행
+      }
+    } catch {
+      // 확인 API 실패해도 신청은 계속 진행
+    }
+
     const { error } = await supabase.from('access_requests').insert({
       name,
       email,
