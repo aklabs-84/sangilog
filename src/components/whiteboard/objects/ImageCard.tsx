@@ -1,6 +1,7 @@
-import { useRef } from 'react';
-import { X, ImageIcon } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { X, ImageIcon, Loader2 } from 'lucide-react';
 import type { BoardObject } from '../types';
+import { uploadBoardImage } from '../utils/imageUtils';
 
 interface Props {
   obj: BoardObject;
@@ -13,15 +14,16 @@ interface Props {
 
 export default function ImageCard({ obj, isSelected, onSelect, onUpdate, onDelete, onDragStart }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const url = obj.content.url as string | undefined;
 
-  const handleFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64 = e.target?.result as string;
-      onUpdate({ content: { ...obj.content, url: base64 } });
-    };
-    reader.readAsDataURL(file);
+  const handleFile = async (file: File) => {
+    setUploading(true);
+    const publicUrl = await uploadBoardImage(file);
+    setUploading(false);
+    if (publicUrl) {
+      onUpdate({ content: { ...obj.content, url: publicUrl } });
+    }
   };
 
   return (
@@ -54,8 +56,13 @@ export default function ImageCard({ obj, isSelected, onSelect, onUpdate, onDelet
         </div>
       )}
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-      {url ? (
-        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      {uploading ? (
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#6B7280' }}>
+          <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
+          <span style={{ fontSize: 12 }}>업로드 중...</span>
+        </div>
+      ) : url ? (
+        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
       ) : (
         <div
           style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#9CA3AF', cursor: 'pointer' }}

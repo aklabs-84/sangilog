@@ -14,6 +14,7 @@ import CapacityAlert from '../../components/whiteboard/ui/CapacityAlert';
 import ClassLinkModal from '../../components/whiteboard/ui/ClassLinkModal';
 import html2canvas from 'html2canvas';
 import { v4 as uuidv4 } from 'uuid';
+import { uploadBoardImage } from '../../components/whiteboard/utils/imageUtils';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -206,30 +207,33 @@ export default function Whiteboard() {
   }, [objects]);
 
   useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
+    const handlePaste = async (e: ClipboardEvent) => {
       if (!boardId) return;
       const item = Array.from(e.clipboardData?.items ?? []).find(i => i.type.startsWith('image/'));
       if (!item) return;
       const file = item.getAsFile();
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const base64 = ev.target?.result as string;
-        const newObj: BoardObject = {
-          id: uuidv4(), board_id: boardId, type: 'image',
-          x: 200, y: 150, width: 320, height: 240,
-          z_index: getNextZIndex(),
-          content: { url: base64, caption: '' },
-          style: {},
-          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        };
-        handleAddObject(newObj);
+
+      // 임시 placeholder 먼저 추가 (업로드 중 표시)
+      const tempId = uuidv4();
+      const placeholder: BoardObject = {
+        id: tempId, board_id: boardId, type: 'image',
+        x: 200, y: 150, width: 320, height: 240,
+        z_index: getNextZIndex(),
+        content: { url: '', caption: '' },
+        style: {},
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       };
-      reader.readAsDataURL(file);
+      handleAddObject(placeholder);
+
+      const publicUrl = await uploadBoardImage(file);
+      if (publicUrl) {
+        handleUpdateObject(tempId, { content: { url: publicUrl, caption: '' } });
+      }
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [boardId, handleAddObject, getNextZIndex]);
+  }, [boardId, handleAddObject, handleUpdateObject, getNextZIndex]);
 
   // 템플릿 선택 시 보드 생성
   const handleTemplateSelect = async (templateKey: TemplateKey) => {
