@@ -91,6 +91,7 @@ const QuizGame = () => {
   const [quizSets, setQuizSets] = useState<QuizSet[]>([]);
   const [selectedQuizSet, setSelectedQuizSet] = useState<QuizSet | null>(null);
   const [_quizSetDropdownOpen, _setQuizSetDropdownOpen] = useState(false);
+  const [showAllClasses, setShowAllClasses] = useState(false);
 
   // 문제 관리
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -159,12 +160,20 @@ const QuizGame = () => {
     if (data) setQuestions(data);
   };
 
+  const handleToggleAllClasses = async (val: boolean) => {
+    setShowAllClasses(val);
+    if (selectedClass) {
+      await fetchQuizSets(val ? undefined : selectedClass.id);
+    }
+  };
+
   // 클래스 선택
   const handleSelectClass = async (cls: any) => {
     setSelectedClass(cls);
     setClassDropdownOpen(false);
     setSelectedQuizSet(null);
     setQuestions([]);
+    setShowAllClasses(false);
     await fetchQuizSets(cls.id);
     // 수업 자료 로드
     const { data } = await supabase
@@ -597,24 +606,39 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                 exit={{ opacity: 0, height: 0 }}
                 className="space-y-3"
               >
-                <p className="text-xs font-bold text-on-surface-variant">퀴즈 세트 선택</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-on-surface-variant">퀴즈 세트 선택</p>
+                  <button
+                    onClick={() => handleToggleAllClasses(!showAllClasses)}
+                    className={`text-xs px-2.5 py-1 rounded-lg border transition-all font-bold ${showAllClasses ? 'border-primary/50 bg-primary/10 text-primary' : 'border-white/30 bg-surface-container-low/40 text-on-surface-variant hover:border-primary/30'}`}
+                  >
+                    {showAllClasses ? '전체 클래스 보는 중' : '다른 클래스 퀴즈 보기'}
+                  </button>
+                </div>
 
                 {/* 기존 세트 목록 */}
                 {quizSets.length > 0 && (
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {quizSets.map(qs => (
-                      <button
-                        key={qs.id}
-                        onClick={() => handleSelectQuizSet(qs)}
-                        className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-white/40 bg-surface-container-low/50 hover:border-primary/30 hover:bg-primary/5 transition-all text-left group"
-                      >
-                        <div className="flex items-center gap-2">
-                          <BookOpen size={15} className="text-primary/60 group-hover:text-primary transition-colors" />
-                          <span className="text-sm font-bold text-on-surface">{qs.title}</span>
-                        </div>
-                        <ChevronRight size={15} className="text-on-surface-variant/50 group-hover:text-primary transition-colors" />
-                      </button>
-                    ))}
+                    {quizSets.map(qs => {
+                      const isOtherClass = showAllClasses && qs.class_id !== selectedClass?.id;
+                      const otherClassName = isOtherClass ? classes.find(c => c.id === qs.class_id)?.name : null;
+                      return (
+                        <button
+                          key={qs.id}
+                          onClick={() => handleSelectQuizSet(qs)}
+                          className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-white/40 bg-surface-container-low/50 hover:border-primary/30 hover:bg-primary/5 transition-all text-left group"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <BookOpen size={15} className="text-primary/60 group-hover:text-primary transition-colors shrink-0" />
+                            <span className="text-sm font-bold text-on-surface truncate">{qs.title}</span>
+                            {otherClassName && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-bold shrink-0">{otherClassName}</span>
+                            )}
+                          </div>
+                          <ChevronRight size={15} className="text-on-surface-variant/50 group-hover:text-primary transition-colors shrink-0" />
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
