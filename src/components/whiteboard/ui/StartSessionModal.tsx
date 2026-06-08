@@ -41,7 +41,7 @@ export default function StartSessionModal({ onClose }: Props) {
   const [className, setClassName] = useState('');
   const [boards, setBoards] = useState<SessionBoard[]>([]);
   const [copied, setCopied] = useState(false);
-  const [confirmEnd, setConfirmEnd] = useState(false);
+  const [ending, setEnding] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -143,19 +143,17 @@ export default function StartSessionModal({ onClose }: Props) {
   };
 
   const handleEnd = async () => {
-    if (!sessionId) return;
-    // 세션 종료 + 연결된 보드 비공개 처리 (동시 실행)
-    await Promise.all([
-      supabase.from('class_board_sessions').update({ status: 'ended' }).eq('id', sessionId),
-      supabase.from('whiteboards').update({ is_public: false }).eq('session_id', sessionId),
-    ]);
+    if (!sessionId || ending) return;
+    setEnding(true);
+    await supabase.from('class_board_sessions').update({ status: 'ended' }).eq('id', sessionId);
+    await supabase.from('whiteboards').update({ is_public: false }).eq('session_id', sessionId);
+    setEnding(false);
     onClose();
   };
 
-  // active 상태에서 닫기 시도 → 세션 종료 처리
   const handleClose = () => {
     if (step === 'active') {
-      setConfirmEnd(true);
+      handleEnd();
     } else {
       onClose();
     }
@@ -341,39 +339,19 @@ export default function StartSessionModal({ onClose }: Props) {
               })}
             </div>
 
-            {confirmEnd ? (
-              <div style={{ background: '#1F2937', border: '1px solid #EF4444', borderRadius: 10, padding: '14px 16px' }}>
-                <p style={{ color: '#F87171', fontSize: 13, fontWeight: 600, margin: '0 0 12px', textAlign: 'center' }}>
-                  수업을 종료하면 학생들이 더 이상 입장할 수 없습니다.<br />
-                  <span style={{ color: '#9CA3AF', fontWeight: 400 }}>작업한 보드 내용은 목록에서 계속 확인할 수 있습니다.</span>
-                </p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => setConfirmEnd(false)}
-                    style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid #374151', background: 'transparent', color: '#9CA3AF', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    계속하기
-                  </button>
-                  <button
-                    onClick={handleEnd}
-                    style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#EF4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                  >
-                    <Square size={13} /> 수업 종료
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmEnd(true)}
-                style={{
-                  width: '100%', padding: '12px', borderRadius: 10, border: '1px solid #374151',
-                  background: 'transparent', color: '#EF4444', fontSize: 14, fontWeight: 600,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                }}
-              >
-                <Square size={14} /> 수업 종료
-              </button>
-            )}
+            <button
+              onClick={handleEnd}
+              disabled={ending}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 10, border: '1px solid #374151',
+                background: ending ? '#374151' : 'transparent',
+                color: ending ? '#9CA3AF' : '#EF4444', fontSize: 14, fontWeight: 600,
+                cursor: ending ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              <Square size={14} /> {ending ? '종료 중...' : '수업 종료'}
+            </button>
           </>
         )}
       </div>
