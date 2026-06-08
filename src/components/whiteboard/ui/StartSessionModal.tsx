@@ -41,6 +41,7 @@ export default function StartSessionModal({ onClose }: Props) {
   const [className, setClassName] = useState('');
   const [boards, setBoards] = useState<SessionBoard[]>([]);
   const [copied, setCopied] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -133,6 +134,15 @@ export default function StartSessionModal({ onClose }: Props) {
     onClose();
   };
 
+  // active 상태에서 닫기 시도 → 세션 종료 처리
+  const handleClose = () => {
+    if (step === 'active') {
+      setConfirmEnd(true);
+    } else {
+      onClose();
+    }
+  };
+
   const joinUrl = `${window.location.origin}/wb-join`;
 
   const handleCopy = async (text: string) => {
@@ -146,7 +156,7 @@ export default function StartSessionModal({ onClose }: Props) {
 
   return (
     <div
-      onClick={e => e.target === e.currentTarget && onClose()}
+      onClick={e => e.target === e.currentTarget && handleClose()}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
@@ -168,7 +178,7 @@ export default function StartSessionModal({ onClose }: Props) {
               {step === 'active' && <p style={{ color: '#60A5FA', fontSize: 12, margin: 0 }}>{className} · {totalJoined}명 참여 중</p>}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer' }}>
+          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer' }}>
             <X size={20} />
           </button>
         </div>
@@ -313,16 +323,39 @@ export default function StartSessionModal({ onClose }: Props) {
               })}
             </div>
 
-            <button
-              onClick={handleEnd}
-              style={{
-                width: '100%', padding: '12px', borderRadius: 10, border: '1px solid #374151',
-                background: 'transparent', color: '#EF4444', fontSize: 14, fontWeight: 600,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              }}
-            >
-              <Square size={14} /> 수업 종료
-            </button>
+            {confirmEnd ? (
+              <div style={{ background: '#1F2937', border: '1px solid #EF4444', borderRadius: 10, padding: '14px 16px' }}>
+                <p style={{ color: '#F87171', fontSize: 13, fontWeight: 600, margin: '0 0 12px', textAlign: 'center' }}>
+                  수업을 종료하면 학생들이 더 이상 입장할 수 없습니다.<br />
+                  <span style={{ color: '#9CA3AF', fontWeight: 400 }}>작업한 보드 내용은 목록에서 계속 확인할 수 있습니다.</span>
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setConfirmEnd(false)}
+                    style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid #374151', background: 'transparent', color: '#9CA3AF', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    계속하기
+                  </button>
+                  <button
+                    onClick={handleEnd}
+                    style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#EF4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    <Square size={13} /> 수업 종료
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmEnd(true)}
+                style={{
+                  width: '100%', padding: '12px', borderRadius: 10, border: '1px solid #374151',
+                  background: 'transparent', color: '#EF4444', fontSize: 14, fontWeight: 600,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}
+              >
+                <Square size={14} /> 수업 종료
+              </button>
+            )}
           </>
         )}
       </div>
