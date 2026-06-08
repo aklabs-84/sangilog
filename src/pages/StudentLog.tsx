@@ -262,11 +262,11 @@ const StudentLog = () => {
     return () => clearInterval(interval);
   }, [session?.student_id]);
 
-  // 수업 보드 세션 폴링 — 15초마다 새 세션 확인
+  // 수업 보드 세션 폴링 — 5초마다 세션 상태 확인
   useEffect(() => {
     if (!session?.class_id) return;
     fetchActiveBoardSessions();
-    const interval = setInterval(fetchActiveBoardSessions, 15_000);
+    const interval = setInterval(fetchActiveBoardSessions, 5_000);
     return () => clearInterval(interval);
   }, [session?.class_id]);
 

@@ -130,7 +130,11 @@ export default function StartSessionModal({ onClose }: Props) {
 
   const handleEnd = async () => {
     if (!sessionId) return;
-    await supabase.from('class_board_sessions').update({ status: 'ended' }).eq('id', sessionId);
+    // 세션 종료 + 연결된 보드 비공개 처리 (동시 실행)
+    await Promise.all([
+      supabase.from('class_board_sessions').update({ status: 'ended' }).eq('id', sessionId),
+      supabase.from('whiteboards').update({ is_public: false }).eq('session_id', sessionId),
+    ]);
     onClose();
   };
 
