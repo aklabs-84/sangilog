@@ -145,8 +145,7 @@ export default function StartSessionModal({ onClose }: Props) {
   const handleEnd = async () => {
     if (!sessionId || ending) return;
     setEnding(true);
-    await supabase.from('class_board_sessions').update({ status: 'ended' }).eq('id', sessionId);
-    await supabase.from('whiteboards').update({ is_public: false }).eq('session_id', sessionId);
+    await supabase.rpc('end_board_session', { p_session_id: sessionId });
     setEnding(false);
     onClose();
   };
