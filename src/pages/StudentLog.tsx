@@ -43,6 +43,7 @@ import {
   StickyNote,
   Heart,
   Download,
+  BarChart2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { geminiFlash } from '../lib/gemini';
@@ -55,7 +56,7 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'board'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board'>('home');
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const [selectedHomeWeek, setSelectedHomeWeek] = useState<number | null>(null);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'obs' | 'result'>('all');
@@ -161,6 +162,10 @@ const StudentLog = () => {
   // Quiz Tab States
   const [activeQuizSessions, setActiveQuizSessions] = useState<any[]>([]);
   const [quizLoading, setQuizLoading] = useState(false);
+
+  // Survey Tab States
+  const [activeSurveyForms, setActiveSurveyForms] = useState<any[]>([]);
+  const [surveyLoading, setSurveyLoading] = useState(false);
 
   // Board Tab States
   const [activeBoardSessions, setActiveBoardSessions] = useState<any[]>([]);
@@ -915,6 +920,24 @@ const StudentLog = () => {
     }
   };
 
+  const fetchActiveSurveyForms = async () => {
+    if (!session?.class_id) return;
+    setSurveyLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('survey_forms')
+        .select('id, title, pin_code, status, created_at')
+        .eq('class_id', session.class_id)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+      if (!error && data) setActiveSurveyForms(data);
+    } catch (err) {
+      console.error('Error fetching survey forms:', err);
+    } finally {
+      setSurveyLoading(false);
+    }
+  };
+
   const fetchActiveBoardSessions = async () => {
     if (!session?.class_id) return;
     const { data } = await supabase
@@ -1013,7 +1036,7 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'board') => {
+  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board') => {
     setActiveTab(tab);
     setIsMoreSheetOpen(false);
     if (tab === 'history') { fetchHistory(); fetchResults(); }
@@ -1022,6 +1045,7 @@ const StudentLog = () => {
     if (tab === 'unit') fetchPendingUnits();
     if (tab === 'suggestions') fetchSuggestions();
     if (tab === 'quiz') fetchActiveQuizSessions();
+    if (tab === 'survey') fetchActiveSurveyForms();
     if (tab === 'board') { fetchBoard(); fetchActiveBoardSessions(); }
   };
 
@@ -2928,6 +2952,94 @@ ${guidePrompt}
                 )}
               </motion.div>
             )}
+            {/* ─── 설문 탭 ─── */}
+            {activeTab === 'survey' && (
+              <motion.div
+                key="survey"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                className="p-8 space-y-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-teal-500 uppercase tracking-[0.25em]">Live Survey</p>
+                    <h2 className="text-2xl font-black">실시간 설문</h2>
+                    <p className="text-sm text-on-surface-variant font-bold">선생님이 시작한 설문에 바로 참여하세요</p>
+                  </div>
+                  <button
+                    onClick={fetchActiveSurveyForms}
+                    disabled={surveyLoading}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} className={surveyLoading ? 'animate-spin' : ''} />
+                    새로고침
+                  </button>
+                </div>
+
+                {surveyLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 size={28} className="animate-spin text-teal-500" />
+                  </div>
+                ) : activeSurveyForms.length === 0 ? (
+                  <div className="flex flex-col items-center py-20 space-y-4">
+                    <div className="w-20 h-20 rounded-3xl bg-teal-50 flex items-center justify-center">
+                      <BarChart2 size={36} className="text-teal-300" />
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="font-black text-on-surface opacity-40">진행 중인 설문이 없습니다</p>
+                      <p className="text-sm text-on-surface-variant/50 font-bold">선생님이 설문을 시작하면 여기에 표시됩니다</p>
+                    </div>
+                    <button
+                      onClick={fetchActiveSurveyForms}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-600 font-black text-sm hover:bg-teal-100 transition-all"
+                    >
+                      <RefreshCw size={14} />
+                      다시 확인하기
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {activeSurveyForms.map((sf) => (
+                      <motion.div
+                        key={sf.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="rounded-3xl border-2 border-teal-100 bg-gradient-to-r from-teal-50 to-emerald-50 p-6 flex items-center justify-between gap-4"
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-200 shrink-0">
+                            <BarChart2 size={26} className="text-white" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                                진행 중 🟢
+                              </span>
+                              <span className="text-[10px] font-black text-on-surface-variant/50 bg-white/60 px-2 py-0.5 rounded-full border border-surface-container">
+                                PIN: {sf.pin_code}
+                              </span>
+                            </div>
+                            <h3 className="font-black text-on-surface text-base truncate">{sf.title}</h3>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => navigate(`/survey/${sf.pin_code}`, {
+                            state: { autoJoinName: session?.student_name }
+                          })}
+                          className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-black text-sm shadow-lg shadow-teal-200 hover:brightness-110 active:scale-95 transition-all shrink-0"
+                        >
+                          <Play size={16} />
+                          참여하기
+                        </button>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {/* ─── 보드 탭 ─── */}
             {activeTab === 'board' && (
               <motion.div
@@ -3287,6 +3399,7 @@ ${guidePrompt}
                   { key: 'materials' as const, icon: BookOpen,    label: '수업 자료', color: 'text-cyan-600',   activeBg: 'bg-cyan-50'   },
                   { key: 'history' as const,   icon: History,     label: '나의 기록', color: 'text-blue-600',   activeBg: 'bg-blue-50'   },
                   { key: 'quiz' as const,      icon: Gamepad2,    label: '퀴즈',      color: 'text-purple-600', activeBg: 'bg-purple-50' },
+                  { key: 'survey' as const,    icon: BarChart2,   label: '설문',      color: 'text-teal-600',   activeBg: 'bg-teal-50' },
                   { key: 'unit' as const,      icon: ClipboardList, label: '단원마무리', color: 'text-amber-600', activeBg: 'bg-amber-50', badge: unitPendingCount },
                   { key: 'suggestions' as const, icon: Megaphone, label: '건의사항',  color: 'text-rose-600',   activeBg: 'bg-rose-50',  badge: unreadReplyCount },
                 ].map((item) => {

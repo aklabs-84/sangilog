@@ -38,6 +38,9 @@ export default function Whiteboard() {
   const [linkedClassName, setLinkedClassName] = useState<string | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clipboardRef = useRef<BoardObject | null>(null);
+  const historyStack = useRef<BoardObject[][]>([]);
+  const pasteOffsetRef = useRef(0);
 
   // Realtime: 원격 변경사항 수신 (auto-save 미트리거)
   const onRemoteChange = useCallback((event: 'created' | 'updated' | 'deleted', data: unknown) => {
@@ -172,68 +175,118 @@ export default function Whiteboard() {
   // 매 렌더마다 ref를 최신 saveObjects로 갱신
   saveObjectsRef.current = saveObjects;
 
+  const pushHistory = useCallback((snapshot: BoardObject[]) => {
+    historyStack.current = [...historyStack.current.slice(-19), snapshot];
+  }, []);
+
   const handleAddObject = useCallback((obj: BoardObject) => {
     setObjects(prev => {
+      pushHistory(prev);
       const next = [...prev, obj];
       scheduleAutoSave(next);
       return next;
     });
     emitObjectCreated(obj);
-  }, [scheduleAutoSave, emitObjectCreated]);
+  }, [scheduleAutoSave, emitObjectCreated, pushHistory]);
 
   const handleUpdateObject = useCallback((id: string, changes: Partial<BoardObject>) => {
     const stamped = { ...changes, updated_at: new Date().toISOString() };
     setObjects(prev => {
+      pushHistory(prev);
       const next = prev.map(o => o.id === id ? { ...o, ...stamped } : o);
       scheduleAutoSave(next);
       return next;
     });
     emitObjectUpdated(id, stamped);
-  }, [scheduleAutoSave, emitObjectUpdated]);
+  }, [scheduleAutoSave, emitObjectUpdated, pushHistory]);
 
   const handleDeleteObject = useCallback((id: string) => {
     setObjects(prev => {
+      pushHistory(prev);
       const next = prev.filter(o => o.id !== id);
       scheduleAutoSave(next);
       return next;
     });
     setSelectedId(null);
     emitObjectDeleted(id);
-  }, [scheduleAutoSave, emitObjectDeleted]);
+  }, [scheduleAutoSave, emitObjectDeleted, pushHistory]);
 
-  // 전역 이미지 붙여넣기 (Ctrl+V)
   const getNextZIndex = useCallback(() => {
     return objects.length > 0 ? Math.max(...objects.map(o => o.z_index)) + 1 : 1;
   }, [objects]);
 
+  // 전역 붙여넣기: 이미지 → 업로드, 아니면 내부 clipboard 객체 붙여넣기
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
       if (!boardId) return;
       const item = Array.from(e.clipboardData?.items ?? []).find(i => i.type.startsWith('image/'));
-      if (!item) return;
-      const file = item.getAsFile();
-      if (!file) return;
-
-      // 임시 placeholder 먼저 추가 (업로드 중 표시)
-      const tempId = uuidv4();
-      const placeholder: BoardObject = {
-        id: tempId, board_id: boardId, type: 'image',
-        x: 200, y: 150, width: 320, height: 240,
-        z_index: getNextZIndex(),
-        content: { url: '', caption: '' },
-        style: {},
-        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      };
-      handleAddObject(placeholder);
-
-      const publicUrl = await uploadBoardImage(file);
-      if (publicUrl) {
-        handleUpdateObject(tempId, { content: { url: publicUrl, caption: '' } });
+      if (item) {
+        const file = item.getAsFile();
+        if (!file) return;
+        const tempId = uuidv4();
+        const placeholder: BoardObject = {
+          id: tempId, board_id: boardId, type: 'image',
+          x: 200, y: 150, width: 320, height: 240,
+          z_index: getNextZIndex(),
+          content: { url: '', caption: '' },
+          style: {},
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        };
+        handleAddObject(placeholder);
+        const publicUrl = await uploadBoardImage(file);
+        if (publicUrl) handleUpdateObject(tempId, { content: { url: publicUrl, caption: '' } });
+        return;
+      }
+      // 내부 객체 붙여넣기 (Ctrl/Cmd+V)
+      if (clipboardRef.current) {
+        pasteOffsetRef.current = (pasteOffsetRef.current + 20) % 200;
+        const offset = pasteOffsetRef.current;
+        const src = clipboardRef.current;
+        const newObj: BoardObject = {
+          ...src,
+          id: uuidv4(),
+          board_id: boardId,
+          x: src.x + offset,
+          y: src.y + offset,
+          z_index: getNextZIndex(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        handleAddObject(newObj);
+        setSelectedId(newObj.id);
       }
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, [boardId, handleAddObject, handleUpdateObject, getNextZIndex]);
+
+  // Ctrl/Cmd+C (복사) / Ctrl/Cmd+Z (실행취소)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key.toLowerCase() === 'c') {
+        if (selectedId) {
+          setObjects(prev => {
+            const found = prev.find(o => o.id === selectedId);
+            if (found) { clipboardRef.current = found; pasteOffsetRef.current = 0; }
+            return prev;
+          });
+        }
+      }
+      if (ctrl && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        const prev = historyStack.current.pop();
+        if (prev) {
+          setObjects(prev);
+          setSelectedId(null);
+          scheduleAutoSave(prev);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedId, scheduleAutoSave]);
 
   // 템플릿 선택 시 보드 생성
   const handleTemplateSelect = async (templateKey: TemplateKey) => {

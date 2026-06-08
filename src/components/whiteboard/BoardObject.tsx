@@ -25,7 +25,7 @@ export default function BoardObject({ obj, isSelected, onSelect, onUpdate, onDel
     case 'text':    return <TextBox {...commonProps} />;
     case 'image':   return <ImageCard {...commonProps} />;
     case 'shape':   return <ShapeBlock {...commonProps} />;
-    case 'section': return <SectionBlock obj={obj} isSelected={isSelected} onSelect={onSelect} onUpdate={onUpdate} onDragStart={onDragStart} />;
+    case 'section': return <SectionBlock obj={obj} isSelected={isSelected} onSelect={onSelect} onUpdate={onUpdate} onDelete={onDelete} onDragStart={onDragStart} />;
     case 'arrow':   return <ArrowLine {...commonProps} allObjects={allObjects} zoom={zoom} />;
     default:        return null;
   }

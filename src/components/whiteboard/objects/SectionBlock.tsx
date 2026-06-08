@@ -1,15 +1,28 @@
 import { useState, useRef, useEffect } from 'react';
+import { X } from 'lucide-react';
 import type { BoardObject } from '../types';
+
+const SECTION_COLORS = [
+  { bg: '#F0F9FF', border: '#BAE6FD' }, // sky
+  { bg: '#FFF9C4', border: '#FDE047' }, // yellow
+  { bg: '#FCE4EC', border: '#F9A8D4' }, // pink
+  { bg: '#E8F5E9', border: '#86EFAC' }, // green
+  { bg: '#F3E5F5', border: '#D8B4FE' }, // purple
+  { bg: '#FFF3E0', border: '#FDB26F' }, // orange
+  { bg: '#E3F2FD', border: '#93C5FD' }, // blue
+  { bg: '#F1F5F9', border: '#CBD5E1' }, // slate
+];
 
 interface Props {
   obj: BoardObject;
   isSelected: boolean;
   onSelect: () => void;
   onUpdate: (changes: Partial<BoardObject>) => void;
+  onDelete: () => void;
   onDragStart: (e: React.PointerEvent) => void;
 }
 
-export default function SectionBlock({ obj, isSelected, onSelect, onUpdate, onDragStart }: Props) {
+export default function SectionBlock({ obj, isSelected, onSelect, onUpdate, onDelete, onDragStart }: Props) {
   const [editingTitle, setEditingTitle] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -40,6 +53,35 @@ export default function SectionBlock({ obj, isSelected, onSelect, onUpdate, onDr
         onDragStart(e);
       }}
     >
+      {/* 색상 팔레트 툴바 */}
+      {isSelected && (
+        <div
+          style={{ position: 'absolute', top: -44, left: 0, display: 'flex', gap: 4, background: '#1e1e1e', borderRadius: 8, padding: '6px 10px', zIndex: 10000, alignItems: 'center' }}
+          onPointerDown={e => e.stopPropagation()}
+        >
+          {SECTION_COLORS.map((c, i) => (
+            <button
+              key={i}
+              onPointerDown={e => { e.stopPropagation(); onUpdate({ style: { ...obj.style, bgColor: c.bg } }); }}
+              style={{
+                width: 18, height: 18, borderRadius: 4,
+                background: c.bg, border: `2px solid ${c.border}`,
+                cursor: 'pointer',
+                outline: bgColor === c.bg ? '2px solid #60A5FA' : 'none',
+                outlineOffset: 1,
+              }}
+            />
+          ))}
+          <div style={{ width: 1, background: '#444', margin: '0 2px', alignSelf: 'stretch' }} />
+          <button
+            onPointerDown={e => { e.stopPropagation(); onDelete(); }}
+            style={{ color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* 제목 바 */}
       <div
         style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid rgba(0,0,0,0.08)', background: 'rgba(255,255,255,0.5)', borderRadius: '9px 9px 0 0', flexShrink: 0, cursor: 'grab' }}

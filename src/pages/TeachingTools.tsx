@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2 } from 'lucide-react';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
 import QuizGame from './tools/QuizGame';
 import MaterialEditor from './tools/MaterialEditor';
 import ClassTranscription from './tools/ClassTranscription';
 import WhiteboardList from '../components/whiteboard/WhiteboardList';
+import SurveyTool from './tools/SurveyTool';
 
 interface Tool {
   id: string;
@@ -71,6 +72,15 @@ const tools: Tool[] = [
     badge: 'NEW',
     available: true,
     component: <WhiteboardList />,
+  },
+  {
+    id: 'survey',
+    icon: <BarChart2 size={28} />,
+    label: '실시간 설문',
+    description: '객관식, 예/아니오, 별점 등 다양한 방식으로 수업 중 실시간 설문을 진행합니다',
+    badge: 'NEW',
+    available: true,
+    component: <SurveyTool />,
   },
   {
     id: 'random-pick',
