@@ -26,6 +26,9 @@ import StudentLog from './pages/StudentLog';
 import Archive from './pages/Archive';
 import StudentView from './pages/StudentView';
 import TeachingTools from './pages/TeachingTools';
+import Whiteboard from './pages/tools/Whiteboard';
+import StudentBoardViewer from './pages/tools/StudentBoardViewer';
+import StudentJoin from './pages/tools/StudentJoin';
 import SuggestionsPage from './pages/SuggestionsPage';
 import QuizStudentView from './pages/QuizStudentView';
 import ClassBoard from './pages/ClassBoard';
@@ -124,6 +127,8 @@ function App() {
               <Route path="/student-log" element={<StudentLog />} />
               <Route path="/quiz/:pin" element={<QuizStudentView />} />
               <Route path="/quiz" element={<QuizStudentView />} />
+              <Route path="/sb/:boardId" element={<StudentBoardViewer />} />
+              <Route path="/wb-join" element={<StudentJoin />} />
               <Route path="/share/:classId" element={<ShareClassView />} />
 
               {/* 관리자 라우트 */}
@@ -131,6 +136,9 @@ function App() {
 
               {/* 보드 */}
               <Route path="/board/:classId" element={<ProtectedRoute><ClassBoard /></ProtectedRoute>} />
+
+              {/* 화이트보드 (전체 화면, 레이아웃 없음) */}
+              <Route path="/whiteboard/:boardId" element={<ProtectedRoute><Whiteboard /></ProtectedRoute>} />
 
               {/* 보호된 레이아웃 라우트 (/dashboard 아래) */}
               <Route

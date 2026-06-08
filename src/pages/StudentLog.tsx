@@ -84,6 +84,8 @@ const StudentLog = () => {
   } | null>(null);
   const isFirstRejectionPoll = useRef(true);
   const seenRejectionIds = useRef(new Set<string>());
+  const isFirstBoardPoll = useRef(true);
+  const seenBoardSessionIds = useRef(new Set<string>());
   
   // Resources State (weekly_plan + class_materials)
   const [classResources, setClassResources] = useState<any[]>([]);
@@ -161,6 +163,8 @@ const StudentLog = () => {
   const [quizLoading, setQuizLoading] = useState(false);
 
   // Board Tab States
+  const [activeBoardSessions, setActiveBoardSessions] = useState<any[]>([]);
+  const [boardSessionAlert, setBoardSessionAlert] = useState<{ id: string; class_name: string; session_code: string; group_count: number } | null>(null);
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
@@ -257,6 +261,14 @@ const StudentLog = () => {
     const interval = setInterval(check, 15000);
     return () => clearInterval(interval);
   }, [session?.student_id]);
+
+  // 수업 보드 세션 폴링 — 15초마다 새 세션 확인
+  useEffect(() => {
+    if (!session?.class_id) return;
+    fetchActiveBoardSessions();
+    const interval = setInterval(fetchActiveBoardSessions, 15_000);
+    return () => clearInterval(interval);
+  }, [session?.class_id]);
 
   const fetchUnreadReplyCount = async (studentId: string, classId: string) => {
     const { count } = await supabase
@@ -903,6 +915,27 @@ const StudentLog = () => {
     }
   };
 
+  const fetchActiveBoardSessions = async () => {
+    if (!session?.class_id) return;
+    const { data } = await supabase
+      .from('class_board_sessions')
+      .select('id, class_name, session_code, group_count, group_size, created_at')
+      .eq('class_id', session.class_id)
+      .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false });
+
+    const sessions = data || [];
+
+    if (!isFirstBoardPoll.current) {
+      const newSession = sessions.find(s => !seenBoardSessionIds.current.has(s.id));
+      if (newSession) setBoardSessionAlert(newSession);
+    }
+    sessions.forEach(s => seenBoardSessionIds.current.add(s.id));
+    isFirstBoardPoll.current = false;
+    setActiveBoardSessions(sessions);
+  };
+
   const fetchBoard = async () => {
     if (!session?.class_id) return;
     setBoardLoading(true);
@@ -989,7 +1022,7 @@ const StudentLog = () => {
     if (tab === 'unit') fetchPendingUnits();
     if (tab === 'suggestions') fetchSuggestions();
     if (tab === 'quiz') fetchActiveQuizSessions();
-    if (tab === 'board') fetchBoard();
+    if (tab === 'board') { fetchBoard(); fetchActiveBoardSessions(); }
   };
 
   const formatRelativeTime = (dateStr: string) => {
@@ -2904,6 +2937,49 @@ ${guidePrompt}
                 exit={{ opacity: 0, y: -10 }}
                 className="p-6 md:p-8"
               >
+                {/* 활성 수업 보드 세션 */}
+                {activeBoardSessions.length > 0 && (
+                  <div className="mb-8">
+                    <div className="mb-4 space-y-0.5">
+                      <p className="text-[10px] font-black text-blue-500 uppercase tracking-[0.25em]">Live Board</p>
+                      <h3 className="text-xl font-black">수업 보드 참여</h3>
+                      <p className="text-sm text-on-surface-variant font-bold">선생님이 시작한 수업 보드에 입장하세요</p>
+                    </div>
+                    <div className="space-y-3">
+                      {activeBoardSessions.map(bs => (
+                        <motion.div
+                          key={bs.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="rounded-3xl border-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 flex items-center justify-between gap-4"
+                        >
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+                              <StickyNote size={26} className="text-white" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">진행 중 🎨</span>
+                                <span className="text-[10px] font-black text-on-surface-variant/50 bg-white/60 px-2 py-0.5 rounded-full border border-surface-container">
+                                  {bs.group_count}개 조
+                                </span>
+                              </div>
+                              <h3 className="font-black text-on-surface text-base truncate">{bs.class_name} 수업 보드</h3>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => navigate(`/wb-join?code=${bs.session_code}&name=${encodeURIComponent(session?.student_name ?? '')}`)}
+                            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm rounded-2xl transition-all shrink-0"
+                          >
+                            입장하기 <ArrowRight size={14} />
+                          </button>
+                        </motion.div>
+                      ))}
+                    </div>
+                    <hr className="mt-8 border-surface-container-high" />
+                  </div>
+                )}
+
                 {/* 헤더 */}
                 <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                   <div>
@@ -3828,6 +3904,54 @@ ${guidePrompt}
             </>
           );
         })()}
+      </AnimatePresence>
+
+      {/* ── 수업 보드 시작 알림 바텀시트 ── */}
+      <AnimatePresence>
+        {boardSessionAlert && (
+          <div className="fixed inset-0 z-[1600] flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setBoardSessionAlert(null)}
+            />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-blue-400"
+            >
+              <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center text-2xl shrink-0">🎨</div>
+                <div className="flex-1">
+                  <p className="font-black text-on-surface text-base leading-snug">
+                    선생님이 수업 보드를 시작했어요!
+                  </p>
+                  <p className="text-sm text-on-surface-variant font-bold mt-1">
+                    보드 탭에서 바로 참여할 수 있습니다
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setBoardSessionAlert(null);
+                    handleTabChange('board');
+                  }}
+                  className="flex-1 py-4 btn-gradient rounded-2xl font-black text-sm"
+                >
+                  보드 탭으로 이동 →
+                </button>
+                <button
+                  onClick={() => setBoardSessionAlert(null)}
+                  className="px-5 py-4 bg-neutral-100 hover:bg-neutral-200 rounded-2xl font-black text-sm text-neutral-500 transition-all"
+                >
+                  닫기
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* ── 반려 알림 바텀시트 ── */}

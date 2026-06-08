@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop } from 'lucide-react';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
 import QuizGame from './tools/QuizGame';
 import MaterialEditor from './tools/MaterialEditor';
 import ClassTranscription from './tools/ClassTranscription';
+import WhiteboardList from '../components/whiteboard/WhiteboardList';
 
 interface Tool {
   id: string;
@@ -62,6 +64,15 @@ const tools: Tool[] = [
     component: <ClassTranscription />,
   },
   {
+    id: 'whiteboard',
+    icon: <LayoutPanelTop size={28} />,
+    label: '협업 화이트보드',
+    description: '조별 협업 보드를 만들고 포스트잇, 도형, 이미지로 수업 활동을 진행합니다',
+    badge: 'NEW',
+    available: true,
+    component: <WhiteboardList />,
+  },
+  {
     id: 'random-pick',
     icon: <Dices size={28} />,
     label: '랜덤 학생 뽑기',
@@ -72,7 +83,17 @@ const tools: Tool[] = [
 ];
 
 const TeachingTools = () => {
+  const location = useLocation();
   const [activeTool, setActiveTool] = useState<Tool | null>(null);
+
+  // 화이트보드에서 뒤로 버튼 누를 때 whiteboard 패널 자동 열기
+  useEffect(() => {
+    const stateToolId = (location.state as { activeToolId?: string } | null)?.activeToolId;
+    if (stateToolId) {
+      const tool = tools.find(t => t.id === stateToolId) ?? null;
+      setActiveTool(tool);
+    }
+  }, []);
 
   return (
     <div className="space-y-6">
