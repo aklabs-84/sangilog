@@ -84,6 +84,20 @@ export default function StartSessionModal({ onClose }: Props) {
     const cls = classes.find(c => c.id === selectedClassId);
     if (!cls) { setStarting(false); return; }
 
+    // 같은 클래스의 기존 활성 세션 먼저 정리
+    const { data: oldSessions } = await supabase
+      .from('class_board_sessions')
+      .select('id')
+      .eq('class_id', selectedClassId)
+      .eq('status', 'active');
+    if (oldSessions && oldSessions.length > 0) {
+      const oldIds = oldSessions.map(s => s.id);
+      await Promise.all([
+        supabase.from('class_board_sessions').update({ status: 'ended' }).in('id', oldIds),
+        supabase.from('whiteboards').update({ is_public: false }).in('session_id', oldIds),
+      ]);
+    }
+
     const code = genCode();
     const { data: session, error } = await supabase
       .from('class_board_sessions')
