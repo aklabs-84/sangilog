@@ -358,6 +358,24 @@ const Admin = () => {
       setUsers(prev => prev.map(u =>
         u.id === userId ? { ...u, beta_expires_at: data.expires_at } : u
       ));
+      if (days > 0) {
+        const expDate = new Date(data.expires_at).toLocaleDateString('ko-KR');
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          title: `🎉 Pro 체험 액세스가 부여되었습니다!`,
+          content: `${days}일간 Pro 기능을 모두 사용하실 수 있습니다. (${expDate}까지)`,
+          type: 'beta_granted',
+          link: '/settings',
+        });
+      } else {
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          title: `Pro 체험이 종료되었습니다`,
+          content: `베타 액세스가 관리자에 의해 해제되었습니다.`,
+          type: 'beta_revoked',
+          link: '/settings',
+        });
+      }
     }
     setBetaLoading(null);
     setBetaSetting(null);

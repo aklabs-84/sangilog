@@ -95,6 +95,15 @@ const Settings = () => {
     const expDate = new Date(data.expires_at).toLocaleDateString('ko-KR');
     setCouponMsg({ type: 'ok', text: `🎉 ${data.duration_days}일 Pro 체험이 적용되었습니다! (${expDate}까지)` });
     setCouponCode('');
+    if (user) {
+      await supabase.from('notifications').insert({
+        user_id: user.id,
+        title: `🎟 Pro 체험 쿠폰이 적용되었습니다!`,
+        content: `${data.duration_days}일간 Pro 기능을 모두 사용하실 수 있습니다. (${expDate}까지)`,
+        type: 'coupon_applied',
+        link: '/settings',
+      });
+    }
     await refreshProfile();
   };
 
