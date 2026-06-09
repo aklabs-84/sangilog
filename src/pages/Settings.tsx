@@ -366,6 +366,9 @@ const Settings = () => {
   ];
 
   const plan = profile?.plan ?? 'free';
+  const betaDaysLeft = getBetaDaysLeft(profile);
+  const isBetaActive = betaDaysLeft !== null;
+  const isEffectivelyPro = checkIsPro(profile);
   const aiUsedToday = (() => {
     if (!profile?.ai_daily_date) return 0;
     const today = new Date().toISOString().split('T')[0];
@@ -399,20 +402,30 @@ const Settings = () => {
               <Crown size={18} className="text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-black text-base text-amber-900">현재 플랜</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${PLAN_COLOR[plan]}`}>
-                  {PLAN_LABEL[plan]}
-                </span>
+                {isBetaActive ? (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                    🎟 Pro 체험중 (D-{betaDaysLeft})
+                  </span>
+                ) : (
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${PLAN_COLOR[plan]}`}>
+                    {PLAN_LABEL[plan]}
+                  </span>
+                )}
               </div>
-              {plan === 'free' && (
+              {isBetaActive ? (
+                <p className="text-xs text-blue-600 mt-0.5">
+                  베타 체험 기간 동안 Pro 기능을 모두 사용하실 수 있습니다
+                </p>
+              ) : plan === 'free' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
                   클래스 최대 2개 · AI 세특 하루 10회
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
-          {plan === 'free' && (
+          {!isEffectivelyPro && (
             <a
               href="mailto:aklabs84@naver.com?subject=생기로그 AI Pro 업그레이드 문의"
               className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors"
@@ -422,7 +435,7 @@ const Settings = () => {
           )}
         </div>
 
-        {plan === 'free' && (
+        {!isEffectivelyPro && (
           <div className="mt-4 pt-4 border-t border-amber-200 grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-bold text-amber-600 mb-1">오늘 AI 사용</p>
@@ -620,9 +633,10 @@ const Settings = () => {
               plan === 'admin'  ? 'bg-emerald-100 text-emerald-700 shadow-emerald-100' :
               plan === 'pro'    ? 'bg-amber-100 text-amber-700 shadow-amber-100' :
               plan === 'school' ? 'bg-violet-100 text-violet-700 shadow-violet-100' :
+              isBetaActive      ? 'bg-blue-100 text-blue-700 shadow-blue-100' :
                                   'bg-gray-100 text-gray-500'
             }`}>
-              {plan === 'admin' ? 'ADMIN' : plan === 'pro' ? 'PRO' : plan === 'school' ? 'SCHOOL' : 'FREE'}
+              {plan === 'admin' ? 'ADMIN' : plan === 'pro' ? 'PRO' : plan === 'school' ? 'SCHOOL' : isBetaActive ? 'BETA' : 'FREE'}
             </span>
             <span className="px-3 py-1 bg-surface-container-highest text-on-surface-variant font-bold text-[11px] rounded-lg tracking-widest uppercase">ACTIVE</span>
           </div>

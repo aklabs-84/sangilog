@@ -30,7 +30,7 @@ import {
   Headphones,
   Search,
 } from 'lucide-react';
-import { useAuth } from '../lib/auth';
+import { useAuth, checkIsPro } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
 // Modular Components
@@ -425,8 +425,8 @@ const Classroom = () => {
       return;
     }
 
-    // 무료 플랜 클래스 수 제한
-    if (profile?.plan === 'free') {
+    // 무료 플랜 클래스 수 제한 (베타/Pro 사용자는 제한 없음)
+    if (!checkIsPro(profile)) {
       const { count } = await supabase
         .from('classes')
         .select('*', { count: 'exact', head: true })
@@ -1229,7 +1229,7 @@ const Classroom = () => {
                       <button
                         onClick={() => {
                           if (profile?.plan === 'school') { setUpgradeModalReason('school_block'); return; }
-                          if (profile?.plan === 'free') { setUpgradeModalReason('teacher_invite'); return; }
+                          if (!checkIsPro(profile)) { setUpgradeModalReason('teacher_invite'); return; }
                           setIsInviteModalOpen(true);
                         }}
                         className="w-full p-6 border-2 border-dashed border-primary/10 rounded-2xl text-[11px] font-black text-primary/40 hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all uppercase tracking-[0.2em] flex items-center justify-center gap-2 group"
