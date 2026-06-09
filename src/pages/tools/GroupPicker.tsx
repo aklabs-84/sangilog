@@ -737,6 +737,7 @@ const GroupPicker = () => {
             </motion.div>
           )}
         </AnimatePresence>
+      </>} {/* 랜덤 모드 닫기 */}
       </div>
 
       {/* 발표 모드 — portal로 document.body에 직접 마운트해 stacking context 문제 우회 */}
@@ -824,7 +825,6 @@ const GroupPicker = () => {
         </AnimatePresence>,
         document.body
       )}
-        </> /* 랜덤 모드 닫기 */}
     </>
   );
 };
