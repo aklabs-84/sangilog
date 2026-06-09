@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X } from 'lucide-react';
-import { useAuth } from '../lib/auth';
+import { useAuth, checkIsPro } from '../lib/auth';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
 import QuizGame from './tools/QuizGame';
@@ -108,7 +108,7 @@ const TeachingTools = () => {
   const [activeTool, setActiveTool] = useState<Tool | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  const isPro = ['pro', 'admin'].includes(profile?.plan ?? 'free');
+  const isPro = checkIsPro(profile);
 
   const handleToolClick = (tool: Tool) => {
     if (!tool.available) return;

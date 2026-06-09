@@ -35,6 +35,7 @@ import ClassBoard from './pages/ClassBoard';
 import ShareClassView from './pages/ShareClassView';
 import SetPassword from './pages/SetPassword';
 import SurveyStudent from './pages/tools/SurveyStudent';
+import Privacy from './pages/Privacy';
 
 // 비로그인이면 /login 으로, 로그인이면 children 렌더
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -130,6 +131,7 @@ function App() {
               <Route path="/quiz" element={<QuizStudentView />} />
               <Route path="/survey/:pin" element={<SurveyStudent />} />
               <Route path="/survey" element={<SurveyStudent />} />
+              <Route path="/privacy" element={<Privacy />} />
               <Route path="/sb/:boardId" element={<StudentBoardViewer />} />
               <Route path="/wb-join" element={<StudentJoin />} />
               <Route path="/share/:classId" element={<ShareClassView />} />

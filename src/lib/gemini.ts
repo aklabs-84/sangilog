@@ -184,10 +184,19 @@ export async function generateClassInsight(className: string, observations: any[
   });
 }
 
+function anonymizeObservations(observations: any[]) {
+  return observations.map(o => ({
+    activity_name: o.activity_name,
+    content: o.content,
+    status: o.status,
+    created_at: o.created_at,
+  }));
+}
+
 export async function generateDetailedReport(className: string, observations: any[]) {
   const prompt = `
     학급명: ${className}
-    전체 관찰 기록: ${JSON.stringify(observations)}
+    전체 관찰 기록: ${JSON.stringify(anonymizeObservations(observations))}
 
     위 데이터를 바탕으로 다음 항목을 포함한 심층 분석 보고서를 작성해줘:
     1. 학급 전체 성취도 요약
@@ -237,7 +246,7 @@ export async function chatWithClassData(
 선생님이 제공한 데이터와 첨부된 파일의 추출 텍스트를 바탕으로 답변하세요.
 
 [학급 데이터 환경 (관찰 기록)]
-${JSON.stringify(observations.slice(0, 100))}
+${JSON.stringify(anonymizeObservations(observations.slice(0, 100)))}
 
 [첨부 파일에서 추출된 텍스트 정보]
 ${extractedText || '첨부된 파일이 없거나 아직 추출되지 않았습니다.'}

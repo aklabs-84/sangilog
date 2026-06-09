@@ -16,7 +16,7 @@ import {
   BookOpen,
   ChevronUp,
 } from 'lucide-react';
-import { useAuth } from '../lib/auth';
+import { useAuth, checkIsPro } from '../lib/auth';
 import { geminiPro, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 
@@ -191,7 +191,7 @@ ${SYSTEM_INSTRUCTIONS.PRIVACY}
 
 ${teacherPrompt ? `[강사 추가 지침]\n${teacherPrompt}\n` : ''}
 
-아래는 ${studentName} 수강생의 수업 관찰 기록입니다.
+아래는 수강생의 수업 관찰 기록입니다.
 이 기록을 바탕으로 학부모에게 전달할 학원 성장 보고서를 작성해주세요.
 
 [보고서 구성 — 하나의 자연스러운 문단으로]
@@ -202,7 +202,7 @@ ${teacherPrompt ? `[강사 추가 지침]\n${teacherPrompt}\n` : ''}
 
 문구만 출력하고 학생 이름, 마크다운, 번호 목록, 설명 등은 포함하지 마세요.
 
-[${studentName} 수강생 관찰 기록]
+[수강생 관찰 기록]
 ${obsText}
 `
       : `
@@ -212,11 +212,11 @@ ${SYSTEM_INSTRUCTIONS.PRIVACY}
 
 ${teacherPrompt ? `[선생님 추가 지침]\n${teacherPrompt}\n` : ''}
 
-아래는 ${studentName} 학생의 관찰 기록입니다.
+아래는 학생의 관찰 기록입니다.
 이 기록을 바탕으로 ${docType} 초안을 작성해주세요.
 문구만 출력하고 학생 이름, 마크다운, 설명 등은 포함하지 마세요.
 
-[${studentName} 학생 관찰 기록]
+[학생 관찰 기록]
 ${obsText}
 `;
     const result = await geminiPro.generateContent(prompt);
@@ -226,7 +226,7 @@ ${obsText}
   const handleGenerate = async () => {
     if (!selectedClassId) return;
 
-    const isFree = profile?.plan === 'free';
+    const isFree = !checkIsPro(profile);
 
     if (isFree) {
       // 무료 — 다중 학생 일괄 생성 차단
@@ -620,8 +620,16 @@ ${obsText}
               {selectedStudentIds.length === 0 && <p className="text-center text-xs text-on-surface-variant/60">학생을 1명 이상 선택해주세요.</p>}
               {obsCount === 0 && selectedStudentIds.length > 0 && <p className="text-center text-xs text-on-surface-variant/60">활동 기록을 먼저 등록해야 합니다.</p>}
 
+              {/* AI 데이터 처리 안내 */}
+              <div className="flex items-start gap-2 px-3 py-2 bg-blue-50/60 border border-blue-100 rounded-xl">
+                <svg className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11H9v2h2V7zm0 4H9v4h2v-4z" clipRule="evenodd"/></svg>
+                <p className="text-[10px] text-blue-500 leading-relaxed">
+                  학생 이름은 AI에 전송되지 않으며, 입력 데이터는 AI 모델 학습에 사용되지 않습니다.
+                </p>
+              </div>
+
               {/* 무료 플랜 일일 사용량 표시 */}
-              {profile?.plan === 'free' && (
+              {!checkIsPro(profile) && (
                 <div className={`flex items-center justify-between px-4 py-3 rounded-2xl border ${
                   todayAiCount >= FREE_AI_DAILY_LIMIT
                     ? 'bg-red-50 border-red-200'

@@ -8,14 +8,15 @@ import {
   MessageSquare, Loader2, RefreshCw, Copy, Check, Crown, Users,
   Trash2, BookOpen, GraduationCap, ClipboardList, AlertTriangle,
   BarChart3, FileCheck, Megaphone, Bell, Download, Plus, Send,
-  TrendingUp, Zap, Bug,
+  TrendingUp, Zap, Bug, Ticket, Calendar, ToggleLeft, ToggleRight,
+  Shuffle,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActiveTab =
   | 'dashboard' | 'requests' | 'users' | 'classes'
-  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs';
+  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons';
 
 type ReqFilter = 'all' | 'pending' | 'approved' | 'rejected';
 type ObsFilter = 'all' | 'pending' | 'approved' | 'rejected';
@@ -58,6 +59,13 @@ interface SuggestionRow {
 interface AnnouncementRow {
   id: string; title: string; content: string; created_at: string;
 }
+interface CouponRow {
+  id: string; code: string; duration_days: number;
+  max_uses: number; used_count: number;
+  expires_at: string | null; is_active: boolean;
+  note: string | null; created_at: string;
+}
+
 interface DashboardStats {
   users: number; classes: number; students: number;
   observations: number; results: number; pendingSuggestions: number;
@@ -95,6 +103,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'suggestions',   label: '건의사항',   icon: Megaphone },
   { id: 'announcements', label: '공지사항',   icon: Bell },
   { id: 'bugs',          label: '버그신고',   icon: Bug },
+  { id: 'coupons',       label: '쿠폰',       icon: Ticket },
 ];
 
 // ── CSV Helper ─────────────────────────────────────────────────────────────────
@@ -203,6 +212,17 @@ const Admin = () => {
   const [bugs, setBugs]               = useState<any[]>([]);
   const [bugsLoading, setBugsLoading] = useState(false);
 
+  // ── 쿠폰 ────────────────────────────────────────────────────────────────────
+  const [coupons, setCoupons]             = useState<CouponRow[]>([]);
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  const [couponForm, setCouponForm]       = useState({
+    code: '', duration_days: 30, max_uses: 0, expires_at: '', note: '',
+  });
+  const [couponSaving, setCouponSaving]   = useState(false);
+  const [couponMsg, setCouponMsg]         = useState<string | null>(null);
+  const [betaSetting, setBetaSetting]     = useState<{ userId: string; days: number } | null>(null);
+  const [betaLoading, setBetaLoading]     = useState<string | null>(null);
+
   // ── 공통 삭제 ──────────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting]         = useState(false);
@@ -226,6 +246,7 @@ const Admin = () => {
     if (activeTab === 'suggestions')   fetchSuggestions();
     if (activeTab === 'announcements') fetchAnnouncements();
     if (activeTab === 'bugs')          fetchBugs();
+    if (activeTab === 'coupons')       fetchCoupons();
   }, [activeTab]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -271,11 +292,71 @@ const Admin = () => {
     setUsersLoading(true);
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, plan, school_name, is_admin, ai_daily_count, ai_daily_date')
+      .select('id, full_name, email, plan, school_name, is_admin, ai_daily_count, ai_daily_date, beta_expires_at')
       .order('full_name', { ascending: true });
     if (error) console.error('[fetchUsers]', error.message);
     if (data) setUsers(data);
     setUsersLoading(false);
+  };
+
+  const fetchCoupons = async () => {
+    setCouponsLoading(true);
+    const { data } = await supabase
+      .from('beta_coupons')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (data) setCoupons(data);
+    setCouponsLoading(false);
+  };
+
+  const generateCouponCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    setCouponForm(f => ({ ...f, code }));
+  };
+
+  const createCoupon = async () => {
+    if (!couponForm.code.trim()) { setCouponMsg('코드를 입력하세요.'); return; }
+    setCouponSaving(true);
+    setCouponMsg(null);
+    const { error } = await supabase.from('beta_coupons').insert({
+      code:          couponForm.code.trim().toUpperCase(),
+      duration_days: couponForm.duration_days,
+      max_uses:      couponForm.max_uses,
+      expires_at:    couponForm.expires_at || null,
+      note:          couponForm.note || null,
+      created_by:    profile?.id,
+    });
+    if (error) {
+      setCouponMsg(error.code === '23505' ? '이미 존재하는 코드입니다.' : error.message);
+    } else {
+      setCouponForm({ code: '', duration_days: 30, max_uses: 0, expires_at: '', note: '' });
+      await fetchCoupons();
+    }
+    setCouponSaving(false);
+  };
+
+  const toggleCoupon = async (id: string, isActive: boolean) => {
+    await supabase.from('beta_coupons').update({ is_active: !isActive }).eq('id', id);
+    setCoupons(prev => prev.map(c => c.id === id ? { ...c, is_active: !isActive } : c));
+  };
+
+  const deleteCoupon = async (id: string) => {
+    await supabase.from('beta_coupons').delete().eq('id', id);
+    setCoupons(prev => prev.filter(c => c.id !== id));
+  };
+
+  const setBetaForUser = async (userId: string, days: number) => {
+    setBetaLoading(userId);
+    const { data } = await supabase.rpc('admin_set_beta', { p_user_id: userId, p_days: days });
+    if (data?.success) {
+      setUsers(prev => prev.map(u =>
+        u.id === userId ? { ...u, beta_expires_at: data.expires_at } : u
+      ));
+    }
+    setBetaLoading(null);
+    setBetaSetting(null);
   };
 
   const fetchClasses = async () => {
@@ -832,25 +913,48 @@ const Admin = () => {
               const today = new Date().toISOString().split('T')[0];
               const aiToday = u.ai_daily_date === today ? (u.ai_daily_count ?? 0) : 0;
               const planInfo = PLAN_OPTIONS.find(p => p.value === u.plan) ?? PLAN_OPTIONS[0];
+              const betaActive = u.beta_expires_at && new Date(u.beta_expires_at) > new Date();
+              const betaDaysLeft = betaActive
+                ? Math.ceil((new Date(u.beta_expires_at).getTime() - Date.now()) / 86400000)
+                : 0;
+              const isSettingBeta = betaSetting?.userId === u.id;
               return (
                 <div key={u.id} className={`bg-white rounded-2xl border p-5 flex flex-col gap-3 transition-all ${userDeleteConfirm === u.id ? 'border-red-300 bg-red-50/30' : 'border-amber-100'}`}>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="font-black text-amber-900 text-sm">{u.full_name || '이름 없음'}</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${planInfo.color}`}>{planInfo.label}</span>
+                        {betaActive && (
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 flex items-center gap-1">
+                            <Ticket size={9} /> BETA D-{betaDaysLeft}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-amber-600/70 font-mono">{u.email}</p>
                       {u.school_name && <p className="text-xs text-amber-500 mt-0.5">{u.school_name}</p>}
                       {u.plan === 'free' && <p className="text-xs text-gray-400 mt-1">오늘 AI 사용: {aiToday} / 10회</p>}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
                       <Crown size={14} className="text-amber-400 shrink-0" />
                       <select value={u.plan ?? 'free'} onChange={e => updateUserPlan(u.id, e.target.value)} disabled={planUpdating === u.id}
                         className="text-sm font-bold border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-50">
                         {PLAN_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                       </select>
                       {planUpdating === u.id && <Loader2 size={14} className="animate-spin text-amber-400" />}
+                      {/* 베타 부여/철수 버튼 */}
+                      <button
+                        onClick={() => setBetaSetting(isSettingBeta ? null : { userId: u.id, days: 30 })}
+                        className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                          betaActive
+                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                        title="베타 액세스 관리"
+                      >
+                        <Ticket size={13} />
+                        {betaActive ? `D-${betaDaysLeft}` : '베타'}
+                      </button>
                       {/* 삭제 버튼 */}
                       <button
                         onClick={() => setUserDeleteConfirm(userDeleteConfirm === u.id ? null : u.id)}
@@ -861,6 +965,54 @@ const Admin = () => {
                       </button>
                     </div>
                   </div>
+
+                  {/* 베타 부여/철수 인라인 패널 */}
+                  <AnimatePresence>
+                    {isSettingBeta && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pt-3 border-t border-blue-100">
+                          <p className="text-xs font-bold text-blue-700 mb-2">베타 Pro 액세스 설정</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {[7, 14, 30, 90].map(d => (
+                              <button
+                                key={d}
+                                onClick={() => setBetaSetting({ userId: u.id, days: d })}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                                  betaSetting?.days === d
+                                    ? 'bg-blue-500 text-white'
+                                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                }`}
+                              >
+                                {d}일
+                              </button>
+                            ))}
+                            <button
+                              onClick={() => setBetaForUser(u.id, betaSetting?.days ?? 30)}
+                              disabled={betaLoading === u.id}
+                              className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-black rounded-xl flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                            >
+                              {betaLoading === u.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                              부여
+                            </button>
+                            {betaActive && (
+                              <button
+                                onClick={() => setBetaForUser(u.id, 0)}
+                                disabled={betaLoading === u.id}
+                                className="px-4 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 text-xs font-black rounded-xl flex items-center gap-1.5 transition-colors"
+                              >
+                                <XCircle size={12} /> 철수
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* 인라인 삭제 확인 */}
                   <AnimatePresence>
@@ -1233,6 +1385,155 @@ const Admin = () => {
               </div>
             )}
           </>
+        )}
+
+        {/* ── 쿠폰 관리 ─────────────────────────────────────────────────────── */}
+        {activeTab === 'coupons' && (
+          <div className="space-y-6">
+            {/* 쿠폰 생성 폼 */}
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
+              <h3 className="font-black text-blue-900 mb-4 flex items-center gap-2">
+                <Ticket size={16} className="text-blue-600" /> 새 쿠폰 생성
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="코드 (예: BETA2026)"
+                    value={couponForm.code}
+                    onChange={e => setCouponForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-blue-200 text-sm font-mono font-bold bg-white focus:outline-none focus:border-blue-400 uppercase"
+                  />
+                  <button
+                    onClick={generateCouponCode}
+                    title="랜덤 코드 생성"
+                    className="p-2.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-xl transition-colors"
+                  >
+                    <Shuffle size={16} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-blue-700 whitespace-nowrap">기간</label>
+                  <div className="flex gap-1">
+                    {[7, 14, 30, 90].map(d => (
+                      <button key={d}
+                        onClick={() => setCouponForm(f => ({ ...f, duration_days: d }))}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                          couponForm.duration_days === d
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-100'
+                        }`}
+                      >{d}일</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-blue-700 whitespace-nowrap">최대 사용</label>
+                  <input
+                    type="number" min={0}
+                    value={couponForm.max_uses}
+                    onChange={e => setCouponForm(f => ({ ...f, max_uses: Number(e.target.value) }))}
+                    className="w-24 px-3 py-2 rounded-xl border border-blue-200 text-sm bg-white focus:outline-none focus:border-blue-400"
+                  />
+                  <span className="text-xs text-blue-500">(0 = 무제한)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-blue-700 whitespace-nowrap flex items-center gap-1">
+                    <Calendar size={12} /> 만료일
+                  </label>
+                  <input
+                    type="date"
+                    value={couponForm.expires_at}
+                    onChange={e => setCouponForm(f => ({ ...f, expires_at: e.target.value }))}
+                    className="flex-1 px-3 py-2 rounded-xl border border-blue-200 text-sm bg-white focus:outline-none focus:border-blue-400"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <input
+                    type="text"
+                    placeholder="메모 (예: 2026 여름 교사 연수 배포용)"
+                    value={couponForm.note}
+                    onChange={e => setCouponForm(f => ({ ...f, note: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-blue-200 text-sm bg-white focus:outline-none focus:border-blue-400"
+                  />
+                </div>
+              </div>
+              {couponMsg && (
+                <p className="mt-2 text-xs font-bold text-red-600 bg-red-50 px-3 py-2 rounded-xl">{couponMsg}</p>
+              )}
+              <button
+                onClick={createCoupon}
+                disabled={couponSaving}
+                className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-black rounded-xl transition-colors disabled:opacity-50"
+              >
+                {couponSaving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                쿠폰 생성
+              </button>
+            </div>
+
+            {/* 쿠폰 목록 */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-bold text-amber-700">총 {coupons.length}개 쿠폰</p>
+                <button onClick={fetchCoupons} className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-amber-600 border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
+                  <RefreshCw size={13} /> 새로고침
+                </button>
+              </div>
+              {couponsLoading ? (
+                <div className="flex justify-center py-10"><Loader2 className="animate-spin text-amber-400" size={28} /></div>
+              ) : coupons.length === 0 ? (
+                <div className="text-center py-16 text-amber-400">
+                  <Ticket size={36} className="mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">생성된 쿠폰이 없습니다</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {coupons.map(c => {
+                    const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
+                    const isFull = c.max_uses > 0 && c.used_count >= c.max_uses;
+                    return (
+                      <div key={c.id} className={`bg-white rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${!c.is_active ? 'opacity-50' : ''} ${isExpired || isFull ? 'border-red-200 bg-red-50/20' : 'border-amber-100'}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="font-mono font-black text-blue-800 text-base tracking-widest">{c.code}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{c.duration_days}일</span>
+                            {isExpired && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">만료됨</span>}
+                            {isFull && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">소진됨</span>}
+                            {!c.is_active && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">비활성</span>}
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <span>사용 {c.used_count} / {c.max_uses === 0 ? '∞' : c.max_uses}</span>
+                            {c.expires_at && <span className="flex items-center gap-1"><Calendar size={10} />{new Date(c.expires_at).toLocaleDateString('ko-KR')}</span>}
+                            {c.note && <span className="text-gray-400 truncate">{c.note}</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => toggleCoupon(c.id, c.is_active)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                              c.is_active
+                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            }`}
+                          >
+                            {c.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                            {c.is_active ? '활성' : '비활성'}
+                          </button>
+                          <button
+                            onClick={() => deleteCoupon(c.id)}
+                            className="p-1.5 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                            title="쿠폰 삭제"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
       </div>

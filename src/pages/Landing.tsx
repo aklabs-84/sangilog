@@ -695,6 +695,12 @@ const Landing = () => {
             >
               사용 가이드
             </a>
+            <a
+              href="/privacy"
+              className="hover:text-amber-200 transition-colors underline underline-offset-2"
+            >
+              개인정보 처리방침
+            </a>
             <span>© 2026 AK LABS. 선생님을 응원합니다.</span>
           </div>
         </div>

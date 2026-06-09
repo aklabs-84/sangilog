@@ -101,3 +101,17 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export function checkIsPro(profile: any): boolean {
+  if (!profile) return false;
+  if (['pro', 'admin'].includes(profile.plan ?? 'free')) return true;
+  if (profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date()) return true;
+  return false;
+}
+
+export function getBetaDaysLeft(profile: any): number | null {
+  if (!profile?.beta_expires_at) return null;
+  const diff = new Date(profile.beta_expires_at).getTime() - Date.now();
+  if (diff <= 0) return null;
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}

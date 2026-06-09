@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../lib/auth';
+import { useAuth, checkIsPro, getBetaDaysLeft } from '../lib/auth';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeMode } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -56,6 +56,11 @@ const Settings = () => {
     avatar_url: ''
   });
 
+  // 쿠폰 코드
+  const [couponCode, setCouponCode]     = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponMsg, setCouponMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
   // Groq API Key (localStorage)
   const [groqKey, setGroqKey]           = useState('');
   const [groqKeySaved, setGroqKeySaved] = useState(false);
@@ -65,6 +70,33 @@ const Settings = () => {
     const saved = localStorage.getItem('groq_api_key') || '';
     setGroqKey(saved);
   }, []);
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    setCouponMsg(null);
+    const { data, error } = await supabase.rpc('apply_beta_coupon', { p_code: couponCode.trim() });
+    setCouponLoading(false);
+    if (error || !data) {
+      setCouponMsg({ type: 'err', text: '쿠폰 적용 중 오류가 발생했습니다.' });
+      return;
+    }
+    const errMap: Record<string, string> = {
+      NOT_AUTHENTICATED: '로그인이 필요합니다.',
+      INVALID_CODE:      '유효하지 않은 코드입니다.',
+      COUPON_EXPIRED:    '만료된 쿠폰입니다.',
+      MAX_USES_REACHED:  '이미 최대 사용 횟수에 도달한 쿠폰입니다.',
+      ALREADY_USED:      '이미 사용한 쿠폰입니다.',
+    };
+    if (data.error) {
+      setCouponMsg({ type: 'err', text: errMap[data.error] ?? '알 수 없는 오류입니다.' });
+      return;
+    }
+    const expDate = new Date(data.expires_at).toLocaleDateString('ko-KR');
+    setCouponMsg({ type: 'ok', text: `🎉 ${data.duration_days}일 Pro 체험이 적용되었습니다! (${expDate}까지)` });
+    setCouponCode('');
+    await refreshProfile();
+  };
 
   const saveGroqKey = () => {
     if (groqKey.trim()) {
@@ -418,6 +450,59 @@ const Settings = () => {
               </div>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* 쿠폰 / 베타 코드 입력 */}
+      <div className="layered-card rounded-3xl p-6 border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center">
+            <Zap size={18} className="text-white" />
+          </div>
+          <div>
+            <p className="font-black text-base text-blue-900">쿠폰 코드 입력</p>
+            <p className="text-xs text-blue-500">이벤트·베타 쿠폰으로 Pro 기능을 체험하세요</p>
+          </div>
+        </div>
+
+        {/* 현재 베타 활성 상태 */}
+        {(() => {
+          const days = getBetaDaysLeft(profile);
+          return days !== null ? (
+            <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-blue-100 rounded-2xl">
+              <Check size={14} className="text-blue-600" />
+              <p className="text-sm font-bold text-blue-700">
+                Pro 체험 중 — <span className="font-black">D-{days}</span> 남았습니다
+              </p>
+            </div>
+          ) : null;
+        })()}
+
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={couponCode}
+            onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponMsg(null); }}
+            onKeyDown={e => e.key === 'Enter' && applyCoupon()}
+            placeholder="코드 입력 (예: BETA2026)"
+            className="flex-1 px-4 py-3 rounded-2xl border border-blue-200 bg-white text-sm font-mono font-bold focus:outline-none focus:border-blue-400 placeholder:font-normal placeholder:text-gray-400 uppercase"
+          />
+          <button
+            onClick={applyCoupon}
+            disabled={couponLoading || !couponCode.trim()}
+            className="px-5 py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white text-sm font-black rounded-2xl transition-colors flex items-center gap-2 whitespace-nowrap"
+          >
+            {couponLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            적용
+          </button>
+        </div>
+
+        {couponMsg && (
+          <p className={`mt-2.5 text-xs font-bold px-3 py-2 rounded-xl ${
+            couponMsg.type === 'ok' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+          }`}>
+            {couponMsg.text}
+          </p>
         )}
       </div>
 
