@@ -222,6 +222,10 @@ const Admin = () => {
   const [couponMsg, setCouponMsg]         = useState<string | null>(null);
   const [betaSetting, setBetaSetting]     = useState<{ userId: string; days: number } | null>(null);
   const [betaLoading, setBetaLoading]     = useState<string | null>(null);
+  const [couponSend, setCouponSend]       = useState<{ userId: string; email: string; name: string } | null>(null);
+  const [couponSendCode, setCouponSendCode] = useState('');
+  const [couponSending, setCouponSending] = useState(false);
+  const [couponSendMsg, setCouponSendMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   // ── 공통 삭제 ──────────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
@@ -357,6 +361,39 @@ const Admin = () => {
     }
     setBetaLoading(null);
     setBetaSetting(null);
+  };
+
+  const sendCouponEmail = async () => {
+    if (!couponSend || !couponSendCode) return;
+    setCouponSending(true);
+    setCouponSendMsg(null);
+    const coupon = coupons.find(c => c.code === couponSendCode);
+    const { data: { session } } = await supabase.auth.getSession();
+    try {
+      const res = await fetch('/api/send-coupon', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({
+          to_email:      couponSend.email,
+          to_name:       couponSend.name,
+          coupon_code:   couponSendCode,
+          duration_days: coupon?.duration_days ?? 30,
+        }),
+      });
+      if (res.ok) {
+        setCouponSendMsg({ type: 'ok', text: `${couponSend.email} 로 쿠폰 이메일을 발송했습니다.` });
+        setTimeout(() => { setCouponSend(null); setCouponSendMsg(null); setCouponSendCode(''); }, 2500);
+      } else {
+        const d = await res.json();
+        setCouponSendMsg({ type: 'err', text: d.error ?? '발송 실패' });
+      }
+    } catch {
+      setCouponSendMsg({ type: 'err', text: '네트워크 오류' });
+    }
+    setCouponSending(false);
   };
 
   const fetchClasses = async () => {
@@ -955,6 +992,18 @@ const Admin = () => {
                         <Ticket size={13} />
                         {betaActive ? `D-${betaDaysLeft}` : '베타'}
                       </button>
+                      {/* 쿠폰 이메일 발송 버튼 */}
+                      <button
+                        onClick={() => {
+                          setCouponSend(couponSend?.userId === u.id ? null : { userId: u.id, email: u.email, name: u.full_name || u.email });
+                          setCouponSendCode('');
+                          setCouponSendMsg(null);
+                        }}
+                        className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                        title="쿠폰 이메일 발송"
+                      >
+                        <Ticket size={13} /> 발송
+                      </button>
                       {/* 삭제 버튼 */}
                       <button
                         onClick={() => setUserDeleteConfirm(userDeleteConfirm === u.id ? null : u.id)}
@@ -1009,6 +1058,55 @@ const Admin = () => {
                               </button>
                             )}
                           </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* 쿠폰 이메일 발송 인라인 패널 */}
+                  <AnimatePresence>
+                    {couponSend?.userId === u.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pt-3 border-t border-indigo-100">
+                          <p className="text-xs font-bold text-indigo-700 mb-2 flex items-center gap-1.5">
+                            <Ticket size={12} /> 쿠폰 코드 이메일 발송 → <span className="font-mono">{couponSend.email}</span>
+                          </p>
+                          {coupons.filter(c => c.is_active).length === 0 ? (
+                            <p className="text-xs text-gray-400">활성화된 쿠폰이 없습니다. 쿠폰 탭에서 먼저 생성하세요.</p>
+                          ) : (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <select
+                                value={couponSendCode}
+                                onChange={e => setCouponSendCode(e.target.value)}
+                                className="px-3 py-2 rounded-xl border border-indigo-200 text-sm font-mono font-bold bg-white focus:outline-none focus:border-indigo-400"
+                              >
+                                <option value="">쿠폰 선택</option>
+                                {coupons.filter(c => c.is_active).map(c => (
+                                  <option key={c.id} value={c.code}>
+                                    {c.code} ({c.duration_days}일{c.max_uses > 0 ? ` / ${c.used_count}/${c.max_uses}` : ''})
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={sendCouponEmail}
+                                disabled={couponSending || !couponSendCode}
+                                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-black rounded-xl flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                              >
+                                {couponSending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                                이메일 발송
+                              </button>
+                            </div>
+                          )}
+                          {couponSendMsg && (
+                            <p className={`mt-2 text-xs font-bold px-3 py-1.5 rounded-xl ${
+                              couponSendMsg.type === 'ok' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+                            }`}>{couponSendMsg.text}</p>
+                          )}
                         </div>
                       </motion.div>
                     )}

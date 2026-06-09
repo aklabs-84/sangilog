@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from './supabase';
-import type { User, Session } from '@supabase/supabase-js';
+import type { User, Session, RealtimeChannel } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
@@ -18,6 +18,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const profileChannelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     // 1. 초기 세션 체크 (10초 타임아웃 적용)
@@ -49,11 +50,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setProfile(null);
         setLoading(false);
+        cleanupProfileChannel();
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      cleanupProfileChannel();
+    };
   }, []);
+
+  const cleanupProfileChannel = () => {
+    if (profileChannelRef.current) {
+      supabase.removeChannel(profileChannelRef.current);
+      profileChannelRef.current = null;
+    }
+  };
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -62,9 +74,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select('*')
         .eq('id', userId)
         .single();
-      
+
       if (error) throw error;
       setProfile(data);
+
+      // Realtime 구독: admin이 plan/beta_expires_at 변경 시 즉시 반영
+      cleanupProfileChannel();
+      profileChannelRef.current = supabase
+        .channel(`profile-${userId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+          (payload) => { setProfile(payload.new); }
+        )
+        .subscribe();
+
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
@@ -73,23 +97,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshProfile = async () => {
-    if (user) {
-      await fetchProfile(user.id);
-    }
+    if (user) await fetchProfile(user.id);
   };
 
   const signOut = async () => {
+    cleanupProfileChannel();
     await supabase.auth.signOut();
   };
 
-  const value = {
-    user,
-    session,
-    profile,
-    loading,
-    signOut,
-    refreshProfile
-  };
+  const value = { user, session, profile, loading, signOut, refreshProfile };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
