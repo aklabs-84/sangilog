@@ -110,6 +110,9 @@ const StudentLog = () => {
   const [editingResult, setEditingResult] = useState<any>(null);
   const [editingGroupResults, setEditingGroupResults] = useState<any[]>([]);
   const resultFormRef = useRef<HTMLDivElement | null>(null);
+  // 조별 제출
+  const [isGroupSubmission, setIsGroupSubmission] = useState(false);
+  const [myClassGroup, setMyClassGroup] = useState<{ id: string; name: string; memberNames: string[] } | null>(null);
   const [filterWeek, setFilterWeek] = useState<number | null>(null);
   const [detailItem, setDetailItem] = useState<any>(null);
 
@@ -189,6 +192,7 @@ const StudentLog = () => {
     setSession(parsed);
     fetchClassDetails(parsed.class_id);
     fetchUnreadReplyCount(parsed.student_id, parsed.class_id);
+    fetchMyGroup(parsed.student_id, parsed.class_id);
 
     // 가이드 모달 표시 여부 확인 (학생별, 당일 기준)
     const today = new Date().toISOString().slice(0, 10);
@@ -274,6 +278,32 @@ const StudentLog = () => {
     const interval = setInterval(fetchActiveBoardSessions, 5_000);
     return () => clearInterval(interval);
   }, [session?.class_id]);
+
+  const fetchMyGroup = async (studentId: string, classId: string) => {
+    // 이 학생이 속한 조 조회
+    const { data: memberData } = await supabase
+      .from('class_group_members')
+      .select('group_id, class_groups(id, name, class_id)')
+      .eq('student_id', studentId);
+
+    if (!memberData || memberData.length === 0) return;
+
+    const group = (memberData[0] as any)?.class_groups;
+    if (!group || group.class_id !== classId) return;
+
+    // 같은 조 멤버 이름 조회
+    const { data: allMembers } = await supabase
+      .from('class_group_members')
+      .select('students(full_name)')
+      .eq('group_id', group.id);
+
+    const memberNames = (allMembers || [])
+      .map((m: any) => m.students?.full_name)
+      .filter(Boolean)
+      .filter((n: string) => n !== (memberData[0] as any)?.students?.full_name);
+
+    setMyClassGroup({ id: group.id, name: group.name, memberNames });
+  };
 
   const fetchUnreadReplyCount = async (studentId: string, classId: string) => {
     const { count } = await supabase
@@ -608,10 +638,38 @@ const StudentLog = () => {
       const { error } = await supabase.from('student_results').insert(rows);
       if (error) throw error;
 
+      // 조별 제출: 같은 조 다른 멤버들에게도 동일 레코드 복사
+      if (isGroupSubmission && myClassGroup) {
+        const { data: otherMembers } = await supabase
+          .from('class_group_members')
+          .select('student_id')
+          .eq('group_id', myClassGroup.id)
+          .neq('student_id', session.student_id);
+
+        if (otherMembers && otherMembers.length > 0) {
+          const groupRows: any[] = [];
+          otherMembers.forEach((m: any) => {
+            rows.forEach((r: any) => {
+              groupRows.push({
+                ...r,
+                student_id: m.student_id,
+                group_id: myClassGroup.id,
+                is_group_submission: true,
+                submission_group: groupId,
+              });
+            });
+          });
+          if (groupRows.length > 0) {
+            await supabase.from('student_results').insert(groupRows);
+          }
+        }
+      }
+
       if (teacherId) {
+        const groupLabel = isGroupSubmission && myClassGroup ? ` [${myClassGroup.name} 조별 제출]` : '';
         await supabase.from('notifications').insert({
           user_id: teacherId,
-          title: `📁 ${session.student_name}이(가) ${selectedWeek}주차 결과를 제출했습니다`,
+          title: `📁 ${session.student_name}이(가) ${selectedWeek}주차 결과를 제출했습니다${groupLabel}`,
           content: `${rows.map((r: any) => r.result_type).join('·')} — ${session.class_name}`,
           type: 'result_submission',
           link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`
@@ -620,7 +678,8 @@ const StudentLog = () => {
 
       resetResultForm();
       await fetchResults();
-      showToast(`${selectedWeek}주차 결과물이 제출되었습니다! ✅`);
+      const groupMsg = isGroupSubmission && myClassGroup ? ` (${myClassGroup.name} 전체)` : '';
+      showToast(`${selectedWeek}주차 결과물이 제출되었습니다${groupMsg}! ✅`);
 
       // 관찰기록 리마인더 체크
       if (selectedWeek) {
@@ -2285,12 +2344,50 @@ ${guidePrompt}
                   </div>
                 </div>
 
+                {/* 조별 제출 토글 — 조가 있는 경우만 표시 */}
+                {myClassGroup && !editingResult && (
+                  <div
+                    onClick={() => setIsGroupSubmission(v => !v)}
+                    className={`flex items-center justify-between px-4 py-3.5 rounded-2xl border-2 cursor-pointer transition-all select-none ${
+                      isGroupSubmission
+                        ? 'bg-emerald-50 border-emerald-300'
+                        : 'bg-surface-container border-transparent hover:border-emerald-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${isGroupSubmission ? 'bg-emerald-500' : 'bg-surface-container-high'}`}>
+                        👥
+                      </div>
+                      <div>
+                        <p className={`text-sm font-black ${isGroupSubmission ? 'text-emerald-800' : 'text-on-surface-variant'}`}>
+                          {myClassGroup.name} 조별 제출
+                        </p>
+                        <p className="text-[10px] text-on-surface-variant/50 mt-0.5">
+                          {isGroupSubmission
+                            ? `조원 전체에게 같은 결과가 제출됩니다`
+                            : `켜면 ${myClassGroup.name} 조원 전체에게 동일 제출`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`w-10 h-6 rounded-full transition-all flex items-center px-0.5 ${isGroupSubmission ? 'bg-emerald-500' : 'bg-neutral-200'}`}>
+                      <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${isGroupSubmission ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                )}
+
                 <button
                   onClick={handleSubmitResult}
                   disabled={resultSubmitting}
                   className="w-full py-5 btn-gradient rounded-[1.25rem] font-black text-lg shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                 >
-                  {resultSubmitting ? <Loader2 size={20} className="animate-spin" /> : editingResult ? <><Send size={20} /> 수정 완료</> : <><Send size={20} /> {selectedWeek ? `${selectedWeek}주차 결과 제출` : '결과 제출하기'}</>}
+                  {resultSubmitting
+                    ? <Loader2 size={20} className="animate-spin" />
+                    : editingResult
+                    ? <><Send size={20} /> 수정 완료</>
+                    : isGroupSubmission && myClassGroup
+                    ? <><Send size={20} /> {selectedWeek ? `${selectedWeek}주차 · ${myClassGroup.name} 조별 제출` : '조별 제출하기'}</>
+                    : <><Send size={20} /> {selectedWeek ? `${selectedWeek}주차 결과 제출` : '결과 제출하기'}</>
+                  }
                 </button>
 
                 {/* 제출 내역은 나의 기록 탭에서 확인 */}

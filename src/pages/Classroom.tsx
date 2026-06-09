@@ -20,6 +20,7 @@ import {
   Plus,
   ClipboardList,
   Users2,
+  Layers,
   Maximize2,
   StickyNote,
   RefreshCw,
@@ -45,6 +46,7 @@ import AIChatModal from '../components/classroom/AIChatModal';
 import StudentDetailDrawer from '../components/classroom/StudentDetailDrawer';
 import UnitManager from '../components/classroom/UnitManager';
 import AttendanceTab from '../components/classroom/AttendanceTab';
+import GroupTab from '../components/classroom/GroupTab';
 import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 import UpgradeModal from '../components/UpgradeModal';
 
@@ -79,7 +81,7 @@ const Classroom = () => {
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance' | 'board'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance' | 'board' | 'groups'>('list');
   // 보드 탭 state
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
@@ -1160,6 +1162,7 @@ const Classroom = () => {
                 ] : []),
                 { id: 'units', label: '단원 관리', icon: BookOpen },
                 { id: 'attendance', label: '출석 체크', icon: ClipboardList },
+                { id: 'groups', label: '조 편성', icon: Layers },
                 { id: 'board', label: '우리반 보드', icon: Users2 },
                 { id: 'ai', label: 'AI 분석 인사이트', icon: Sparkles }
               ].map((tab) => {
@@ -1290,6 +1293,15 @@ const Classroom = () => {
               {activeTab === 'attendance' && classInfo && (
                 <div className="max-w-4xl mx-auto">
                   <AttendanceTab classId={activeClassId!} students={sortedStudents} />
+                </div>
+              )}
+
+              {activeTab === 'groups' && classInfo && (
+                <div className="max-w-5xl mx-auto">
+                  <GroupTab
+                    classId={activeClassId!}
+                    students={sortedStudents.map(s => ({ id: s.id, name: s.name, number: s.number }))}
+                  />
                 </div>
               )}
 

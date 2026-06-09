@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, Trash2, Shuffle, ChevronDown, X,
   Maximize2, Minimize2, Crown, RefreshCw, Check,
-  UserPlus, Download, Copy, CheckCheck
+  UserPlus, Download, Copy, CheckCheck, Layers, Target,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -26,6 +26,9 @@ const PRESET_GROUP_NAMES = ['1조', '2조', '3조', '4조', '5조', '6조', '7�
 
 const GroupPicker = () => {
   const { user } = useAuth();
+
+  // 모드: 랜덤 분배 vs 저장된 조 뽑기
+  const [mode, setMode] = useState<'random' | 'saved'>('random');
 
   // 학생 목록
   const [students, setStudents] = useState<Student[]>([]);
@@ -319,6 +322,31 @@ const GroupPicker = () => {
   return (
     <>
       <div className="max-w-5xl mx-auto space-y-6">
+
+        {/* 모드 전환 탭 */}
+        <div className="flex items-center gap-1 p-1 bg-surface-container/50 rounded-2xl w-fit border border-white/40 shadow-soft">
+          <button
+            onClick={() => setMode('random')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm transition-all ${mode === 'random' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+          >
+            <Shuffle size={15} />
+            랜덤 조 편성
+          </button>
+          <button
+            onClick={() => setMode('saved')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-sm transition-all ${mode === 'saved' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+          >
+            <Target size={15} />
+            저장된 조 뽑기
+          </button>
+        </div>
+
+        {/* 저장된 조 뽑기 모드 */}
+        {mode === 'saved' && <SavedGroupPicker userId={user?.id ?? ''} />}
+
+        {/* 랜덤 조 편성 모드 */}
+        {mode === 'random' && <>
+
         {/* 발표 모드 버튼 */}
         {showResult && (
           <div className="flex justify-end">
@@ -796,7 +824,286 @@ const GroupPicker = () => {
         </AnimatePresence>,
         document.body
       )}
+        </> /* 랜덤 모드 닫기 */}
     </>
+  );
+};
+
+// ── 저장된 조 뽑기 컴포넌트 ──────────────────────────────────────
+const ROULETTE_COLORS = [
+  '#6366F1','#EC4899','#F59E0B','#10B981',
+  '#3B82F6','#EF4444','#8B5CF6','#06B6D4',
+];
+
+interface SavedGroup {
+  id: string;
+  name: string;
+  color: string;
+  members: { student_id: string; full_name: string }[];
+}
+
+const SavedGroupPicker = ({ userId }: { userId: string }) => {
+  const [classes, setClasses]               = useState<any[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [savedGroups, setSavedGroups]       = useState<SavedGroup[]>([]);
+  const [loading, setLoading]               = useState(false);
+  const [classOpen, setClassOpen]           = useState(false);
+
+  // 뽑기 상태
+  const [spinning, setSpinning]             = useState(false);
+  const [pickedGroup, setPickedGroup]       = useState<SavedGroup | null>(null);
+  const [spinIdx, setSpinIdx]               = useState(0);
+  const [history, setHistory]               = useState<string[]>([]);
+  const [excludePicked, setExcludePicked]   = useState(false);
+  const [remaining, setRemaining]           = useState<string[]>([]);
+  const spinRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from('classes')
+      .select('id, name')
+      .eq('teacher_id', userId)
+      .eq('is_archived', false)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setClasses(data || []));
+  }, [userId]);
+
+  const loadGroups = async (classId: string) => {
+    setLoading(true);
+    setPickedGroup(null);
+    setHistory([]);
+    const { data: gData } = await supabase
+      .from('class_groups')
+      .select('id, name, color')
+      .eq('class_id', classId)
+      .order('sort_order');
+
+    if (!gData || gData.length === 0) { setSavedGroups([]); setLoading(false); return; }
+
+    const { data: mData } = await supabase
+      .from('class_group_members')
+      .select('group_id, students(full_name)')
+      .in('group_id', gData.map((g: any) => g.id));
+
+    const groups: SavedGroup[] = gData.map((g: any) => ({
+      ...g,
+      members: (mData || [])
+        .filter((m: any) => m.group_id === g.id)
+        .map((m: any) => ({ student_id: '', full_name: m.students?.full_name ?? '' })),
+    }));
+    setSavedGroups(groups);
+    setRemaining(groups.map(g => g.id));
+    setLoading(false);
+  };
+
+  const pickGroup = async () => {
+    const pool = excludePicked
+      ? savedGroups.filter(g => !history.includes(g.id))
+      : savedGroups;
+
+    if (pool.length === 0) {
+      alert('모든 조가 이미 뽑혔습니다. 초기화 후 다시 시도하세요.');
+      return;
+    }
+
+    setSpinning(true);
+    setPickedGroup(null);
+
+    // 룰렛 애니메이션 (1.8초)
+    let tick = 0;
+    spinRef.current = setInterval(() => {
+      setSpinIdx(Math.floor(Math.random() * savedGroups.length));
+      tick++;
+      if (tick > 22) {
+        clearInterval(spinRef.current!);
+        const winner = pool[Math.floor(Math.random() * pool.length)];
+        setPickedGroup(winner);
+        setHistory(prev => [...prev, winner.id]);
+        setSpinning(false);
+      }
+    }, 80);
+  };
+
+  const resetHistory = () => {
+    setHistory([]);
+    setPickedGroup(null);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 클래스 선택 */}
+      <div className="glass rounded-3xl p-6 space-y-4">
+        <h3 className="font-black text-base flex items-center gap-2">
+          <Layers size={18} className="text-primary" />
+          저장된 조 불러오기
+        </h3>
+
+        <div className="relative">
+          <button
+            onClick={() => setClassOpen(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-surface-container/50 border border-white/40 rounded-2xl text-sm font-bold hover:border-primary/30 transition-colors"
+          >
+            <span>{selectedClassId ? classes.find(c => c.id === selectedClassId)?.name : '클래스를 선택하세요'}</span>
+            <ChevronDown size={16} className={`transition-transform ${classOpen ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {classOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setClassOpen(false)} />
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="absolute top-full mt-1 left-0 right-0 z-20 bg-white border border-neutral-200 rounded-2xl shadow-lg overflow-hidden"
+                >
+                  {classes.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => { setSelectedClassId(c.id); setClassOpen(false); loadGroups(c.id); }}
+                      className="w-full px-4 py-3 text-left text-sm font-bold hover:bg-neutral-50 transition-colors"
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {!loading && selectedClassId && savedGroups.length === 0 && (
+          <p className="text-center text-sm text-on-surface-variant/50 py-6">
+            이 클래스에 저장된 조가 없습니다.<br />
+            <span className="text-xs">클래스 페이지 → 조 편성 탭에서 먼저 조를 만들어주세요.</span>
+          </p>
+        )}
+      </div>
+
+      {/* 뽑기 섹션 */}
+      {savedGroups.length > 0 && (
+        <div className="glass rounded-3xl p-6 space-y-6">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h3 className="font-black text-base flex items-center gap-2">
+              <Target size={18} className="text-primary" />
+              발표 조 뽑기
+              <span className="text-xs font-bold text-on-surface-variant/50">{savedGroups.length}개 조</span>
+            </h3>
+            <label className="flex items-center gap-2 text-xs font-bold cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={excludePicked}
+                onChange={e => setExcludePicked(e.target.checked)}
+                className="w-4 h-4 accent-primary"
+              />
+              뽑힌 조 제외
+            </label>
+          </div>
+
+          {/* 룰렛 애니메이션 영역 */}
+          <div className="flex flex-col items-center gap-6">
+            <AnimatePresence mode="wait">
+              {spinning && (
+                <motion.div
+                  key="spinning"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  className="w-48 h-48 rounded-full flex items-center justify-center text-white font-black text-2xl shadow-2xl"
+                  style={{ backgroundColor: savedGroups[spinIdx % savedGroups.length]?.color ?? '#6366F1' }}
+                >
+                  {savedGroups[spinIdx % savedGroups.length]?.name ?? ''}
+                </motion.div>
+              )}
+              {!spinning && pickedGroup && (
+                <motion.div
+                  key="picked"
+                  initial={{ scale: 0.5, opacity: 0, rotate: -10 }}
+                  animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                  className="flex flex-col items-center gap-3"
+                >
+                  <div
+                    className="w-52 h-52 rounded-full flex flex-col items-center justify-center text-white shadow-2xl gap-2"
+                    style={{ backgroundColor: pickedGroup.color }}
+                  >
+                    <span className="text-4xl">🎯</span>
+                    <span className="font-black text-3xl">{pickedGroup.name}</span>
+                  </div>
+                  {pickedGroup.members.length > 0 && (
+                    <div className="text-center space-y-1">
+                      <p className="text-xs font-black text-on-surface-variant/60 uppercase tracking-widest">조원</p>
+                      <p className="font-bold text-sm">
+                        {pickedGroup.members.map(m => m.full_name).join(', ')}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+              {!spinning && !pickedGroup && (
+                <motion.div
+                  key="idle"
+                  className="w-48 h-48 rounded-full bg-surface-container/50 border-4 border-dashed border-primary/20 flex items-center justify-center text-on-surface-variant/30"
+                >
+                  <div className="text-center">
+                    <Target size={32} className="mx-auto mb-2" />
+                    <p className="text-xs font-bold">뽑기 버튼을 누르세요</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={pickGroup}
+                disabled={spinning}
+                className="flex items-center gap-2 px-8 py-4 bg-primary text-white font-black text-base rounded-2xl hover:bg-primary/90 disabled:opacity-50 transition-all shadow-lg hover:shadow-primary/30 active:scale-95"
+              >
+                {spinning ? (
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> 뽑는 중...</>
+                ) : (
+                  <><Shuffle size={18} /> {pickedGroup ? '다시 뽑기' : '조 뽑기'}</>
+                )}
+              </button>
+              {history.length > 0 && (
+                <button onClick={resetHistory} className="px-4 py-4 border border-neutral-200 text-neutral-500 hover:text-neutral-800 rounded-2xl font-bold text-sm transition-colors">
+                  초기화
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 조 목록 (뽑힌 조 표시) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2 border-t border-neutral-100">
+            {savedGroups.map(g => {
+              const isPicked = history.includes(g.id);
+              const isLatest = pickedGroup?.id === g.id;
+              return (
+                <div
+                  key={g.id}
+                  className={`rounded-2xl p-3 border-2 transition-all ${isLatest ? 'border-current shadow-lg scale-105' : isPicked ? 'opacity-40 border-transparent' : 'border-transparent bg-surface-container/50'}`}
+                  style={isLatest ? { borderColor: g.color, backgroundColor: g.color + '18' } : {}}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} />
+                    <span className="font-black text-xs">{g.name}</span>
+                    {isPicked && <Check size={11} className="text-emerald-500 ml-auto" />}
+                  </div>
+                  <p className="text-[10px] text-on-surface-variant/50 truncate">
+                    {g.members.map(m => m.full_name).join(', ') || '멤버 없음'}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
