@@ -70,6 +70,7 @@ interface SubjectDashboardProps {
   onSelectAll: (isSelect: boolean) => void;
   onBulkApprove: () => void;
   onResetPin: (id: string) => void;
+  groupMap?: Record<string, { name: string; color: string }>;
 }
 
 const SubjectDashboard = ({
@@ -97,7 +98,8 @@ const SubjectDashboard = ({
   onSelectStudent,
   onSelectAll,
   onBulkApprove,
-  onResetPin
+  onResetPin,
+  groupMap = {},
 }: SubjectDashboardProps) => {
   const navigate = useNavigate();
   const SUBJECT_COL_DEFAULTS = { number: true, activity: true, status: true, approval: true };
@@ -877,6 +879,14 @@ const SubjectDashboard = ({
                                 <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-[10px] font-bold text-on-surface-variant/40">{s.tag || '학생'}</span>
+                                  {groupMap[s.id] && (
+                                    <span
+                                      className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
+                                      style={{ backgroundColor: groupMap[s.id].color }}
+                                    >
+                                      {groupMap[s.id].name}
+                                    </span>
+                                  )}
                                   {suggestionCounts[s.id] > 0 && (
                                     <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-50 text-[8px] font-black text-rose-500 rounded border border-rose-100">
                                       💬 {suggestionCounts[s.id]}건
@@ -1022,14 +1032,24 @@ const SubjectDashboard = ({
 
                       <div className="flex-1 min-w-0 pt-0.5">
                         <p className="font-black text-sm leading-tight truncate">{s.name}</p>
-                        <span className={`inline-block mt-1 text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                          s.status === '발행됨'    ? 'bg-secondary/10 text-secondary' :
-                          s.status === '미작성'    ? 'bg-on-surface/5 text-on-surface/40' :
-                          s.status === '초안 완료' ? 'bg-primary/10 text-primary' :
-                                                     'bg-amber-50 text-amber-600'
-                        }`}>
-                          {s.status}
-                        </span>
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          {groupMap[s.id] && (
+                            <span
+                              className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
+                              style={{ backgroundColor: groupMap[s.id].color }}
+                            >
+                              {groupMap[s.id].name}
+                            </span>
+                          )}
+                          <span className={`inline-block text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                            s.status === '발행됨'    ? 'bg-secondary/10 text-secondary' :
+                            s.status === '미작성'    ? 'bg-on-surface/5 text-on-surface/40' :
+                            s.status === '초안 완료' ? 'bg-primary/10 text-primary' :
+                                                       'bg-amber-50 text-amber-600'
+                          }`}>
+                            {s.status}
+                          </span>
+                        </div>
                       </div>
                     </div>
 

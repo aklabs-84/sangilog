@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Shuffle, X, Check, Loader2,
-  Users, UserPlus, ChevronDown,
+  Users, UserPlus, ChevronDown, Bell,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -22,6 +22,7 @@ interface ClassGroup {
 interface GroupTabProps {
   classId: string;
   students: Student[];
+  onGroupsChanged?: () => void;
 }
 
 const GROUP_COLORS = [
@@ -29,7 +30,7 @@ const GROUP_COLORS = [
   '#3B82F6', '#EF4444', '#8B5CF6', '#06B6D4',
 ];
 
-const GroupTab = ({ classId, students }: GroupTabProps) => {
+const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
   const [groups, setGroups] = useState<ClassGroup[]>([]);
   // student_id → group_id
   const [memberMap, setMemberMap] = useState<Record<string, string>>({});
@@ -47,6 +48,10 @@ const GroupTab = ({ classId, students }: GroupTabProps) => {
 
   // 삭제 확인
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  // 알림 보내기
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifSuccess, setNotifSuccess] = useState(false);
 
   useEffect(() => {
     if (classId) load();
@@ -103,6 +108,7 @@ const GroupTab = ({ classId, students }: GroupTabProps) => {
     setGroups(prev => [...prev, data]);
     setNewName('');
     setAdding(false);
+    onGroupsChanged?.();
   };
 
   const deleteGroup = async (groupId: string) => {
@@ -115,6 +121,7 @@ const GroupTab = ({ classId, students }: GroupTabProps) => {
     setGroups(prev => prev.filter(g => g.id !== groupId));
     await supabase.from('class_groups').delete().eq('id', groupId);
     setDeleteTarget(null);
+    onGroupsChanged?.();
   };
 
   const assignStudent = async (studentId: string, groupId: string | null) => {
@@ -152,6 +159,7 @@ const GroupTab = ({ classId, students }: GroupTabProps) => {
       }
     }
     setSaving(null);
+    onGroupsChanged?.();
   };
 
   const autoAssign = async () => {
@@ -184,6 +192,7 @@ const GroupTab = ({ classId, students }: GroupTabProps) => {
     }
     setMemberMap(newMap);
     setAutoLoading(false);
+    onGroupsChanged?.();
   };
 
   const clearAll = async () => {
@@ -193,6 +202,42 @@ const GroupTab = ({ classId, students }: GroupTabProps) => {
       .delete()
       .in('group_id', groups.map(g => g.id));
     setMemberMap({});
+    onGroupsChanged?.();
+  };
+
+  const sendGroupNotifications = async () => {
+    const assignedCount = Object.keys(memberMap).length;
+    if (assignedCount === 0) {
+      alert('배정된 학생이 없습니다.');
+      return;
+    }
+    setNotifLoading(true);
+
+    // 조별 멤버 이름 미리 계산
+    const groupMemberNames: Record<string, string[]> = {};
+    groups.forEach(g => {
+      const members = students.filter(s => memberMap[s.id] === g.id);
+      groupMemberNames[g.id] = members.map(s => s.name);
+    });
+
+    // 배정된 학생마다 알림 삽입
+    const notifications = Object.entries(memberMap).map(([studentId, groupId]) => {
+      const group = groups.find(g => g.id === groupId);
+      const names = groupMemberNames[groupId] || [];
+      return {
+        student_id: studentId,
+        class_id: classId,
+        type: 'group_assignment',
+        title: `📋 조 편성 완료 — ${group?.name ?? ''}`,
+        content: `조원: ${names.join(', ')}`,
+        is_read: false,
+      };
+    });
+
+    await supabase.from('student_notifications').insert(notifications);
+    setNotifLoading(false);
+    setNotifSuccess(true);
+    setTimeout(() => setNotifSuccess(false), 3000);
   };
 
   if (loading) {
@@ -231,6 +276,18 @@ const GroupTab = ({ classId, students }: GroupTabProps) => {
               >
                 {autoLoading ? <Loader2 size={13} className="animate-spin" /> : <Shuffle size={13} />}
                 균등 배분
+              </button>
+              <button
+                onClick={sendGroupNotifications}
+                disabled={notifLoading || notifSuccess}
+                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl transition-colors disabled:opacity-60 ${
+                  notifSuccess
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-indigo-500 hover:bg-indigo-600 text-white'
+                }`}
+              >
+                {notifLoading ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}
+                {notifSuccess ? '알림 전송 완료!' : '학생에게 알림'}
               </button>
             </>
           )}

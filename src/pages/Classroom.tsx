@@ -59,6 +59,8 @@ const Classroom = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
+  // student_id → { name, color }
+  const [groupMap, setGroupMap] = useState<Record<string, { name: string; color: string }>>({});
   const [activeClassId, setActiveClassId] = useState<string | null>(searchParams.get('id'));
   const [classInfo, setClassInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -262,6 +264,7 @@ const Classroom = () => {
       if (currentLocalClass) {
         setClassInfo(currentLocalClass);
         fetchStudents(activeClassId, currentLocalClass.linked_class_id);
+        loadGroupMap(activeClassId);
         if (currentLocalClass.class_type === 'homeroom') {
           fetchLinkedClasses(activeClassId);
         }
@@ -629,6 +632,26 @@ const Classroom = () => {
     link.href = URL.createObjectURL(blob);
     link.download = `${classInfo?.name || '학급'}_명단.csv`;
     link.click();
+  };
+
+  const loadGroupMap = async (classId: string) => {
+    const { data: groups } = await supabase
+      .from('class_groups')
+      .select('id, name, color')
+      .eq('class_id', classId);
+    if (!groups || groups.length === 0) { setGroupMap({}); return; }
+
+    const { data: members } = await supabase
+      .from('class_group_members')
+      .select('group_id, student_id')
+      .in('group_id', groups.map((g: any) => g.id));
+
+    const map: Record<string, { name: string; color: string }> = {};
+    (members || []).forEach((m: any) => {
+      const g = groups.find((g: any) => g.id === m.group_id);
+      if (g) map[m.student_id] = { name: g.name, color: g.color };
+    });
+    setGroupMap(map);
   };
 
   const fetchStudents = async (classId: string, linkedClassIdOverride?: string) => {
@@ -1301,6 +1324,7 @@ const Classroom = () => {
                   <GroupTab
                     classId={activeClassId!}
                     students={sortedStudents.map(s => ({ id: s.id, name: s.name, number: s.number }))}
+                    onGroupsChanged={() => loadGroupMap(activeClassId!)}
                   />
                 </div>
               )}
@@ -1554,6 +1578,7 @@ const Classroom = () => {
                     onSelectAll={handleSelectAll}
                     onBulkApprove={handleBulkApprove}
                     onResetPin={handleResetPin}
+                    groupMap={groupMap}
                   />
                 )
               )}

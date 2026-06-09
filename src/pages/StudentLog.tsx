@@ -77,6 +77,11 @@ const StudentLog = () => {
   const [rejectModalType, setRejectModalType] = useState<'block' | 'auto_reject'>('block');
   const [aiFeedback, setAiFeedback] = useState<{reason: string, guide: string} | null>(null);
 
+  // 학생 알림
+  const [studentNotifs, setStudentNotifs] = useState<any[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const unreadNotifCount = studentNotifs.filter(n => !n.is_read).length;
+
   // 반려 실시간 알림 (폴링)
   const [rejectionNotification, setRejectionNotification] = useState<{
     type: 'obs' | 'result';
@@ -193,6 +198,7 @@ const StudentLog = () => {
     fetchClassDetails(parsed.class_id);
     fetchUnreadReplyCount(parsed.student_id, parsed.class_id);
     fetchMyGroup(parsed.student_id, parsed.class_id);
+    fetchStudentNotifs(parsed.student_id);
 
     // 가이드 모달 표시 여부 확인 (학생별, 당일 기준)
     const today = new Date().toISOString().slice(0, 10);
@@ -279,8 +285,28 @@ const StudentLog = () => {
     return () => clearInterval(interval);
   }, [session?.class_id]);
 
+  // 학생 알림 Realtime 구독
+  useEffect(() => {
+    if (!session?.student_id) return;
+    const channel = supabase
+      .channel(`student-notifs-${session.student_id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'student_notifications',
+        filter: `student_id=eq.${session.student_id}`,
+      }, (payload: any) => {
+        setStudentNotifs(prev => [payload.new, ...prev]);
+        // 조 편성 알림이면 그룹 정보도 갱신
+        if (payload.new?.type === 'group_assignment') {
+          fetchMyGroup(session.student_id, session.class_id);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [session?.student_id]);
+
   const fetchMyGroup = async (studentId: string, classId: string) => {
-    // 이 학생이 속한 조 조회
     const { data: memberData } = await supabase
       .from('class_group_members')
       .select('group_id, class_groups(id, name, class_id)')
@@ -288,8 +314,12 @@ const StudentLog = () => {
 
     if (!memberData || memberData.length === 0) return;
 
-    const group = (memberData[0] as any)?.class_groups;
-    if (!group || group.class_id !== classId) return;
+    // 현재 클래스에 해당하는 조 찾기 (여러 클래스 조 멤버일 수 있음)
+    const matched = memberData.find(
+      (row: any) => row.class_groups?.class_id === classId
+    );
+    const group = (matched as any)?.class_groups;
+    if (!group) return;
 
     // 같은 조 멤버 이름 조회
     const { data: allMembers } = await supabase
@@ -299,10 +329,26 @@ const StudentLog = () => {
 
     const memberNames = (allMembers || [])
       .map((m: any) => m.students?.full_name)
-      .filter(Boolean)
-      .filter((n: string) => n !== (memberData[0] as any)?.students?.full_name);
+      .filter(Boolean) as string[];
 
     setMyClassGroup({ id: group.id, name: group.name, memberNames });
+  };
+
+  const fetchStudentNotifs = async (studentId: string) => {
+    const { data } = await supabase
+      .from('student_notifications')
+      .select('*')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (data) setStudentNotifs(data);
+  };
+
+  const markAllNotifsRead = async (studentId: string) => {
+    const unreadIds = studentNotifs.filter(n => !n.is_read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+    await supabase.from('student_notifications').update({ is_read: true }).in('id', unreadIds);
+    setStudentNotifs(prev => prev.map(n => ({ ...n, is_read: true })));
   };
 
   const fetchUnreadReplyCount = async (studentId: string, classId: string) => {
@@ -1323,11 +1369,70 @@ ${guidePrompt}
         </div>
         
         <div className="flex items-center gap-6">
-          <button className="p-2.5 rounded-xl bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-all"><Bell size={20} /></button>
+          {/* Bell 알림 버튼 */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setNotifOpen(v => !v);
+                if (!notifOpen && session?.student_id) markAllNotifsRead(session.student_id);
+              }}
+              className="relative p-2.5 rounded-xl bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-all"
+            >
+              <Bell size={20} />
+              {unreadNotifCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow">
+                  {unreadNotifCount}
+                </span>
+              )}
+            </button>
+
+            {/* 알림 패널 드롭다운 */}
+            <AnimatePresence>
+              {notifOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setNotifOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-2 w-80 z-40 bg-white rounded-3xl shadow-2xl border border-neutral-100 overflow-hidden"
+                  >
+                    <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
+                      <span className="font-black text-sm">알림</span>
+                      {studentNotifs.length > 0 && (
+                        <span className="text-[10px] font-bold text-neutral-400">{studentNotifs.length}개</span>
+                      )}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {studentNotifs.length === 0 ? (
+                        <div className="py-10 text-center text-neutral-400 text-xs font-bold">알림이 없습니다</div>
+                      ) : studentNotifs.map(n => (
+                        <div key={n.id} className={`px-5 py-4 border-b border-neutral-50 last:border-0 ${n.is_read ? 'opacity-60' : 'bg-indigo-50/40'}`}>
+                          <div className="flex items-start gap-2">
+                            {!n.is_read && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />}
+                            <div className={n.is_read ? 'ml-3.5' : ''}>
+                              <p className="text-xs font-black text-on-surface leading-snug">{n.title}</p>
+                              {n.content && <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">{n.content}</p>}
+                              <p className="text-[10px] text-neutral-400 mt-1">{new Date(n.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
           <div className="flex items-center gap-4 pl-4 border-l border-surface-container">
             <div className="text-right">
               <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-0.5">STUDENT LOG</p>
               <p className="text-sm font-black">{session?.student_name}</p>
+              {myClassGroup && (
+                <p className="text-[10px] font-bold text-on-surface-variant/60 mt-0.5">{myClassGroup.name}</p>
+              )}
             </div>
             <div className="w-12 h-12 rounded-[1rem] bg-primary/10 flex items-center justify-center text-primary shadow-sm border border-primary/10">
               <User size={24} />
@@ -1367,6 +1472,15 @@ ${guidePrompt}
                   <span>{session?.class_name} 참여 중</span>
                 </div>
                 <p className="text-[11px] text-on-surface-variant/60 font-bold ml-6">{new Date().toLocaleDateString('ko-KR')} 기록 활성화</p>
+                {myClassGroup && (
+                  <div className="mt-3 ml-0 p-3 rounded-2xl bg-white/30 border border-white/20 backdrop-blur-sm">
+                    <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest mb-1.5">My Group</p>
+                    <p className="text-lg font-black text-on-surface">{myClassGroup.name}</p>
+                    <p className="text-[11px] font-bold text-on-surface-variant/60 mt-1">
+                      {myClassGroup.memberNames.join(' · ')}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
