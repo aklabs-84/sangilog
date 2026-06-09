@@ -297,7 +297,6 @@ const StudentLog = () => {
         filter: `student_id=eq.${session.student_id}`,
       }, (payload: any) => {
         setStudentNotifs(prev => [payload.new, ...prev]);
-        // 조 편성 알림이면 그룹 정보도 갱신
         if (payload.new?.type === 'group_assignment') {
           fetchMyGroup(session.student_id, session.class_id);
         }
@@ -305,6 +304,23 @@ const StudentLog = () => {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [session?.student_id]);
+
+  // 조 편성 Realtime 구독 — 선생님이 배정/변경하면 자동 반영
+  useEffect(() => {
+    if (!session?.student_id || !session?.class_id) return;
+    const channel = supabase
+      .channel(`group-members-${session.student_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'class_group_members',
+        filter: `student_id=eq.${session.student_id}`,
+      }, () => {
+        fetchMyGroup(session.student_id, session.class_id);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [session?.student_id, session?.class_id]);
 
   const fetchMyGroup = async (studentId: string, classId: string) => {
     const { data: memberData } = await supabase
