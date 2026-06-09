@@ -1,17 +1,25 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
-import { GraduationCap, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { GraduationCap, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2, Gift } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 const SetPassword = () => {
-  const [password, setPassword]   = useState('');
-  const [confirm, setConfirm]     = useState('');
-  const [showPw, setShowPw]       = useState(false);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [password, setPassword]     = useState('');
+  const [confirm, setConfirm]       = useState('');
+  const [showPw, setShowPw]         = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+  const [referralMsg, setReferralMsg]   = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) setReferralCode(ref.toUpperCase());
+  }, [searchParams]);
 
   useEffect(() => {
     // Supabase action_link 클릭 후 /set-password#access_token=xxx 로 도착
@@ -67,6 +75,16 @@ const SetPassword = () => {
       setError(updateError.message);
       setLoading(false);
       return;
+    }
+
+    // 추천인 코드 적용 (입력된 경우)
+    if (referralCode.trim()) {
+      const { data: refData } = await supabase.rpc('apply_referral_code', {
+        p_code: referralCode.trim().toUpperCase(),
+      });
+      if (refData?.success) {
+        setReferralMsg({ type: 'ok', text: `추천 코드 적용! 양쪽 모두 ${refData.bonus_days}일 베타가 지급됩니다.` });
+      }
     }
 
     // 비밀번호 설정 후 세션 정리 — 로그인 페이지에서 직접 로그인하도록 유도
@@ -169,6 +187,35 @@ const SetPassword = () => {
                 className="w-full pl-14 pr-6 py-5 bg-surface-container/50 rounded-2xl text-base font-bold focus:outline-none focus:ring-8 focus:ring-primary/5 focus:bg-white focus:border-primary/20 border-2 border-transparent transition-all shadow-inner"
               />
             </div>
+          </div>
+
+          {/* 추천인 코드 (선택) */}
+          <div className="space-y-3">
+            <label className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] ml-2">
+              추천인 코드 <span className="normal-case font-normal">(선택)</span>
+            </label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-on-surface-variant/20 group-focus-within:text-primary transition-colors">
+                <Gift size={20} strokeWidth={2.5} />
+              </div>
+              <input
+                type="text"
+                value={referralCode}
+                onChange={e => { setReferralCode(e.target.value.toUpperCase()); setReferralMsg(null); }}
+                placeholder="SANGXXXXXX"
+                className="w-full pl-14 pr-6 py-5 bg-surface-container/50 rounded-2xl text-base font-bold font-mono focus:outline-none focus:ring-8 focus:ring-primary/5 focus:bg-white focus:border-primary/20 border-2 border-transparent transition-all shadow-inner uppercase"
+              />
+            </div>
+            {referralMsg && (
+              <p className={`text-xs font-bold px-3 py-2 rounded-xl ${
+                referralMsg.type === 'ok' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+              }`}>
+                {referralMsg.text}
+              </p>
+            )}
+            <p className="text-[11px] text-on-surface-variant/40 ml-2">
+              추천인과 본인 모두 7일 Pro 체험 베타가 지급됩니다
+            </p>
           </div>
 
           <button

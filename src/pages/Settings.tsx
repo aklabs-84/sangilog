@@ -61,6 +61,14 @@ const Settings = () => {
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponMsg, setCouponMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
+  // 추천인 코드
+  const [referralCount, setReferralCount] = useState<number>(0);
+  const [referralCopied, setReferralCopied] = useState(false);
+  const [referralMsg, setReferralMsg]     = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [myReferralCode, setMyReferralCode] = useState('');
+  const [refInput, setRefInput]           = useState('');
+  const [refLoading, setRefLoading]       = useState(false);
+
   // Groq API Key (localStorage)
   const [groqKey, setGroqKey]           = useState('');
   const [groqKeySaved, setGroqKeySaved] = useState(false);
@@ -70,6 +78,51 @@ const Settings = () => {
     const saved = localStorage.getItem('groq_api_key') || '';
     setGroqKey(saved);
   }, []);
+
+  // 내 추천 코드 + 추천 횟수 로드
+  useEffect(() => {
+    if (!user || !authProfile) return;
+    setMyReferralCode(authProfile.referral_code ?? '');
+    supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('referred_by', user.id)
+      .then(({ count }) => setReferralCount(count ?? 0));
+  }, [user, authProfile]);
+
+  const copyReferralCode = () => {
+    if (!myReferralCode) return;
+    navigator.clipboard.writeText(myReferralCode);
+    setReferralCopied(true);
+    setTimeout(() => setReferralCopied(false), 2000);
+  };
+
+  const applyReferralCode = async () => {
+    if (!refInput.trim()) return;
+    setRefLoading(true);
+    setReferralMsg(null);
+    const { data } = await supabase.rpc('apply_referral_code', {
+      p_code: refInput.trim().toUpperCase(),
+    });
+    setRefLoading(false);
+    if (!data) {
+      setReferralMsg({ type: 'err', text: '오류가 발생했습니다. 잠시 후 다시 시도해주세요.' });
+      return;
+    }
+    const errMap: Record<string, string> = {
+      PROFILE_NOT_FOUND: '프로필을 찾을 수 없습니다.',
+      ALREADY_USED:      '이미 추천인 코드를 사용했습니다.',
+      INVALID_CODE:      '유효하지 않은 추천 코드입니다.',
+      SELF_REFERRAL:     '자기 자신의 코드는 사용할 수 없습니다.',
+    };
+    if (data.error) {
+      setReferralMsg({ type: 'err', text: errMap[data.error] ?? '알 수 없는 오류입니다.' });
+      return;
+    }
+    setReferralMsg({ type: 'ok', text: `🎉 추천 코드 적용! 양쪽 모두 ${data.bonus_days}일 베타가 지급되었습니다.` });
+    setRefInput('');
+    await refreshProfile();
+  };
 
   const applyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -524,6 +577,85 @@ const Settings = () => {
             couponMsg.type === 'ok' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
           }`}>
             {couponMsg.text}
+          </p>
+        )}
+      </div>
+
+      {/* 추천인 코드 */}
+      <div className="layered-card rounded-3xl p-6 border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+            <Sparkles size={18} className="text-white" />
+          </div>
+          <div>
+            <p className="font-black text-base text-emerald-900">추천인 코드</p>
+            <p className="text-xs text-emerald-600">친구에게 공유하면 양쪽 모두 7일 베타 혜택!</p>
+          </div>
+        </div>
+
+        {/* 내 코드 표시 */}
+        {myReferralCode ? (
+          <div className="mb-5">
+            <p className="text-[10px] font-black text-emerald-700/60 uppercase tracking-widest mb-2">내 추천 코드</p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 px-4 py-3 bg-white border-2 border-emerald-200 rounded-2xl font-mono font-black text-lg text-emerald-800 tracking-widest text-center select-all">
+                {myReferralCode}
+              </div>
+              <button
+                onClick={copyReferralCode}
+                className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl transition-colors flex items-center gap-2 font-black text-sm whitespace-nowrap"
+              >
+                {referralCopied ? <Check size={14} /> : <Copy size={14} />}
+                {referralCopied ? '복사됨' : '복사'}
+              </button>
+            </div>
+            {referralCount > 0 && (
+              <p className="mt-2 text-xs text-emerald-600 font-bold">
+                현재까지 <span className="font-black">{referralCount}명</span>이 내 코드로 가입했습니다 🎉
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="mb-5 px-4 py-3 bg-white/60 rounded-2xl text-sm text-emerald-700">
+            추천 코드를 불러오는 중...
+          </div>
+        )}
+
+        {/* 추천인 코드 입력 (아직 미사용인 경우만) */}
+        {!authProfile?.referred_by && (
+          <div>
+            <p className="text-[10px] font-black text-emerald-700/60 uppercase tracking-widest mb-2">추천인 코드 입력</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={refInput}
+                onChange={e => { setRefInput(e.target.value.toUpperCase()); setReferralMsg(null); }}
+                onKeyDown={e => e.key === 'Enter' && applyReferralCode()}
+                placeholder="SANGXXXXXX"
+                className="flex-1 px-4 py-3 rounded-2xl border border-emerald-200 bg-white text-sm font-mono font-bold focus:outline-none focus:border-emerald-400 placeholder:font-normal placeholder:text-gray-400 uppercase"
+              />
+              <button
+                onClick={applyReferralCode}
+                disabled={refLoading || !refInput.trim()}
+                className="px-5 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-black rounded-2xl transition-colors flex items-center gap-2 whitespace-nowrap"
+              >
+                {refLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                적용
+              </button>
+            </div>
+            {referralMsg && (
+              <p className={`mt-2.5 text-xs font-bold px-3 py-2 rounded-xl ${
+                referralMsg.type === 'ok' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+              }`}>
+                {referralMsg.text}
+              </p>
+            )}
+          </div>
+        )}
+        {authProfile?.referred_by && (
+          <p className="text-xs text-emerald-600 font-bold flex items-center gap-1.5">
+            <Check size={13} />
+            이미 추천인 코드를 사용하셨습니다.
           </p>
         )}
       </div>
