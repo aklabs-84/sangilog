@@ -15,7 +15,7 @@ import {
   ClipboardList,
   Check,
 } from 'lucide-react';
-import { useAuth } from '../lib/auth';
+import { useAuth, checkIsPro } from '../lib/auth';
 import NaissWorkstation from '../components/export/NaissWorkstation';
 
 type Scope = 'all' | 'specific';
@@ -31,7 +31,7 @@ const EXPORT_COLUMNS = [
 ];
 
 const Export = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
@@ -252,7 +252,7 @@ const Export = () => {
       <div className="flex items-center gap-1 p-1.5 bg-surface-container/60 rounded-2xl w-fit border border-white/40 shadow-soft">
         <button
           onClick={() => {
-            if (profile?.plan === 'free' || profile?.plan === 'school') {
+            if (!checkIsPro(profile)) {
               alert('나이스 제출 준비는 Pro 플랜 전용 기능입니다.\naklabs84@naver.com으로 업그레이드 문의해 주세요.');
               return;
             }
@@ -262,7 +262,7 @@ const Export = () => {
         >
           <ClipboardList size={16} />
           나이스 제출 준비
-          {(profile?.plan === 'free' || profile?.plan === 'school') && (
+          {!checkIsPro(profile) && (
             <span className="text-[9px] bg-amber-500 text-white px-1.5 py-0.5 rounded-full font-black">PRO</span>
           )}
         </button>
