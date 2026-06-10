@@ -127,6 +127,7 @@ const ClassTranscription = () => {
   const [errorMsg, setErrorMsg]               = useState('');
   const [sessionSaved, setSessionSaved]       = useState(false);
   const [backgroundInterrupted, setBackgroundInterrupted] = useState(false);
+  const [webSpeechFailed, setWebSpeechFailed] = useState(false);
 
   // ── History state ─────────────────────────────────────────────────────────
   const [pastSessions, setPastSessions]         = useState<PastSessionRow[]>([]);
@@ -303,7 +304,6 @@ const ClassTranscription = () => {
 
       rec.onaudiostart = () => {
         console.log('[WebSpeech] 오디오 캡처 시작');
-        noSpeechCountRef.current = 0;
         setInterimText('');
       };
 
@@ -313,6 +313,7 @@ const ClassTranscription = () => {
 
       rec.onresult = (event: any) => {
         noSpeechCountRef.current = 0;
+        setWebSpeechFailed(false);
         let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const text = event.results[i][0].transcript;
@@ -339,8 +340,8 @@ const ClassTranscription = () => {
 
         if (e.error === 'no-speech') {
           noSpeechCountRef.current++;
-          if (noSpeechCountRef.current >= 3 && isRecordingRef.current) {
-            setInterimText('마이크 소리를 인식하지 못하고 있습니다. 크게 말씀하시거나 Groq Whisper 모드를 사용해주세요.');
+          if (noSpeechCountRef.current >= 2 && isRecordingRef.current) {
+            setWebSpeechFailed(true);
           }
           return;
         }
@@ -400,6 +401,20 @@ const ClassTranscription = () => {
     setInterimText('');
     await finalize();
   }, []);
+
+  const switchToGroq = () => {
+    isRecordingRef.current = false;
+    recognitionRef.current?.stop();
+    stopTimer();
+    releaseWakeLock();
+    setInterimText('');
+    setStatus('idle');
+    setTranscript('');
+    transcriptRef.current = '';
+    setWebSpeechFailed(false);
+    noSpeechCountRef.current = 0;
+    setSelectedMode('groq');
+  };
 
   // ── Groq Whisper ──────────────────────────────────────────────────────────
 
@@ -748,6 +763,8 @@ ${transcriptText}
     setErrorMsg('');
     setSessionSaved(false);
     setBackgroundInterrupted(false);
+    setWebSpeechFailed(false);
+    noSpeechCountRef.current = 0;
     transcriptRef.current = '';
     elapsedRef.current    = 0;
   };
@@ -991,6 +1008,28 @@ ${transcriptText}
 
             {status === 'recording' && (
               <div className="space-y-5">
+
+                {/* Chrome 음성 인식 실패 → Groq 전환 제안 */}
+                {webSpeechFailed && !useGroqMode && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                    <AlertCircle size={18} className="text-amber-500 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-black text-amber-800">Chrome 음성 인식이 이 환경에서 작동하지 않습니다</p>
+                      <p className="text-xs text-amber-600 mt-1 leading-relaxed">
+                        Google 음성 서버에 연결할 수 없는 환경입니다.<br />
+                        Groq Whisper 모드로 전환하면 바로 전사를 시작할 수 있습니다.
+                      </p>
+                      <button
+                        onClick={switchToGroq}
+                        className="mt-3 flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-700 transition-all active:scale-95"
+                      >
+                        <Zap size={13} />
+                        Groq Whisper로 전환하기
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="relative flex h-3 w-3">
