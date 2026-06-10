@@ -108,11 +108,6 @@ const ClassTranscription = () => {
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [mainTab, setMainTab] = useState<MainTab>('record');
 
-  // ── 전사 모드 선택 ─────────────────────────────────────────────────────────
-  const [selectedMode, setSelectedMode] = useState<'groq' | 'web'>(
-    () => localStorage.getItem('groq_api_key') ? 'groq' : 'web'
-  );
-
   // ── Recording state ────────────────────────────────────────────────────────
   const [status, setStatus]           = useState<RecordingStatus>('idle');
   const [transcript, setTranscript]   = useState('');
@@ -127,7 +122,6 @@ const ClassTranscription = () => {
   const [errorMsg, setErrorMsg]               = useState('');
   const [sessionSaved, setSessionSaved]       = useState(false);
   const [backgroundInterrupted, setBackgroundInterrupted] = useState(false);
-  const [webSpeechFailed, setWebSpeechFailed] = useState(false);
 
   // ── History state ─────────────────────────────────────────────────────────
   const [pastSessions, setPastSessions]         = useState<PastSessionRow[]>([]);
@@ -146,17 +140,12 @@ const ClassTranscription = () => {
   const recognitionRef    = useRef<any>(null);
   const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
   const streamRef         = useRef<MediaStream | null>(null);
-  const noSpeechCountRef  = useRef(0);
   const chunkTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopRequestedRef  = useRef(false);
   const chunkBlobsRef     = useRef<Blob[]>([]);
 
   // ── Mode detection ─────────────────────────────────────────────────────────
-  const groqKey           = localStorage.getItem('groq_api_key') || '';
-  const useGroqMode       = selectedMode === 'groq' && !!groqKey;
-  const groqKeyMissing    = selectedMode === 'groq' && !groqKey;
-  const SpeechAPI         = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  const isSpeechSupported = !!SpeechAPI;
+  const groqKey = localStorage.getItem('groq_api_key') || '';
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -289,133 +278,6 @@ const ClassTranscription = () => {
   const formatTime = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-  // ── Web Speech API ─────────────────────────────────────────────────────────
-
-  const startWebSpeech = useCallback((keepTranscript = false) => {
-    if (!SpeechAPI) return;
-
-    noSpeechCountRef.current = 0;
-
-    const createInstance = (): any => {
-      const rec = new SpeechAPI();
-      rec.continuous     = true;
-      rec.interimResults = true;
-      rec.lang           = 'ko-KR';
-
-      rec.onaudiostart = () => {
-        console.log('[WebSpeech] 오디오 캡처 시작');
-        setInterimText('');
-      };
-
-      rec.onsoundstart = () => console.log('[WebSpeech] 소리 감지됨');
-
-      rec.onspeechstart = () => console.log('[WebSpeech] 음성 감지됨');
-
-      rec.onresult = (event: any) => {
-        noSpeechCountRef.current = 0;
-        setWebSpeechFailed(false);
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const text = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            transcriptRef.current += text + ' ';
-            setTranscript(transcriptRef.current);
-          } else {
-            interim += text;
-          }
-        }
-        setInterimText(interim);
-      };
-
-      rec.onend = () => {
-        console.log('[WebSpeech] onend — isRecording:', isRecordingRef.current);
-        setInterimText('');
-        if (isRecordingRef.current) {
-          recognitionRef.current = createInstance();
-        }
-      };
-
-      rec.onerror = (e: any) => {
-        console.warn('[WebSpeech] onerror:', e.error);
-
-        if (e.error === 'no-speech') {
-          noSpeechCountRef.current++;
-          if (noSpeechCountRef.current >= 2 && isRecordingRef.current) {
-            setWebSpeechFailed(true);
-          }
-          return;
-        }
-
-        isRecordingRef.current = false;
-        stopTimer();
-        releaseWakeLock();
-        setStatus('error');
-
-        const MSG: Record<string, string> = {
-          'not-allowed':
-            '마이크 접근 권한이 필요합니다. 주소창 왼쪽 자물쇠 아이콘 → 마이크 허용 후 다시 시도해주세요.',
-          'network':
-            'Chrome 음성 인식 서버에 연결할 수 없습니다. 인터넷 연결을 확인하거나 Groq Whisper 모드를 사용해주세요.',
-          'audio-capture':
-            '마이크를 찾을 수 없습니다. 마이크가 연결되어 있는지 확인해주세요.',
-          'service-not-allowed':
-            'Chrome 음성 인식 서비스를 사용할 수 없습니다. Groq Whisper 모드를 사용해주세요.',
-          'aborted':
-            '음성 인식이 중단됐습니다. 다시 시도해주세요.',
-          'language-not-supported':
-            'ko-KR 언어가 지원되지 않습니다. Groq Whisper 모드를 사용해주세요.',
-        };
-        setErrorMsg(MSG[e.error] ?? `음성 인식 오류가 발생했습니다. (오류 코드: ${e.error})`);
-      };
-
-      try {
-        rec.start();
-        console.log('[WebSpeech] 인식 시작됨');
-      } catch (err) {
-        console.error('[WebSpeech] start() 실패:', err);
-        isRecordingRef.current = false;
-        stopTimer();
-        releaseWakeLock();
-        setStatus('error');
-        setErrorMsg('음성 인식을 시작할 수 없습니다. 페이지를 새로고침 후 다시 시도해주세요.');
-      }
-      return rec;
-    };
-
-    isRecordingRef.current = true;
-    if (!keepTranscript) {
-      transcriptRef.current = '';
-      setTranscript('');
-    }
-    setInterimText('');
-    setStatus('recording');
-    recognitionRef.current = createInstance();
-    startTimer(keepTranscript);
-  }, [SpeechAPI]);
-
-  const stopWebSpeech = useCallback(async () => {
-    isRecordingRef.current = false;
-    recognitionRef.current?.stop();
-    stopTimer();
-    releaseWakeLock();
-    setInterimText('');
-    await finalize();
-  }, []);
-
-  const switchToGroq = () => {
-    isRecordingRef.current = false;
-    recognitionRef.current?.stop();
-    stopTimer();
-    releaseWakeLock();
-    setInterimText('');
-    setStatus('idle');
-    setTranscript('');
-    transcriptRef.current = '';
-    setWebSpeechFailed(false);
-    noSpeechCountRef.current = 0;
-    setSelectedMode('groq');
-  };
-
   // ── Groq Whisper ──────────────────────────────────────────────────────────
 
   const transcribeChunk = async (blob: Blob): Promise<void> => {
@@ -453,6 +315,13 @@ const ClassTranscription = () => {
         streamRef.current?.getTracks().forEach(t => t.stop());
         setStatus('error');
         setErrorMsg('Groq API Key가 올바르지 않습니다. 설정에서 키를 확인해주세요.');
+      } else if (res.status === 429) {
+        isRecordingRef.current = false;
+        stopTimer();
+        releaseWakeLock();
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        setStatus('error');
+        setErrorMsg('Groq API 크레딧이 소진되었거나 요청 한도에 도달했습니다. console.groq.com에서 사용량을 확인해주세요.');
       }
     } catch {
       // 네트워크 오류 — 해당 청크 건너뜀
@@ -561,20 +430,17 @@ const ClassTranscription = () => {
     setBackgroundInterrupted(false);
     setSessionSaved(false);
     requestWakeLock();
-    if (useGroqMode) startGroqRecording();
-    else startWebSpeech();
+    startGroqRecording();
   };
 
   const resumeRecording = () => {
     setBackgroundInterrupted(false);
     requestWakeLock();
-    if (useGroqMode) startGroqRecording(true);
-    else startWebSpeech(true);
+    startGroqRecording(true);
   };
 
   const stopRecording = () => {
-    if (useGroqMode) stopGroqRecording();
-    else stopWebSpeech();
+    stopGroqRecording();
   };
 
   const finalizeCurrent = () => {
@@ -763,8 +629,6 @@ ${transcriptText}
     setErrorMsg('');
     setSessionSaved(false);
     setBackgroundInterrupted(false);
-    setWebSpeechFailed(false);
-    noSpeechCountRef.current = 0;
     transcriptRef.current = '';
     elapsedRef.current    = 0;
   };
@@ -863,34 +727,8 @@ ${transcriptText}
             )}
           </AnimatePresence>
 
-          {/* 전사 모드 선택 */}
-          <div className="flex p-1 bg-surface-container rounded-xl gap-1 w-fit">
-            <button
-              onClick={() => setSelectedMode('web')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-black transition-all ${
-                selectedMode === 'web'
-                  ? 'bg-primary text-white shadow-md shadow-primary/20'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <Mic size={14} />
-              기본 전사 (Chrome)
-            </button>
-            <button
-              onClick={() => setSelectedMode('groq')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-black transition-all ${
-                selectedMode === 'groq'
-                  ? 'bg-violet-600 text-white shadow-md shadow-violet-500/20'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <Zap size={14} />
-              Groq Whisper — 고품질 AI
-            </button>
-          </div>
-
-          {/* Groq 모드 선택했지만 API Key 없는 경우 */}
-          {groqKeyMissing && (
+          {/* Groq API Key 미등록 시 안내 */}
+          {!groqKey && (
             <div className="p-4 bg-violet-50 border border-violet-200 rounded-2xl flex items-start gap-3">
               <KeyRound size={18} className="text-violet-500 mt-0.5 shrink-0" />
               <div className="flex-1">
@@ -910,21 +748,8 @@ ${transcriptText}
             </div>
           )}
 
-          {/* 브라우저 호환 안내 (기본 모드에서 Chrome 아닐 때) */}
-          {!isSpeechSupported && !useGroqMode && !groqKeyMissing && (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
-              <AlertCircle size={18} className="text-amber-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-black text-amber-800">Chrome 브라우저 또는 Groq API Key가 필요합니다</p>
-                <p className="text-xs text-amber-600 mt-0.5">
-                  기본 전사는 Chrome에서만 지원됩니다. 위에서 Groq Whisper 모드를 선택하고 API Key를 등록하면 모든 브라우저에서 가능합니다.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* 활성 모드 표시 */}
-          {useGroqMode && (
+          {!!groqKey && (
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-700 rounded-full text-xs font-black border border-violet-200">
                 <Zap size={12} />
@@ -987,14 +812,12 @@ ${transcriptText}
                 <div className="text-center space-y-1">
                   <h3 className="text-xl font-black">수업 전사 준비 완료</h3>
                   <p className="text-sm text-on-surface-variant">
-                    {useGroqMode
-                      ? 'Groq Whisper 모드 — 10초마다 자동으로 고품질 변환합니다'
-                      : '시작 버튼을 누르면 마이크가 켜지며 자동으로 전사됩니다'}
+                    Groq Whisper 모드 — 10초마다 자동으로 고품질 변환합니다
                   </p>
                 </div>
                 <button
                   onClick={startRecording}
-                  disabled={groqKeyMissing || (!isSpeechSupported && !useGroqMode) || !selectedClassId || students.length === 0}
+                  disabled={!groqKey || !selectedClassId || students.length === 0}
                   className="btn-gradient px-10 py-4 rounded-2xl font-black text-base flex items-center gap-3 shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Mic size={20} />
@@ -1009,27 +832,6 @@ ${transcriptText}
             {status === 'recording' && (
               <div className="space-y-5">
 
-                {/* Chrome 음성 인식 실패 → Groq 전환 제안 */}
-                {webSpeechFailed && !useGroqMode && (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
-                    <AlertCircle size={18} className="text-amber-500 mt-0.5 shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm font-black text-amber-800">Chrome 음성 인식이 이 환경에서 작동하지 않습니다</p>
-                      <p className="text-xs text-amber-600 mt-1 leading-relaxed">
-                        Google 음성 서버에 연결할 수 없는 환경입니다.<br />
-                        Groq Whisper 모드로 전환하면 바로 전사를 시작할 수 있습니다.
-                      </p>
-                      <button
-                        onClick={switchToGroq}
-                        className="mt-3 flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-700 transition-all active:scale-95"
-                      >
-                        <Zap size={13} />
-                        Groq Whisper로 전환하기
-                      </button>
-                    </div>
-                  </div>
-                )}
-
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="relative flex h-3 w-3">
@@ -1040,7 +842,7 @@ ${transcriptText}
                     <span className="font-mono text-sm font-black text-on-surface-variant tabular-nums">
                       {formatTime(elapsedSeconds)}
                     </span>
-                    {useGroqMode && isChunkProcessing && (
+                    {isChunkProcessing && (
                       <span className="flex items-center gap-1 text-[11px] text-violet-600 font-bold">
                         <Loader2 size={11} className="animate-spin" />
                         AI 변환 중
@@ -1061,9 +863,7 @@ ${transcriptText}
                     <span className="text-on-surface">{transcript}</span>
                   ) : (
                     <span className="text-on-surface-variant/40 italic">
-                      {useGroqMode
-                        ? '말씀하시면 10초마다 여기에 변환됩니다...'
-                        : '말씀하시면 여기에 실시간으로 전사됩니다...'}
+                      말씀하시면 10초마다 여기에 변환됩니다...
                     </span>
                   )}
                   {interimText && (
