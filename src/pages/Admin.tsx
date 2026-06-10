@@ -618,9 +618,17 @@ const Admin = () => {
 
   const updateUserPlan = async (userId: string, plan: string) => {
     setPlanUpdating(userId);
-    const { error } = await supabase.from('profiles')
-      .update({ plan, is_admin: plan === 'admin' }).eq('id', userId);
-    if (!error) setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan, is_admin: plan === 'admin' } : u));
+    const { data, error } = await supabase.rpc('admin_update_plan', {
+      p_user_id: userId,
+      p_plan: plan,
+    });
+    if (error) {
+      alert(`플랜 변경 실패: ${error.message}`);
+    } else if (data?.error) {
+      alert(`플랜 변경 실패: ${data.error}`);
+    } else {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, plan, is_admin: plan === 'admin' } : u));
+    }
     setPlanUpdating(null);
   };
 
