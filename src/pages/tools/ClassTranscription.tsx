@@ -141,8 +141,9 @@ const ClassTranscription = () => {
   const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
   const streamRef         = useRef<MediaStream | null>(null);
   const chunkTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stopRequestedRef  = useRef(false);
-  const chunkBlobsRef     = useRef<Blob[]>([]);
+  const stopRequestedRef   = useRef(false);
+  const chunkBlobsRef      = useRef<Blob[]>([]);
+  const savedSessionIdRef  = useRef<string | null>(null);
 
   // ── Mode detection ─────────────────────────────────────────────────────────
   const groqKey = localStorage.getItem('groq_api_key') || '';
@@ -405,7 +406,7 @@ const ClassTranscription = () => {
 
   // ── 공통 종료 ─────────────────────────────────────────────────────────────
 
-  const finalize = () => {
+  const finalize = async () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     setInterimText('');
 
@@ -415,6 +416,7 @@ const ClassTranscription = () => {
       return;
     }
     setStatus('transcribed');
+    await saveTranscriptOnly(finalText);
   };
 
   const startAnalysis = async () => {
@@ -443,11 +445,12 @@ const ClassTranscription = () => {
     stopGroqRecording();
   };
 
-  const finalizeCurrent = () => {
+  const finalizeCurrent = async () => {
     setBackgroundInterrupted(false);
     const finalText = transcriptRef.current.trim();
     if (finalText && finalText.split(' ').length >= 5) {
       setStatus('transcribed');
+      await saveTranscriptOnly(finalText);
     } else {
       setStatus('idle');
     }
@@ -455,18 +458,43 @@ const ClassTranscription = () => {
 
   // ── Gemini 분석 + 자동 저장 ─────────────────────────────────────────────
 
-  const saveSession = async (transcriptText: string, analysis: AnalysisResult) => {
+  const saveTranscriptOnly = async (transcriptText: string) => {
+    if (savedSessionIdRef.current) return;
     const cls = classes.find(c => c.id === selectedClassId);
-    const { error } = await supabase.from('class_transcriptions').insert({
+    const { data, error } = await supabase.from('class_transcriptions').insert({
       teacher_id:       user?.id,
       class_id:         selectedClassId || null,
       class_name:       cls?.name || null,
       subject:          cls?.subject || null,
       transcript_text:  transcriptText,
-      analysis_result:  analysis,
+      analysis_result:  null,
       duration_seconds: elapsedRef.current,
-    });
-    if (!error) setSessionSaved(true);
+    }).select('id').single();
+    if (!error && data) {
+      savedSessionIdRef.current = data.id;
+      setSessionSaved(true);
+    }
+  };
+
+  const saveSession = async (transcriptText: string, analysis: AnalysisResult) => {
+    const id = savedSessionIdRef.current;
+    if (id) {
+      await supabase.from('class_transcriptions')
+        .update({ analysis_result: analysis })
+        .eq('id', id);
+    } else {
+      const cls = classes.find(c => c.id === selectedClassId);
+      await supabase.from('class_transcriptions').insert({
+        teacher_id:       user?.id,
+        class_id:         selectedClassId || null,
+        class_name:       cls?.name || null,
+        subject:          cls?.subject || null,
+        transcript_text:  transcriptText,
+        analysis_result:  analysis,
+        duration_seconds: elapsedRef.current,
+      });
+    }
+    setSessionSaved(true);
   };
 
   const analyzeTranscript = async (transcriptText: string) => {
@@ -629,8 +657,9 @@ ${transcriptText}
     setErrorMsg('');
     setSessionSaved(false);
     setBackgroundInterrupted(false);
-    transcriptRef.current = '';
-    elapsedRef.current    = 0;
+    transcriptRef.current    = '';
+    elapsedRef.current       = 0;
+    savedSessionIdRef.current = null;
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -899,8 +928,14 @@ ${transcriptText}
                   {transcript}
                 </div>
 
+                {sessionSaved && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-100 rounded-xl">
+                    <Save size={13} className="text-green-600 shrink-0" />
+                    <span className="text-xs font-black text-green-700">전사 내용이 "기록 보기"에 저장됐습니다</span>
+                  </div>
+                )}
                 <p className="text-[11px] text-on-surface-variant/50 text-center">
-                  전사 내용을 확인한 후 AI 분석을 시작하세요. 분석 시에만 AI 크레딧이 사용됩니다.
+                  AI 분석을 시작하면 학생별 관찰 기록과 수업 평가가 추가됩니다. AI 크레딧은 분석 시에만 사용됩니다.
                 </p>
 
                 <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1287,7 +1322,7 @@ ${transcriptText}
 
                   {/* 확장 상세 */}
                   <AnimatePresence>
-                    {isExpanded && analysis && (
+                    {isExpanded && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -1296,48 +1331,57 @@ ${transcriptText}
                         className="overflow-hidden border-t border-surface-container"
                       >
                         <div className="p-5 space-y-5">
-                          {/* 학생별 관찰 */}
-                          <div>
-                            <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-3">학생별 관찰</p>
-                            <div className="space-y-2">
-                              {analysis.studentObservations.map(obs => (
-                                <div key={obs.name} className="flex items-start gap-2.5 p-3 bg-surface-container-low rounded-xl">
-                                  <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full mt-0.5 ${PARTICIPATION_STYLE[obs.participation]}`}>
-                                    {obs.participation}
-                                  </span>
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="text-sm font-black">{obs.name}</span>
-                                      {obs.needsAttention && (
-                                        <span className="text-[10px] font-black text-red-500">추가 지도 필요</span>
-                                      )}
+                          {analysis ? (
+                            <>
+                              {/* 학생별 관찰 */}
+                              <div>
+                                <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-3">학생별 관찰</p>
+                                <div className="space-y-2">
+                                  {analysis.studentObservations.map(obs => (
+                                    <div key={obs.name} className="flex items-start gap-2.5 p-3 bg-surface-container-low rounded-xl">
+                                      <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full mt-0.5 ${PARTICIPATION_STYLE[obs.participation]}`}>
+                                        {obs.participation}
+                                      </span>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-sm font-black">{obs.name}</span>
+                                          {obs.needsAttention && (
+                                            <span className="text-[10px] font-black text-red-500">추가 지도 필요</span>
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">{obs.summary}</p>
+                                      </div>
                                     </div>
-                                    <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">{obs.summary}</p>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* 수업 평가 점수 */}
+                              <div>
+                                <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-3">수업 품질 평가</p>
+                                <div className="space-y-2">
+                                  {EVAL_ITEMS.map(({ key, label }) => (
+                                    <ScoreBar key={key} label={label} score={analysis.classEvaluation[key as keyof ClassEvaluation] as number} />
+                                  ))}
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                                  <div className="p-3 bg-green-50 rounded-xl border border-green-100">
+                                    <p className="text-[10px] font-black text-green-600 uppercase mb-1">잘된 점</p>
+                                    <p className="text-xs text-green-800 leading-relaxed">{analysis.classEvaluation.strengths}</p>
+                                  </div>
+                                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                    <p className="text-[10px] font-black text-amber-600 uppercase mb-1">개선할 점</p>
+                                    <p className="text-xs text-amber-800 leading-relaxed">{analysis.classEvaluation.improvements}</p>
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* 수업 평가 점수 */}
-                          <div>
-                            <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-3">수업 품질 평가</p>
-                            <div className="space-y-2">
-                              {EVAL_ITEMS.map(({ key, label }) => (
-                                <ScoreBar key={key} label={label} score={analysis.classEvaluation[key as keyof ClassEvaluation] as number} />
-                              ))}
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                              <div className="p-3 bg-green-50 rounded-xl border border-green-100">
-                                <p className="text-[10px] font-black text-green-600 uppercase mb-1">잘된 점</p>
-                                <p className="text-xs text-green-800 leading-relaxed">{analysis.classEvaluation.strengths}</p>
                               </div>
-                              <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
-                                <p className="text-[10px] font-black text-amber-600 uppercase mb-1">개선할 점</p>
-                                <p className="text-xs text-amber-800 leading-relaxed">{analysis.classEvaluation.improvements}</p>
-                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-surface-container rounded-xl w-fit">
+                              <MessageSquare size={13} className="text-on-surface-variant/50" />
+                              <span className="text-[11px] text-on-surface-variant/60 font-bold">AI 분석 없음 — 전사 원문만 저장됨</span>
                             </div>
-                          </div>
+                          )}
 
                           {/* 전사 원문 */}
                           <div>
