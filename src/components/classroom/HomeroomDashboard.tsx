@@ -54,6 +54,7 @@ interface HomeroomDashboardProps {
   onDeleteStudent: (id: string) => void;
   onBulkApprove: () => void;
   onResetPin: (id: string) => void;
+  onOpenResources?: () => void;
 }
 
 const HomeroomDashboard = ({
@@ -76,7 +77,8 @@ const HomeroomDashboard = ({
   onEditStudent,
   onDeleteStudent,
   onBulkApprove,
-  onResetPin
+  onResetPin,
+  onOpenResources,
 }: HomeroomDashboardProps) => {
   const navigate = useNavigate();
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
@@ -376,6 +378,15 @@ const HomeroomDashboard = ({
                   >
                     {shareTeacherSuccess ? <Check size={16} /> : <Share2 size={16} />}
                   </button>
+                  {onOpenResources && (
+                    <button
+                      onClick={onOpenResources}
+                      className="w-10 h-10 bg-white border-2 border-neutral-200 hover:border-secondary/40 hover:text-secondary rounded-2xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft shrink-0"
+                      title="수업 자료실"
+                    >
+                      <BookOpen size={16} />
+                    </button>
+                  )}
                   <div className="relative">
                     <button
                       onClick={() => setShowColDropdown(v => !v)}

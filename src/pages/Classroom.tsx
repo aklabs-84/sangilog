@@ -1510,6 +1510,10 @@ const Classroom = () => {
                     onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
                     onBulkApprove={handleBulkApprove}
                     onResetPin={handleResetPin}
+                    onOpenResources={() => {
+                      if (activeClassId) fetchResources(activeClassId);
+                      setIsResourceModalOpen(true);
+                    }}
                   />
                 ) : (
                   <SubjectDashboard
