@@ -145,6 +145,7 @@ const ClassTranscription = () => {
   const recognitionRef    = useRef<any>(null);
   const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
   const streamRef         = useRef<MediaStream | null>(null);
+  const noSpeechCountRef  = useRef(0);
   const chunkTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopRequestedRef  = useRef(false);
   const chunkBlobsRef     = useRef<Blob[]>([]);
@@ -292,13 +293,26 @@ const ClassTranscription = () => {
   const startWebSpeech = useCallback((keepTranscript = false) => {
     if (!SpeechAPI) return;
 
+    noSpeechCountRef.current = 0;
+
     const createInstance = (): any => {
       const rec = new SpeechAPI();
       rec.continuous     = true;
       rec.interimResults = true;
       rec.lang           = 'ko-KR';
 
+      rec.onaudiostart = () => {
+        console.log('[WebSpeech] 오디오 캡처 시작');
+        noSpeechCountRef.current = 0;
+        setInterimText('');
+      };
+
+      rec.onsoundstart = () => console.log('[WebSpeech] 소리 감지됨');
+
+      rec.onspeechstart = () => console.log('[WebSpeech] 음성 감지됨');
+
       rec.onresult = (event: any) => {
+        noSpeechCountRef.current = 0;
         let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const text = event.results[i][0].transcript;
@@ -313,6 +327,7 @@ const ClassTranscription = () => {
       };
 
       rec.onend = () => {
+        console.log('[WebSpeech] onend — isRecording:', isRecordingRef.current);
         setInterimText('');
         if (isRecordingRef.current) {
           recognitionRef.current = createInstance();
@@ -320,7 +335,15 @@ const ClassTranscription = () => {
       };
 
       rec.onerror = (e: any) => {
-        if (e.error === 'no-speech') return;
+        console.warn('[WebSpeech] onerror:', e.error);
+
+        if (e.error === 'no-speech') {
+          noSpeechCountRef.current++;
+          if (noSpeechCountRef.current >= 3 && isRecordingRef.current) {
+            setInterimText('마이크 소리를 인식하지 못하고 있습니다. 크게 말씀하시거나 Groq Whisper 모드를 사용해주세요.');
+          }
+          return;
+        }
 
         isRecordingRef.current = false;
         stopTimer();
@@ -344,7 +367,17 @@ const ClassTranscription = () => {
         setErrorMsg(MSG[e.error] ?? `음성 인식 오류가 발생했습니다. (오류 코드: ${e.error})`);
       };
 
-      rec.start();
+      try {
+        rec.start();
+        console.log('[WebSpeech] 인식 시작됨');
+      } catch (err) {
+        console.error('[WebSpeech] start() 실패:', err);
+        isRecordingRef.current = false;
+        stopTimer();
+        releaseWakeLock();
+        setStatus('error');
+        setErrorMsg('음성 인식을 시작할 수 없습니다. 페이지를 새로고침 후 다시 시도해주세요.');
+      }
       return rec;
     };
 
