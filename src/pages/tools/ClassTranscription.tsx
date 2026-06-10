@@ -13,7 +13,7 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type RecordingStatus = 'idle' | 'recording' | 'processing' | 'complete' | 'error';
+type RecordingStatus = 'idle' | 'recording' | 'transcribed' | 'processing' | 'complete' | 'error';
 type ResultTab = 'students' | 'evaluation';
 type MainTab = 'record' | 'history';
 
@@ -474,7 +474,7 @@ const ClassTranscription = () => {
 
   // ── 공통 종료 ─────────────────────────────────────────────────────────────
 
-  const finalize = async () => {
+  const finalize = () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     setInterimText('');
 
@@ -483,6 +483,12 @@ const ClassTranscription = () => {
       setStatus('idle');
       return;
     }
+    setStatus('transcribed');
+  };
+
+  const startAnalysis = async () => {
+    const finalText = transcriptRef.current.trim();
+    if (!finalText) return;
     setStatus('processing');
     await analyzeTranscript(finalText);
   };
@@ -509,12 +515,11 @@ const ClassTranscription = () => {
     else stopWebSpeech();
   };
 
-  const finalizeCurrent = async () => {
+  const finalizeCurrent = () => {
     setBackgroundInterrupted(false);
     const finalText = transcriptRef.current.trim();
     if (finalText && finalText.split(' ').length >= 5) {
-      setStatus('processing');
-      await analyzeTranscript(finalText);
+      setStatus('transcribed');
     } else {
       setStatus('idle');
     }
@@ -984,6 +989,50 @@ ${transcriptText}
                 <p className="text-[11px] text-on-surface-variant/50 text-center">
                   수업이 끝나면 "수업 종료"를 눌러주세요. AI가 학생별 관찰 기록과 수업 평가를 자동 생성합니다.
                 </p>
+              </div>
+            )}
+
+            {status === 'transcribed' && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500" />
+                    </span>
+                    <span className="text-sm font-black text-green-600">전사 완료</span>
+                    <span className="font-mono text-sm font-black text-on-surface-variant tabular-nums">
+                      {formatTime(elapsedSeconds)}
+                    </span>
+                  </div>
+                  <span className="text-xs text-on-surface-variant/60">
+                    {transcript.trim().split(/\s+/).filter(Boolean).length.toLocaleString()}단어 · AI 분석 전
+                  </span>
+                </div>
+
+                <div className="bg-surface-container-low rounded-2xl p-4 border border-surface-container max-h-64 overflow-y-auto text-sm leading-loose font-medium text-on-surface">
+                  {transcript}
+                </div>
+
+                <p className="text-[11px] text-on-surface-variant/50 text-center">
+                  전사 내용을 확인한 후 AI 분석을 시작하세요. 분석 시에만 AI 크레딧이 사용됩니다.
+                </p>
+
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <button
+                    onClick={resetAll}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-surface-container hover:bg-surface-container-high rounded-xl text-sm font-bold text-on-surface-variant transition-all active:scale-95"
+                  >
+                    <RefreshCw size={14} />
+                    다시 녹음
+                  </button>
+                  <button
+                    onClick={startAnalysis}
+                    className="btn-gradient flex items-center gap-2 px-8 py-3 rounded-2xl font-black text-base shadow-xl active:scale-95 transition-all"
+                  >
+                    <Sparkles size={18} />
+                    AI 분석 시작
+                  </button>
+                </div>
               </div>
             )}
 
