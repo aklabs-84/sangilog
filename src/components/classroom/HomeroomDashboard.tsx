@@ -27,7 +27,8 @@ import {
   EyeOff,
   Megaphone,
   Share2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { useColumnVisibility } from '../../hooks/useColumnVisibility';
 import { supabase } from '../../lib/supabase';
@@ -55,6 +56,7 @@ interface HomeroomDashboardProps {
   onBulkApprove: () => void;
   onResetPin: (id: string) => void;
   onOpenResources?: () => void;
+  onCopyLink?: () => void;
 }
 
 const HomeroomDashboard = ({
@@ -79,6 +81,7 @@ const HomeroomDashboard = ({
   onBulkApprove,
   onResetPin,
   onOpenResources,
+  onCopyLink,
 }: HomeroomDashboardProps) => {
   const navigate = useNavigate();
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
@@ -378,6 +381,15 @@ const HomeroomDashboard = ({
                   >
                     {shareTeacherSuccess ? <Check size={16} /> : <Share2 size={16} />}
                   </button>
+                  {onCopyLink && (
+                    <button
+                      onClick={onCopyLink}
+                      className={`w-10 h-10 bg-white border-2 rounded-2xl flex items-center justify-center transition-all shadow-soft shrink-0 ${copySuccess ? 'border-primary text-primary' : 'border-neutral-200 text-on-surface-variant/60 hover:border-primary/40 hover:text-primary'}`}
+                      title="학생 입장 링크 복사"
+                    >
+                      {copySuccess ? <Check size={16} /> : <LinkIcon size={16} />}
+                    </button>
+                  )}
                   {onOpenResources && (
                     <button
                       onClick={onOpenResources}

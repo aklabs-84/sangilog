@@ -1514,6 +1514,7 @@ const Classroom = () => {
                       if (activeClassId) fetchResources(activeClassId);
                       setIsResourceModalOpen(true);
                     }}
+                    onCopyLink={handleCopyLink}
                   />
                 ) : (
                   <SubjectDashboard
