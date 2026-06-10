@@ -5,6 +5,7 @@ import {
   Users, Plus, Trash2, Shuffle, ChevronDown, X,
   Maximize2, Minimize2, Crown, RefreshCw, Check,
   UserPlus, Download, Copy, CheckCheck, Layers, Target,
+  Save, Loader2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -57,6 +58,12 @@ const GroupPicker = () => {
 
   // 저장 기능
   const [copied, setCopied] = useState(false);
+
+  // 클래스 적용
+  const [loadedClassId, setLoadedClassId] = useState<string | null>(null);
+  const [loadedClassName, setLoadedClassName] = useState('');
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applySuccess, setApplySuccess] = useState(false);
 
   const handleSaveImage = () => {
     if (groups.length === 0) return;
@@ -199,9 +206,11 @@ const GroupPicker = () => {
     if (data) setClasses(data);
   };
 
-  const loadClassStudents = async (classId: string) => {
+  const loadClassStudents = async (classId: string, className: string) => {
     setLoadingClass(true);
     setClassDropdownOpen(false);
+    setLoadedClassId(classId);
+    setLoadedClassName(className);
     const { data } = await supabase
       .from('students')
       .select('id, full_name, student_number')
@@ -314,6 +323,53 @@ const GroupPicker = () => {
     setTimeout(pickGroups, 100);
   };
 
+  const handleApplyToClass = async () => {
+    if (!loadedClassId || groups.length === 0) return;
+    if (!confirm(`"${loadedClassName}" 클래스의 기존 조 편성을 삭제하고 현재 결과로 대체할까요?`)) return;
+
+    setApplyLoading(true);
+
+    const { data: existingGroups } = await supabase
+      .from('class_groups')
+      .select('id')
+      .eq('class_id', loadedClassId);
+
+    if (existingGroups && existingGroups.length > 0) {
+      await supabase
+        .from('class_group_members')
+        .delete()
+        .in('group_id', existingGroups.map((g: any) => g.id));
+      await supabase.from('class_groups').delete().eq('class_id', loadedClassId);
+    }
+
+    const { data: newGroups } = await supabase
+      .from('class_groups')
+      .insert(
+        groups.map((g, i) => ({
+          class_id: loadedClassId,
+          name: g.name,
+          color: ROULETTE_COLORS[i % ROULETTE_COLORS.length],
+          sort_order: i,
+        }))
+      )
+      .select();
+
+    if (newGroups) {
+      const memberInserts = groups.flatMap((g, i) =>
+        g.members
+          .filter(m => !m.id.startsWith('manual-'))
+          .map(m => ({ group_id: newGroups[i].id, student_id: m.id }))
+      );
+      if (memberInserts.length > 0) {
+        await supabase.from('class_group_members').insert(memberInserts);
+      }
+    }
+
+    setApplyLoading(false);
+    setApplySuccess(true);
+    setTimeout(() => setApplySuccess(false), 3000);
+  };
+
   const numGroups =
     splitMode === 'groups'
       ? groupCount
@@ -407,7 +463,7 @@ const GroupPicker = () => {
                       classes.map((c) => (
                         <button
                           key={c.id}
-                          onClick={() => loadClassStudents(c.id)}
+                          onClick={() => loadClassStudents(c.id, c.name)}
                           className="w-full text-left px-4 py-2.5 text-sm font-bold hover:bg-primary/5 transition-colors flex items-center gap-2"
                         >
                           <Users size={14} className="text-primary/60" />
@@ -672,18 +728,40 @@ const GroupPicker = () => {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-xl font-black gradient-text flex items-center gap-2">
                   <Check size={22} className="text-green-500" />
                   조 편성 결과
                 </h3>
-                <button
-                  onClick={reshuffle}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/40 text-sm font-bold hover:border-primary/30 hover:text-primary transition-all"
-                >
-                  <RefreshCw size={15} />
-                  다시 뽑기
-                </button>
+                <div className="flex items-center gap-2">
+                  {loadedClassId && (
+                    <button
+                      onClick={handleApplyToClass}
+                      disabled={applyLoading}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-60 ${
+                        applySuccess
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-indigo-500 hover:bg-indigo-600 text-white'
+                      }`}
+                    >
+                      {applyLoading ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : applySuccess ? (
+                        <Check size={15} />
+                      ) : (
+                        <Save size={15} />
+                      )}
+                      {applySuccess ? '적용 완료!' : `"${loadedClassName}"에 적용`}
+                    </button>
+                  )}
+                  <button
+                    onClick={reshuffle}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/40 text-sm font-bold hover:border-primary/30 hover:text-primary transition-all"
+                  >
+                    <RefreshCw size={15} />
+                    다시 뽑기
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

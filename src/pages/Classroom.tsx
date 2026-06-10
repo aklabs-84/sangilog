@@ -130,7 +130,9 @@ const Classroom = () => {
   // 수업 자료 관리 상태
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
   const [classResources, setClassResources] = useState<any[]>([]);
+  const [classMaterials, setClassMaterials] = useState<any[]>([]);
   const [newResource, setNewResource] = useState({ title: '', url: '' });
+  const [showAddResourceForm, setShowAddResourceForm] = useState(false);
   // 학급정보 수정 팝업에서 에디터 자료 선택용
   const [editingClassMaterials, setEditingClassMaterials] = useState<any[]>([]);
   const [materialDropdownIdx, setMaterialDropdownIdx] = useState<number | null>(null);
@@ -1034,14 +1036,21 @@ const Classroom = () => {
 
   const fetchResources = async (classId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('class_resources')
-        .select('*')
-        .eq('class_id', classId)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      setClassResources(data || []);
+      const [resourcesRes, materialsRes] = await Promise.all([
+        supabase
+          .from('class_resources')
+          .select('*')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('class_materials')
+          .select('id, title, week_number, is_published')
+          .eq('class_id', classId)
+          .order('week_number', { ascending: true }),
+      ]);
+      if (resourcesRes.error) throw resourcesRes.error;
+      setClassResources(resourcesRes.data || []);
+      setClassMaterials(materialsRes.data || []);
     } catch (err) {
       console.error('Error fetching resources:', err);
     }
@@ -1062,6 +1071,7 @@ const Classroom = () => {
 
       if (error) throw error;
       setNewResource({ title: '', url: '' });
+      setShowAddResourceForm(false);
       fetchResources(activeClassId);
     } catch (err) {
       console.error('Error adding resource:', err);
@@ -2316,27 +2326,114 @@ const Classroom = () => {
           );
         })()}
 
-        {/* 수업 자료 관리 모달 */}
+        {/* 수업 자료실 모달 */}
         {isResourceModalOpen && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg glass p-10 rounded-[3rem] space-y-8 relative shadow-2xl border border-white/20">
-              <button onClick={() => setIsResourceModalOpen(false)} className="absolute top-8 right-8 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
-              <h3 className="text-3xl font-black font-manrope">수업 자료 관리</h3>
-              <form onSubmit={handleAddResource} className="bg-neutral-100 p-6 rounded-[2rem] space-y-4">
-                <input type="text" placeholder="자료 제목" value={newResource.title} onChange={(e) => setNewResource({...newResource, title: e.target.value})} className="w-full px-5 py-3 bg-white rounded-xl text-sm font-bold border-none" required />
-                <input type="text" placeholder="URL 주소" value={newResource.url} onChange={(e) => setNewResource({...newResource, url: e.target.value})} className="w-full px-5 py-3 bg-white rounded-xl text-sm font-bold border-none" required />
-                <button type="submit" className="w-full py-3.5 btn-gradient rounded-xl font-black text-sm shadow-md">자료 추가하기</button>
-              </form>
-              <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
-                {classResources.map(res => (
-                  <div key={res.id} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-surface-container-high group">
-                    <div className="overflow-hidden pr-4 flex-1">
-                      <p className="text-sm font-black truncate">{res.title}</p>
-                      <p className="text-[10px] text-on-surface-variant truncate opacity-60">{res.url}</p>
-                    </div>
-                    <button onClick={() => handleDeleteResource(res.id)} className="p-2.5 hover:bg-error/10 text-error/40 hover:text-error transition-all rounded-xl"><Trash2 size={15} /></button>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg glass p-8 rounded-[3rem] space-y-6 relative shadow-2xl border border-white/20">
+              <button onClick={() => { setIsResourceModalOpen(false); setShowAddResourceForm(false); }} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
+
+              {/* 헤더 */}
+              <div className="flex items-center justify-between pr-8">
+                <div>
+                  <h3 className="text-2xl font-black font-manrope">수업 자료실</h3>
+                  <p className="text-xs text-on-surface-variant/60 mt-0.5">클릭하면 새 탭으로 열립니다</p>
+                </div>
+                <button
+                  onClick={() => setShowAddResourceForm(v => !v)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white text-xs font-black rounded-xl hover:bg-primary/90 transition-all"
+                >
+                  <Plus size={13} strokeWidth={3} />
+                  URL 추가
+                </button>
+              </div>
+
+              {/* URL 추가 폼 (토글) */}
+              <AnimatePresence>
+                {showAddResourceForm && (
+                  <motion.form
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    onSubmit={handleAddResource}
+                    className="bg-neutral-100 p-5 rounded-2xl space-y-3 overflow-hidden"
+                  >
+                    <input type="text" placeholder="자료 제목" value={newResource.title} onChange={(e) => setNewResource({...newResource, title: e.target.value})} className="w-full px-4 py-2.5 bg-white rounded-xl text-sm font-bold border-none outline-none" required />
+                    <input type="text" placeholder="https://..." value={newResource.url} onChange={(e) => setNewResource({...newResource, url: e.target.value})} className="w-full px-4 py-2.5 bg-white rounded-xl text-sm font-bold border-none outline-none" required />
+                    <button type="submit" className="w-full py-3 btn-gradient rounded-xl font-black text-sm shadow-md">추가하기</button>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+
+              {/* 목록 */}
+              <div className="space-y-2 max-h-[55vh] overflow-y-auto custom-scrollbar pr-1">
+                {/* 에디터 자료 */}
+                {classMaterials.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest px-1">수업 자료 에디터</p>
+                    {classMaterials.map(mat => (
+                      <button
+                        key={mat.id}
+                        onClick={() => window.open(`${window.location.origin}/dashboard/teaching-tools?tool=material-editor`, '_blank')}
+                        className="w-full flex items-center gap-3 p-4 bg-white hover:bg-secondary/5 rounded-2xl border border-surface-container-high group transition-all text-left"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
+                          <BookOpen size={16} className="text-secondary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black truncate">{mat.title || '(제목 없음)'}</p>
+                          <p className="text-[10px] text-on-surface-variant/50">{mat.week_number}주차 · 수업 자료 에디터</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {mat.is_published && (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 bg-secondary/10 text-secondary rounded-md">공개</span>
+                          )}
+                          <ExternalLink size={14} className="text-on-surface-variant/30 group-hover:text-secondary transition-colors" />
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                ))}
+                )}
+
+                {/* URL 자료 */}
+                {classResources.length > 0 && (
+                  <div className="space-y-1.5">
+                    {classMaterials.length > 0 && (
+                      <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest px-1 pt-2">링크 자료</p>
+                    )}
+                    {classResources.map(res => (
+                      <div key={res.id} className="flex items-center gap-2 group">
+                        <button
+                          onClick={() => window.open(res.url, '_blank')}
+                          className="flex-1 flex items-center gap-3 p-4 bg-white hover:bg-primary/5 rounded-2xl border border-surface-container-high transition-all text-left"
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <Link2 size={16} className="text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black truncate">{res.title}</p>
+                            <p className="text-[10px] text-on-surface-variant/50 truncate">{res.url}</p>
+                          </div>
+                          <ExternalLink size={14} className="text-on-surface-variant/30 group-hover:text-primary transition-colors shrink-0" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteResource(res.id)}
+                          className="p-2.5 opacity-0 group-hover:opacity-100 hover:bg-error/10 text-error/40 hover:text-error transition-all rounded-xl"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 빈 상태 */}
+                {classResources.length === 0 && classMaterials.length === 0 && (
+                  <div className="text-center py-10 text-on-surface-variant/30">
+                    <BookOpen size={32} className="mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-black">등록된 자료가 없습니다</p>
+                    <p className="text-xs mt-1">URL 추가 버튼으로 자료를 추가하거나<br />수업 도구 → 수업 자료 에디터에서 자료를 만들어보세요</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

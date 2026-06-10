@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
@@ -104,6 +104,7 @@ const tools: Tool[] = [
 
 const TeachingTools = () => {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { profile } = useAuth();
   const [activeTool, setActiveTool] = useState<Tool | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -119,11 +120,13 @@ const TeachingTools = () => {
     setActiveTool(tool);
   };
 
-  // 화이트보드에서 뒤로 버튼 누를 때 whiteboard 패널 자동 열기
+  // location.state 또는 ?tool= 쿼리 파라미터로 특정 도구 자동 열기
   useEffect(() => {
     const stateToolId = (location.state as { activeToolId?: string } | null)?.activeToolId;
-    if (stateToolId) {
-      const tool = tools.find(t => t.id === stateToolId) ?? null;
+    const queryToolId = searchParams.get('tool');
+    const toolId = stateToolId || queryToolId;
+    if (toolId) {
+      const tool = tools.find(t => t.id === toolId) ?? null;
       if (tool) handleToolClick(tool);
     }
   }, []);
