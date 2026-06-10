@@ -2365,76 +2365,132 @@ const Classroom = () => {
               </AnimatePresence>
 
               {/* 목록 */}
-              <div className="space-y-2 max-h-[55vh] overflow-y-auto custom-scrollbar pr-1">
-                {/* 에디터 자료 */}
-                {classMaterials.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest px-1">수업 자료 에디터</p>
-                    {classMaterials.map(mat => (
-                      <button
-                        key={mat.id}
-                        onClick={() => window.open(`${window.location.origin}/dashboard/teaching-tools?tool=material-editor`, '_blank')}
-                        className="w-full flex items-center gap-3 p-4 bg-white hover:bg-secondary/5 rounded-2xl border border-surface-container-high group transition-all text-left"
-                      >
-                        <div className="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center shrink-0">
-                          <BookOpen size={16} className="text-secondary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-black truncate">{mat.title || '(제목 없음)'}</p>
-                          <p className="text-[10px] text-on-surface-variant/50">{mat.week_number}주차 · 수업 자료 에디터</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {mat.is_published && (
-                            <span className="text-[9px] font-black px-1.5 py-0.5 bg-secondary/10 text-secondary rounded-md">공개</span>
-                          )}
-                          <ExternalLink size={14} className="text-on-surface-variant/30 group-hover:text-secondary transition-colors" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+              {(() => {
+                // weekly_plan 에서 url 또는 material_id 가 있는 항목만 추출
+                const planItems: any[] = (classInfo?.weekly_plan || []).filter(
+                  (p: any) => p.url?.trim() || p.material_id
+                );
+                const hasAnything = planItems.length > 0 || classResources.length > 0;
 
-                {/* URL 자료 */}
-                {classResources.length > 0 && (
-                  <div className="space-y-1.5">
-                    {classMaterials.length > 0 && (
-                      <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest px-1 pt-2">링크 자료</p>
-                    )}
-                    {classResources.map(res => (
-                      <div key={res.id} className="flex items-center gap-2 group">
-                        <button
-                          onClick={() => window.open(res.url, '_blank')}
-                          className="flex-1 flex items-center gap-3 p-4 bg-white hover:bg-primary/5 rounded-2xl border border-surface-container-high transition-all text-left"
-                        >
-                          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                            <Link2 size={16} className="text-primary" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black truncate">{res.title}</p>
-                            <p className="text-[10px] text-on-surface-variant/50 truncate">{res.url}</p>
-                          </div>
-                          <ExternalLink size={14} className="text-on-surface-variant/30 group-hover:text-primary transition-colors shrink-0" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteResource(res.id)}
-                          className="p-2.5 opacity-0 group-hover:opacity-100 hover:bg-error/10 text-error/40 hover:text-error transition-all rounded-xl"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                return (
+                  <div className="space-y-2 max-h-[55vh] overflow-y-auto custom-scrollbar pr-1">
+
+                    {/* 주차별 자료 (weekly_plan 기반) */}
+                    {planItems.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest px-1">주차별 자료</p>
+                        {planItems.map((item: any) => {
+                          const isMaterial = !!item.material_id;
+                          const matInfo = isMaterial
+                            ? classMaterials.find((m: any) => m.id === item.material_id)
+                            : null;
+
+                          return (
+                            <button
+                              key={`plan-${item.week}`}
+                              onClick={() => {
+                                if (isMaterial) {
+                                  window.open(
+                                    `${window.location.origin}/dashboard/teaching-tools?tool=material-editor`,
+                                    '_blank'
+                                  );
+                                } else {
+                                  window.open(item.url, '_blank');
+                                }
+                              }}
+                              className={`w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container-high group transition-all text-left ${
+                                isMaterial ? 'hover:bg-secondary/5' : 'hover:bg-primary/5'
+                              }`}
+                            >
+                              {/* 아이콘 */}
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                isMaterial ? 'bg-secondary/10' : 'bg-primary/10'
+                              }`}>
+                                {isMaterial
+                                  ? <BookOpen size={16} className="text-secondary" />
+                                  : <Link2 size={16} className="text-primary" />
+                                }
+                              </div>
+
+                              {/* 텍스트 */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black truncate">
+                                  {isMaterial
+                                    ? (matInfo?.title || '수업 자료 에디터')
+                                    : (item.topic || item.url)
+                                  }
+                                </p>
+                                <p className="text-[10px] text-on-surface-variant/50 truncate">
+                                  {item.week}주차
+                                  {item.topic && !isMaterial && ` · ${item.topic}`}
+                                  {isMaterial ? ' · 수업 자료 에디터' : ` · ${item.url}`}
+                                </p>
+                              </div>
+
+                              {/* 뱃지 + 링크 아이콘 */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                {isMaterial && matInfo?.is_published && (
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-secondary/10 text-secondary rounded-md">공개</span>
+                                )}
+                                <ExternalLink
+                                  size={14}
+                                  className={`text-on-surface-variant/30 transition-colors ${
+                                    isMaterial ? 'group-hover:text-secondary' : 'group-hover:text-primary'
+                                  }`}
+                                />
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    )}
 
-                {/* 빈 상태 */}
-                {classResources.length === 0 && classMaterials.length === 0 && (
-                  <div className="text-center py-10 text-on-surface-variant/30">
-                    <BookOpen size={32} className="mx-auto mb-3 opacity-30" />
-                    <p className="text-sm font-black">등록된 자료가 없습니다</p>
-                    <p className="text-xs mt-1">URL 추가 버튼으로 자료를 추가하거나<br />수업 도구 → 수업 자료 에디터에서 자료를 만들어보세요</p>
+                    {/* 독립 링크 자료 (class_resources) */}
+                    {classResources.length > 0 && (
+                      <div className="space-y-1.5">
+                        {planItems.length > 0 && (
+                          <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest px-1 pt-2">링크 자료</p>
+                        )}
+                        {classResources.map((res: any) => (
+                          <div key={res.id} className="flex items-center gap-2 group">
+                            <button
+                              onClick={() => window.open(res.url, '_blank')}
+                              className="flex-1 flex items-center gap-3 p-4 bg-white hover:bg-primary/5 rounded-2xl border border-surface-container-high transition-all text-left"
+                            >
+                              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                <Link2 size={16} className="text-primary" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black truncate">{res.title}</p>
+                                <p className="text-[10px] text-on-surface-variant/50 truncate">{res.url}</p>
+                              </div>
+                              <ExternalLink size={14} className="text-on-surface-variant/30 group-hover:text-primary transition-colors shrink-0" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteResource(res.id)}
+                              className="p-2.5 opacity-0 group-hover:opacity-100 hover:bg-error/10 text-error/40 hover:text-error transition-all rounded-xl"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 빈 상태 */}
+                    {!hasAnything && (
+                      <div className="text-center py-10 text-on-surface-variant/30">
+                        <BookOpen size={32} className="mx-auto mb-3 opacity-30" />
+                        <p className="text-sm font-black">등록된 자료가 없습니다</p>
+                        <p className="text-xs mt-1 leading-relaxed">
+                          학급 설정 → 주차별 계획에서 URL 또는 자료 에디터를 연결하거나<br />
+                          아래 URL 추가 버튼으로 링크를 직접 추가해보세요
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </motion.div>
           </div>
         )}
