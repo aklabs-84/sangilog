@@ -72,7 +72,7 @@ export default async function handler(req: any, res: any) {
   // ── AI 호출 ────────────────────────────────────────────────────────────────
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelId = model === 'pro' ? 'gemini-3.1-pro-preview' : 'gemini-3.1-flash-lite-preview';
+    const modelId = model === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
     const generativeModel = genAI.getGenerativeModel({
       model: modelId,
       generationConfig: model === 'pro'

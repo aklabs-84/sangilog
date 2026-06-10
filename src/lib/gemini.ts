@@ -33,7 +33,7 @@ export const SYSTEM_INSTRUCTIONS = {
 };
 
 function getModelId(model: 'pro' | 'flash') {
-  return model === 'pro' ? 'gemini-3.1-pro-preview' : 'gemini-3.1-flash-lite-preview';
+  return model === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
 }
 
 async function callDirect(body: any): Promise<string> {

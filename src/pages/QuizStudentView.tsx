@@ -136,13 +136,26 @@ const QuizStudentView = () => {
       setSession(data);
     }
 
-    // 참가자 등록
-    const { data: pData, error: pErr } = await supabase
+    // 중복 입장 체크: 동일 세션 + 동일 이름 참가자가 이미 있으면 재사용
+    const { data: existing } = await supabase
       .from('quiz_participants')
-      .insert({ session_id: sess!.id, student_name: name, score: 0 })
-      .select()
-      .single();
-    if (pErr || !pData) { setErrorMsg('참가 등록에 실패했습니다'); setLoading(false); return; }
+      .select('*')
+      .eq('session_id', sess!.id)
+      .eq('student_name', name)
+      .maybeSingle();
+
+    let pData;
+    if (existing) {
+      pData = existing;
+    } else {
+      const { data: newP, error: pErr } = await supabase
+        .from('quiz_participants')
+        .insert({ session_id: sess!.id, student_name: name, score: 0 })
+        .select()
+        .single();
+      if (pErr || !newP) { setErrorMsg('참가 등록에 실패했습니다'); setLoading(false); return; }
+      pData = newP;
+    }
     setParticipant(pData);
 
     // 문제 로드

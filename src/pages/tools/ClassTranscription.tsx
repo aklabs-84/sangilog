@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { geminiPro } from '../../lib/gemini';
+import { geminiFlash } from '../../lib/gemini';
 import {
   Mic, Square, Loader2, ChevronDown, ChevronUp,
   Check, Users, BarChart3, MessageSquare, AlertCircle,
   Plus, Sparkles, RefreshCw, Zap,
-  History, Trash2, Clock, WifiOff, Save, X,
+  History, Trash2, Clock, WifiOff, Save, X, KeyRound, Settings,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -68,8 +69,9 @@ const PARTICIPATION_STYLE: Record<string, string> = {
   '소극적': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 };
 
-const GROQ_CHUNK_MS = 15000;
-const GROQ_API_URL  = 'https://api.groq.com/openai/v1/audio/transcriptions';
+const GROQ_CHUNK_MS   = 10000;
+const GROQ_PROMPT_CTX = 224; // 이전 전사의 마지막 N자를 Whisper에 context로 전달
+const GROQ_API_URL    = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
 // ── Score Bar ─────────────────────────────────────────────────────────────────
 
@@ -96,6 +98,7 @@ const ScoreBar = ({ label, score }: { label: string; score: number }) => (
 
 const ClassTranscription = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // ── Data ───────────────────────────────────────────────────────────────────
   const [classes, setClasses]                 = useState<any[]>([]);
@@ -104,6 +107,11 @@ const ClassTranscription = () => {
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [mainTab, setMainTab] = useState<MainTab>('record');
+
+  // ── 전사 모드 선택 ─────────────────────────────────────────────────────────
+  const [selectedMode, setSelectedMode] = useState<'groq' | 'web'>(
+    () => localStorage.getItem('groq_api_key') ? 'groq' : 'web'
+  );
 
   // ── Recording state ────────────────────────────────────────────────────────
   const [status, setStatus]           = useState<RecordingStatus>('idle');
@@ -142,9 +150,10 @@ const ClassTranscription = () => {
   const chunkBlobsRef     = useRef<Blob[]>([]);
 
   // ── Mode detection ─────────────────────────────────────────────────────────
-  const groqKey       = localStorage.getItem('groq_api_key') || '';
-  const useGroqMode   = !!groqKey;
-  const SpeechAPI     = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const groqKey           = localStorage.getItem('groq_api_key') || '';
+  const useGroqMode       = selectedMode === 'groq' && !!groqKey;
+  const groqKeyMissing    = selectedMode === 'groq' && !groqKey;
+  const SpeechAPI         = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const isSpeechSupported = !!SpeechAPI;
 
   // ── Init ──────────────────────────────────────────────────────────────────
@@ -356,6 +365,12 @@ const ClassTranscription = () => {
       formData.append('model', 'whisper-large-v3');
       formData.append('language', 'ko');
       formData.append('response_format', 'text');
+
+      // 이전 전사 끝부분을 prompt로 전달 → Whisper가 맥락을 이어서 전사
+      const prevContext = transcriptRef.current.slice(-GROQ_PROMPT_CTX).trim();
+      if (prevContext) {
+        formData.append('prompt', prevContext);
+      }
 
       const res = await fetch(GROQ_API_URL, {
         method: 'POST',
@@ -586,7 +601,7 @@ ${transcriptText}
   }
 }`;
 
-      const response = await geminiPro.generateContent(prompt);
+      const response = await geminiFlash.generateContent(prompt);
       const raw      = response.response.text().trim();
       const jsonStr  = raw
         .replace(/^```json\s*/m, '')
@@ -599,10 +614,24 @@ ${transcriptText}
       setAnalysisResult(parsed);
       setStatus('complete');
       await saveSession(transcriptText, parsed);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[ClassTranscription] analysis error:', err);
       setStatus('error');
-      setErrorMsg('AI 분석 중 오류가 발생했습니다. 다시 시도해주세요.');
+      const msg: string = err?.message ?? '';
+      if (msg === 'AI_LIMIT_EXCEEDED') {
+        setErrorMsg('오늘 AI 사용 횟수(10회)를 초과했습니다. 자정 이후에 다시 시도해주세요.');
+      } else if (
+        msg.includes('429') ||
+        msg.toLowerCase().includes('prepayment') ||
+        msg.toLowerCase().includes('credits') ||
+        msg.toLowerCase().includes('billing')
+      ) {
+        setErrorMsg('Gemini API 크레딧이 소진되었습니다. Google AI Studio(aistudio.google.com)에서 결제 정보를 확인해주세요.');
+      } else if (msg.includes('401') || msg.includes('Invalid') || msg.includes('Unauthorized')) {
+        setErrorMsg('인증 오류가 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.');
+      } else {
+        setErrorMsg('AI 분석 중 오류가 발생했습니다. 다시 시도해주세요.');
+      }
     }
   };
 
@@ -765,36 +794,76 @@ ${transcriptText}
             )}
           </AnimatePresence>
 
-          {/* 브라우저 호환 안내 */}
-          {!isSpeechSupported && !useGroqMode && (
+          {/* 전사 모드 선택 */}
+          <div className="flex p-1 bg-surface-container rounded-xl gap-1 w-fit">
+            <button
+              onClick={() => setSelectedMode('web')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-black transition-all ${
+                selectedMode === 'web'
+                  ? 'bg-primary text-white shadow-md shadow-primary/20'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <Mic size={14} />
+              기본 전사 (Chrome)
+            </button>
+            <button
+              onClick={() => setSelectedMode('groq')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-black transition-all ${
+                selectedMode === 'groq'
+                  ? 'bg-violet-600 text-white shadow-md shadow-violet-500/20'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+            >
+              <Zap size={14} />
+              Groq Whisper — 고품질 AI
+            </button>
+          </div>
+
+          {/* Groq 모드 선택했지만 API Key 없는 경우 */}
+          {groqKeyMissing && (
+            <div className="p-4 bg-violet-50 border border-violet-200 rounded-2xl flex items-start gap-3">
+              <KeyRound size={18} className="text-violet-500 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-black text-violet-800">Groq API Key가 등록되지 않았습니다</p>
+                <p className="text-xs text-violet-600 mt-1 leading-relaxed">
+                  고품질 AI 전사를 사용하려면 설정에서 Groq API Key를 등록해주세요.<br />
+                  console.groq.com 에서 무료로 발급받을 수 있습니다.
+                </p>
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="mt-3 flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-700 transition-all active:scale-95"
+                >
+                  <Settings size={13} />
+                  설정에서 API Key 등록하기
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 브라우저 호환 안내 (기본 모드에서 Chrome 아닐 때) */}
+          {!isSpeechSupported && !useGroqMode && !groqKeyMissing && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
               <AlertCircle size={18} className="text-amber-500 mt-0.5 shrink-0" />
               <div>
                 <p className="text-sm font-black text-amber-800">Chrome 브라우저 또는 Groq API Key가 필요합니다</p>
                 <p className="text-xs text-amber-600 mt-0.5">
-                  기본 전사는 Chrome에서만 지원됩니다. 또는 설정에서 Groq API Key를 등록하면 모든 브라우저에서 고품질 전사가 가능합니다.
+                  기본 전사는 Chrome에서만 지원됩니다. 위에서 Groq Whisper 모드를 선택하고 API Key를 등록하면 모든 브라우저에서 가능합니다.
                 </p>
               </div>
             </div>
           )}
 
-          {/* 전사 모드 뱃지 */}
-          <div className="flex items-center gap-2">
-            {useGroqMode ? (
+          {/* 활성 모드 표시 */}
+          {useGroqMode && (
+            <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-700 rounded-full text-xs font-black border border-violet-200">
                 <Zap size={12} />
-                Groq Whisper — 고품질 AI 전사
+                Groq Whisper 활성 — 고품질 AI 전사
               </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-container text-on-surface-variant rounded-full text-xs font-bold">
-                <Mic size={12} />
-                기본 전사 모드 (Chrome)
-              </span>
-            )}
-            {useGroqMode && (
-              <span className="text-[11px] text-on-surface-variant/60">15초 단위로 변환됩니다</span>
-            )}
-          </div>
+              <span className="text-[11px] text-on-surface-variant/60">10초 단위로 변환됩니다</span>
+            </div>
+          )}
 
           {/* 학급 선택 */}
           {(status === 'idle' || status === 'error') && (
@@ -850,13 +919,13 @@ ${transcriptText}
                   <h3 className="text-xl font-black">수업 전사 준비 완료</h3>
                   <p className="text-sm text-on-surface-variant">
                     {useGroqMode
-                      ? 'Groq Whisper 모드 — 15초마다 자동으로 고품질 변환합니다'
+                      ? 'Groq Whisper 모드 — 10초마다 자동으로 고품질 변환합니다'
                       : '시작 버튼을 누르면 마이크가 켜지며 자동으로 전사됩니다'}
                   </p>
                 </div>
                 <button
                   onClick={startRecording}
-                  disabled={(!isSpeechSupported && !useGroqMode) || !selectedClassId || students.length === 0}
+                  disabled={groqKeyMissing || (!isSpeechSupported && !useGroqMode) || !selectedClassId || students.length === 0}
                   className="btn-gradient px-10 py-4 rounded-2xl font-black text-base flex items-center gap-3 shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Mic size={20} />
@@ -902,7 +971,7 @@ ${transcriptText}
                   ) : (
                     <span className="text-on-surface-variant/40 italic">
                       {useGroqMode
-                        ? '말씀하시면 15초마다 여기에 변환됩니다...'
+                        ? '말씀하시면 10초마다 여기에 변환됩니다...'
                         : '말씀하시면 여기에 실시간으로 전사됩니다...'}
                     </span>
                   )}
