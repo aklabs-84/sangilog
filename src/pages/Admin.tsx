@@ -991,7 +991,10 @@ const Admin = () => {
                       {u.plan === 'free' && <p className="text-xs text-gray-400 mt-1">오늘 AI 사용: {aiToday} / 10회</p>}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
-                      <Crown size={14} className="text-amber-400 shrink-0" />
+                      {u.plan === 'admin'  ? <ShieldCheck size={14} className="text-emerald-500 shrink-0" /> :
+                       u.plan === 'pro'    ? <Crown size={14} className="text-amber-400 shrink-0" /> :
+                       u.plan === 'school' ? <GraduationCap size={14} className="text-violet-500 shrink-0" /> :
+                                            <User size={14} className="text-gray-400 shrink-0" />}
                       <select value={u.plan ?? 'free'} onChange={e => updateUserPlan(u.id, e.target.value)} disabled={planUpdating === u.id}
                         className="text-sm font-bold border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-50">
                         {PLAN_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}

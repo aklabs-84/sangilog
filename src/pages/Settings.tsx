@@ -30,6 +30,8 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  ShieldCheck,
+  GraduationCap,
 } from 'lucide-react';
 
 const Settings = () => {
@@ -174,6 +176,11 @@ const Settings = () => {
   const [schoolAction, setSchoolAction] = useState<'create' | 'join'>('create');
   const [scInput, setScInput] = useState({ name: '', code: '' });
 
+  // 페이지 진입 시 항상 최신 프로필(플랜 포함) 로드
+  useEffect(() => {
+    refreshProfile();
+  }, []);
+
   useEffect(() => {
     if (authProfile) {
       setProfile(authProfile);
@@ -185,7 +192,6 @@ const Settings = () => {
       });
       setLoading(false);
     } else if (!authLoading) {
-      // 인증 완료됐지만 프로필이 없는 경우에도 로딩 해제
       setLoading(false);
     }
   }, [authProfile, authLoading]);
@@ -460,8 +466,17 @@ const Settings = () => {
       <div className="layered-card rounded-3xl p-6 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
-              <Crown size={18} className="text-white" />
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              plan === 'admin'  ? 'bg-emerald-500' :
+              plan === 'pro'    ? 'bg-amber-500' :
+              plan === 'school' ? 'bg-violet-500' :
+              isBetaActive      ? 'bg-blue-500' :
+                                  'bg-gray-400'
+            }`}>
+              {plan === 'admin'  ? <ShieldCheck size={18} className="text-white" /> :
+               plan === 'pro'    ? <Crown size={18} className="text-white" /> :
+               plan === 'school' ? <GraduationCap size={18} className="text-white" /> :
+                                   <User size={18} className="text-white" />}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
