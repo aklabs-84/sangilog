@@ -362,10 +362,15 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
         onClick={(e) => e.stopPropagation()}
         className="fixed inset-x-0 bottom-0 md:inset-0 md:flex md:items-center md:justify-center z-[300] pointer-events-none"
       >
-        <div className="pointer-events-auto w-full md:w-[480px] bg-slate-900 rounded-t-3xl md:rounded-3xl border border-slate-700/60 shadow-2xl overflow-hidden">
+        <div className="pointer-events-auto w-full md:w-[760px] bg-slate-900 rounded-t-3xl md:rounded-3xl border border-slate-700/60 shadow-2xl overflow-hidden flex flex-col max-h-[88svh] md:max-h-[88vh]">
 
-          {/* 헤더 */}
-          <div className="px-6 pt-5 pb-4 border-b border-slate-700/50 flex items-center justify-between">
+          {/* 모바일 드래그 핸들 */}
+          <div className="flex justify-center pt-3 pb-0 md:hidden shrink-0">
+            <div className="w-10 h-1 bg-white/25 rounded-full" />
+          </div>
+
+          {/* 헤더 — 항상 고정, 전체 너비 */}
+          <div className="px-6 pt-3 md:pt-5 pb-4 border-b border-slate-700/50 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 flex items-center justify-center">
                 <Volume2 size={18} className="text-indigo-400" />
@@ -380,237 +385,320 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
             </button>
           </div>
 
-          {/* 요약 카운트 */}
-          {!loading && byStudent.length > 0 && (
-            <div className="px-6 pt-3 pb-0 flex items-center gap-3">
-              <span className="text-[11px] font-black text-slate-400">총 {byStudent.length}명 제출</span>
-              {byStudent.filter(s => s.status === 'pending').length > 0 && (
-                <span className="text-[11px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-lg border border-amber-700/40">
-                  ⏳ 승인 대기 {byStudent.filter(s => s.status === 'pending').length}건
-                </span>
-              )}
-              {byStudent.filter(s => s.status === 'approved').length > 0 && (
-                <span className="text-[11px] font-black text-emerald-400">
-                  ✅ {byStudent.filter(s => s.status === 'approved').length}건 승인 완료
-                </span>
-              )}
-            </div>
-          )}
+          {/* 바디 — 모바일: 단일 컬럼 / 데스크탑: 좌우 2열 */}
+          <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
 
-          {/* 주차 필터 */}
-          <div className="px-6 pt-4 pb-2">
-            <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
-              <button
-                onClick={() => handleWeekChange('all')}
-                className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${weekFilter === 'all' ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
-              >
-                전체
-              </button>
-              {weekList.map(w => (
-                <button
-                  key={w}
-                  onClick={() => handleWeekChange(w)}
-                  className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${weekFilter === w ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
-                >
-                  {w}주차 {weeklyPlan.find(p => p.week === w)?.topic ? `· ${weeklyPlan.find(p => p.week === w)!.topic}` : ''}
-                </button>
-              ))}
-            </div>
-          </div>
+            {/* ── 왼쪽 패널 (플레이어 + 컨트롤) ── */}
+            <div className="flex flex-col md:flex-1 overflow-hidden">
 
-          {/* 현재 재생 중인 학생 카드 */}
-          <div className="px-6 py-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 size={24} className="animate-spin text-indigo-400" />
-              </div>
-            ) : byStudent.length === 0 ? (
-              <div className="text-center py-8 space-y-2">
-                <p className="text-slate-400 font-bold text-sm">제출된 관찰기록이 없습니다</p>
-                <p className="text-slate-600 text-xs">({weekFilter === 'all' ? '전체 주차' : `${weekFilter}주차`} · 총 {records.length}건 조회됨)</p>
-              </div>
-            ) : (
-              <div className={`rounded-2xl border p-4 transition-all ${isPlaying && phase === 'reading' ? 'bg-indigo-900/30 border-indigo-500/50' : 'bg-white/5 border-white/10'}`}>
-                {phase === 'intro' ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
-                      <Volume2 size={16} className="text-indigo-400 animate-pulse" />
+              {/* 스크롤 가능한 상단 영역 */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                {/* 요약 카운트 */}
+                {!loading && byStudent.length > 0 && (
+                  <div className="px-6 pt-3 pb-0 flex items-center gap-3 flex-wrap">
+                    <span className="text-[11px] font-black text-slate-400">총 {byStudent.length}명 제출</span>
+                    {byStudent.filter(s => s.status === 'pending').length > 0 && (
+                      <span className="text-[11px] font-black text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-lg border border-amber-700/40">
+                        ⏳ 승인 대기 {byStudent.filter(s => s.status === 'pending').length}건
+                      </span>
+                    )}
+                    {byStudent.filter(s => s.status === 'approved').length > 0 && (
+                      <span className="text-[11px] font-black text-emerald-400">
+                        ✅ {byStudent.filter(s => s.status === 'approved').length}건 승인 완료
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* 주차 필터 — 모바일 전용 */}
+                <div className="md:hidden px-6 pt-4 pb-2">
+                  <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
+                    <button
+                      onClick={() => handleWeekChange('all')}
+                      className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${weekFilter === 'all' ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
+                    >
+                      전체
+                    </button>
+                    {weekList.map(w => (
+                      <button
+                        key={w}
+                        onClick={() => handleWeekChange(w)}
+                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${weekFilter === w ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
+                      >
+                        {w}주차 {weeklyPlan.find(p => p.week === w)?.topic ? `· ${weeklyPlan.find(p => p.week === w)!.topic}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 현재 재생 중인 학생 카드 */}
+                <div className="px-6 py-4">
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 size={24} className="animate-spin text-indigo-400" />
                     </div>
-                    <div>
-                      <p className="text-xs font-black text-indigo-400">브리핑 시작 중...</p>
-                      <p className="text-sm font-black text-white mt-0.5">
-                        {weekFilter === 'all' ? '전체' : `${weekFilter}주차`} · 총 {byStudent.length}명
-                      </p>
+                  ) : byStudent.length === 0 ? (
+                    <div className="text-center py-8 space-y-2">
+                      <p className="text-slate-400 font-bold text-sm">제출된 관찰기록이 없습니다</p>
+                      <p className="text-slate-600 text-xs">({weekFilter === 'all' ? '전체 주차' : `${weekFilter}주차`} · 총 {records.length}건 조회됨)</p>
+                    </div>
+                  ) : (
+                    <div className={`rounded-2xl border p-4 transition-all ${isPlaying && phase === 'reading' ? 'bg-indigo-900/30 border-indigo-500/50' : 'bg-white/5 border-white/10'}`}>
+                      {phase === 'intro' ? (
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
+                            <Volume2 size={16} className="text-indigo-400 animate-pulse" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-indigo-400">브리핑 시작 중...</p>
+                            <p className="text-sm font-black text-white mt-0.5">
+                              {weekFilter === 'all' ? '전체' : `${weekFilter}주차`} · 총 {byStudent.length}명
+                            </p>
+                          </div>
+                        </div>
+                      ) : isDone ? (
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+                            <CheckCircle2 size={16} className="text-emerald-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-emerald-400">브리핑 완료</p>
+                            <p className="text-sm font-black text-white mt-0.5">전체 {byStudent.length}명 읽기 완료</p>
+                          </div>
+                        </div>
+                      ) : current ? (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              {current.student_number !== '-' && (
+                                <span className="text-[10px] font-black text-slate-500">{current.student_number}번</span>
+                              )}
+                              <span className="text-base font-black text-white">{current.student_name}</span>
+                              {isPlaying && phase === 'reading' && (
+                                <span className="flex gap-0.5 items-end h-4">
+                                  {[0, 1, 2].map(i => (
+                                    <motion.span
+                                      key={i}
+                                      className="w-0.5 bg-indigo-400 rounded-full"
+                                      animate={{ height: ['6px', '14px', '6px'] }}
+                                      transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+                                    />
+                                  ))}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+                                current.status === 'pending'
+                                  ? 'bg-amber-900/40 text-amber-400 border-amber-700/50'
+                                  : 'bg-emerald-900/40 text-emerald-400 border-emerald-700/50'
+                              }`}>
+                                {current.status === 'pending' ? '⏳ 대기' : '✅ 승인'}
+                              </span>
+                              <span className="text-[10px] font-black text-slate-500">
+                                {currentIndex + 1} / {byStudent.length}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-xs font-black text-indigo-300 mb-1 truncate">{current.activity_name}</p>
+                          <p className="text-xs text-slate-400 font-bold leading-relaxed line-clamp-2">{current.content}</p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500 font-bold text-center py-2">재생 버튼을 눌러 시작하세요</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 진행 바 */}
+                {byStudent.length > 0 && (
+                  <div className="px-6 mb-3">
+                    <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                        style={{ width: byStudent.length > 0 ? `${((currentIndex + (isDone ? 1 : 0)) / byStudent.length) * 100}%` : '0%' }}
+                      />
                     </div>
                   </div>
-                ) : isDone ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
-                      <CheckCircle2 size={16} className="text-emerald-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-emerald-400">브리핑 완료</p>
-                      <p className="text-sm font-black text-white mt-0.5">전체 {byStudent.length}명 읽기 완료</p>
-                    </div>
-                  </div>
-                ) : current ? (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        {current.student_number !== '-' && (
-                          <span className="text-[10px] font-black text-slate-500">{current.student_number}번</span>
-                        )}
-                        <span className="text-base font-black text-white">{current.student_name}</span>
-                        {isPlaying && phase === 'reading' && (
-                          <span className="flex gap-0.5 items-end h-4">
-                            {[0, 1, 2].map(i => (
-                              <motion.span
-                                key={i}
-                                className="w-0.5 bg-indigo-400 rounded-full"
-                                animate={{ height: ['6px', '14px', '6px'] }}
-                                transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-                              />
-                            ))}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
-                          current.status === 'pending'
-                            ? 'bg-amber-900/40 text-amber-400 border-amber-700/50'
-                            : 'bg-emerald-900/40 text-emerald-400 border-emerald-700/50'
-                        }`}>
-                          {current.status === 'pending' ? '⏳ 대기' : '✅ 승인'}
-                        </span>
-                        <span className="text-[10px] font-black text-slate-500">
-                          {currentIndex + 1} / {byStudent.length}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-xs font-black text-indigo-300 mb-1 truncate">{current.activity_name}</p>
-                    <p className="text-xs text-slate-400 font-bold leading-relaxed line-clamp-2">{current.content}</p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500 font-bold text-center py-2">재생 버튼을 눌러 시작하세요</p>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* 진행 바 */}
-          {byStudent.length > 0 && (
-            <div className="px-6 mb-3">
-              <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-500 rounded-full transition-all duration-500"
-                  style={{ width: byStudent.length > 0 ? `${((currentIndex + (isDone ? 1 : 0)) / byStudent.length) * 100}%` : '0%' }}
-                />
+              {/* 컨트롤 — 왼쪽 패널 하단 고정 */}
+              <div className="px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:pb-6 pt-2 space-y-4 shrink-0 border-t border-slate-800/60">
+                {/* 재생 컨트롤 */}
+                <div className="flex items-center justify-center gap-5 pt-3">
+                  <button
+                    onClick={handlePrev}
+                    disabled={currentIndex === 0}
+                    className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <SkipBack size={20} className="text-white" />
+                  </button>
+
+                  <button
+                    onClick={handlePlay}
+                    disabled={loading || byStudent.length === 0}
+                    className="w-20 h-20 rounded-[1.75rem] bg-indigo-500 hover:bg-indigo-400 active:scale-95 flex items-center justify-center transition-all shadow-lg shadow-indigo-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isPlaying
+                      ? <Pause size={32} className="text-white" fill="white" />
+                      : <Play size={32} className="text-white fill-white" />
+                    }
+                  </button>
+
+                  <button
+                    onClick={handleNext}
+                    disabled={currentIndex >= byStudent.length - 1}
+                    className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <SkipForward size={20} className="text-white" />
+                  </button>
+                </div>
+
+                {/* 속도 선택 */}
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mr-1">속도</span>
+                  {SPEEDS.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => handleSpeedChange(s)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
+                        speed === s
+                          ? 'bg-indigo-500 text-white border-indigo-500'
+                          : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'
+                      }`}
+                    >
+                      {s}x
+                    </button>
+                  ))}
+                </div>
+
+                {/* NotebookLM 내보내기 */}
+                {byStudent.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="h-px bg-white/5" />
+                    <button
+                      onClick={handleNotebookLMExport}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-indigo-500/15 border border-white/10 hover:border-indigo-500/40 rounded-2xl text-xs font-black text-slate-400 hover:text-indigo-300 transition-all group"
+                    >
+                      <Download size={13} className="group-hover:-translate-y-0.5 transition-transform" />
+                      NotebookLM 소스 텍스트 내보내기
+                      <BookOpen size={13} className="opacity-50" />
+                    </button>
+                    <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
+                      .txt 다운로드 → NotebookLM 소스 추가 → 오디오 개요 생성
+                    </p>
+                  </div>
+                )}
+
+                {/* 닫기 버튼 — 모바일 전용 */}
+                <button
+                  onClick={handleClose}
+                  className="md:hidden w-full py-3 rounded-2xl bg-white/5 border border-white/10 text-sm font-black text-slate-400 hover:text-white hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <X size={14} />
+                  닫기
+                </button>
               </div>
-            </div>
-          )}
 
-          {/* 컨트롤 */}
-          <div className="px-6 pb-6 pt-2 space-y-5">
-            {/* 재생 컨트롤 */}
-            <div className="flex items-center justify-center gap-5">
-              <button
-                onClick={handlePrev}
-                disabled={currentIndex === 0}
-                className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <SkipBack size={20} className="text-white" />
-              </button>
-
-              <button
-                onClick={handlePlay}
-                disabled={loading || byStudent.length === 0}
-                className="w-20 h-20 rounded-[1.75rem] bg-indigo-500 hover:bg-indigo-400 active:scale-95 flex items-center justify-center transition-all shadow-lg shadow-indigo-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isPlaying
-                  ? <Pause size={32} className="text-white" fill="white" />
-                  : <Play size={32} className="text-white fill-white" />
-                }
-              </button>
-
-              <button
-                onClick={handleNext}
-                disabled={currentIndex >= byStudent.length - 1}
-                className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <SkipForward size={20} className="text-white" />
-              </button>
-            </div>
-
-            {/* 속도 선택 */}
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mr-1">속도</span>
-              {SPEEDS.map(s => (
-                <button
-                  key={s}
-                  onClick={() => handleSpeedChange(s)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
-                    speed === s
-                      ? 'bg-indigo-500 text-white border-indigo-500'
-                      : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'
-                  }`}
-                >
-                  {s}x
-                </button>
-              ))}
+              {/* 학생 목록 — 모바일 전용, 하단 고정 */}
+              {byStudent.length > 0 && (
+                <div className="md:hidden border-t border-slate-700/50 max-h-32 overflow-y-auto custom-scrollbar shrink-0">
+                  {byStudent.map((r, i) => (
+                    <button
+                      key={r.student_id}
+                      onClick={() => {
+                        window.speechSynthesis.cancel();
+                        setCurrentIndex(i);
+                        currentIndexRef.current = i;
+                        setIsDone(false);
+                        if (isPlaying) speak(i);
+                      }}
+                      className={`w-full flex items-center gap-3 px-6 py-2.5 text-left transition-all hover:bg-white/5 ${i === currentIndex ? 'bg-indigo-900/30' : ''}`}
+                    >
+                      {i < currentIndex || isDone ? (
+                        <CheckCircle2 size={14} className="text-indigo-400 shrink-0" />
+                      ) : i === currentIndex && (isPlaying || phase !== 'idle') ? (
+                        <Volume2 size={14} className="text-indigo-400 shrink-0 animate-pulse" />
+                      ) : (
+                        <Circle size={14} className="text-slate-600 shrink-0" />
+                      )}
+                      <span className={`text-xs font-black truncate ${i === currentIndex ? 'text-white' : i < currentIndex ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {r.student_number !== '-' ? `${r.student_number}번 ` : ''}{r.student_name}
+                      </span>
+                      <span className="text-[10px] text-slate-600 truncate flex-1 min-w-0">{r.activity_name}</span>
+                      {r.status === 'pending' && (
+                        <span className="text-[8px] font-black text-amber-500 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-700/40 shrink-0">대기</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* NotebookLM 내보내기 */}
-            {byStudent.length > 0 && (
-              <div className="pt-1 space-y-2">
-                <div className="h-px bg-white/5" />
-                <button
-                  onClick={handleNotebookLMExport}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 hover:bg-indigo-500/15 border border-white/10 hover:border-indigo-500/40 rounded-2xl text-xs font-black text-slate-400 hover:text-indigo-300 transition-all group"
-                >
-                  <Download size={13} className="group-hover:-translate-y-0.5 transition-transform" />
-                  NotebookLM 소스 텍스트 내보내기
-                  <BookOpen size={13} className="opacity-50" />
-                </button>
-                <p className="text-[9px] text-slate-600 font-bold text-center leading-relaxed">
-                  .txt 다운로드 → NotebookLM 소스 추가 → 오디오 개요 생성
+            {/* ── 오른쪽 패널 — 데스크탑 전용 (주차 필터 + 학생 목록) ── */}
+            <div className="hidden md:flex flex-col w-64 border-l border-slate-700/40 shrink-0">
+              {/* 주차 필터 */}
+              <div className="px-4 pt-4 pb-3 border-b border-slate-700/30 shrink-0">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">주차 필터</p>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    onClick={() => handleWeekChange('all')}
+                    className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-black border transition-all ${weekFilter === 'all' ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
+                  >
+                    전체
+                  </button>
+                  {weekList.map(w => (
+                    <button
+                      key={w}
+                      onClick={() => handleWeekChange(w)}
+                      className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-black border transition-all truncate ${weekFilter === w ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-slate-400 border-white/10 hover:border-indigo-400'}`}
+                    >
+                      {w}주차{weeklyPlan.find(p => p.week === w)?.topic ? ` · ${weeklyPlan.find(p => p.week === w)!.topic}` : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 학생 목록 — 전체 높이 스크롤 */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest px-4 pt-3 pb-1.5">
+                  학생 목록 ({byStudent.length}명)
                 </p>
+                {byStudent.map((r, i) => (
+                  <button
+                    key={r.student_id}
+                    onClick={() => {
+                      window.speechSynthesis.cancel();
+                      setCurrentIndex(i);
+                      currentIndexRef.current = i;
+                      setIsDone(false);
+                      if (isPlaying) speak(i);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-all hover:bg-white/5 ${i === currentIndex ? 'bg-indigo-900/30' : ''}`}
+                  >
+                    {i < currentIndex || isDone ? (
+                      <CheckCircle2 size={13} className="text-indigo-400 shrink-0" />
+                    ) : i === currentIndex && (isPlaying || phase !== 'idle') ? (
+                      <Volume2 size={13} className="text-indigo-400 shrink-0 animate-pulse" />
+                    ) : (
+                      <Circle size={13} className="text-slate-600 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-black truncate ${i === currentIndex ? 'text-white' : i < currentIndex ? 'text-slate-500' : 'text-slate-300'}`}>
+                        {r.student_number !== '-' ? `${r.student_number}번 ` : ''}{r.student_name}
+                      </p>
+                      <p className="text-[10px] text-slate-600 truncate">{r.activity_name}</p>
+                    </div>
+                    {r.status === 'pending' && (
+                      <span className="text-[8px] font-black text-amber-500 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-700/40 shrink-0">대기</span>
+                    )}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
-
-          {/* 학생 목록 (스크롤) */}
-          {byStudent.length > 0 && (
-            <div className="border-t border-slate-700/50 max-h-40 overflow-y-auto custom-scrollbar">
-              {byStudent.map((r, i) => (
-                <button
-                  key={r.student_id}
-                  onClick={() => {
-                    window.speechSynthesis.cancel();
-                    setCurrentIndex(i);
-                    currentIndexRef.current = i;
-                    setIsDone(false);
-                    if (isPlaying) speak(i);
-                  }}
-                  className={`w-full flex items-center gap-3 px-6 py-2.5 text-left transition-all hover:bg-white/5 ${i === currentIndex ? 'bg-indigo-900/30' : ''}`}
-                >
-                  {i < currentIndex || isDone ? (
-                    <CheckCircle2 size={14} className="text-indigo-400 shrink-0" />
-                  ) : i === currentIndex && (isPlaying || phase !== 'idle') ? (
-                    <Volume2 size={14} className="text-indigo-400 shrink-0 animate-pulse" />
-                  ) : (
-                    <Circle size={14} className="text-slate-600 shrink-0" />
-                  )}
-                  <span className={`text-xs font-black truncate ${i === currentIndex ? 'text-white' : i < currentIndex ? 'text-slate-500' : 'text-slate-400'}`}>
-                    {r.student_number !== '-' ? `${r.student_number}번 ` : ''}{r.student_name}
-                  </span>
-                  <span className="text-[10px] text-slate-600 truncate flex-1 min-w-0">{r.activity_name}</span>
-                  {r.status === 'pending' && (
-                    <span className="text-[8px] font-black text-amber-500 bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-700/40 shrink-0">대기</span>
-                  )}
-                </button>
-              ))}
             </div>
-          )}
+
+          </div>
         </div>
       </motion.div>
     </AnimatePresence>
