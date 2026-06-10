@@ -46,7 +46,7 @@ async function callDirect(body: any): Promise<string> {
     model: getModelId(model),
     generationConfig: model === 'pro'
       ? { temperature: 0.7, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
-      : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 2048 },
+      : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 8192 },
   });
 
   if (mode === 'generate') {

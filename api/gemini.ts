@@ -77,7 +77,7 @@ export default async function handler(req: any, res: any) {
       model: modelId,
       generationConfig: model === 'pro'
         ? { temperature: 0.7, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
-        : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 2048 },
+        : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 8192 },
     });
 
     let result: string;
