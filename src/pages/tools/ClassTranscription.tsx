@@ -321,13 +321,27 @@ const ClassTranscription = () => {
 
       rec.onerror = (e: any) => {
         if (e.error === 'no-speech') return;
-        if (e.error === 'not-allowed') {
-          isRecordingRef.current = false;
-          stopTimer();
-          releaseWakeLock();
-          setStatus('error');
-          setErrorMsg('마이크 접근 권한이 필요합니다. 브라우저 설정에서 마이크를 허용해주세요.');
-        }
+
+        isRecordingRef.current = false;
+        stopTimer();
+        releaseWakeLock();
+        setStatus('error');
+
+        const MSG: Record<string, string> = {
+          'not-allowed':
+            '마이크 접근 권한이 필요합니다. 주소창 왼쪽 자물쇠 아이콘 → 마이크 허용 후 다시 시도해주세요.',
+          'network':
+            'Chrome 음성 인식 서버에 연결할 수 없습니다. 인터넷 연결을 확인하거나 Groq Whisper 모드를 사용해주세요.',
+          'audio-capture':
+            '마이크를 찾을 수 없습니다. 마이크가 연결되어 있는지 확인해주세요.',
+          'service-not-allowed':
+            'Chrome 음성 인식 서비스를 사용할 수 없습니다. Groq Whisper 모드를 사용해주세요.',
+          'aborted':
+            '음성 인식이 중단됐습니다. 다시 시도해주세요.',
+          'language-not-supported':
+            'ko-KR 언어가 지원되지 않습니다. Groq Whisper 모드를 사용해주세요.',
+        };
+        setErrorMsg(MSG[e.error] ?? `음성 인식 오류가 발생했습니다. (오류 코드: ${e.error})`);
       };
 
       rec.start();
