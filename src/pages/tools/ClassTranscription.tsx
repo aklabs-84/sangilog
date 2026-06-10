@@ -9,12 +9,13 @@ import {
   Check, Users, BarChart3, MessageSquare, AlertCircle,
   Plus, Sparkles, RefreshCw, Zap,
   History, Trash2, Clock, WifiOff, Save, X, KeyRound, Settings,
+  GraduationCap, Target,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type RecordingStatus = 'idle' | 'recording' | 'transcribed' | 'processing' | 'complete' | 'error';
-type ResultTab = 'students' | 'evaluation';
+type ResultTab = 'students' | 'evaluation' | 'selfeval';
 type MainTab = 'record' | 'history';
 
 interface StudentObservation {
@@ -37,10 +38,31 @@ interface ClassEvaluation {
   nextClassTip: string;
 }
 
+interface TeacherSelfEvalPatterns {
+  speechDensity: '빠름' | '보통' | '느림';
+  questionStyle: '닫힌 질문 위주' | '균형적' | '열린 질문 위주';
+  repeatPhrases: string[];
+}
+
+interface TeacherSelfEval {
+  goalAchievement: number;
+  goalAchievementDetail: string;
+  coreConceptCoverage: number;
+  coreConceptDetail: string;
+  questioningSkills: number;
+  strengths: string[];
+  improvements: string[];
+  nextActionItem: string;
+  patterns: TeacherSelfEvalPatterns;
+}
+
 interface AnalysisResult {
   studentObservations: StudentObservation[];
   notMentioned: string[];
   classEvaluation: ClassEvaluation;
+  teacherSelfEval?: TeacherSelfEval;
+  lessonGoal?: string;
+  lessonKeywords?: string;
 }
 
 interface PastSessionRow {
@@ -69,9 +91,75 @@ const PARTICIPATION_STYLE: Record<string, string> = {
   '소극적': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 };
 
+const SPEECH_DENSITY_STYLE: Record<string, string> = {
+  '빠름': 'bg-orange-100 text-orange-700',
+  '보통': 'bg-blue-100 text-blue-700',
+  '느림': 'bg-teal-100 text-teal-700',
+};
+
+const QUESTION_STYLE_COLOR: Record<string, string> = {
+  '닫힌 질문 위주': 'bg-amber-100 text-amber-700',
+  '균형적':        'bg-green-100 text-green-700',
+  '열린 질문 위주': 'bg-violet-100 text-violet-700',
+};
+
 const GROQ_CHUNK_MS   = 10000;
-const GROQ_PROMPT_CTX = 224; // 이전 전사의 마지막 N자를 Whisper에 context로 전달
+const GROQ_PROMPT_CTX = 224;
 const GROQ_API_URL    = 'https://api.groq.com/openai/v1/audio/transcriptions';
+
+// ── Radar Chart ───────────────────────────────────────────────────────────────
+
+interface RadarItem { label: string; value: number; }
+
+const RadarChart = ({ items, size = 260 }: { items: RadarItem[]; size?: number }) => {
+  const cx = size / 2;
+  const cy = size / 2;
+  const r  = size * 0.33;
+  const lr = size * 0.46;
+  const n  = items.length;
+
+  const toXY = (i: number, scale: number) => {
+    const a = (i * 2 * Math.PI / n) - Math.PI / 2;
+    return { x: cx + r * scale * Math.cos(a), y: cy + r * scale * Math.sin(a) };
+  };
+  const labelXY = (i: number) => {
+    const a = (i * 2 * Math.PI / n) - Math.PI / 2;
+    return { x: cx + lr * Math.cos(a), y: cy + lr * Math.sin(a) };
+  };
+  const gridPts = (s: number) =>
+    Array.from({ length: n }, (_, i) => toXY(i, s))
+      .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const dataPts = items
+    .map((d, i) => toXY(i, Math.max(d.value, 0.15) / 5))
+    .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const dotColor = (v: number) => v >= 4 ? '#22c55e' : v >= 3 ? '#f59e0b' : '#ef4444';
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
+      {[0.2, 0.4, 0.6, 0.8, 1.0].map(s => (
+        <polygon key={s} points={gridPts(s)} fill="none" stroke="#e2e8f0" strokeWidth={1} />
+      ))}
+      {items.map((_, i) => {
+        const e = toXY(i, 1);
+        return <line key={i} x1={cx} y1={cy} x2={e.x.toFixed(1)} y2={e.y.toFixed(1)} stroke="#e2e8f0" strokeWidth={1} />;
+      })}
+      <polygon points={dataPts} fill="rgba(124,58,237,0.15)" stroke="#7c3aed" strokeWidth={2} strokeLinejoin="round" />
+      {items.map((d, i) => {
+        const p = toXY(i, Math.max(d.value, 0.15) / 5);
+        return <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r={5} fill={dotColor(d.value)} stroke="white" strokeWidth={1.5} />;
+      })}
+      {items.map((d, i) => {
+        const lp = labelXY(i);
+        return (
+          <g key={i}>
+            <text x={lp.x.toFixed(1)} y={(lp.y - 5).toFixed(1)} textAnchor="middle" dominantBaseline="middle" fontSize={9} fontWeight="bold" fill="#64748b">{d.label}</text>
+            <text x={lp.x.toFixed(1)} y={(lp.y + 7).toFixed(1)} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="bold" fill={dotColor(d.value)}>{d.value}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
 
 // ── Score Bar ─────────────────────────────────────────────────────────────────
 
@@ -94,6 +182,173 @@ const ScoreBar = ({ label, score }: { label: string; score: number }) => (
   </div>
 );
 
+// ── SelfEval Tab ──────────────────────────────────────────────────────────────
+
+const SelfEvalTab = ({
+  selfEval,
+  classEval,
+  lessonGoal,
+  lessonKeywords,
+}: {
+  selfEval: TeacherSelfEval;
+  classEval: ClassEvaluation;
+  lessonGoal?: string;
+  lessonKeywords?: string;
+}) => {
+  const radarItems: RadarItem[] = [
+    { label: '수업 구성',   value: classEval.structure },
+    { label: '설명 명확성', value: classEval.clarity },
+    { label: '참여 유도',   value: classEval.engagement },
+    { label: '피드백',      value: classEval.feedback },
+    { label: '시간 관리',   value: classEval.timeManagement },
+    { label: '목표 달성',   value: selfEval.goalAchievement },
+    { label: '개념 전달',   value: selfEval.coreConceptCoverage },
+    { label: '질문 기술',   value: selfEval.questioningSkills },
+  ];
+
+  const overallSelf = ((selfEval.goalAchievement + selfEval.coreConceptCoverage + selfEval.questioningSkills) / 3).toFixed(1);
+  const dotColor = (v: number) => v >= 4 ? 'text-green-600' : v >= 3 ? 'text-amber-500' : 'text-red-500';
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+
+      {/* 수업 목표 달성도 */}
+      <div className="surface-card p-6 shadow-ambient space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-black flex items-center gap-2">
+            <Target size={18} className="text-violet-500" />
+            수업 목표 달성도
+          </h3>
+          <span className={`text-2xl font-black ${dotColor(selfEval.goalAchievement)}`}>
+            {selfEval.goalAchievement} <span className="text-sm font-bold text-on-surface-variant">/ 5</span>
+          </span>
+        </div>
+
+        {/* 진행 바 */}
+        <div className="space-y-1.5">
+          <div className="h-3 bg-surface-container rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${(selfEval.goalAchievement / 5) * 100}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className={`h-full rounded-full ${selfEval.goalAchievement >= 4 ? 'bg-green-500' : selfEval.goalAchievement >= 3 ? 'bg-amber-400' : 'bg-red-400'}`}
+            />
+          </div>
+        </div>
+
+        {lessonGoal && (
+          <div className="p-3 bg-violet-50 rounded-xl border border-violet-100">
+            <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest mb-1">설정한 수업 목표</p>
+            <p className="text-sm text-violet-800 leading-relaxed">{lessonGoal}</p>
+            {lessonKeywords && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {lessonKeywords.split(',').map(kw => kw.trim()).filter(Boolean).map(kw => (
+                  <span key={kw} className="text-[11px] px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full font-bold">{kw}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <p className="text-sm text-on-surface-variant leading-relaxed">{selfEval.goalAchievementDetail}</p>
+      </div>
+
+      {/* 레이더 차트 + 3개 핵심 지표 */}
+      <div className="surface-card p-6 shadow-ambient">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-black flex items-center gap-2">
+            <GraduationCap size={18} className="text-violet-500" />
+            8개 항목 종합 분석
+          </h3>
+          <div className="text-right">
+            <p className="text-[10px] text-on-surface-variant uppercase font-bold">자기평가 평균</p>
+            <p className="text-2xl font-black text-violet-600 leading-none">
+              {overallSelf}
+              <span className="text-sm font-bold text-on-surface-variant"> / 5.0</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="shrink-0">
+            <RadarChart items={radarItems} size={240} />
+          </div>
+          <div className="flex-1 space-y-3 w-full">
+            {/* 3개 자기평가 항목 점수 바 */}
+            <ScoreBar label="목표 달성도" score={selfEval.goalAchievement} />
+            <ScoreBar label="핵심 개념 전달도" score={selfEval.coreConceptCoverage} />
+            <ScoreBar label="질문 기술" score={selfEval.questioningSkills} />
+            <div className="pt-1">
+              <p className="text-xs text-on-surface-variant leading-relaxed">{selfEval.coreConceptDetail}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 강점 / 개선점 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="surface-card p-5 shadow-ambient space-y-3">
+          <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">오늘의 강점 3가지</p>
+          <ul className="space-y-2">
+            {selfEval.strengths.map((s, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-green-100 text-green-600 text-[10px] font-black flex items-center justify-center mt-0.5">{i + 1}</span>
+                <p className="text-sm text-on-surface leading-relaxed">{s}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="surface-card p-5 shadow-ambient space-y-3">
+          <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">개선하면 좋을 점 3가지</p>
+          <ul className="space-y-2">
+            {selfEval.improvements.map((s, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="shrink-0 w-5 h-5 rounded-full bg-amber-100 text-amber-600 text-[10px] font-black flex items-center justify-center mt-0.5">{i + 1}</span>
+                <p className="text-sm text-on-surface leading-relaxed">{s}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* 다음 수업 실행 과제 */}
+      <div className="p-5 bg-violet-50 rounded-2xl border border-violet-100">
+        <p className="text-[10px] font-black text-violet-600 uppercase tracking-widest mb-2">다음 수업 실행 과제</p>
+        <p className="text-sm text-violet-900 leading-relaxed font-medium">{selfEval.nextActionItem}</p>
+      </div>
+
+      {/* 교수 패턴 분석 */}
+      <div className="surface-card p-5 shadow-ambient space-y-4">
+        <h4 className="text-sm font-black text-on-surface">교수 패턴 분석</h4>
+        <div className="flex flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-on-surface-variant">발언 밀도</span>
+            <span className={`text-[11px] font-black px-2.5 py-1 rounded-full ${SPEECH_DENSITY_STYLE[selfEval.patterns.speechDensity] ?? 'bg-surface-container text-on-surface-variant'}`}>
+              {selfEval.patterns.speechDensity}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-on-surface-variant">질문 스타일</span>
+            <span className={`text-[11px] font-black px-2.5 py-1 rounded-full ${QUESTION_STYLE_COLOR[selfEval.patterns.questionStyle] ?? 'bg-surface-container text-on-surface-variant'}`}>
+              {selfEval.patterns.questionStyle}
+            </span>
+          </div>
+        </div>
+        {selfEval.patterns.repeatPhrases.length > 0 && (
+          <div>
+            <p className="text-[11px] font-bold text-on-surface-variant mb-2">자주 쓰는 표현</p>
+            <div className="flex flex-wrap gap-2">
+              {selfEval.patterns.repeatPhrases.map(phrase => (
+                <span key={phrase} className="text-[11px] px-3 py-1 bg-surface-container rounded-lg text-on-surface-variant font-medium">"{phrase}"</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 const ClassTranscription = () => {
@@ -114,6 +369,10 @@ const ClassTranscription = () => {
   const [interimText, setInterimText] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isChunkProcessing, setIsChunkProcessing] = useState(false);
+
+  // ── 수업 목표 (선택) ────────────────────────────────────────────────────────
+  const [lessonGoal, setLessonGoal]         = useState('');
+  const [lessonKeywords, setLessonKeywords] = useState('');
 
   // ── Result state ───────────────────────────────────────────────────────────
   const [activeTab, setActiveTab]             = useState<ResultTab>('students');
@@ -183,12 +442,10 @@ const ClassTranscription = () => {
       if (document.hidden) {
         wasRecordingRef.current = isRecordingRef.current;
       } else {
-        // 복귀 시 — 녹음이 실제로 멈춰 있으면 배너 표시
         if (wasRecordingRef.current && !isRecordingRef.current) {
           setBackgroundInterrupted(true);
           wasRecordingRef.current = false;
         }
-        // Wake Lock은 visibility 복귀 시 재시도 필요 (iOS/Android가 자동 해제)
         if (isRecordingRef.current) requestWakeLock();
       }
     };
@@ -203,7 +460,7 @@ const ClassTranscription = () => {
     try {
       wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
     } catch {
-      // 지원 안 되거나 권한 없음 — silent fail
+      // silent fail
     }
   };
 
@@ -291,11 +548,8 @@ const ClassTranscription = () => {
       formData.append('language', 'ko');
       formData.append('response_format', 'text');
 
-      // 이전 전사 끝부분을 prompt로 전달 → Whisper가 맥락을 이어서 전사
       const prevContext = transcriptRef.current.slice(-GROQ_PROMPT_CTX).trim();
-      if (prevContext) {
-        formData.append('prompt', prevContext);
-      }
+      if (prevContext) formData.append('prompt', prevContext);
 
       const res = await fetch(GROQ_API_URL, {
         method: 'POST',
@@ -441,9 +695,7 @@ const ClassTranscription = () => {
     startGroqRecording(true);
   };
 
-  const stopRecording = () => {
-    stopGroqRecording();
-  };
+  const stopRecording = () => stopGroqRecording();
 
   const finalizeCurrent = async () => {
     setBackgroundInterrupted(false);
@@ -535,6 +787,23 @@ ${transcriptText}
 - improvements: 개선하면 더 좋을 점 (2~3문장)
 - nextClassTip: 다음 수업에서 신경 쓸 것 한 가지 제안 (1문장)
 
+[Part 3 — 선생님 자기평가 리포트]
+수업 목표: ${lessonGoal || '(미입력 — 전사본에서 목표를 추론하세요)'}
+핵심 개념: ${lessonKeywords || '(미입력 — 전사본에서 핵심 개념을 추론하세요)'}
+
+위 수업 목표와 핵심 개념을 기반으로, 전사본 내용만을 근거로 다음을 평가하세요:
+1. goalAchievement (목표 달성도, 1-5점): 수업 목표가 전사본에서 얼마나 충실히 다뤄졌는가
+2. goalAchievementDetail: 목표 달성도에 대한 구체적 근거 (2~3문장, 전사본의 구체적 장면 언급)
+3. coreConceptCoverage (핵심 개념 전달도, 1-5점): 핵심 개념들이 충분히 명확하게 전달됐는가
+4. coreConceptDetail: 개념 전달 품질에 대한 구체적 설명 (2문장)
+5. questioningSkills (질문 기술, 1-5점): 학생 사고를 유도하는 열린/탐구적 질문을 활용했는가
+6. strengths: 오늘 수업의 구체적 강점 3가지 (배열, 각 항목 1~2문장)
+7. improvements: 개선하면 더 효과적일 점 3가지 (배열, 각 항목 1~2문장)
+8. nextActionItem: 다음 수업에서 바로 실행할 수 있는 구체적 과제 1가지 (1문장)
+9. patterns.speechDensity: 전사본의 발언 밀도/속도 판단 ("빠름" | "보통" | "느림")
+10. patterns.questionStyle: 질문 스타일 ("닫힌 질문 위주" | "균형적" | "열린 질문 위주")
+11. patterns.repeatPhrases: 전사본에서 반복되는 표현 최대 3개 배열 (없으면 빈 배열)
+
 ━━━━━━━━━━━━━━━━━━━━━━
 
 아래 JSON 형식으로만 응답하세요. 마크다운이나 다른 텍스트 없이 JSON만 출력하세요:
@@ -559,6 +828,21 @@ ${transcriptText}
     "strengths": "잘된 점 설명",
     "improvements": "개선할 점 설명",
     "nextClassTip": "다음 수업 제안"
+  },
+  "teacherSelfEval": {
+    "goalAchievement": 4,
+    "goalAchievementDetail": "목표 달성 근거 설명...",
+    "coreConceptCoverage": 3,
+    "coreConceptDetail": "개념 전달 설명...",
+    "questioningSkills": 3,
+    "strengths": ["강점1", "강점2", "강점3"],
+    "improvements": ["개선점1", "개선점2", "개선점3"],
+    "nextActionItem": "다음 수업 실행 과제",
+    "patterns": {
+      "speechDensity": "보통",
+      "questionStyle": "닫힌 질문 위주",
+      "repeatPhrases": ["반복 표현1", "반복 표현2"]
+    }
   }
 }`;
 
@@ -572,8 +856,12 @@ ${transcriptText}
 
       const parsed: AnalysisResult = JSON.parse(jsonStr);
       parsed.studentObservations = parsed.studentObservations.map(o => ({ ...o, saved: false }));
+      if (lessonGoal)     parsed.lessonGoal     = lessonGoal;
+      if (lessonKeywords) parsed.lessonKeywords  = lessonKeywords;
+
       setAnalysisResult(parsed);
       setStatus('complete');
+      if (parsed.teacherSelfEval) setActiveTab('selfeval');
       await saveSession(transcriptText, parsed);
     } catch (err: any) {
       console.error('[ClassTranscription] analysis error:', err);
@@ -657,6 +945,7 @@ ${transcriptText}
     setErrorMsg('');
     setSessionSaved(false);
     setBackgroundInterrupted(false);
+    setActiveTab('students');
     transcriptRef.current    = '';
     elapsedRef.current       = 0;
     savedSessionIdRef.current = null;
@@ -788,7 +1077,7 @@ ${transcriptText}
             </div>
           )}
 
-          {/* 학급 선택 */}
+          {/* 수업 설정 */}
           {(status === 'idle' || status === 'error') && (
             <div className="surface-card p-6 shadow-ambient space-y-4">
               <h3 className="text-base font-black flex items-center gap-2">
@@ -827,6 +1116,29 @@ ${transcriptText}
                   ))}
                 </div>
               )}
+
+              {/* 수업 목표 입력 */}
+              <div className="border-t border-surface-container pt-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Target size={15} className="text-violet-500" />
+                  <span className="text-sm font-black">오늘의 수업 목표</span>
+                  <span className="text-[11px] font-medium text-on-surface-variant">선택 — 입력하면 자기평가가 더 정확해집니다</span>
+                </div>
+                <textarea
+                  value={lessonGoal}
+                  onChange={e => setLessonGoal(e.target.value)}
+                  placeholder="예: 이차방정식의 근의 공식을 이해하고 실전 문제에 적용할 수 있다"
+                  rows={2}
+                  className="w-full px-4 py-3 bg-surface-container rounded-xl text-sm font-medium resize-none outline-none focus:ring-2 focus:ring-violet-400/30 placeholder:text-on-surface-variant/40"
+                />
+                <input
+                  type="text"
+                  value={lessonKeywords}
+                  onChange={e => setLessonKeywords(e.target.value)}
+                  placeholder="핵심 개념 (쉼표 구분) — 예: 판별식, 근의 공식, 두 근의 합"
+                  className="w-full px-4 py-3 bg-surface-container rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-violet-400/30 placeholder:text-on-surface-variant/40"
+                />
+              </div>
             </div>
           )}
 
@@ -860,7 +1172,6 @@ ${transcriptText}
 
             {status === 'recording' && (
               <div className="space-y-5">
-
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="relative flex h-3 w-3">
@@ -902,7 +1213,7 @@ ${transcriptText}
                 </div>
 
                 <p className="text-[11px] text-on-surface-variant/50 text-center">
-                  수업이 끝나면 "수업 종료"를 눌러주세요. AI가 학생별 관찰 기록과 수업 평가를 자동 생성합니다.
+                  수업이 끝나면 "수업 종료"를 눌러주세요. AI가 학생별 관찰 기록, 수업 평가, 자기평가 리포트를 자동 생성합니다.
                 </p>
               </div>
             )}
@@ -935,7 +1246,7 @@ ${transcriptText}
                   </div>
                 )}
                 <p className="text-[11px] text-on-surface-variant/50 text-center">
-                  AI 분석을 시작하면 학생별 관찰 기록과 수업 평가가 추가됩니다. AI 크레딧은 분석 시에만 사용됩니다.
+                  AI 분석을 시작하면 학생별 관찰 기록, 수업 평가, 자기평가 리포트가 추가됩니다. AI 크레딧은 분석 시에만 사용됩니다.
                 </p>
 
                 <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -965,7 +1276,7 @@ ${transcriptText}
                 <div className="text-center">
                   <p className="text-lg font-black">AI가 수업 내용을 분석하는 중...</p>
                   <p className="text-sm text-on-surface-variant mt-1">
-                    학생별 관찰 기록과 수업 품질 평가를 생성하고 있습니다
+                    학생별 관찰 기록, 수업 품질 평가, 자기평가 리포트를 생성하고 있습니다
                   </p>
                 </div>
                 <Loader2 size={24} className="animate-spin text-primary" />
@@ -1006,7 +1317,7 @@ ${transcriptText}
 
               {/* 결과 탭 바 */}
               <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex p-1 bg-surface-container rounded-xl gap-1">
+                <div className="flex p-1 bg-surface-container rounded-xl gap-1 flex-wrap">
                   <button
                     onClick={() => setActiveTab('students')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
@@ -1032,7 +1343,23 @@ ${transcriptText}
                     }`}
                   >
                     <BarChart3 size={15} />
-                    수업 품질 평가
+                    수업 품질
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('selfeval')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
+                      activeTab === 'selfeval'
+                        ? 'bg-violet-600 text-white shadow-md shadow-violet-600/20'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    <GraduationCap size={15} />
+                    자기평가
+                    {analysisResult.teacherSelfEval && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                        activeTab === 'selfeval' ? 'bg-white/25' : 'bg-violet-100 text-violet-600'
+                      }`}>NEW</span>
+                    )}
                   </button>
                 </div>
 
@@ -1165,6 +1492,16 @@ ${transcriptText}
                 </motion.div>
               )}
 
+              {/* 자기평가 리포트 */}
+              {activeTab === 'selfeval' && analysisResult.teacherSelfEval && (
+                <SelfEvalTab
+                  selfEval={analysisResult.teacherSelfEval}
+                  classEval={analysisResult.classEvaluation}
+                  lessonGoal={analysisResult.lessonGoal}
+                  lessonKeywords={analysisResult.lessonKeywords}
+                />
+              )}
+
               {/* 전체 전사본 */}
               <div className="surface-card shadow-ambient overflow-hidden">
                 <button
@@ -1245,6 +1582,7 @@ ${transcriptText}
               const avgScoreVal = analysis
                 ? (EVAL_ITEMS.reduce((a, { key }) => a + (analysis.classEvaluation[key as keyof ClassEvaluation] as number), 0) / EVAL_ITEMS.length).toFixed(1)
                 : null;
+              const selfEval = analysis?.teacherSelfEval;
 
               return (
                 <motion.div
@@ -1265,6 +1603,11 @@ ${transcriptText}
                               {session.subject}
                             </span>
                           )}
+                          {selfEval && (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">
+                              자기평가 있음
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                           <span className="text-xs text-on-surface-variant font-medium">
@@ -1283,6 +1626,11 @@ ${transcriptText}
                                 ★ {avgScoreVal} / 5.0
                               </span>
                             </>
+                          )}
+                          {selfEval && (
+                            <span className="text-xs font-black text-violet-600">
+                              목표달성 {selfEval.goalAchievement}/5
+                            </span>
                           )}
                         </div>
                       </div>
@@ -1375,6 +1723,35 @@ ${transcriptText}
                                   </div>
                                 </div>
                               </div>
+
+                              {/* 자기평가 요약 (기록 보기) */}
+                              {selfEval && (
+                                <div>
+                                  <p className="text-[11px] font-black text-violet-600 uppercase tracking-wider mb-3">선생님 자기평가</p>
+                                  {analysis.lessonGoal && (
+                                    <div className="p-3 bg-violet-50 rounded-xl border border-violet-100 mb-3">
+                                      <p className="text-[10px] font-black text-violet-500 mb-1">수업 목표</p>
+                                      <p className="text-xs text-violet-800">{analysis.lessonGoal}</p>
+                                    </div>
+                                  )}
+                                  <div className="grid grid-cols-3 gap-2 mb-3">
+                                    {[
+                                      { label: '목표 달성', value: selfEval.goalAchievement },
+                                      { label: '개념 전달', value: selfEval.coreConceptCoverage },
+                                      { label: '질문 기술', value: selfEval.questioningSkills },
+                                    ].map(({ label, value }) => (
+                                      <div key={label} className="p-2.5 bg-surface-container-low rounded-xl text-center">
+                                        <p className="text-[10px] font-bold text-on-surface-variant mb-1">{label}</p>
+                                        <p className={`text-lg font-black ${value >= 4 ? 'text-green-600' : value >= 3 ? 'text-amber-500' : 'text-red-500'}`}>{value}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="p-3 bg-violet-50 rounded-xl border border-violet-100">
+                                    <p className="text-[10px] font-black text-violet-600 uppercase mb-1">다음 수업 실행 과제</p>
+                                    <p className="text-xs text-violet-800 leading-relaxed">{selfEval.nextActionItem}</p>
+                                  </div>
+                                </div>
+                              )}
                             </>
                           ) : (
                             <div className="flex items-center gap-2 px-3 py-2 bg-surface-container rounded-xl w-fit">
