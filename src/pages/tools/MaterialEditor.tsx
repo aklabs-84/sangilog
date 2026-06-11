@@ -149,9 +149,9 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
           </span>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 font-bold text-sm transition-all"
           >
-            <XIcon size={18} />
+            <ArrowLeft size={15} /> 나가기
           </button>
         </div>
       </div>
@@ -245,10 +245,9 @@ const PreviewFullscreenModal = ({
         </div>
         <button
           onClick={onClose}
-          className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
-          title="닫기 (ESC)"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-bold text-sm transition-colors"
         >
-          <XIcon size={18} />
+          <ArrowLeft size={15} /> 나가기
         </button>
       </div>
       {/* 본문 */}
