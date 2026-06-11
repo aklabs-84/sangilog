@@ -1,14 +1,15 @@
-import { useEditor, EditorContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
+import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react';
 import type { NodeViewProps } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
 import LinkExtension from '@tiptap/extension-link';
 import ImageExtension from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
+import { Node, mergeAttributes } from '@tiptap/core';
 import { useEffect, useRef, useState } from 'react';
 import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
-  Link2, ImageIcon, Minus, Loader2, Globe,
+  Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight,
 } from 'lucide-react';
 
 // ── 리사이즈 가능한 이미지 NodeView ──────────────────────────────────────────
@@ -78,7 +79,6 @@ const ResizableImage = ImageExtension.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
-      // title: width:NNN 형식을 필터링하여 실제 title만 저장
       title: {
         default: null,
         parseHTML: el => {
@@ -87,7 +87,6 @@ const ResizableImage = ImageExtension.extend({
         },
         renderHTML: attrs => attrs.title ? { title: attrs.title } : {},
       },
-      // width: title="width:NNN" 또는 width 속성에서 파싱
       width: {
         default: null,
         parseHTML: el => {
@@ -103,7 +102,6 @@ const ResizableImage = ImageExtension.extend({
       },
     };
   },
-  // tiptap-markdown이 이 serialize 함수를 사용해 마크다운으로 직렬화
   addStorage() {
     return {
       markdown: {
@@ -115,12 +113,105 @@ const ResizableImage = ImageExtension.extend({
             : node.attrs.title ? ` "${node.attrs.title}"` : '';
           state.write(`![${alt}](${src}${titlePart})`);
         },
-        parse: { /* markdown-it 처리 */ },
+        parse: {},
       },
     };
   },
   addNodeView() {
     return ReactNodeViewRenderer(ResizableImageView);
+  },
+});
+
+// ── Details (Toggle) NodeView ─────────────────────────────────────────────────
+const DetailsView = ({ node, updateAttributes, selected }: NodeViewProps) => {
+  const [summary, setSummary] = useState<string>(node.attrs.summary || '토글 제목');
+
+  useEffect(() => {
+    setSummary(node.attrs.summary || '토글 제목');
+  }, [node.attrs.summary]);
+
+  return (
+    <NodeViewWrapper>
+      <div className={`my-2 rounded-xl border-2 overflow-hidden transition-colors ${selected ? 'border-primary' : 'border-surface-container'}`}>
+        {/* 토글 헤더 */}
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-container-low border-b border-surface-container">
+          <ChevronRight size={14} className="text-primary shrink-0" />
+          <input
+            type="text"
+            value={summary}
+            onChange={e => setSummary(e.target.value)}
+            onBlur={() => updateAttributes({ summary })}
+            onKeyDown={e => {
+              e.stopPropagation();
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+            className="font-black text-sm flex-1 outline-none bg-transparent text-on-surface"
+            placeholder="토글 제목"
+          />
+          <span className="text-[10px] text-on-surface-variant/40 font-bold shrink-0">TOGGLE</span>
+        </div>
+        {/* 내용 (에디터에서는 항상 표시) */}
+        <NodeViewContent className="px-4 py-3 min-h-[2.5rem] text-sm" />
+      </div>
+    </NodeViewWrapper>
+  );
+};
+
+// ── Details (Toggle) Extension ────────────────────────────────────────────────
+const DetailsExtension = Node.create({
+  name: 'details',
+  group: 'block',
+  content: 'block+',
+  defining: true,
+  isolating: true,
+
+  addAttributes() {
+    return {
+      summary: { default: '토글 제목' },
+    };
+  },
+
+  parseHTML() {
+    return [{
+      tag: 'details',
+      getAttrs: node => ({
+        summary: (node as HTMLElement).querySelector(':scope > summary')?.textContent?.trim() || '토글',
+      }),
+      contentElement: node => {
+        const el = node as HTMLElement;
+        const wrapper = document.createElement('div');
+        el.childNodes.forEach(child => {
+          if ((child as HTMLElement).tagName?.toLowerCase() !== 'summary') {
+            wrapper.appendChild(child.cloneNode(true));
+          }
+        });
+        return wrapper;
+      },
+    }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['details', mergeAttributes(HTMLAttributes), 0];
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any, node: any) {
+          const summary = (node.attrs.summary || '토글')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          state.write(`<details>\n<summary>${summary}</summary>\n\n`);
+          state.renderContent(node);
+          state.ensureNewLine();
+          state.write('</details>\n\n');
+        },
+        parse: {},
+      },
+    };
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(DetailsView);
   },
 });
 
@@ -137,20 +228,21 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkText, setLinkText] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
-
   const [imageUrlDialogOpen, setImageUrlDialogOpen] = useState(false);
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [imageAltInput, setImageAltInput] = useState('');
-
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastMarkdownRef = useRef(value);
+
+  // handleImageFile을 useEditor 내부 handlePaste에서 참조하기 위한 ref
+  const uploadFnRef = useRef<((file: File) => Promise<void>) | null>(null);
 
   const editor = useEditor({
     extensions: [
       StarterKit,
       Markdown.configure({
-        html: false,
+        html: true,  // <details> HTML 파싱을 위해 활성화
         tightLists: true,
         bulletListMarker: '-',
         transformPastedText: true,
@@ -158,6 +250,7 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
       }),
       LinkExtension.configure({ openOnClick: false }),
       ResizableImage,
+      DetailsExtension,
       Placeholder.configure({
         placeholder: '내용을 입력하세요...',
       }),
@@ -171,8 +264,37 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
     },
     editorProps: {
       attributes: { class: 'rich-editor-content outline-none' },
+      handlePaste: (_view, event) => {
+        const items = Array.from(event.clipboardData?.items || []);
+        const imgItem = items.find(i => i.type.startsWith('image/'));
+        if (imgItem) {
+          event.preventDefault();
+          const file = imgItem.getAsFile();
+          if (file && uploadFnRef.current) {
+            uploadFnRef.current(file);
+          }
+          return true;
+        }
+        return false;
+      },
     },
   });
+
+  // 이미지 파일 업로드 + 에디터 삽입
+  const handleImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) { alert('이미지 파일만 업로드 가능합니다.'); return; }
+    if (!onUploadImage) return;
+    try {
+      const url = await onUploadImage(file);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editor?.chain().focus().setImage({ src: url, alt: file.name.replace(/\.[^.]+$/, '') } as any).run();
+    } catch {
+      // 오류는 MaterialEditor에서 처리
+    }
+  };
+
+  // 최신 uploadFn을 ref에 동기화
+  uploadFnRef.current = handleImageFile;
 
   useEffect(() => {
     if (!editor) return;
@@ -182,17 +304,6 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
     }
   }, [value, editor]);
 
-  const handleImageFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) { alert('이미지 파일만 업로드 가능합니다.'); return; }
-    if (!onUploadImage) return;
-    try {
-      const url = await onUploadImage(file);
-      editor?.chain().focus().setImage({ src: url, alt: file.name.replace(/\.[^.]+$/, '') } as Parameters<ReturnType<typeof editor.chain>['setImage']>[0]).run();
-    } catch {
-      // 오류는 MaterialEditor에서 처리
-    }
-  };
-
   const handleInsertLink = () => {
     if (!editor || !linkUrl.trim()) return;
     editor.chain().focus().setLink({ href: linkUrl.trim() }).insertContent(linkText.trim() || linkUrl.trim()).run();
@@ -201,8 +312,18 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
 
   const handleInsertImageUrl = () => {
     if (!editor || !imageUrlInput.trim()) return;
-    editor.chain().focus().setImage({ src: imageUrlInput.trim(), alt: imageAltInput.trim() } as Parameters<ReturnType<typeof editor.chain>['setImage']>[0]).run();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    editor.chain().focus().setImage({ src: imageUrlInput.trim(), alt: imageAltInput.trim() } as any).run();
     setImageUrlDialogOpen(false); setImageUrlInput(''); setImageAltInput('');
+  };
+
+  const handleInsertToggle = () => {
+    if (!editor) return;
+    editor.chain().focus().insertContent({
+      type: 'details',
+      attrs: { summary: '토글 제목' },
+      content: [{ type: 'paragraph' }],
+    }).run();
   };
 
   if (!editor) return null;
@@ -234,31 +355,17 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
         <button onClick={() => editor.chain().focus().setHorizontalRule().run()} title="구분선 (슬라이드 구분)" className={btnCls(false)}><Minus size={15} /></button>
         <button onClick={() => setLinkDialogOpen(true)} title="링크 삽입" className={btnCls(isActive('link'))}><Link2 size={15} /></button>
         {sep}
-        {/* 이미지: 파일 업로드 */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          title={uploading ? '업로드 중...' : '이미지 파일 업로드 (자동 WebP 변환)'}
-          disabled={uploading}
-          className={btnCls(false) + ' disabled:opacity-50'}
-        >
+        <button onClick={() => fileInputRef.current?.click()} title={uploading ? '업로드 중...' : '이미지 파일 업로드 (자동 WebP 변환, 클립보드 붙여넣기 가능)'} disabled={uploading} className={btnCls(false) + ' disabled:opacity-50'}>
           {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
         </button>
-        {/* 이미지: URL 입력 */}
-        <button
-          onClick={() => setImageUrlDialogOpen(true)}
-          title="이미지 URL로 추가"
-          className={btnCls(false)}
-        >
-          <Globe size={15} />
+        <button onClick={() => setImageUrlDialogOpen(true)} title="이미지 URL로 추가" className={btnCls(false)}><Globe size={15} /></button>
+        {sep}
+        <button onClick={handleInsertToggle} title="토글 블록 삽입" className={btnCls(isActive('details'))}>
+          <ChevronRight size={15} />
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) { handleImageFile(f); e.target.value = ''; } }}
-        />
-        <span className="ml-auto text-[10px] text-on-surface-variant font-bold opacity-60">이미지: 파일 업로드 또는 URL 삽입 가능</span>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) { handleImageFile(f); e.target.value = ''; } }} />
+        <span className="ml-auto text-[10px] text-on-surface-variant font-bold opacity-60">이미지: 파일/URL/붙여넣기</span>
       </div>
 
       {/* ── 에디터 본문 ── */}
@@ -308,23 +415,8 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
             <h3 className="font-black text-base">🖼️ 이미지 URL로 추가</h3>
             <p className="text-xs text-on-surface-variant font-bold">외부 이미지 주소를 입력하면 직접 삽입됩니다.</p>
             <div className="space-y-2">
-              <input
-                type="url"
-                value={imageUrlInput}
-                onChange={e => setImageUrlInput(e.target.value)}
-                placeholder="https://example.com/image.png"
-                className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none"
-                autoFocus
-                onKeyDown={e => e.key === 'Enter' && handleInsertImageUrl()}
-              />
-              <input
-                type="text"
-                value={imageAltInput}
-                onChange={e => setImageAltInput(e.target.value)}
-                placeholder="이미지 설명 (선택)"
-                className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none"
-                onKeyDown={e => e.key === 'Enter' && handleInsertImageUrl()}
-              />
+              <input type="url" value={imageUrlInput} onChange={e => setImageUrlInput(e.target.value)} placeholder="https://example.com/image.png" className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none" autoFocus onKeyDown={e => e.key === 'Enter' && handleInsertImageUrl()} />
+              <input type="text" value={imageAltInput} onChange={e => setImageAltInput(e.target.value)} placeholder="이미지 설명 (선택)" className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none" onKeyDown={e => e.key === 'Enter' && handleInsertImageUrl()} />
             </div>
             <div className="flex gap-2">
               <button onClick={() => { setImageUrlDialogOpen(false); setImageUrlInput(''); setImageAltInput(''); }} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">취소</button>

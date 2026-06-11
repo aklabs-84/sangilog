@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import rehypeRaw from 'rehype-raw';
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -101,6 +102,16 @@ const slideComponents: any = {
   },
   a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">{children}</a>,
   hr: () => <hr className="border-white/10 my-5" />,
+  details: ({ children }: any) => (
+    <details className="my-3 rounded-xl border border-white/15 overflow-hidden">
+      {children}
+    </details>
+  ),
+  summary: ({ children }: any) => (
+    <summary className="px-4 py-2.5 bg-white/10 cursor-pointer font-black text-lg text-white/90 list-none flex items-center gap-2 select-none hover:bg-white/15 transition-colors">
+      <span className="text-sm opacity-70">▶</span> {children}
+    </summary>
+  ),
 };
 
 // ── 프레젠테이션 모달 ─────────────────────────────────────────────────────────
@@ -156,7 +167,7 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
             className="bg-gradient-to-br from-[#141428] to-[#0f0f1e] rounded-3xl border border-white/8 p-14 shadow-2xl"
             style={{ animation: 'slideIn 0.25s ease-out' }}
           >
-            <ReactMarkdown components={slideComponents}>
+            <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
               {slides[current]}
             </ReactMarkdown>
           </div>
@@ -260,6 +271,16 @@ const mdComponents: any = {
   ),
   td: ({ children }: any) => (
     <td className="border border-surface-container px-3 py-2">{children}</td>
+  ),
+  details: ({ children }: any) => (
+    <details className="my-3 rounded-xl border border-surface-container overflow-hidden">
+      {children}
+    </details>
+  ),
+  summary: ({ children }: any) => (
+    <summary className="px-4 py-2.5 bg-surface-container-low cursor-pointer font-black text-sm list-none flex items-center gap-2 select-none hover:bg-surface-container transition-colors">
+      <span className="text-primary text-xs">▶</span> {children}
+    </summary>
   ),
 };
 
@@ -566,7 +587,7 @@ const MaterialEditor = () => {
           ) : (
             <div className="min-h-[440px] p-6 overflow-auto bg-white">
               {content.trim() ? (
-                <ReactMarkdown components={mdComponents}>{content}</ReactMarkdown>
+                <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{content}</ReactMarkdown>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-3 opacity-30">
                   <EyeOff size={32} />
@@ -733,7 +754,7 @@ const MaterialEditor = () => {
                     )}
                     {material.content ? (
                       <div className="p-5 max-h-80 overflow-y-auto">
-                        <ReactMarkdown components={mdComponents}>{material.content}</ReactMarkdown>
+                        <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{material.content}</ReactMarkdown>
                       </div>
                     ) : (
                       <p className="px-5 py-4 text-sm font-bold text-on-surface-variant opacity-50">작성된 내용이 없습니다.</p>
