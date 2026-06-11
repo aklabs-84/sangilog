@@ -9,11 +9,20 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { useEffect, useRef, useState } from 'react';
 import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
-  Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight,
+  Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
 } from 'lucide-react';
 
+// ── 노드 삭제 헬퍼 ────────────────────────────────────────────────────────────
+const deleteNodeAt = (editor: NodeViewProps['editor'], getPos: NodeViewProps['getPos'], nodeSize: number) => {
+  if (typeof getPos !== 'function') return;
+  const pos = getPos();
+  if (typeof pos !== 'number') return;
+  const tr = editor.view.state.tr.delete(pos, pos + nodeSize);
+  editor.view.dispatch(tr);
+};
+
 // ── 리사이즈 가능한 이미지 NodeView ──────────────────────────────────────────
-const ResizableImageView = ({ node, updateAttributes, selected }: NodeViewProps) => {
+const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }: NodeViewProps) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const isResizing = useRef(false);
   const startX = useRef(0);
@@ -54,6 +63,15 @@ const ResizableImageView = ({ node, updateAttributes, selected }: NodeViewProps)
       />
       {selected && (
         <>
+          {/* 삭제 버튼 */}
+          <button
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
+            className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center z-10 transition-colors"
+            title="이미지 삭제"
+          >
+            <X size={12} />
+          </button>
+          {/* 리사이즈 핸들 */}
           <div
             className="absolute bottom-0 right-0 w-5 h-5 bg-primary rounded-tl-lg cursor-se-resize z-10 flex items-center justify-center"
             onMouseDown={onResizeStart}
@@ -123,7 +141,7 @@ const ResizableImage = ImageExtension.extend({
 });
 
 // ── Details (Toggle) NodeView ─────────────────────────────────────────────────
-const DetailsView = ({ node, updateAttributes, selected }: NodeViewProps) => {
+const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeViewProps) => {
   const [summary, setSummary] = useState<string>(node.attrs.summary || '토글 제목');
 
   useEffect(() => {
@@ -149,6 +167,14 @@ const DetailsView = ({ node, updateAttributes, selected }: NodeViewProps) => {
             placeholder="토글 제목"
           />
           <span className="text-[10px] text-on-surface-variant/40 font-bold shrink-0">TOGGLE</span>
+          {/* 삭제 버튼 */}
+          <button
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
+            className="p-1 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+            title="토글 블록 삭제"
+          >
+            <X size={13} />
+          </button>
         </div>
         {/* 내용 (에디터에서는 항상 표시) */}
         <NodeViewContent className="px-4 py-3 min-h-[2.5rem] text-sm" />
