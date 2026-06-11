@@ -143,6 +143,7 @@ const ResizableImage = ImageExtension.extend({
 // ── Details (Toggle) NodeView ─────────────────────────────────────────────────
 const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeViewProps) => {
   const [summary, setSummary] = useState<string>(node.attrs.summary || '토글 제목');
+  const [open, setOpen] = useState(true);
 
   useEffect(() => {
     setSummary(node.attrs.summary || '토글 제목');
@@ -152,8 +153,19 @@ const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeV
     <NodeViewWrapper>
       <div className={`my-2 rounded-xl border-2 overflow-hidden transition-colors ${selected ? 'border-primary' : 'border-surface-container'}`}>
         {/* 토글 헤더 */}
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-container-low border-b border-surface-container">
-          <ChevronRight size={14} className="text-primary shrink-0" />
+        <div className={`flex items-center gap-2 px-4 py-2.5 bg-surface-container-low transition-colors ${open ? 'border-b border-surface-container' : ''}`}>
+          {/* 접기/펼치기 화살표 */}
+          <button
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
+            onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+            className="p-0.5 rounded hover:bg-surface-container transition-colors shrink-0"
+            title={open ? '접기' : '펼치기'}
+          >
+            <ChevronRight
+              size={14}
+              className={`text-primary transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+            />
+          </button>
           <input
             type="text"
             value={summary}
@@ -178,8 +190,10 @@ const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeV
             <X size={13} />
           </button>
         </div>
-        {/* 내용 (에디터에서는 항상 표시) */}
-        <NodeViewContent className="px-4 py-3 min-h-[2.5rem] text-sm" />
+        {/* 내용: open 상태에 따라 표시/숨김 (NodeViewContent는 DOM에 유지) */}
+        <div className={open ? '' : 'hidden'}>
+          <NodeViewContent className="px-4 py-3 min-h-[2.5rem] text-sm" />
+        </div>
       </div>
     </NodeViewWrapper>
   );
