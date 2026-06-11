@@ -66,6 +66,7 @@ export default function StudentJoin() {
   const [joining, setJoining] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [prevBoards, setPrevBoards] = useState<PreviousBoard[]>([]);
+  const [myGroupName, setMyGroupName] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -134,6 +135,12 @@ export default function StudentJoin() {
     setLoading(true);
     setError('');
 
+    // 익명 로그인 (그룹 조회 RLS 통과를 위해 미리 처리)
+    const { data: { user: existingUser } } = await supabase.auth.getUser();
+    if (!existingUser) {
+      await supabase.auth.signInAnonymously();
+    }
+
     // class_id 기준으로 조회 — 해당 클래스에 연결된 보드만 표시
     const { data: boardData } = await supabase
       .from('whiteboards')
@@ -147,10 +154,47 @@ export default function StudentJoin() {
       return;
     }
 
-    const boardIds = boardData.map(b => b.id);
-    const counts = await fetchMemberCounts(boardIds);
+    // 이름으로 내 조 자동 찾기 (class_groups → class_group_members → students)
+    let foundGroupName: string | null = null;
+    try {
+      const { data: classGroups } = await supabase
+        .from('class_groups')
+        .select('id, name')
+        .eq('class_id', session.class_id);
 
-    setBoards(boardData.map(b => ({
+      if (classGroups && classGroups.length > 0) {
+        const groupIds = classGroups.map((g: { id: string }) => g.id);
+        const { data: members } = await supabase
+          .from('class_group_members')
+          .select('group_id, students(full_name)')
+          .in('group_id', groupIds);
+
+        if (members) {
+          const matched = (members as Array<{
+            group_id: string;
+            students: { full_name: string } | null;
+          }>).find(m => (m.students?.full_name ?? '').trim() === name.trim());
+
+          if (matched) {
+            const grp = classGroups.find((g: { id: string }) => g.id === matched.group_id);
+            foundGroupName = grp?.name ?? null;
+          }
+        }
+      }
+    } catch {
+      // 조 찾기 실패 → 전체 보드 표시 (폴백)
+    }
+
+    // 내 조 보드만 필터 (못 찾거나 매칭 보드 없으면 전체 표시)
+    const filtered = foundGroupName ? boardData.filter(b => b.group_name === foundGroupName) : [];
+    const displayBoards = filtered.length > 0 ? filtered : boardData;
+    if (filtered.length === 0) foundGroupName = null;
+
+    const displayBoardIds = displayBoards.map(b => b.id);
+    const counts = await fetchMemberCounts(displayBoardIds);
+
+    setMyGroupName(foundGroupName);
+    setBoards(displayBoards.map(b => ({
       id: b.id,
       group_number: b.group_number,
       group_name: b.group_name ?? `${b.group_number}조`,
@@ -163,7 +207,7 @@ export default function StudentJoin() {
     // 로비 폴링 (3초) — 활성 세션에서만
     if (session.status === 'active') {
       pollRef.current = setInterval(async () => {
-        const updatedCounts = await fetchMemberCounts(boardIds);
+        const updatedCounts = await fetchMemberCounts(displayBoardIds);
         setBoards(prev => prev.map(b => ({ ...b, memberCount: updatedCounts[b.id] ?? 0 })));
       }, 3000);
     }
@@ -372,15 +416,27 @@ export default function StudentJoin() {
 
             {/* 종료된 세션 안내 배너 */}
             {isEndedSession && (
-              <div style={{ background: '#1C1917', border: '1px solid #44403C', borderRadius: 10, padding: '10px 16px', marginBottom: 16, textAlign: 'center' }}>
+              <div style={{ background: '#1C1917', border: '1px solid #44403C', borderRadius: 10, padding: '10px 16px', marginBottom: 12, textAlign: 'center' }}>
                 <p style={{ color: '#A8A29E', fontSize: 13, margin: 0 }}>
                   수업은 종료되었지만 기존 보드에서 이어서 작업할 수 있어요. 내 조를 선택하세요.
                 </p>
               </div>
             )}
 
+            {/* 내 조 자동 매칭 배너 */}
+            {myGroupName && (
+              <div style={{ background: '#0D2137', border: '1px solid #1E40AF', borderRadius: 10, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', flexShrink: 0 }} />
+                <p style={{ color: '#93C5FD', fontSize: 13, margin: 0 }}>
+                  <strong>{name}</strong>님은 <strong style={{ color: '#fff' }}>{myGroupName}</strong> 조로 배정되어 있습니다.
+                </p>
+              </div>
+            )}
+
             <p style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 14, textAlign: 'center' }}>
-              {isEndedSession ? '내 조 보드 선택' : '내 조를 선택해서 입장하세요'}
+              {myGroupName
+                ? `${myGroupName} 보드에 입장하세요`
+                : isEndedSession ? '내 조 보드 선택' : '내 조를 선택해서 입장하세요'}
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
