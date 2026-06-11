@@ -5,11 +5,13 @@ import { Markdown } from 'tiptap-markdown';
 import LinkExtension from '@tiptap/extension-link';
 import ImageExtension from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
+import CodeBlockExt from '@tiptap/extension-code-block';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { useEffect, useRef, useState } from 'react';
 import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
+  Copy, Check,
 } from 'lucide-react';
 
 // ── 노드 삭제 헬퍼 ────────────────────────────────────────────────────────────
@@ -257,6 +259,50 @@ const DetailsExtension = Node.create({
   },
 });
 
+// ── 코드블록 NodeView (복사 버튼 포함) ───────────────────────────────────────
+const CodeBlockView = ({ node }: NodeViewProps) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const code = node.textContent;
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = code;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <NodeViewWrapper className="relative my-3 group">
+      <pre className="bg-[#1e293b] rounded-xl px-5 py-4 overflow-x-auto">
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <NodeViewContent as={"code" as any} className="text-[#e2e8f0] text-sm font-mono" />
+      </pre>
+      <button
+        onMouseDown={e => e.preventDefault()}
+        onClick={handleCopy}
+        className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white text-[11px] font-bold transition-all opacity-0 group-hover:opacity-100"
+        title="코드 복사"
+      >
+        {copied ? <><Check size={11} /> 복사됨</> : <><Copy size={11} /> 복사</>}
+      </button>
+    </NodeViewWrapper>
+  );
+};
+
+const CustomCodeBlock = CodeBlockExt.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(CodeBlockView);
+  },
+});
+
 // ── RichEditor ────────────────────────────────────────────────────────────────
 interface RichEditorProps {
   value: string;
@@ -282,7 +328,8 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ codeBlock: false }),
+      CustomCodeBlock,
       Markdown.configure({
         html: true,  // <details> HTML 파싱을 위해 활성화
         tightLists: true,

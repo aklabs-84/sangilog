@@ -30,6 +30,7 @@ import {
   Loader2, ChevronDown, Globe, Lock,
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   ExternalLink, Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
+  Maximize2,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -218,6 +219,50 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
   );
 };
 
+// ── 미리보기 전체화면 모달 ────────────────────────────────────────────────────
+const PreviewFullscreenModal = ({
+  title,
+  content,
+  onClose,
+}: {
+  title: string;
+  content: string;
+  onClose: () => void;
+}) => {
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[9998] bg-white flex flex-col">
+      {/* 상단 바 */}
+      <div className="flex items-center justify-between px-6 py-3.5 border-b border-surface-container bg-surface-container-low shrink-0">
+        <div className="flex items-center gap-2">
+          <Eye size={16} className="text-primary" />
+          <span className="font-black text-sm truncate max-w-xs">{title || '미리보기'}</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
+          title="닫기 (ESC)"
+        >
+          <XIcon size={18} />
+        </button>
+      </div>
+      {/* 본문 */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-8 py-10">
+          <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>
+            {content}
+          </ReactMarkdown>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── 마크다운 컴포넌트 렌더러 ──────────────────────────────────────────────────
 const mdComponents: any = {
   h1: ({ children }: any) => <h1 className="text-2xl font-black mb-4 mt-6 text-on-surface">{children}</h1>,
@@ -314,6 +359,7 @@ const MaterialEditor = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [presentingMaterial, setPresentingMaterial] = useState<Material | null>(null);
+  const [previewFullscreen, setPreviewFullscreen] = useState(false);
 
   useEffect(() => {
     if (user) fetchClasses();
@@ -479,6 +525,13 @@ const MaterialEditor = () => {
     {presentingMaterial && (
       <PresentationModal material={presentingMaterial} onClose={() => setPresentingMaterial(null)} />
     )}
+    {previewFullscreen && (
+      <PreviewFullscreenModal
+        title={title}
+        content={content}
+        onClose={() => setPreviewFullscreen(false)}
+      />
+    )}
     <div className="space-y-5">
       {/* ── 상단: 클래스 선택 + 새 자료 버튼 ── */}
       <div className="flex items-center gap-3">
@@ -585,9 +638,18 @@ const MaterialEditor = () => {
               uploading={uploading}
             />
           ) : (
-            <div className="min-h-[440px] p-6 overflow-auto bg-white">
+            <div className="relative min-h-[440px] p-6 overflow-auto bg-white">
               {content.trim() ? (
-                <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{content}</ReactMarkdown>
+                <>
+                  <button
+                    onClick={() => setPreviewFullscreen(true)}
+                    className="absolute top-3 right-3 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors z-10"
+                    title="전체 화면으로 보기"
+                  >
+                    <Maximize2 size={15} />
+                  </button>
+                  <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{content}</ReactMarkdown>
+                </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-3 opacity-30">
                   <EyeOff size={32} />
