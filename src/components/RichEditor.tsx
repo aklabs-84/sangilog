@@ -1,4 +1,4 @@
-import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react';
+import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer, ReactRenderer } from '@tiptap/react';
 import type { NodeViewProps } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
@@ -6,13 +6,152 @@ import LinkExtension from '@tiptap/extension-link';
 import ImageExtension from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockExt from '@tiptap/extension-code-block';
-import { Node, mergeAttributes } from '@tiptap/core';
-import { useEffect, useRef, useState } from 'react';
+import { Node, Extension, mergeAttributes } from '@tiptap/core';
+import Suggestion from '@tiptap/suggestion';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import type { Ref } from 'react';
 import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
   Copy, Check,
 } from 'lucide-react';
+
+// ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
+const SLASH_COMMANDS = [
+  { icon: 'H1', title: '제목 1',    description: '크고 굵은 제목',    command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run() },
+  { icon: 'H2', title: '제목 2',    description: '중간 크기 제목',    command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run() },
+  { icon: 'H3', title: '제목 3',    description: '소제목',            command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run() },
+  { icon: '•',  title: '글머리 목록', description: '순서 없는 목록',  command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).toggleBulletList().run() },
+  { icon: '1.', title: '번호 목록', description: '순서 있는 목록',    command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).toggleOrderedList().run() },
+  { icon: '❝',  title: '인용구',    description: '인용 텍스트 블록',  command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).toggleBlockquote().run() },
+  { icon: '</>', title: '코드 블록', description: '코드 스니펫',      command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run() },
+  { icon: '—',  title: '구분선',    description: '슬라이드 구분선',   command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).setHorizontalRule().run() },
+  { icon: '▶',  title: '토글 블록', description: '접을 수 있는 내용', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'details', attrs: { summary: '토글 제목' }, content: [{ type: 'paragraph' }] }).run() },
+] as const;
+
+type SlashItem = { icon: string; title: string; description: string; command: (p: any) => void };
+
+// ── 슬래시 명령어 팝업 컴포넌트 ──────────────────────────────────────────────
+interface CmdListHandle { onKeyDown: (p: { event: KeyboardEvent }) => boolean }
+
+const CommandListComponent = forwardRef(
+  ({ items, command }: { items: readonly SlashItem[]; command: (item: SlashItem) => void }, ref: Ref<CmdListHandle>) => {
+    const [sel, setSel] = useState(0);
+
+    useEffect(() => setSel(0), [items]);
+
+    useImperativeHandle(ref, () => ({
+      onKeyDown({ event }) {
+        if (event.key === 'ArrowUp')   { setSel(i => (i - 1 + items.length) % items.length); return true; }
+        if (event.key === 'ArrowDown') { setSel(i => (i + 1) % items.length); return true; }
+        if (event.key === 'Enter')     { if (items[sel]) command(items[sel]); return true; }
+        return false;
+      },
+    }));
+
+    if (items.length === 0) {
+      return (
+        <div className="bg-white rounded-2xl shadow-xl border border-surface-container px-4 py-3 w-56">
+          <p className="text-xs text-on-surface-variant font-bold text-center">명령어 없음</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-2xl shadow-xl border border-surface-container overflow-hidden py-1.5 w-60 max-h-72 overflow-y-auto">
+        <p className="px-3 pt-1 pb-1.5 text-[10px] font-black text-on-surface-variant uppercase tracking-widest">블록 삽입</p>
+        {(items as SlashItem[]).map((item, index) => (
+          <button
+            key={index}
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => command(item)}
+            className={`w-full flex items-center gap-3 px-3 py-2 transition-colors text-left ${
+              index === sel ? 'bg-primary/10' : 'hover:bg-surface-container-low'
+            }`}
+          >
+            <span className={`w-7 h-7 flex items-center justify-center rounded-lg text-[11px] font-black shrink-0 ${
+              index === sel ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant'
+            }`}>
+              {item.icon}
+            </span>
+            <div>
+              <p className={`font-black text-xs ${index === sel ? 'text-primary' : 'text-on-surface'}`}>{item.title}</p>
+              <p className="text-[10px] text-on-surface-variant">{item.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    );
+  }
+);
+CommandListComponent.displayName = 'CommandListComponent';
+
+// ── 슬래시 명령어 Extension ───────────────────────────────────────────────────
+const SlashCommandExtension = Extension.create({
+  name: 'slashCommands',
+
+  addProseMirrorPlugins() {
+    return [
+      Suggestion({
+        editor: this.editor,
+        char: '/',
+        allowSpaces: false,
+        startOfLine: false,
+        items: ({ query }: { query: string }) =>
+          SLASH_COMMANDS.filter(
+            item =>
+              !query ||
+              item.title.toLowerCase().includes(query.toLowerCase()) ||
+              item.description.toLowerCase().includes(query.toLowerCase()),
+          ) as unknown as SlashItem[],
+        command: ({ editor, range, props }: any) => {
+          props.command({ editor, range });
+        },
+        render: () => {
+          let component: ReactRenderer;
+          let container: HTMLDivElement;
+
+          const setPos = (clientRect: (() => DOMRect | null) | null) => {
+            if (!clientRect || !container) return;
+            const rect = clientRect();
+            if (!rect) return;
+            const top = rect.bottom + 4;
+            const left = rect.left;
+            // 화면 하단 넘침 방지
+            const menuH = 300;
+            container.style.top = top + menuH > window.innerHeight
+              ? `${rect.top - menuH - 4}px`
+              : `${top}px`;
+            container.style.left = `${Math.min(left, window.innerWidth - 260)}px`;
+          };
+
+          return {
+            onStart(props: any) {
+              container = document.createElement('div');
+              container.style.cssText = 'position:fixed;z-index:9999;pointer-events:auto';
+              document.body.appendChild(container);
+              component = new ReactRenderer(CommandListComponent, { props, editor: props.editor });
+              container.appendChild(component.element);
+              setPos(props.clientRect);
+            },
+            onUpdate(props: any) {
+              component.updateProps(props);
+              setPos(props.clientRect);
+            },
+            onKeyDown(props: any) {
+              if (props.event.key === 'Escape') return true;
+              return (component.ref as any)?.onKeyDown(props) ?? false;
+            },
+            onExit() {
+              container?.remove();
+              component?.destroy();
+            },
+          };
+        },
+      }),
+    ];
+  },
+});
 
 // ── 노드 삭제 헬퍼 ────────────────────────────────────────────────────────────
 const deleteNodeAt = (editor: NodeViewProps['editor'], getPos: NodeViewProps['getPos'], nodeSize: number) => {
@@ -330,6 +469,7 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
     extensions: [
       StarterKit.configure({ codeBlock: false }),
       CustomCodeBlock,
+      SlashCommandExtension,
       Markdown.configure({
         html: true,  // <details> HTML 파싱을 위해 활성화
         tightLists: true,
@@ -454,7 +594,7 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
         </button>
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) { handleImageFile(f); e.target.value = ''; } }} />
-        <span className="ml-auto text-[10px] text-on-surface-variant font-bold opacity-60">이미지: 파일/URL/붙여넣기</span>
+        <span className="ml-auto text-[10px] text-on-surface-variant font-bold opacity-60">/ 입력 → 블록 삽입</span>
       </div>
 
       {/* ── 에디터 본문 ── */}
