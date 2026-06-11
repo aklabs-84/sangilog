@@ -293,7 +293,7 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
             </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button
-                onClick={() => { setGroupCount(Math.max(2, groupCount - 1)); if (useClassGroups) setUseClassGroups(false); }}
+                onClick={() => { setGroupCount(Math.max(1, groupCount - 1)); if (useClassGroups) setUseClassGroups(false); }}
                 disabled={useClassGroups}
                 style={{ width: 32, height: 32, background: useClassGroups ? '#1F2937' : '#374151', border: 'none', borderRadius: 6, color: useClassGroups ? '#4B5563' : '#fff', cursor: useClassGroups ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
