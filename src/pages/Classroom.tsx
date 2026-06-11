@@ -2474,6 +2474,7 @@ const Classroom = () => {
         reason={upgradeModalReason ?? 'class_limit'}
       />
     </div>
+    </>
   );
 };
 
@@ -2485,8 +2486,6 @@ const DashboardSkeleton = () => (
       <div className="col-span-9 h-96 bg-surface-container rounded-[2.5rem]" />
     </div>
   </div>
-    </>
-  );
-};
+);
 
 export default Classroom;
