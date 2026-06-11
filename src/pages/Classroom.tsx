@@ -1041,7 +1041,7 @@ const Classroom = () => {
     try {
       const { data } = await supabase
         .from('class_materials')
-        .select('id, title, week_number, is_published')
+        .select('id, title, content, week_number, is_published')
         .eq('class_id', classId)
         .order('week_number', { ascending: true });
       setClassMaterials(data || []);
@@ -2394,13 +2394,8 @@ const Classroom = () => {
                             <button
                               key={`plan-${item.week}`}
                               onClick={() => {
-                                if (isMaterial && matInfo?.content) {
-                                  setFullscreenMaterial({ title: matInfo.title, content: matInfo.content });
-                                } else if (isMaterial) {
-                                  window.open(
-                                    `${window.location.origin}/dashboard/teaching-tools?tool=material-editor`,
-                                    '_blank'
-                                  );
+                                if (isMaterial && matInfo) {
+                                  setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '' });
                                 } else {
                                   window.open(item.url, '_blank');
                                 }
