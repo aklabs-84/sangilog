@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Download, Share2, Save, Check, Loader2, AlertCircle, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -21,7 +21,11 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 export default function Whiteboard() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+
+  // /wb-join 에서 진입한 학생이면 true (isAnon 체크 대신 state 기반으로 판단)
+  const fromWbJoin = !!(location.state as Record<string, unknown> | null)?.fromWbJoin;
 
   const [board, setBoard] = useState<WhiteboardType | null>(null);
   const [objects, setObjects] = useState<BoardObject[]>([]);
@@ -100,13 +104,13 @@ export default function Whiteboard() {
     onPollSync,
   );
 
-  // 정원 초과 거절 → 목록으로 이동 (익명 학생이면 wb-join으로)
+  // 정원 초과 거절 → 목록으로 이동 (학생이면 wb-join으로)
   const handleDeclineViewer = useCallback(() => {
     onDeclineViewer();
     const isAnon = (user as any)?.is_anonymous === true;
-    if (isAnon) navigate('/wb-join', { replace: true });
+    if (fromWbJoin || isAnon) navigate('/wb-join', { replace: true });
     else navigate('/teaching-tools', { state: { activeToolId: 'whiteboard' } });
-  }, [onDeclineViewer, navigate, user]);
+  }, [onDeclineViewer, navigate, user, fromWbJoin]);
 
   // 보드 로드
   useEffect(() => {
@@ -340,12 +344,12 @@ export default function Whiteboard() {
         <button
           onClick={() => {
             const isAnon = (user as any)?.is_anonymous === true;
-            if (isAnon) navigate('/wb-join', { replace: true });
+            if (fromWbJoin || isAnon) navigate('/wb-join', { replace: true });
             else navigate('/teaching-tools', { state: { activeToolId: 'whiteboard' } });
           }}
           style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}
         >
-          <ArrowLeft size={16} /> {(user as any)?.is_anonymous ? '수업 나가기' : '뒤로'}
+          <ArrowLeft size={16} /> {(fromWbJoin || (user as any)?.is_anonymous) ? '수업 나가기' : '뒤로'}
         </button>
         <div style={{ width: 1, height: 20, background: '#333' }} />
         {editingTitle ? (

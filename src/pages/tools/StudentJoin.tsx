@@ -154,33 +154,14 @@ export default function StudentJoin() {
       return;
     }
 
-    // 이름으로 내 조 자동 찾기 (class_groups → class_group_members → students)
+    // 이름으로 내 조 자동 찾기 (SECURITY DEFINER RPC로 RLS 우회)
     let foundGroupName: string | null = null;
     try {
-      const { data: classGroups } = await supabase
-        .from('class_groups')
-        .select('id, name')
-        .eq('class_id', session.class_id);
-
-      if (classGroups && classGroups.length > 0) {
-        const groupIds = classGroups.map((g: { id: string }) => g.id);
-        const { data: members } = await supabase
-          .from('class_group_members')
-          .select('group_id, students(full_name)')
-          .in('group_id', groupIds);
-
-        if (members) {
-          const matched = (members as Array<{
-            group_id: string;
-            students: { full_name: string } | null;
-          }>).find(m => (m.students?.full_name ?? '').trim() === name.trim());
-
-          if (matched) {
-            const grp = classGroups.find((g: { id: string }) => g.id === matched.group_id);
-            foundGroupName = grp?.name ?? null;
-          }
-        }
-      }
+      const { data: groupName } = await supabase.rpc('get_student_group_name', {
+        p_class_id: session.class_id,
+        p_student_name: name.trim(),
+      });
+      foundGroupName = groupName ?? null;
     } catch {
       // 조 찾기 실패 → 전체 보드 표시 (폴백)
     }
@@ -237,7 +218,7 @@ export default function StudentJoin() {
     });
 
     if (pollRef.current) clearInterval(pollRef.current);
-    navigate(`/whiteboard/${boardId}`, { replace: true });
+    navigate(`/whiteboard/${boardId}`, { replace: true, state: { fromWbJoin: true, wbCode: session.session_code } });
   };
 
   useEffect(() => {
