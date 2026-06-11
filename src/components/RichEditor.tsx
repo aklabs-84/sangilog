@@ -73,21 +73,49 @@ const ResizableImageView = ({ node, updateAttributes, selected }: NodeViewProps)
   );
 };
 
-// ── Image 확장 (width 속성 + NodeView) ───────────────────────────────────────
+// ── Image 확장 (width 속성 + NodeView + markdown 직렬화) ─────────────────────
 const ResizableImage = ImageExtension.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      // title: width:NNN 형식을 필터링하여 실제 title만 저장
+      title: {
+        default: null,
+        parseHTML: el => {
+          const t = el.getAttribute('title') || '';
+          return t.replace(/^width:\d+$/, '').trim() || null;
+        },
+        renderHTML: attrs => attrs.title ? { title: attrs.title } : {},
+      },
+      // width: title="width:NNN" 또는 width 속성에서 파싱
       width: {
         default: null,
         parseHTML: el => {
-          const w = el.getAttribute('width') || el.style.width;
-          return w ? parseInt(w) : null;
+          const w = el.getAttribute('width');
+          if (w) return parseInt(w);
+          const m = (el.getAttribute('title') || '').match(/^width:(\d+)$/);
+          return m ? parseInt(m[1]) : null;
         },
         renderHTML: attrs => {
           if (!attrs.width) return {};
           return { width: attrs.width, style: `width:${attrs.width}px;max-width:100%` };
         },
+      },
+    };
+  },
+  // tiptap-markdown이 이 serialize 함수를 사용해 마크다운으로 직렬화
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any, node: any) {
+          const src = (node.attrs.src || '').replace(/[\(\)]/g, '\\$&');
+          const alt = state.esc(node.attrs.alt || '');
+          const titlePart = node.attrs.width
+            ? ` "width:${node.attrs.width}"`
+            : node.attrs.title ? ` "${node.attrs.title}"` : '';
+          state.write(`![${alt}](${src}${titlePart})`);
+        },
+        parse: { /* markdown-it 처리 */ },
       },
     };
   },

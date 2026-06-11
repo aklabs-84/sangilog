@@ -94,7 +94,11 @@ const slideComponents: any = {
   },
   strong: ({ children }: any) => <strong className="font-black text-white">{children}</strong>,
   em: ({ children }: any) => <em className="italic text-primary-light">{children}</em>,
-  img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-2xl my-4 shadow-xl max-h-64 object-contain" />,
+  img: ({ src, alt, title }: any) => {
+    const wm = (title || '').match(/^width:(\d+)$/);
+    const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
+    return <img src={src} alt={alt} style={style} className="max-w-full rounded-2xl my-4 shadow-xl max-h-64 object-contain" />;
+  },
   a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">{children}</a>,
   hr: () => <hr className="border-white/10 my-5" />,
 };
@@ -238,9 +242,11 @@ const mdComponents: any = {
       {children}
     </a>
   ),
-  img: ({ src, alt }: any) => (
-    <img src={src} alt={alt} className="max-w-full rounded-xl my-3 shadow" />
-  ),
+  img: ({ src, alt, title }: any) => {
+    const wm = (title || '').match(/^width:(\d+)$/);
+    const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
+    return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-3 shadow" />;
+  },
   hr: () => <hr className="border-surface-container my-5" />,
   strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
   em: ({ children }: any) => <em className="italic">{children}</em>,
