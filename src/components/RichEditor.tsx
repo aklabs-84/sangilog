@@ -159,11 +159,13 @@ const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeV
             value={summary}
             onChange={e => setSummary(e.target.value)}
             onBlur={() => updateAttributes({ summary })}
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
             onKeyDown={e => {
               e.stopPropagation();
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
-            className="font-black text-sm flex-1 outline-none bg-transparent text-on-surface"
+            className="font-black text-sm flex-1 outline-none bg-transparent text-on-surface cursor-text"
             placeholder="토글 제목"
           />
           <span className="text-[10px] text-on-surface-variant/40 font-bold shrink-0">TOGGLE</span>
