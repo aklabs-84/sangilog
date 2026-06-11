@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,6 +33,8 @@ import {
   Download,
   Headphones,
   Search,
+  ArrowLeft,
+  Eye,
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -130,6 +135,7 @@ const Classroom = () => {
   // 수업 자료 관리 상태
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
+  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string } | null>(null);
   // 학급정보 수정 팝업에서 에디터 자료 선택용
   const [editingClassMaterials, setEditingClassMaterials] = useState<any[]>([]);
   const [materialDropdownIdx, setMaterialDropdownIdx] = useState<number | null>(null);
@@ -1069,6 +1075,69 @@ const Classroom = () => {
   });
 
   return (
+    <>
+    {fullscreenMaterial && createPortal(
+      <div className="fixed inset-0 z-[9999] bg-white flex flex-col">
+        <div className="flex items-center gap-3 px-5 py-3 bg-slate-800 shrink-0">
+          <button
+            onClick={() => setFullscreenMaterial(null)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-800 font-black text-sm hover:bg-slate-100 active:scale-95 transition-all shadow"
+          >
+            <ArrowLeft size={15} /> 나가기
+          </button>
+          <div className="flex items-center gap-2 ml-2">
+            <Eye size={15} className="text-white/60" />
+            <span className="font-black text-sm text-white/80 truncate max-w-xs">{fullscreenMaterial.title}</span>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl mx-auto px-8 py-10">
+            <ReactMarkdown
+              rehypePlugins={[rehypeRaw]}
+              components={{
+                h1: ({ children }: any) => <h1 className="text-2xl font-black mb-4 mt-6">{children}</h1>,
+                h2: ({ children }: any) => <h2 className="text-xl font-black mb-3 mt-5">{children}</h2>,
+                h3: ({ children }: any) => <h3 className="text-lg font-black mb-2 mt-4">{children}</h3>,
+                p: ({ children }: any) => <p className="mb-3 text-sm leading-relaxed">{children}</p>,
+                ul: ({ children }: any) => <ul className="list-disc pl-6 mb-3 space-y-1">{children}</ul>,
+                ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-3 space-y-1">{children}</ol>,
+                li: ({ children }: any) => <li className="text-sm">{children}</li>,
+                blockquote: ({ children }: any) => (
+                  <blockquote className="border-l-4 border-primary pl-4 italic text-on-surface-variant my-3 bg-surface-container-low py-2 rounded-r-xl text-sm">{children}</blockquote>
+                ),
+                code: ({ children, className }: any) => {
+                  if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
+                  return <code className={className}>{children}</code>;
+                },
+                pre: ({ children }: any) => {
+                  const child = (Array.isArray(children) ? children[0] : children) as any;
+                  const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+                  return <pre className="bg-slate-800 rounded-xl p-4 overflow-x-auto text-sm text-slate-200 font-mono my-3">{code}</pre>;
+                },
+                img: ({ src, alt, title }: any) => {
+                  const wm = (title || '').match(/^width:(\d+)$/);
+                  const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
+                  return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-3 shadow" />;
+                },
+                a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm">{children}</a>,
+                hr: () => <hr className="border-surface-container my-5" />,
+                strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
+                em: ({ children }: any) => <em className="italic">{children}</em>,
+                details: ({ children }: any) => <details className="my-3 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
+                summary: ({ children }: any) => (
+                  <summary className="px-4 py-2.5 bg-surface-container-low cursor-pointer font-black text-sm list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
+                    <span className="text-primary text-xs">▶</span> {children}
+                  </summary>
+                ),
+              }}
+            >
+              {fullscreenMaterial.content}
+            </ReactMarkdown>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
     <div className="flex flex-col relative bg-surface-container-low/20 rounded-[3rem] border border-white/40 shadow-2xl">
       {/* 1. 상단 학급 선택기 (기존 사이드바에서 수평형으로 전환) */}
       <ClassSelector 
@@ -2325,7 +2394,9 @@ const Classroom = () => {
                             <button
                               key={`plan-${item.week}`}
                               onClick={() => {
-                                if (isMaterial) {
+                                if (isMaterial && matInfo?.content) {
+                                  setFullscreenMaterial({ title: matInfo.title, content: matInfo.content });
+                                } else if (isMaterial) {
                                   window.open(
                                     `${window.location.origin}/dashboard/teaching-tools?tool=material-editor`,
                                     '_blank'
@@ -2363,17 +2434,15 @@ const Classroom = () => {
                                 </p>
                               </div>
 
-                              {/* 뱃지 + 링크 아이콘 */}
+                              {/* 뱃지 + 아이콘 */}
                               <div className="flex items-center gap-2 shrink-0">
                                 {isMaterial && matInfo?.is_published && (
                                   <span className="text-[9px] font-black px-1.5 py-0.5 bg-secondary/10 text-secondary rounded-md">공개</span>
                                 )}
-                                <ExternalLink
-                                  size={14}
-                                  className={`text-on-surface-variant/30 transition-colors ${
-                                    isMaterial ? 'group-hover:text-secondary' : 'group-hover:text-primary'
-                                  }`}
-                                />
+                                {isMaterial
+                                  ? <Maximize2 size={14} className="text-on-surface-variant/30 group-hover:text-secondary transition-colors" />
+                                  : <ExternalLink size={14} className="text-on-surface-variant/30 group-hover:text-primary transition-colors" />
+                                }
                               </div>
                             </button>
                           );
@@ -2416,6 +2485,8 @@ const DashboardSkeleton = () => (
       <div className="col-span-9 h-96 bg-surface-container rounded-[2.5rem]" />
     </div>
   </div>
-);
+    </>
+  );
+};
 
 export default Classroom;
