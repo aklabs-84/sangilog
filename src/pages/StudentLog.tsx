@@ -2255,100 +2255,25 @@ ${guidePrompt}
                           : null;
 
                         if (res.material_id && mat) {
-                          // ── 에디터 자료 카드 ──
+                          // ── 에디터 자료 카드 — 클릭 시 바로 전체화면 ──
                           return (
-                            <div key={res.week} className="bg-white rounded-2xl border border-surface-container overflow-hidden hover:border-cyan-200 transition-all">
-                              <button
-                                className="w-full flex items-center gap-3 p-4 text-left"
-                                onClick={() => {
-                                  const next = expandedMaterialId === mat.id ? null : mat.id;
-                                  setExpandedMaterialId(next);
-                                  if (next) recordMaterialView(mat.id);
-                                }}
-                              >
-                                <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xs font-black shrink-0">
-                                  {res.week}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-black text-sm">{res.topic || mat.title}</p>
-                                  <p className="text-[11px] text-cyan-600 font-bold mt-0.5">{mat.title}</p>
-                                </div>
-                                <ArrowRight
-                                  size={16}
-                                  className={`shrink-0 text-on-surface-variant transition-transform duration-200 ${
-                                    expandedMaterialId === mat.id ? 'rotate-90' : ''
-                                  }`}
-                                />
-                              </button>
-
-                              {expandedMaterialId === mat.id && (
-                                <div className="border-t border-surface-container">
-                                  {mat.url && (
-                                    <a
-                                      href={mat.url.startsWith('http') ? mat.url : `https://${mat.url}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors border-b border-surface-container"
-                                    >
-                                      <ExternalLink size={14} />
-                                      <span className="truncate">{mat.url}</span>
-                                    </a>
-                                  )}
-                                  {mat.content ? (
-                                    <div className="relative">
-                                      <button
-                                        onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content })}
-                                        className="absolute top-2 right-2 z-10 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors"
-                                        title="전체 화면으로 보기"
-                                      >
-                                        <Maximize2 size={14} />
-                                      </button>
-                                    <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
-                                      <ReactMarkdown
-                                        components={{
-                                          h1: ({ children }: any) => <h1 className="text-xl font-black mb-3 mt-4">{children}</h1>,
-                                          h2: ({ children }: any) => <h2 className="text-lg font-black mb-2 mt-3">{children}</h2>,
-                                          h3: ({ children }: any) => <h3 className="text-base font-black mb-2 mt-3">{children}</h3>,
-                                          p: ({ children }: any) => <p className="mb-2.5 text-sm leading-relaxed">{children}</p>,
-                                          ul: ({ children }: any) => <ul className="list-disc pl-5 mb-2.5 space-y-1">{children}</ul>,
-                                          ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-2.5 space-y-1">{children}</ol>,
-                                          li: ({ children }: any) => <li className="text-sm">{children}</li>,
-                                          blockquote: ({ children }: any) => (
-                                            <blockquote className="border-l-4 border-cyan-400 pl-3 italic text-on-surface-variant my-2 bg-cyan-50 py-1.5 rounded-r-lg text-sm">
-                                              {children}
-                                            </blockquote>
-                                          ),
-                                          code: ({ children, className }: any) => {
-                                            if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-xs font-mono text-primary">{children}</code>;
-                                            return <code className={className}>{children}</code>;
-                                          },
-                                          pre: ({ children }: any) => {
-                                            const child = (Array.isArray(children) ? children[0] : children) as any;
-                                            const lang = (child?.props?.className || '').replace('language-', '') || 'text';
-                                            const code = String(child?.props?.children ?? '').replace(/\n$/, '');
-                                            return <CodeBlock lang={lang} code={code} />;
-                                          },
-                                          a: ({ href, children }: any) => (
-                                            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm hover:opacity-70">{children}</a>
-                                          ),
-                                          img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-xl my-2 shadow-sm" />,
-                                          hr: () => <hr className="border-surface-container my-3" />,
-                                          strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
-                                          em: ({ children }: any) => <em className="italic">{children}</em>,
-                                        }}
-                                      >
-                                        {mat.content}
-                                      </ReactMarkdown>
-                                    </div>
-                                    </div>
-                                  ) : (
-                                    <p className="px-5 py-4 text-sm text-on-surface-variant font-bold opacity-50">
-                                      작성된 내용이 없습니다. 링크를 참고해 주세요.
-                                    </p>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                            <button
+                              key={res.week}
+                              className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-cyan-200 hover:shadow-sm transition-all"
+                              onClick={() => {
+                                recordMaterialView(mat.id);
+                                setFullscreenMaterial({ title: mat.title, content: mat.content });
+                              }}
+                            >
+                              <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center text-xs font-black shrink-0">
+                                {res.week}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-sm">{res.topic || mat.title}</p>
+                                <p className="text-[11px] text-cyan-600 font-bold mt-0.5">{mat.title}</p>
+                              </div>
+                              <Maximize2 size={15} className="shrink-0 text-on-surface-variant/50" />
+                            </button>
                           );
                         }
 
