@@ -149,7 +149,7 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
           </span>
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 font-bold text-sm transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/15 border border-white/20 text-white font-black text-sm hover:bg-white/25 transition-all"
           >
             <ArrowLeft size={15} /> 나가기
           </button>
@@ -245,7 +245,7 @@ const PreviewFullscreenModal = ({
         </div>
         <button
           onClick={onClose}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-bold text-sm transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-container border border-surface-container-high text-on-surface font-black text-sm hover:bg-surface-container-high transition-colors"
         >
           <ArrowLeft size={15} /> 나가기
         </button>
