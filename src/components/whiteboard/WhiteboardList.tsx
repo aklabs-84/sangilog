@@ -49,8 +49,11 @@ export default function WhiteboardList() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [allClasses, setAllClasses] = useState<ClassInfo[]>([]);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState<string | null>(null);
+  const [bulkConnectClassId, setBulkConnectClassId] = useState('');
+  const [bulkConnecting, setBulkConnecting] = useState(false);
   const [showStartSession, setShowStartSession] = useState(false);
   const [classLinkBoardId, setClassLinkBoardId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -96,6 +99,11 @@ export default function WhiteboardList() {
         setClassSessions(sessionMap);
       }
     }
+
+    // 선생님의 모든 클래스 로드 (연결없음 보드 일괄 연결에 사용)
+    const { data: allClassesData } = await supabase
+      .from('classes').select('id, name').eq('teacher_id', user.id).order('name');
+    setAllClasses(allClassesData || []);
 
     setClassInfos(fetchedClasses);
     setBoards(data.map(b => ({
@@ -214,6 +222,44 @@ export default function WhiteboardList() {
       await loadBoards();
     }
     setReconnecting(null);
+  };
+
+  // 연결없음 보드 일괄 클래스 연결
+  const connectAllToClass = async () => {
+    if (!bulkConnectClassId || !user || bulkConnecting) return;
+    setBulkConnecting(true);
+    const ids = filteredBoards.filter(b => !b.class_id).map(b => b.id);
+    if (ids.length === 0) { setBulkConnecting(false); return; }
+
+    const cls = allClasses.find(c => c.id === bulkConnectClassId);
+    if (!cls) { setBulkConnecting(false); return; }
+
+    await supabase.from('whiteboards')
+      .update({ class_id: bulkConnectClassId, is_public: true })
+      .in('id', ids);
+
+    const { data: existing } = await supabase
+      .from('class_board_sessions').select('id, status')
+      .eq('class_id', bulkConnectClassId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+    if (existing) {
+      if (existing.status === 'ended') {
+        await supabase.from('class_board_sessions')
+          .update({ status: 'active', expires_at: new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString() })
+          .eq('id', existing.id);
+      }
+    } else {
+      await supabase.from('class_board_sessions').insert({
+        class_id: bulkConnectClassId, class_name: cls.name, session_code: genCode(),
+        created_by: user.id, group_count: ids.length, group_size: 30,
+        expires_at: new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString(),
+      });
+    }
+
+    setBulkConnectClassId('');
+    await loadBoards();
+    setSelectedClassId(bulkConnectClassId); // 연결한 클래스 탭으로 이동
+    setBulkConnecting(false);
   };
 
   // 보드 뷰어 링크 복사 (/sb/{boardId})
@@ -410,6 +456,52 @@ export default function WhiteboardList() {
                 </button>
               )
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 연결없음 탭 — 일괄 클래스 연결 UI */}
+      {selectedClassId === NO_CLASS_TAB && boards.filter(b => !b.class_id).length > 0 && (
+        <div style={{
+          background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 12,
+          padding: '12px 16px', marginBottom: 14,
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+            <Users size={14} color="#B45309" />
+            <span style={{ color: '#B45309', fontSize: 12, fontWeight: 600 }}>클래스에 연결되지 않은 보드</span>
+            <span style={{ color: '#92400E', fontSize: 12 }}>—</span>
+            <span style={{ color: '#6B7280', fontSize: 12 }}>클래스를 선택해서 한 번에 연결하세요</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <select
+              value={bulkConnectClassId}
+              onChange={e => setBulkConnectClassId(e.target.value)}
+              style={{
+                flex: 1, minWidth: 160, padding: '6px 10px', borderRadius: 8,
+                border: '1px solid #D1D5DB', background: '#fff', fontSize: 13, color: '#374151',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="">클래스 선택...</option>
+              {allClasses.map(cls => (
+                <option key={cls.id} value={cls.id}>{cls.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={connectAllToClass}
+              disabled={!bulkConnectClassId || bulkConnecting}
+              style={{
+                padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                border: 'none',
+                background: bulkConnectClassId ? '#2563EB' : '#E5E7EB',
+                color: bulkConnectClassId ? '#fff' : '#9CA3AF',
+                cursor: bulkConnectClassId ? 'pointer' : 'not-allowed',
+                display: 'flex', alignItems: 'center', gap: 5,
+                opacity: bulkConnecting ? 0.7 : 1,
+              }}
+            >
+              <Link2 size={12} /> {bulkConnecting ? '연결 중...' : `전체 ${boards.filter(b => !b.class_id).length}개 연결`}
+            </button>
           </div>
         </div>
       )}
