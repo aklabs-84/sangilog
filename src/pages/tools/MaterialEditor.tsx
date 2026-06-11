@@ -7,7 +7,7 @@ import {
   Link2, ImageIcon, Save, Trash2, Copy, Plus,
   Loader2, ChevronDown, Globe, Lock, Minus,
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
-  ExternalLink, Users,
+  ExternalLink, Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 
@@ -23,6 +23,163 @@ interface Material {
   updated_at: string;
   view_count?: number;
 }
+
+// ── 슬라이드 파싱 ─────────────────────────────────────────────────────────────
+const parseSlides = (content: string): string[] => {
+  const slides = content.split(/\n\s*---\s*\n/).map(s => s.trim()).filter(Boolean);
+  return slides.length > 0 ? slides : [content.trim()];
+};
+
+// ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
+const slideComponents: any = {
+  h1: ({ children }: any) => (
+    <h1 className="text-5xl font-black mb-6 leading-tight text-white tracking-tight">{children}</h1>
+  ),
+  h2: ({ children }: any) => (
+    <h2 className="text-3xl font-black mb-4 mt-6 text-white/90">{children}</h2>
+  ),
+  h3: ({ children }: any) => (
+    <h3 className="text-2xl font-black mb-3 mt-5 text-white/80">{children}</h3>
+  ),
+  p: ({ children }: any) => (
+    <p className="text-xl leading-relaxed mb-4 text-white/75">{children}</p>
+  ),
+  ul: ({ children }: any) => <ul className="space-y-3 mb-4 pl-2">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-6 space-y-3 mb-4">{children}</ol>,
+  li: ({ children }: any) => (
+    <li className="flex items-start gap-3 text-xl text-white/75">
+      <span className="mt-2 w-2 h-2 rounded-full bg-primary shrink-0" />
+      <span>{children}</span>
+    </li>
+  ),
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-4 border-primary pl-6 italic text-white/60 my-4 text-xl">{children}</blockquote>
+  ),
+  code: ({ children, className }: any) => {
+    if (!className) {
+      return <code className="bg-white/10 px-2 py-0.5 rounded text-lg font-mono text-primary-light">{children}</code>;
+    }
+    return <code className={className}>{children}</code>;
+  },
+  pre: ({ children }: any) => {
+    const child = (Array.isArray(children) ? children[0] : children) as any;
+    const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return (
+      <pre className="bg-white/5 rounded-2xl p-5 overflow-auto text-base font-mono text-white/80 my-4 border border-white/10">
+        {code}
+      </pre>
+    );
+  },
+  strong: ({ children }: any) => <strong className="font-black text-white">{children}</strong>,
+  em: ({ children }: any) => <em className="italic text-primary-light">{children}</em>,
+  img: ({ src, alt }: any) => <img src={src} alt={alt} className="max-w-full rounded-2xl my-4 shadow-xl max-h-64 object-contain" />,
+  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">{children}</a>,
+  hr: () => <hr className="border-white/10 my-5" />,
+};
+
+// ── 프레젠테이션 모달 ─────────────────────────────────────────────────────────
+const PresentationModal = ({ material, onClose }: { material: Material; onClose: () => void }) => {
+  const [current, setCurrent] = useState(0);
+  const slides = parseSlides(material.content);
+  const total = slides.length;
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') setCurrent(c => Math.min(c + 1, total - 1));
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setCurrent(c => Math.max(c - 1, 0));
+      else if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [total, onClose]);
+
+  const prev = () => setCurrent(c => Math.max(c - 1, 0));
+  const next = () => setCurrent(c => Math.min(c + 1, total - 1));
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-[#0a0a14] flex flex-col select-none">
+
+      {/* 상단 바 */}
+      <div className="flex items-center justify-between px-8 py-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-primary" />
+          <span className="text-white/50 text-sm font-bold truncate max-w-xs">{material.title}</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-white/30 text-sm font-bold tabular-nums">
+            {current + 1} / {total}
+          </span>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <XIcon size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* 슬라이드 메인 영역 */}
+      <div className="flex-1 flex items-center justify-center px-16 py-10 overflow-hidden">
+        <div
+          className="w-full max-w-5xl min-h-0"
+          style={{ maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' }}
+        >
+          {/* 슬라이드 카드 */}
+          <div
+            key={current}
+            className="bg-gradient-to-br from-[#141428] to-[#0f0f1e] rounded-3xl border border-white/8 p-14 shadow-2xl"
+            style={{ animation: 'slideIn 0.25s ease-out' }}
+          >
+            <ReactMarkdown components={slideComponents}>
+              {slides[current]}
+            </ReactMarkdown>
+          </div>
+        </div>
+      </div>
+
+      {/* 하단 네비게이션 */}
+      <div className="flex items-center justify-center gap-6 px-8 py-5 border-t border-white/5">
+        <button
+          onClick={prev}
+          disabled={current === 0}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+        >
+          <ChevronLeft size={16} /> 이전
+        </button>
+
+        {/* 도트 네비게이터 */}
+        <div className="flex items-center gap-1.5">
+          {slides.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrent(i)}
+              className={`rounded-full transition-all ${
+                i === current
+                  ? 'w-6 h-2 bg-primary'
+                  : 'w-2 h-2 bg-white/20 hover:bg-white/40'
+              }`}
+            />
+          ))}
+        </div>
+
+        <button
+          onClick={next}
+          disabled={current === total - 1}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+        >
+          다음 <ChevronRight size={16} />
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateX(18px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
+    </div>
+  );
+};
 
 // ── 마크다운 컴포넌트 렌더러 ──────────────────────────────────────────────────
 const mdComponents: any = {
@@ -110,6 +267,8 @@ const MaterialEditor = () => {
   const [linkText, setLinkText] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const [presentingMaterial, setPresentingMaterial] = useState<Material | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -354,6 +513,10 @@ const MaterialEditor = () => {
   ];
 
   return (
+    <>
+    {presentingMaterial && (
+      <PresentationModal material={presentingMaterial} onClose={() => setPresentingMaterial(null)} />
+    )}
     <div className="space-y-5">
       {/* ── 상단: 클래스 선택 + 새 자료 버튼 ── */}
       <div className="flex items-center gap-3">
@@ -517,6 +680,11 @@ const MaterialEditor = () => {
 ## 핵심 개념
 내용을 작성하세요.
 
+---
+
+## 2번째 슬라이드
+--- 구분선을 기준으로 발표 모드에서 슬라이드가 나뉩니다.
+
 > 💡 팁: 이미지를 에디터에 드래그앤드롭하면 자동으로 업로드됩니다.`}
                   className="w-full min-h-[440px] p-6 font-mono text-sm bg-transparent focus:outline-none resize-y leading-relaxed"
                 />
@@ -664,6 +832,16 @@ const MaterialEditor = () => {
 
                   {/* 액션 버튼들 */}
                   <div className="flex items-center gap-1 shrink-0">
+                    {/* 발표 모드 */}
+                    {material.content && (
+                      <button
+                        onClick={() => setPresentingMaterial(material)}
+                        title="발표 모드로 보기"
+                        className="p-2 rounded-xl text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors"
+                      >
+                        <Presentation size={15} />
+                      </button>
+                    )}
                     {/* 미리보기 토글 */}
                     <button
                       onClick={() => setExpandedId(expandedId === material.id ? null : material.id)}
@@ -748,6 +926,7 @@ const MaterialEditor = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

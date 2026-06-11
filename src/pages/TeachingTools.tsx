@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
@@ -10,6 +10,16 @@ import MaterialEditor from './tools/MaterialEditor';
 import ClassTranscription from './tools/ClassTranscription';
 import WhiteboardList from '../components/whiteboard/WhiteboardList';
 import SurveyTool from './tools/SurveyTool';
+
+interface QuickGuideStep {
+  title: string;
+  desc: string;
+}
+
+interface QuickGuide {
+  steps: QuickGuideStep[];
+  tip?: string;
+}
 
 interface Tool {
   id: string;
@@ -20,6 +30,7 @@ interface Tool {
   available: boolean;
   planRequired: 'free' | 'limited' | 'pro';
   component?: React.ReactNode;
+  quickGuide?: QuickGuide;
 }
 
 const tools: Tool[] = [
@@ -31,6 +42,15 @@ const tools: Tool[] = [
     available: true,
     planRequired: 'free',
     component: <GroupPicker />,
+    quickGuide: {
+      steps: [
+        { title: '학생 목록 준비', desc: '클래스 불러오기로 학급 학생을 가져오거나 이름을 직접 입력합니다.' },
+        { title: '조 구성 방식 선택', desc: '조 수 기준 또는 인원 수 기준으로 나눌 방식을 선택하고 조장 자동 선정 여부도 설정합니다.' },
+        { title: '조 뽑기 실행', desc: '조 뽑기 버튼을 클릭하면 애니메이션과 함께 결과가 발표됩니다.' },
+        { title: '결과 저장', desc: '이미지로 저장하거나 클래스에 적용해 학급에 조 정보를 저장합니다.' },
+      ],
+      tip: '저장된 조 탭에서 이전에 저장한 조 배정을 다시 불러올 수 있습니다.',
+    },
   },
   {
     id: 'timer',
@@ -40,6 +60,14 @@ const tools: Tool[] = [
     available: true,
     planRequired: 'free',
     component: <ClassTimer />,
+    quickGuide: {
+      steps: [
+        { title: '프리셋 선택', desc: '준비(1분), 발표(3분), 쉬는 시간(5분), 모둠 활동(10분), 수업(45분) 중 선택하거나 직접 입력합니다.' },
+        { title: '시작 / 일시정지 / 초기화', desc: '▶ 버튼으로 시작하고, 다시 누르면 일시정지됩니다. 🔄로 초기화합니다.' },
+        { title: '전체화면 발표 모드', desc: '⬜ 확대 버튼으로 전체화면 전환. TV·프로젝터에 띄울 때 사용합니다.' },
+      ],
+      tip: '타이머는 다른 도구 사용 중에도 우측 하단 플로팅 버튼으로 빠르게 접근할 수 있습니다.',
+    },
   },
   {
     id: 'quiz',
@@ -50,6 +78,15 @@ const tools: Tool[] = [
     available: true,
     planRequired: 'limited',
     component: <QuizGame />,
+    quickGuide: {
+      steps: [
+        { title: '퀴즈 세트 만들기', desc: '+ 새 퀴즈 세트를 클릭해 4지선다 문제를 추가합니다. PRO는 AI 자동 생성도 가능합니다.' },
+        { title: '세션 시작', desc: '퀴즈 세트 선택 후 ▶ 세션 시작을 클릭하면 6자리 PIN이 생성됩니다.' },
+        { title: 'PIN 공유 → 학생 참여', desc: '학생은 PIN을 입력해 로비에 입장합니다. 참가자가 모이면 퀴즈 시작을 누릅니다.' },
+        { title: '진행 및 결과 확인', desc: '문제마다 정답과 실시간 순위가 표시됩니다. 마지막엔 최종 순위 화면이 나옵니다.' },
+      ],
+      tip: '무료 플랜은 퀴즈 세트당 5문항까지만 사용 가능합니다.',
+    },
   },
   {
     id: 'material-editor',
@@ -60,6 +97,15 @@ const tools: Tool[] = [
     available: true,
     planRequired: 'pro',
     component: <MaterialEditor />,
+    quickGuide: {
+      steps: [
+        { title: '클래스 · 주차 선택', desc: '상단에서 대상 클래스와 주차를 선택합니다.' },
+        { title: '마크다운으로 작성', desc: '툴바 버튼이나 마크다운 문법으로 자료를 작성합니다. 우측 미리보기에서 실시간 확인이 가능합니다.' },
+        { title: '슬라이드 구분', desc: '본문에 --- 를 입력하면 슬라이드가 구분됩니다. 슬라이드 모드로 전체화면 발표를 할 수 있습니다.' },
+        { title: '저장 후 공개', desc: '저장 후 🔒 비공개 토글을 켜면 학생이 학생 페이지에서 자료를 확인할 수 있습니다.' },
+      ],
+      tip: '# 제목 / **굵게** / - 목록 / `코드` 등 마크다운 기초 문법으로 빠르게 작성하세요.',
+    },
   },
   {
     id: 'transcription',
@@ -70,6 +116,15 @@ const tools: Tool[] = [
     available: true,
     planRequired: 'pro',
     component: <ClassTranscription />,
+    quickGuide: {
+      steps: [
+        { title: '클래스 선택', desc: '분석에 사용할 클래스를 선택합니다. 학생 이름이 AI 분석의 기준이 됩니다.' },
+        { title: '녹음 시작', desc: '🎙️ 녹음 시작을 클릭하고 마이크 권한을 허용하면 실시간으로 수업이 전사됩니다.' },
+        { title: '녹음 중지 후 AI 분석', desc: '■ 중지 후 ✨ AI 분석을 클릭합니다. 학생별 관찰·수업 평가·자기 성찰 3가지 탭으로 결과가 표시됩니다.' },
+        { title: '관찰 기록 저장', desc: '학생별 관찰 초안에서 저장 버튼을 누르면 해당 학생의 관찰기록에 바로 추가됩니다.' },
+      ],
+      tip: 'Chrome 브라우저에서 가장 잘 작동합니다. Safari·Firefox에서는 실시간 전사가 제한될 수 있습니다.',
+    },
   },
   {
     id: 'whiteboard',
@@ -80,6 +135,15 @@ const tools: Tool[] = [
     available: true,
     planRequired: 'pro',
     component: <WhiteboardList />,
+    quickGuide: {
+      steps: [
+        { title: '보드 만들기', desc: '+ 새 보드를 클릭해 보드 이름을 입력합니다.' },
+        { title: '학생 공유 링크 배포', desc: '보드 공유 버튼을 클릭해 학생용 링크를 복사하고 공유합니다.' },
+        { title: '오브젝트 추가', desc: '툴바에서 포스트잇·도형·이미지·섹션을 추가하고 드래그해 배치합니다.' },
+        { title: '단축키 활용', desc: 'Ctrl+C/V 복사·붙여넣기, Ctrl+Z 되돌리기, Delete 삭제. 섹션 색상은 우클릭 메뉴로 변경합니다.' },
+      ],
+      tip: '수업 종료 후 공유 중지 버튼을 눌러 학생 접근을 차단하세요.',
+    },
   },
   {
     id: 'survey',
@@ -90,6 +154,15 @@ const tools: Tool[] = [
     available: true,
     planRequired: 'pro',
     component: <SurveyTool />,
+    quickGuide: {
+      steps: [
+        { title: '설문 양식 만들기', desc: '+ 새 설문 만들기를 클릭해 제목을 입력하고 + 문항 추가로 원하는 타입의 문항을 추가합니다.' },
+        { title: '설문 열기 · PIN 공유', desc: '▶ 설문 열기를 클릭하면 6자리 PIN이 생성됩니다. 학생들이 PIN을 입력해 응답합니다.' },
+        { title: '실시간 결과 확인', desc: '응답이 들어오는 대로 결과 차트가 실시간으로 업데이트됩니다.' },
+        { title: 'AI 분석 · CSV 내보내기', desc: '설문 종료 후 ✨ AI 분석으로 응답을 요약하거나 CSV로 저장합니다.' },
+      ],
+      tip: '문항 타입: 객관식 · 예/아니오 · 별점 · 단답형 · 의견 척도(슬라이더) · 순위 매기기 6가지를 조합할 수 있습니다.',
+    },
   },
   {
     id: 'random-pick',
@@ -108,6 +181,7 @@ const TeachingTools = () => {
   const { profile } = useAuth();
   const [activeTool, setActiveTool] = useState<Tool | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [guideTool, setGuideTool] = useState<Tool | null>(null);
 
   const isPro = checkIsPro(profile);
 
@@ -199,6 +273,72 @@ const TeachingTools = () => {
         )}
       </AnimatePresence>
 
+      {/* 빠른 사용법 모달 */}
+      <AnimatePresence>
+        {guideTool && guideTool.quickGuide && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+            onClick={() => setGuideTool(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[85vh] overflow-y-auto"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
+                    {guideTool.icon}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-gray-900">{guideTool.label}</h3>
+                    <p className="text-xs text-gray-400">빠른 사용 가이드</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setGuideTool(null)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <ol className="flex flex-col gap-3 mb-4">
+                {guideTool.quickGuide.steps.map((step, i) => (
+                  <li key={i} className="flex gap-3 items-start">
+                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">{step.title}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{step.desc}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+
+              {guideTool.quickGuide.tip && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 leading-relaxed">
+                  <span className="font-bold">💡 팁: </span>{guideTool.quickGuide.tip}
+                </div>
+              )}
+
+              <button
+                onClick={() => { setGuideTool(null); handleToolClick(guideTool); }}
+                className="mt-4 w-full py-3 bg-primary hover:bg-primary/90 text-white font-black rounded-xl text-sm transition-colors"
+              >
+                {guideTool.planRequired === 'pro' && !isPro ? '업그레이드 필요' : '바로 시작하기 →'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {activeTool ? (
           <motion.div
@@ -277,9 +417,20 @@ const TeachingTools = () => {
                   </div>
 
                   {tool.available && (
-                    <div className={`flex items-center gap-1 text-xs font-black group-hover:gap-2 transition-all ${isLocked ? 'text-amber-500' : 'text-primary'}`}>
-                      {isLocked ? '업그레이드 필요' : '시작하기'}
-                      <ChevronRight size={14} />
+                    <div className="flex items-center justify-between">
+                      <div className={`flex items-center gap-1 text-xs font-black group-hover:gap-2 transition-all ${isLocked ? 'text-amber-500' : 'text-primary'}`}>
+                        {isLocked ? '업그레이드 필요' : '시작하기'}
+                        <ChevronRight size={14} />
+                      </div>
+                      {tool.quickGuide && (
+                        <button
+                          onClick={e => { e.stopPropagation(); setGuideTool(tool); }}
+                          className="flex items-center gap-1 text-[10px] font-bold text-gray-400 hover:text-primary transition-colors px-1.5 py-0.5 rounded-lg hover:bg-primary/10"
+                        >
+                          <HelpCircle size={12} />
+                          사용법
+                        </button>
+                      )}
                     </div>
                   )}
                 </motion.button>

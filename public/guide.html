@@ -780,6 +780,332 @@
       <span class="callout-icon">🔒</span>
       <span class="callout-text">Pro 도구를 클릭하면 업그레이드 안내 팝업이 표시됩니다. 플랜 변경은 <strong>관리자(aklabs84@naver.com)</strong>에게 문의하세요.</span>
     </div>
+
+    <!-- ── 도구별 상세 사용법 ── -->
+    <h2 style="margin-top:40px;">🗂️ 도구별 상세 사용법</h2>
+    <div class="tabs" id="tool-tabs">
+      <div class="tab-list" style="flex-wrap:wrap;">
+        <button class="tab-btn active" onclick="switchTab(this, 'tt-timer')">⏱️ 타이머</button>
+        <button class="tab-btn" onclick="switchTab(this, 'tt-group')">🎰 조 뽑기</button>
+        <button class="tab-btn" onclick="switchTab(this, 'tt-quiz')">📋 퀴즈</button>
+        <button class="tab-btn" onclick="switchTab(this, 'tt-survey')">📊 설문</button>
+        <button class="tab-btn" onclick="switchTab(this, 'tt-wb')">🖼️ 화이트보드</button>
+        <button class="tab-btn" onclick="switchTab(this, 'tt-trans')">🎙️ 수업 전사</button>
+        <button class="tab-btn" onclick="switchTab(this, 'tt-material')">📚 자료 에디터</button>
+      </div>
+
+      <!-- ⏱️ 수업 타이머 -->
+      <div class="tab-panel active" id="tab-tt-timer">
+        <h3>⏱️ 수업 타이머 — 무료</h3>
+        <p>카운트다운 또는 스톱워치로 발표 시간, 모둠 활동, 쉬는 시간을 관리합니다. 전체화면 발표 모드로 학생들과 함께 볼 수 있습니다.</p>
+        <div class="steps" style="margin-top:16px;">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-title">프리셋 선택 또는 직접 설정</div>
+              <div class="step-desc">상단 프리셋 중 <code>준비(1분)</code> <code>발표(3분)</code> <code>쉬는 시간(5분)</code> <code>모둠 활동(10분)</code> <code>수업(45분)</code>을 클릭하거나, 분·초를 직접 입력해 원하는 시간을 설정합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-title">시작 / 일시정지 / 초기화</div>
+              <div class="step-desc">▶ 버튼으로 시작하고, 일시정지 후 다시 클릭하면 재개됩니다. 🔄 버튼으로 처음 시간으로 초기화합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <div class="step-title">전체화면 발표 모드</div>
+              <div class="step-desc">⬜ 확대 버튼을 클릭하면 타이머가 전체화면으로 전환됩니다. 수업 중 TV나 프로젝터에 띄울 때 사용하세요.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <div class="step-title">알람 설정</div>
+              <div class="step-desc">🔔 아이콘으로 소리 알람을 켜거나 끕니다. 타이머가 0에 도달하면 알람이 울리며, 클릭해서 끌 수 있습니다.</div>
+            </div>
+          </div>
+        </div>
+        <div class="callout green">
+          <span class="callout-icon">💡</span>
+          <span class="callout-text">타이머는 다른 수업 도구를 사용 중에도 우측 하단 플로팅 버튼으로 빠르게 접근할 수 있습니다.</span>
+        </div>
+      </div>
+
+      <!-- 🎰 랜덤 조 뽑기 -->
+      <div class="tab-panel" id="tab-tt-group">
+        <h3>🎰 랜덤 조 뽑기 — 무료</h3>
+        <p>학생 목록을 불러오거나 직접 입력해 랜덤으로 조를 구성합니다. 결과를 이미지로 저장하거나 학급에 적용할 수 있습니다.</p>
+        <div class="steps" style="margin-top:16px;">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-title">학생 목록 준비</div>
+              <div class="step-desc"><code>클래스 불러오기</code>를 클릭해 등록된 학급에서 학생 목록을 가져오거나, 이름을 한 줄씩 입력하거나 붙여넣기로 직접 추가합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-title">조 구성 방식 선택</div>
+              <div class="step-desc"><strong>조 수 기준</strong>: 몇 조로 나눌지 설정 / <strong>인원 수 기준</strong>: 조당 몇 명으로 나눌지 설정. 조장 자동 선정 여부도 선택합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <div class="step-title">조 뽑기 실행</div>
+              <div class="step-desc"><code>조 뽑기</code> 버튼을 클릭하면 애니메이션과 함께 결과가 발표됩니다. 전체화면 발표 모드로 교실 화면에 크게 띄울 수 있습니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <div class="step-title">결과 저장 및 학급 적용</div>
+              <div class="step-desc">이미지로 저장하거나, 클래스에 조를 적용하면 학급 학생 목록에 조 정보가 저장됩니다. 저장된 조를 나중에 다시 불러올 수 있습니다.</div>
+            </div>
+          </div>
+        </div>
+        <div class="callout blue">
+          <span class="callout-icon">💡</span>
+          <span class="callout-text"><strong>저장된 조 뽑기 모드</strong>: 상단 탭에서 "저장된 조"를 선택하면 클래스에 저장된 조 배정을 다시 사용할 수 있습니다.</span>
+        </div>
+      </div>
+
+      <!-- 📋 실시간 퀴즈 -->
+      <div class="tab-panel" id="tab-tt-quiz">
+        <h3>📋 실시간 퀴즈 — 무료 5문항 / PRO 무제한</h3>
+        <p>6자리 PIN 코드로 학생이 실시간으로 참여하는 Kahoot 스타일 퀴즈입니다. AI로 문제를 자동 생성하고, 실시간 순위를 확인할 수 있습니다.</p>
+
+        <h3 style="margin-top:16px;font-size:14px;color:#92400e;">선생님 진행 방법</h3>
+        <div class="steps" style="margin-top:8px;">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-title">퀴즈 세트 만들기</div>
+              <div class="step-desc"><code>+ 새 퀴즈 세트</code>를 클릭해 제목을 입력하고 문제를 추가합니다. 각 문제는 4지선다형이며 정답과 시간 제한(기본 20초)을 설정합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-title">AI 문제 자동 생성 (PRO)</div>
+              <div class="step-desc">퀴즈 세트 편집 화면에서 <code>✨ AI 문제 생성</code>을 클릭하고 주제를 입력하면 Gemini AI가 문제를 자동으로 생성합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <div class="step-title">세션 시작 및 PIN 공유</div>
+              <div class="step-desc">퀴즈 세트를 선택 후 <code>▶ 세션 시작</code>을 클릭하면 6자리 PIN 코드가 생성됩니다. 학생들에게 PIN을 알려주세요.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <div class="step-title">문제 진행 및 결과 확인</div>
+              <div class="step-desc">참가자가 모이면 <code>퀴즈 시작</code>을 눌러 진행합니다. 각 문제 후 정답과 실시간 순위가 표시됩니다. 마지막엔 최종 순위 화면이 나옵니다.</div>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="margin-top:20px;font-size:14px;color:#92400e;">학생 참여 방법</h3>
+        <div class="steps" style="margin-top:8px;">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-title">퀴즈 참여 페이지 접속</div>
+              <div class="step-desc">선생님이 공유한 링크에 접속하거나, 생기로그 메인 화면에서 <code>퀴즈 참여</code>를 클릭합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-title">PIN 입력 및 이름 입력</div>
+              <div class="step-desc">6자리 PIN 코드를 입력하고, 자신의 이름(닉네임)을 입력해 로비에 입장합니다.</div>
+            </div>
+          </div>
+        </div>
+        <div class="callout yellow">
+          <span class="callout-icon">⚠️</span>
+          <span class="callout-text">퀴즈는 한 번에 1개의 세션만 운영할 수 있습니다. 이전 세션을 종료한 뒤 새 세션을 시작하세요.</span>
+        </div>
+      </div>
+
+      <!-- 📊 실시간 설문 -->
+      <div class="tab-panel" id="tab-tt-survey">
+        <h3>📊 실시간 설문 — PRO 전용</h3>
+        <p>객관식, 예/아니오, 별점, 단답형, 의견 척도, 순위 매기기 6가지 문항 타입을 조합해 설문을 만들고, Gemini AI로 결과를 자동 분석합니다.</p>
+        <div class="steps" style="margin-top:16px;">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-title">설문 양식 만들기</div>
+              <div class="step-desc"><code>+ 새 설문 만들기</code>를 클릭해 제목을 입력합니다. <code>+ 문항 추가</code>로 원하는 타입의 문항을 추가하세요.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-title">문항 타입별 설정</div>
+              <div class="step-desc"><strong>객관식</strong>: 보기 항목 입력 / <strong>별점</strong>: 자동 구성 / <strong>의견 척도</strong>: 양 끝 레이블·최댓값(5 또는 10) 설정 / <strong>순위 매기기</strong>: 학생이 직접 순서를 드래그합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <div class="step-title">설문 열기 및 PIN 공유</div>
+              <div class="step-desc"><code>▶ 설문 열기</code>를 클릭하면 6자리 PIN이 생성됩니다. 학생들은 PIN을 입력해 실시간으로 응답합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <div class="step-title">결과 확인 및 AI 분석</div>
+              <div class="step-desc">설문을 닫으면 실시간 결과 차트가 표시됩니다. <code>✨ AI 분석</code>을 클릭하면 Gemini가 응답 내용을 요약·분석합니다. <code>CSV 내보내기</code>로 데이터를 저장할 수 있습니다.</div>
+            </div>
+          </div>
+        </div>
+        <table class="guide-table" style="margin-top:16px;">
+          <thead><tr><th>문항 타입</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>객관식</td><td>미리 정한 보기 중 하나 선택</td></tr>
+            <tr><td>예/아니오</td><td>Yes / No 단순 이진 선택</td></tr>
+            <tr><td>별점</td><td>1~5점 별점 평가</td></tr>
+            <tr><td>단답형</td><td>짧은 텍스트 자유 응답</td></tr>
+            <tr><td>의견 척도</td><td>1~5 또는 1~10 슬라이더 척도</td></tr>
+            <tr><td>순위 매기기</td><td>학생이 항목을 드래그해 순서를 직접 정함</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 🖼️ 협업 화이트보드 -->
+      <div class="tab-panel" id="tab-tt-wb">
+        <h3>🖼️ 협업 화이트보드 — PRO 전용</h3>
+        <p>조별 협업 보드를 만들고 포스트잇, 도형, 이미지, 섹션을 자유롭게 배치합니다. 학생들이 실시간으로 함께 작업할 수 있습니다.</p>
+        <div class="steps" style="margin-top:16px;">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-title">보드 만들기</div>
+              <div class="step-desc"><code>+ 새 보드</code>를 클릭해 보드 이름을 입력합니다. 수업 주제나 조 이름으로 구분해 여러 보드를 만들 수 있습니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-title">학생 공유 링크 배포</div>
+              <div class="step-desc">보드 우측 상단 <code>공유</code> 버튼을 클릭하면 학생용 접속 링크가 복사됩니다. 링크를 공유하면 학생들이 웹에서 바로 참여합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <div class="step-title">포스트잇 · 도형 · 이미지 추가</div>
+              <div class="step-desc">상단 툴바에서 포스트잇(N), 도형(S), 이미지(I), 섹션(G) 버튼으로 오브젝트를 추가합니다. 드래그해 위치를 자유롭게 조절합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <div class="step-title">단축키 활용</div>
+              <div class="step-desc"><code>Ctrl+C</code> / <code>Ctrl+V</code>: 복사·붙여넣기, <code>Ctrl+Z</code>: 되돌리기, <code>Delete</code>: 선택 오브젝트 삭제. 섹션 색상은 오른쪽 클릭 메뉴로 변경합니다.</div>
+            </div>
+          </div>
+        </div>
+        <div class="callout green">
+          <span class="callout-icon">💡</span>
+          <span class="callout-text">보드 공유 중지/시작은 <strong>공유 상태 버튼</strong>으로 조절합니다. 수업이 끝나면 공유를 중지해 학생 접근을 막을 수 있습니다.</span>
+        </div>
+      </div>
+
+      <!-- 🎙️ 수업 전사 & AI 분석 -->
+      <div class="tab-panel" id="tab-tt-trans">
+        <h3>🎙️ 수업 전사 & AI 분석 — PRO 전용</h3>
+        <p>수업을 실시간으로 받아 적고, AI가 학생별 참여 관찰 기록 초안과 수업 품질 평가를 자동으로 생성합니다.</p>
+        <div class="steps" style="margin-top:16px;">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-title">클래스 및 학생 목록 선택</div>
+              <div class="step-desc">드롭다운에서 전사할 클래스를 선택합니다. 선택한 클래스의 학생 이름이 AI 분석의 기준이 됩니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-title">녹음 시작</div>
+              <div class="step-desc"><code>🎙️ 녹음 시작</code> 버튼을 클릭합니다. 브라우저에서 마이크 권한을 허용하면 실시간으로 수업 내용이 텍스트로 전사됩니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <div class="step-title">녹음 중지 및 AI 분석</div>
+              <div class="step-desc"><code>■ 중지</code> 버튼으로 녹음을 끝냅니다. 이후 <code>✨ AI 분석</code>을 클릭하면 Gemini AI가 전사 내용을 3가지 관점으로 분석합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <div class="step-title">분석 결과 활용</div>
+              <div class="step-desc"><strong>학생별 관찰</strong>: 언급된 학생의 참여도와 메모 초안 / <strong>수업 평가</strong>: 구성·명확성·참여·피드백 점수 / <strong>자기 성찰</strong>: 발화 패턴·개선점. 관찰 초안은 바로 학생 기록에 저장할 수 있습니다.</div>
+            </div>
+          </div>
+        </div>
+        <div class="callout yellow">
+          <span class="callout-icon">⚠️</span>
+          <span class="callout-text">전사 기능은 <strong>Chrome 브라우저</strong>에서 가장 잘 작동합니다. Safari나 Firefox에서는 실시간 전사가 지원되지 않을 수 있습니다.</span>
+        </div>
+        <div class="callout blue">
+          <span class="callout-icon">💡</span>
+          <span class="callout-text"><strong>기록 보기 탭</strong>에서 이전에 진행한 수업 전사 기록을 다시 확인하고 재분석할 수 있습니다.</span>
+        </div>
+      </div>
+
+      <!-- 📚 수업 자료 에디터 -->
+      <div class="tab-panel" id="tab-tt-material">
+        <h3>📚 수업 자료 에디터 — PRO 전용</h3>
+        <p>마크다운으로 수업 자료를 작성하고, 주차·클래스별로 학생에게 공개합니다. 슬라이드 모드로 프레젠테이션도 할 수 있습니다.</p>
+        <div class="steps" style="margin-top:16px;">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-title">클래스와 주차 선택</div>
+              <div class="step-desc">상단에서 대상 클래스를 선택하고, 주차를 설정합니다. 클래스별·주차별로 자료가 구분되어 저장됩니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-title">마크다운으로 자료 작성</div>
+              <div class="step-desc">상단 툴바의 <code>H1</code> <code>H2</code> <code>굵게</code> <code>목록</code> 등 버튼으로 서식을 적용하거나 마크다운 문법으로 직접 작성합니다. 우측 미리보기에서 실시간으로 확인합니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <div class="step-title">슬라이드 구분 (프레젠테이션)</div>
+              <div class="step-desc">슬라이드 구분자 <code>---</code>를 본문에 입력하면 내용이 여러 슬라이드로 나뉩니다. <code>슬라이드 모드</code> 버튼을 클릭해 전체화면 프레젠테이션으로 발표할 수 있습니다.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <div class="step-title">저장 및 학생 공개</div>
+              <div class="step-desc"><code>저장</code>을 클릭한 뒤, <code>🔒 비공개 → 🌐 공개</code> 토글로 학생에게 자료를 공개합니다. 학생은 학생 페이지에서 주차별 자료를 확인합니다.</div>
+            </div>
+          </div>
+        </div>
+        <div class="callout blue">
+          <span class="callout-icon">💡</span>
+          <span class="callout-text">마크다운 기초: <code># 제목</code> / <code>**굵게**</code> / <code>- 목록</code> / <code>`코드`</code> / <code>![이미지](URL)</code>. 툴바 버튼을 누르면 자동으로 삽입됩니다.</span>
+        </div>
+      </div>
+
+    </div><!-- /tool-tabs -->
   </div>
 
   <!-- ── 학생 참여 ── -->
