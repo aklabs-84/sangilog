@@ -17,6 +17,11 @@ interface Props {
   onLinked: (classId: string | null, className: string | null) => void;
 }
 
+const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function genCode() {
+  return Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join('');
+}
+
 export default function ClassLinkModal({ boardId, currentClassId, onClose, onLinked }: Props) {
   const { user } = useAuth();
   const [classes, setClasses] = useState<Class[]>([]);
@@ -38,13 +43,42 @@ export default function ClassLinkModal({ boardId, currentClassId, onClose, onLin
     })();
   }, [user]);
 
+  const ensureClassSession = async (classId: string, className: string) => {
+    // 클래스에 활성 세션이 없으면 영구 세션 생성 (학생 입장 코드)
+    const { data: existing } = await supabase
+      .from('class_board_sessions')
+      .select('id')
+      .eq('class_id', classId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (!existing && user) {
+      await supabase.from('class_board_sessions').insert({
+        class_id: classId,
+        class_name: className,
+        session_code: genCode(),
+        created_by: user.id,
+        group_count: 1,
+        group_size: 30,
+        expires_at: new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString(),
+      });
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const newClassId = selectedClassId || null;
-
-    // class_id 업데이트 + 클래스 연결 시 is_public = true (학생 뷰어 접근 허용)
     const updates: Record<string, unknown> = { class_id: newClassId };
-    if (newClassId) updates.is_public = true;
+
+    if (newClassId) {
+      // 클래스 연결: is_public=true + 세션 확보
+      updates.is_public = true;
+      const linked = classes.find(c => c.id === newClassId);
+      if (linked) await ensureClassSession(newClassId, linked.name);
+    } else {
+      // 클래스 없음: is_public=false
+      updates.is_public = false;
+    }
 
     const { error } = await supabase.from('whiteboards').update(updates).eq('id', boardId);
 
@@ -60,7 +94,8 @@ export default function ClassLinkModal({ boardId, currentClassId, onClose, onLin
 
   const handleUnlink = async () => {
     setSaving(true);
-    await supabase.from('whiteboards').update({ class_id: null }).eq('id', boardId);
+    // 클래스 연결 해제: class_id=null + is_public=false
+    await supabase.from('whiteboards').update({ class_id: null, is_public: false }).eq('id', boardId);
     onLinked(null, null);
     setSaving(false);
     onClose();
@@ -105,10 +140,9 @@ export default function ClassLinkModal({ boardId, currentClassId, onClose, onLin
           <p style={{ color: '#6B7280', fontSize: 14, textAlign: 'center', padding: '20px 0' }}>불러오는 중...</p>
         ) : (
           <>
-            {/* 클래스 선택 */}
             <p style={{ color: '#9CA3AF', fontSize: 13, marginBottom: 10 }}>
               이 보드를 연결할 클래스를 선택하세요.<br />
-              선택한 클래스의 학생들이 보기 전용으로 접속할 수 있습니다.
+              연결하면 학생들이 클래스 입장 코드로 이 보드에 참여할 수 있습니다.
             </p>
 
             {classes.length === 0 ? (
@@ -144,39 +178,36 @@ export default function ClassLinkModal({ boardId, currentClassId, onClose, onLin
               </div>
             )}
 
-            {/* 학생 접속 링크 (클래스 선택 시 표시) */}
-            {selectedClassId && (
-              <div style={{ background: '#0F172A', border: '1px solid #1E3A5F', borderRadius: 10, padding: 14, marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                  <Link2 size={13} color="#60A5FA" />
-                  <span style={{ color: '#60A5FA', fontSize: 12, fontWeight: 600 }}>학생 접속 링크</span>
-                </div>
-                <p style={{ color: '#6B7280', fontSize: 11, marginBottom: 8, lineHeight: 1.4 }}>
-                  아래 링크를 학생들에게 공유하세요.<br />
-                  학생들은 로그인 없이 보기 전용으로 이 보드를 볼 수 있습니다.
-                </p>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <div style={{
-                    flex: 1, background: '#1e293b', borderRadius: 6, padding: '7px 10px',
-                    fontSize: 11, color: '#94A3B8', fontFamily: 'monospace',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {studentViewUrl}
-                  </div>
-                  <button
-                    onClick={handleCopy}
-                    style={{
-                      background: copied ? '#059669' : '#374151', border: 'none',
-                      borderRadius: 6, padding: '7px 12px', cursor: 'pointer',
-                      color: '#fff', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4,
-                      transition: 'background 0.15s', flexShrink: 0,
-                    }}
-                  >
-                    {copied ? <><Check size={12} /> 복사됨</> : <><Copy size={12} /> 복사</>}
-                  </button>
-                </div>
+            {/* 보드 뷰어 링크 (항상 표시) */}
+            <div style={{ background: '#0F172A', border: '1px solid #1E3A5F', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Link2 size={13} color="#60A5FA" />
+                <span style={{ color: '#60A5FA', fontSize: 12, fontWeight: 600 }}>보드 뷰어 링크 (공유)</span>
               </div>
-            )}
+              <p style={{ color: '#6B7280', fontSize: 11, marginBottom: 8, lineHeight: 1.4 }}>
+                이 링크로 누구나 보드를 볼 수 있습니다 (보기 전용).
+              </p>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{
+                  flex: 1, background: '#1e293b', borderRadius: 6, padding: '7px 10px',
+                  fontSize: 11, color: '#94A3B8', fontFamily: 'monospace',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {studentViewUrl}
+                </div>
+                <button
+                  onClick={handleCopy}
+                  style={{
+                    background: copied ? '#059669' : '#374151', border: 'none',
+                    borderRadius: 6, padding: '7px 12px', cursor: 'pointer',
+                    color: '#fff', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4,
+                    transition: 'background 0.15s', flexShrink: 0,
+                  }}
+                >
+                  {copied ? <><Check size={12} /> 복사됨</> : <><Copy size={12} /> 복사</>}
+                </button>
+              </div>
+            </div>
 
             {/* 버튼 */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

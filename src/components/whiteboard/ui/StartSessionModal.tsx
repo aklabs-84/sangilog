@@ -154,7 +154,7 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
         group_name: groupName,
         created_by: user.id,
         share_token: uuidv4(),
-        is_public: false,
+        is_public: true,
         class_id: selectedClassId,
         session_id: sessionId,
         group_number: i + 1,

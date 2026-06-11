@@ -7,6 +7,7 @@ type Step = 'code' | 'name' | 'lobby';
 
 interface SessionInfo {
   id: string;
+  class_id: string;
   class_name: string;
   group_count: number;
   group_size: number;
@@ -109,7 +110,7 @@ export default function StudentJoin() {
     // 활성 세션과 종료된 세션 모두 허용 (학생 재입장 지원)
     const { data: sessionData } = await supabase
       .from('class_board_sessions')
-      .select('id, class_name, group_count, group_size, session_code, status')
+      .select('id, class_id, class_name, group_count, group_size, session_code, status')
       .eq('session_code', c)
       .in('status', ['active', 'ended'])
       .order('created_at', { ascending: false })
@@ -133,15 +134,15 @@ export default function StudentJoin() {
     setLoading(true);
     setError('');
 
+    // class_id 기준으로 조회 — 해당 클래스에 연결된 보드만 표시
     const { data: boardData } = await supabase
       .from('whiteboards')
       .select('id, group_number, group_name')
-      .eq('session_id', session.id)
-      .eq('is_public', true)
+      .eq('class_id', session.class_id)
       .order('group_number');
 
     if (!boardData || boardData.length === 0) {
-      setError('현재 공유된 보드가 없습니다. 선생님께 확인해주세요.');
+      setError('현재 입장 가능한 보드가 없습니다. 선생님께 확인해주세요.');
       setLoading(false);
       return;
     }
