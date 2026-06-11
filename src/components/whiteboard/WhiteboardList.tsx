@@ -122,21 +122,38 @@ export default function WhiteboardList() {
   };
 
   // 보드 클래스 연결 해제 (class_id = null, is_public = false)
+  // 마지막 보드가 해제되면 class_board_sessions도 ended 처리
   const disconnectBoardClass = async (boardId: string) => {
     setDisconnecting(boardId);
+    const board = boards.find(b => b.id === boardId);
     await supabase.from('whiteboards').update({ class_id: null, is_public: false }).eq('id', boardId);
+
+    if (board?.class_id) {
+      const remaining = boards.filter(b => b.class_id === board.class_id && b.id !== boardId);
+      if (remaining.length === 0) {
+        await supabase.from('class_board_sessions')
+          .update({ status: 'ended' })
+          .eq('class_id', board.class_id)
+          .eq('status', 'active');
+      }
+    }
+
     setBoards(prev => prev.map(b =>
       b.id === boardId ? { ...b, class_id: undefined, class_name: undefined, is_public: false } : b
     ));
     setDisconnecting(null);
   };
 
-  // 클래스 전체 연결 해제
+  // 클래스 전체 연결 해제 → class_board_sessions도 ended 처리
   const disconnectAllClassBoards = async (classId: string) => {
     setDisconnecting(`class_${classId}`);
     const ids = boards.filter(b => b.class_id === classId).map(b => b.id);
     if (ids.length > 0) {
       await supabase.from('whiteboards').update({ class_id: null, is_public: false }).in('id', ids);
+      await supabase.from('class_board_sessions')
+        .update({ status: 'ended' })
+        .eq('class_id', classId)
+        .eq('status', 'active');
       setBoards(prev => prev.map(b =>
         b.class_id === classId ? { ...b, class_id: undefined, class_name: undefined, is_public: false } : b
       ));

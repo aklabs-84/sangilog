@@ -44,15 +44,26 @@ export default function ClassLinkModal({ boardId, currentClassId, onClose, onLin
   }, [user]);
 
   const ensureClassSession = async (classId: string, className: string) => {
-    // 클래스에 활성 세션이 없으면 영구 세션 생성 (학생 입장 코드)
+    // 기존 세션(active/ended) 중 가장 최근 것을 우선 재활성화, 없으면 신규 생성
     const { data: existing } = await supabase
       .from('class_board_sessions')
-      .select('id')
+      .select('id, status')
       .eq('class_id', classId)
-      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
-    if (!existing && user) {
+    if (existing) {
+      if (existing.status === 'ended') {
+        await supabase.from('class_board_sessions')
+          .update({
+            status: 'active',
+            expires_at: new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString(),
+          })
+          .eq('id', existing.id);
+      }
+      // active면 그대로 유지
+    } else if (user) {
       await supabase.from('class_board_sessions').insert({
         class_id: classId,
         class_name: className,
