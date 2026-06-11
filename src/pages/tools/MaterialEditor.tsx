@@ -1,15 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import ReactMarkdown from 'react-markdown';
 import {
-  Bold, Italic, List, ListOrdered, Quote, Code, Code2,
-  Link2, ImageIcon, Save, Trash2, Copy, Plus,
-  Loader2, ChevronDown, Globe, Lock, Minus,
+  Save, Trash2, Copy, Plus,
+  Loader2, ChevronDown, Globe, Lock,
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   ExternalLink, Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
+import RichEditor from '../../components/RichEditor';
 
 interface Material {
   id: string;
@@ -259,19 +259,12 @@ const MaterialEditor = () => {
   const [isPublished, setIsPublished] = useState(false);
 
   // UI 상태
-  const [viewMode, setViewMode] = useState<'edit' | 'split' | 'preview'>('edit');
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const [linkText, setLinkText] = useState('');
-  const [linkUrl, setLinkUrl] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [presentingMaterial, setPresentingMaterial] = useState<Material | null>(null);
-
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) fetchClasses();
@@ -339,40 +332,10 @@ const MaterialEditor = () => {
     setIsEditorOpen(true);
   };
 
-  // ── 커서 위치에 텍스트 삽입 ──────────────────────────────────────────────
-  const insertAtCursor = useCallback((before: string, after = '', placeholder = '') => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = content.substring(start, end) || placeholder;
-    const next = content.substring(0, start) + before + selected + after + content.substring(end);
-    setContent(next);
-    setTimeout(() => {
-      el.focus();
-      const pos = start + before.length + selected.length + after.length;
-      el.setSelectionRange(pos, pos);
-    }, 10);
-  }, [content]);
-
-  const insertLinePrefix = useCallback((prefix: string) => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const lineStart = content.lastIndexOf('\n', start - 1) + 1;
-    const lineEnd = content.indexOf('\n', start);
-    const end = lineEnd === -1 ? content.length : lineEnd;
-    const line = content.substring(lineStart, end);
-    const toggled = line.startsWith(prefix) ? line.substring(prefix.length) : prefix + line;
-    setContent(content.substring(0, lineStart) + toggled + content.substring(end));
-    setTimeout(() => el.focus(), 10);
-  }, [content]);
-
-  // ── 이미지 업로드 ──────────────────────────────────────────────────────────
-  const uploadAndInsert = async (file: File) => {
-    if (!user) return;
-    if (!file.type.startsWith('image/')) { alert('이미지 파일만 업로드 가능합니다.'); return; }
-    if (file.size > 20 * 1024 * 1024) { alert('20MB 이하 파일만 업로드 가능합니다.'); return; }
+  // ── 이미지 업로드 (RichEditor 콜백으로 사용) ──────────────────────────────
+  const handleUploadImage = async (file: File): Promise<string> => {
+    if (!user) throw new Error('로그인 필요');
+    if (file.size > 20 * 1024 * 1024) { alert('20MB 이하 파일만 업로드 가능합니다.'); throw new Error('파일 크기 초과'); }
     setUploading(true);
     try {
       const ext = file.name.split('.').pop() || 'png';
@@ -380,24 +343,10 @@ const MaterialEditor = () => {
       const { error } = await supabase.storage.from('student-attachments').upload(path, file);
       if (error) throw error;
       const { data } = supabase.storage.from('student-attachments').getPublicUrl(path);
-      insertAtCursor(`\n![${file.name.split('.')[0]}](${data.publicUrl})\n`, '', '');
-    } catch { alert('이미지 업로드에 실패했습니다.'); }
-    finally { setUploading(false); }
-  };
-
-  // ── 드래그앤드롭 ──────────────────────────────────────────────────────────
-  const handleDragOver  = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = () => setIsDragging(false);
-  const handleDrop      = async (e: React.DragEvent) => {
-    e.preventDefault(); setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) await uploadAndInsert(file);
-  };
-
-  // ── 링크 삽입 ──────────────────────────────────────────────────────────────
-  const handleInsertLink = () => {
-    if (linkUrl.trim()) insertAtCursor(`[${linkText || linkUrl}](${linkUrl})`, '', '');
-    setLinkDialogOpen(false); setLinkText(''); setLinkUrl('');
+      return data.publicUrl;
+    } finally {
+      setUploading(false);
+    }
   };
 
   // ── 저장 ──────────────────────────────────────────────────────────────────
@@ -469,49 +418,6 @@ const MaterialEditor = () => {
       ? selectedClass.weekly_plan.map((p: any) => ({ week: p.week, label: `${p.week}주차${p.topic ? `: ${p.topic}` : ''}` }))
       : Array.from({ length: 16 }, (_, i) => ({ week: i + 1, label: `${i + 1}주차` }));
 
-  // ── 툴바 버튼 정의 ──────────────────────────────────────────────────────────
-  type ToolbarItem =
-    | { type: 'sep' }
-    | { type: 'icon'; icon: any; title: string; action: () => void; loading?: boolean }
-    | { type: 'text'; label: string; title: string; action: () => void };
-
-  const toolbar: ToolbarItem[] = [
-    { type: 'icon', icon: Bold,         title: '굵게',           action: () => insertAtCursor('**', '**', '굵은 텍스트') },
-    { type: 'icon', icon: Italic,       title: '기울임',         action: () => insertAtCursor('*', '*', '기울임 텍스트') },
-    { type: 'sep' },
-    { type: 'text', label: 'H1',        title: '제목 1',         action: () => insertLinePrefix('# ') },
-    { type: 'text', label: 'H2',        title: '제목 2',         action: () => insertLinePrefix('## ') },
-    { type: 'text', label: 'H3',        title: '제목 3',         action: () => insertLinePrefix('### ') },
-    { type: 'sep' },
-    { type: 'icon', icon: List,         title: '글머리 목록',    action: () => insertLinePrefix('- ') },
-    { type: 'icon', icon: ListOrdered,  title: '번호 목록',      action: () => insertLinePrefix('1. ') },
-    { type: 'icon', icon: Quote,        title: '인용구',         action: () => insertLinePrefix('> ') },
-    { type: 'icon', icon: Code,         title: '인라인 코드',    action: () => insertAtCursor('`', '`', '코드') },
-    {
-      type: 'icon', icon: Code2, title: '코드 블록 삽입',
-      action: () => {
-        const el = textareaRef.current;
-        if (!el) return;
-        const start = el.selectionStart;
-        const end   = el.selectionEnd;
-        const selected = content.substring(start, end);
-        const block = `\n\`\`\`\n${selected || '코드를 입력하세요'}\n\`\`\`\n`;
-        const next  = content.substring(0, start) + block + content.substring(end);
-        setContent(next);
-        setTimeout(() => {
-          el.focus();
-          const codeStart = start + '\n```\n'.length;
-          const codeEnd   = codeStart + (selected || '코드를 입력하세요').length;
-          el.setSelectionRange(codeStart, codeEnd);
-        }, 10);
-      },
-    },
-    { type: 'sep' },
-    { type: 'icon', icon: Minus,        title: '구분선',         action: () => insertAtCursor('\n\n---\n\n', '', '') },
-    { type: 'icon', icon: Link2,        title: '링크 삽입',      action: () => setLinkDialogOpen(true) },
-    { type: 'icon', icon: ImageIcon,    title: uploading ? '업로드 중...' : '이미지 삽입 / 드래그앤드롭', action: () => imageInputRef.current?.click(), loading: uploading },
-  ];
-
   return (
     <>
     {presentingMaterial && (
@@ -570,18 +476,18 @@ const MaterialEditor = () => {
             <span className="font-black text-sm flex-1">{editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성'}</span>
             {/* 뷰 모드 토글 */}
             <div className="flex items-center gap-0.5 bg-surface-container rounded-xl p-1">
-              {(['edit', 'split', 'preview'] as const).map(mode => (
+              {(['edit', 'preview'] as const).map(mode => (
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
-                  title={mode === 'edit' ? '편집 모드' : mode === 'split' ? '분할 보기' : '미리보기'}
+                  title={mode === 'edit' ? '편집 모드' : '미리보기'}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black transition-all ${
                     viewMode === mode
                       ? 'bg-white shadow text-primary'
                       : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
-                  {mode === 'edit' ? <><Code size={12}/> 편집</> : mode === 'split' ? '분할' : <><Eye size={12}/> 미리보기</>}
+                  {mode === 'edit' ? <>편집</> : <><Eye size={12}/> 미리보기</>}
                 </button>
               ))}
             </div>
@@ -614,97 +520,26 @@ const MaterialEditor = () => {
             />
           </div>
 
-          {/* 마크다운 툴바 */}
-          <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-surface-container bg-surface-container-low/30">
-            {toolbar.map((item, i) => {
-              if (item.type === 'sep') return <div key={i} className="w-px h-4 bg-surface-container mx-1" />;
-              if (item.type === 'text') return (
-                <button
-                  key={i}
-                  onClick={item.action}
-                  title={item.title}
-                  className="px-2 py-1 rounded-lg text-xs font-black text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors"
-                >
-                  {item.label}
-                </button>
-              );
-              const Icon = item.icon;
-              return (
-                <button
-                  key={i}
-                  onClick={item.action}
-                  title={item.title}
-                  disabled={item.loading}
-                  className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors disabled:opacity-50"
-                >
-                  {item.loading ? <Loader2 size={15} className="animate-spin" /> : <Icon size={15} />}
-                </button>
-              );
-            })}
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) { uploadAndInsert(f); e.target.value = ''; } }}
-            />
-            <span className="ml-auto text-[10px] text-on-surface-variant font-bold opacity-60">이미지 드래그앤드롭 가능</span>
-          </div>
-
           {/* 편집 / 미리보기 영역 */}
-          <div className={`${viewMode === 'split' ? 'grid grid-cols-2 divide-x divide-surface-container' : ''}`}>
-            {/* 편집창 */}
-            {(viewMode === 'edit' || viewMode === 'split') && (
-              <div
-                className={`relative transition-colors ${isDragging ? 'bg-primary/5 ring-2 ring-primary ring-inset' : ''}`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                {isDragging && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                    <div className="bg-primary/10 rounded-2xl px-8 py-5 font-black text-primary text-sm border-2 border-dashed border-primary">
-                      📷 이미지를 여기에 놓으세요
-                    </div>
-                  </div>
-                )}
-                <textarea
-                  ref={textareaRef}
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  placeholder={`마크다운으로 수업 자료를 작성하세요...
-
-## 학습 목표
-- 목표를 입력하세요
-
-## 핵심 개념
-내용을 작성하세요.
-
----
-
-## 2번째 슬라이드
---- 구분선을 기준으로 발표 모드에서 슬라이드가 나뉩니다.
-
-> 💡 팁: 이미지를 에디터에 드래그앤드롭하면 자동으로 업로드됩니다.`}
-                  className="w-full min-h-[440px] p-6 font-mono text-sm bg-transparent focus:outline-none resize-y leading-relaxed"
-                />
-              </div>
-            )}
-
-            {/* 미리보기창 */}
-            {(viewMode === 'preview' || viewMode === 'split') && (
-              <div className="min-h-[440px] p-6 overflow-auto bg-white">
-                {content.trim() ? (
-                  <ReactMarkdown components={mdComponents}>{content}</ReactMarkdown>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full gap-3 opacity-30">
-                    <EyeOff size={32} />
-                    <p className="text-sm font-bold">편집창에 내용을 작성하면 미리보기가 표시됩니다</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          {viewMode === 'edit' ? (
+            <RichEditor
+              value={content}
+              onChange={setContent}
+              onUploadImage={handleUploadImage}
+              uploading={uploading}
+            />
+          ) : (
+            <div className="min-h-[440px] p-6 overflow-auto bg-white">
+              {content.trim() ? (
+                <ReactMarkdown components={mdComponents}>{content}</ReactMarkdown>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full gap-3 opacity-30">
+                  <EyeOff size={32} />
+                  <p className="text-sm font-bold">편집창에 내용을 작성하면 미리보기가 표시됩니다</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 하단 액션 바 */}
           <div className="flex items-center gap-3 px-5 py-4 border-t border-surface-container bg-surface-container-low/50">
@@ -737,47 +572,6 @@ const MaterialEditor = () => {
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
               {editingMaterial ? '수정 완료' : '저장'}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── 링크 삽입 다이얼로그 ── */}
-      {linkDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl w-80 space-y-4">
-            <h3 className="font-black text-base">🔗 링크 삽입</h3>
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={linkText}
-                onChange={e => setLinkText(e.target.value)}
-                placeholder="표시할 텍스트 (선택)"
-                className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none"
-                autoFocus
-              />
-              <input
-                type="url"
-                value={linkUrl}
-                onChange={e => setLinkUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none"
-                onKeyDown={e => e.key === 'Enter' && handleInsertLink()}
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setLinkDialogOpen(false); setLinkText(''); setLinkUrl(''); }}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleInsertLink}
-                className="flex-1 py-2.5 btn-gradient rounded-xl font-black text-sm text-white"
-              >
-                삽입
-              </button>
-            </div>
           </div>
         </div>
       )}
