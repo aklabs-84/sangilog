@@ -277,12 +277,26 @@ const StudentLog = () => {
     return () => clearInterval(interval);
   }, [session?.student_id]);
 
-  // 수업 보드 세션 폴링 — 5초마다 세션 상태 확인
+  // 수업 보드 세션 폴링 + Realtime 구독 — 선생님 공유 중지/시작 즉시 반영
   useEffect(() => {
     if (!session?.class_id) return;
     fetchActiveBoardSessions();
     const interval = setInterval(fetchActiveBoardSessions, 5_000);
-    return () => clearInterval(interval);
+
+    const channel = supabase
+      .channel(`board-session-rt-${session.class_id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'class_board_sessions',
+        filter: `class_id=eq.${session.class_id}`,
+      }, () => { fetchActiveBoardSessions(); })
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [session?.class_id]);
 
   // 학생 알림 Realtime 구독

@@ -6,6 +6,11 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 import StartSessionModal from './ui/StartSessionModal';
+
+const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function genCode() {
+  return Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join('');
+}
 import ClassLinkModal from './ui/ClassLinkModal';
 
 interface BoardMeta {
@@ -45,6 +50,7 @@ export default function WhiteboardList() {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState<string | null>(null);
   const [showStartSession, setShowStartSession] = useState(false);
   const [classLinkBoardId, setClassLinkBoardId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -121,45 +127,93 @@ export default function WhiteboardList() {
     setHoveredId(null);
   };
 
-  // 보드 클래스 연결 해제 (class_id = null, is_public = false)
-  // 마지막 보드가 해제되면 class_board_sessions도 ended 처리
+  // 보드 단일 공유 중지 — class_id 유지, is_public=false
+  // 클래스 내 공유 중인 보드가 없으면 세션도 ended 처리
   const disconnectBoardClass = async (boardId: string) => {
     setDisconnecting(boardId);
     const board = boards.find(b => b.id === boardId);
-    await supabase.from('whiteboards').update({ class_id: null, is_public: false }).eq('id', boardId);
+    await supabase.from('whiteboards').update({ is_public: false }).eq('id', boardId);
 
     if (board?.class_id) {
-      const remaining = boards.filter(b => b.class_id === board.class_id && b.id !== boardId);
-      if (remaining.length === 0) {
+      const remainingPublic = boards.filter(b => b.class_id === board.class_id && b.id !== boardId && b.is_public);
+      if (remainingPublic.length === 0) {
         await supabase.from('class_board_sessions')
           .update({ status: 'ended' })
           .eq('class_id', board.class_id)
           .eq('status', 'active');
+        setClassSessions(prev => { const next = { ...prev }; delete next[board.class_id!]; return next; });
       }
     }
 
-    setBoards(prev => prev.map(b =>
-      b.id === boardId ? { ...b, class_id: undefined, class_name: undefined, is_public: false } : b
-    ));
+    setBoards(prev => prev.map(b => b.id === boardId ? { ...b, is_public: false } : b));
     setDisconnecting(null);
   };
 
-  // 클래스 전체 연결 해제 → class_board_sessions도 ended 처리
+  // 보드 단일 공유 시작 — is_public=true, 세션도 재활성화
+  const reconnectBoardClass = async (boardId: string) => {
+    setDisconnecting(boardId);
+    const board = boards.find(b => b.id === boardId);
+    await supabase.from('whiteboards').update({ is_public: true }).eq('id', boardId);
+
+    if (board?.class_id) {
+      const { data: existing } = await supabase
+        .from('class_board_sessions').select('id, status')
+        .eq('class_id', board.class_id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (existing && existing.status === 'ended') {
+        await supabase.from('class_board_sessions')
+          .update({ status: 'active', expires_at: new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString() })
+          .eq('id', existing.id);
+        await loadBoards();
+      }
+    }
+
+    setBoards(prev => prev.map(b => b.id === boardId ? { ...b, is_public: true } : b));
+    setDisconnecting(null);
+  };
+
+  // 클래스 전체 공유 중지 — class_id 유지, is_public=false, 세션 ended
   const disconnectAllClassBoards = async (classId: string) => {
     setDisconnecting(`class_${classId}`);
     const ids = boards.filter(b => b.class_id === classId).map(b => b.id);
     if (ids.length > 0) {
-      await supabase.from('whiteboards').update({ class_id: null, is_public: false }).in('id', ids);
+      await supabase.from('whiteboards').update({ is_public: false }).in('id', ids);
       await supabase.from('class_board_sessions')
         .update({ status: 'ended' })
         .eq('class_id', classId)
         .eq('status', 'active');
-      setBoards(prev => prev.map(b =>
-        b.class_id === classId ? { ...b, class_id: undefined, class_name: undefined, is_public: false } : b
-      ));
+      setBoards(prev => prev.map(b => b.class_id === classId ? { ...b, is_public: false } : b));
+      setClassSessions(prev => { const next = { ...prev }; delete next[classId]; return next; });
     }
     setDisconnecting(null);
-    setSelectedClassId(ALL_TAB);
+  };
+
+  // 클래스 전체 공유 시작 — is_public=true, 세션 재활성화
+  const reconnectAllClassBoards = async (classId: string) => {
+    if (!user) return;
+    setReconnecting(classId);
+    const ids = boards.filter(b => b.class_id === classId).map(b => b.id);
+    if (ids.length > 0) {
+      await supabase.from('whiteboards').update({ is_public: true }).in('id', ids);
+      const { data: existing } = await supabase
+        .from('class_board_sessions').select('id, status')
+        .eq('class_id', classId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (existing) {
+        await supabase.from('class_board_sessions')
+          .update({ status: 'active', expires_at: new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString() })
+          .eq('id', existing.id);
+      } else {
+        const cls = classInfos.find(c => c.id === classId);
+        if (cls) {
+          await supabase.from('class_board_sessions').insert({
+            class_id: classId, class_name: cls.name, session_code: genCode(),
+            created_by: user.id, group_count: ids.length, group_size: 30,
+            expires_at: new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000).toISOString(),
+          });
+        }
+      }
+      await loadBoards();
+    }
+    setReconnecting(null);
   };
 
   // 보드 뷰어 링크 복사 (/sb/{boardId})
@@ -324,21 +378,37 @@ export default function WhiteboardList() {
               )}
             </div>
 
-            {/* 전체 연결 해제 */}
+            {/* 전체 공유 중지 / 공유 시작 */}
             {filteredBoards.length > 0 && (
-              <button
-                onClick={() => disconnectAllClassBoards(selectedClass.id)}
-                disabled={isDisconnectingAll}
-                style={{
-                  padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                  border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#EF4444',
-                  cursor: isDisconnectingAll ? 'default' : 'pointer',
-                  opacity: isDisconnectingAll ? 0.6 : 1,
-                  display: 'flex', alignItems: 'center', gap: 4,
-                }}
-              >
-                <Unlink size={11} /> {isDisconnectingAll ? '처리 중...' : '전체 연결 해제'}
-              </button>
+              selectedSession ? (
+                <button
+                  onClick={() => disconnectAllClassBoards(selectedClass.id)}
+                  disabled={isDisconnectingAll}
+                  style={{
+                    padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#EF4444',
+                    cursor: isDisconnectingAll ? 'default' : 'pointer',
+                    opacity: isDisconnectingAll ? 0.6 : 1,
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  <Unlink size={11} /> {isDisconnectingAll ? '처리 중...' : '전체 공유 중지'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => reconnectAllClassBoards(selectedClass.id)}
+                  disabled={reconnecting === selectedClass.id}
+                  style={{
+                    padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    border: '1px solid #86EFAC', background: '#F0FDF4', color: '#16A34A',
+                    cursor: reconnecting === selectedClass.id ? 'default' : 'pointer',
+                    opacity: reconnecting === selectedClass.id ? 0.6 : 1,
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  <Link2 size={11} /> {reconnecting === selectedClass.id ? '처리 중...' : '전체 공유 시작'}
+                </button>
+              )
             )}
           </div>
         </div>
@@ -372,6 +442,7 @@ export default function WhiteboardList() {
             const isDeleting = deletingId === board.id;
             const isDisconnectingThis = disconnecting === board.id;
             const isConnected = !!board.class_id;
+            const isSharing = board.is_public && !!board.class_id && !!classSessions[board.class_id];
 
             return (
               <motion.div
@@ -412,13 +483,13 @@ export default function WhiteboardList() {
                     {/* 클래스 연결 상태 배지 */}
                     <span style={{
                       flexShrink: 0, padding: '2px 7px', borderRadius: 10,
-                      background: isConnected ? '#DCFCE7' : '#F3F4F6',
-                      color: isConnected ? '#16A34A' : '#9CA3AF',
+                      background: isSharing ? '#DCFCE7' : isConnected ? '#FEF3C7' : '#F3F4F6',
+                      color: isSharing ? '#16A34A' : isConnected ? '#B45309' : '#9CA3AF',
                       fontSize: 10, fontWeight: 700,
                       display: 'flex', alignItems: 'center', gap: 3,
                     }}>
-                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: isConnected ? '#16A34A' : '#D1D5DB' }} />
-                      {isConnected ? '입장 가능' : '연결 없음'}
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: isSharing ? '#16A34A' : isConnected ? '#F59E0B' : '#D1D5DB' }} />
+                      {isSharing ? '입장 가능' : isConnected ? '공유 중지' : '연결 없음'}
                     </span>
                   </div>
 
@@ -457,15 +528,25 @@ export default function WhiteboardList() {
                       {copiedId === `link_${board.id}` ? <><Check size={9} color="#4ADE80" /> 복사됨</> : <><Copy size={9} /> 링크</>}
                     </button>
 
-                    {/* 클래스 연결/해제 */}
+                    {/* 클래스 공유 중지/시작 또는 연결 */}
                     {isConnected ? (
-                      <button
-                        onClick={() => disconnectBoardClass(board.id)}
-                        disabled={isDisconnectingThis}
-                        style={{ background: '#7C2D12', border: 'none', borderRadius: 5, padding: '3px 7px', color: '#FCA5A5', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', gap: 2, opacity: isDisconnectingThis ? 0.6 : 1 }}
-                      >
-                        <Unlink size={9} /> {isDisconnectingThis ? '...' : '연결 해제'}
-                      </button>
+                      board.is_public ? (
+                        <button
+                          onClick={() => disconnectBoardClass(board.id)}
+                          disabled={isDisconnectingThis}
+                          style={{ background: '#7C2D12', border: 'none', borderRadius: 5, padding: '3px 7px', color: '#FCA5A5', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', gap: 2, opacity: isDisconnectingThis ? 0.6 : 1 }}
+                        >
+                          <Unlink size={9} /> {isDisconnectingThis ? '...' : '공유 중지'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => reconnectBoardClass(board.id)}
+                          disabled={isDisconnectingThis}
+                          style={{ background: '#14532D', border: 'none', borderRadius: 5, padding: '3px 7px', color: '#86EFAC', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', gap: 2, opacity: isDisconnectingThis ? 0.6 : 1 }}
+                        >
+                          <Link2 size={9} /> {isDisconnectingThis ? '...' : '공유 시작'}
+                        </button>
+                      )
                     ) : (
                       <button
                         onClick={() => setClassLinkBoardId(board.id)}
