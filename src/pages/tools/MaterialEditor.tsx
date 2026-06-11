@@ -359,7 +359,7 @@ const MaterialEditor = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [presentingMaterial, setPresentingMaterial] = useState<Material | null>(null);
-  const [previewFullscreen, setPreviewFullscreen] = useState(false);
+  const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string } | null>(null);
 
   useEffect(() => {
     if (user) fetchClasses();
@@ -525,11 +525,11 @@ const MaterialEditor = () => {
     {presentingMaterial && (
       <PresentationModal material={presentingMaterial} onClose={() => setPresentingMaterial(null)} />
     )}
-    {previewFullscreen && (
+    {fullscreenPreview && (
       <PreviewFullscreenModal
-        title={title}
-        content={content}
-        onClose={() => setPreviewFullscreen(false)}
+        title={fullscreenPreview.title}
+        content={fullscreenPreview.content}
+        onClose={() => setFullscreenPreview(null)}
       />
     )}
     <div className="space-y-5">
@@ -642,7 +642,7 @@ const MaterialEditor = () => {
               {content.trim() ? (
                 <>
                   <button
-                    onClick={() => setPreviewFullscreen(true)}
+                    onClick={() => setFullscreenPreview({ title, content })}
                     className="absolute top-3 right-3 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors z-10"
                     title="전체 화면으로 보기"
                   >
@@ -815,8 +815,17 @@ const MaterialEditor = () => {
                       </a>
                     )}
                     {material.content ? (
-                      <div className="p-5 max-h-80 overflow-y-auto">
-                        <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{material.content}</ReactMarkdown>
+                      <div className="relative">
+                        <button
+                          onClick={() => setFullscreenPreview({ title: material.title, content: material.content })}
+                          className="absolute top-2 right-2 z-10 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors"
+                          title="전체 화면으로 보기"
+                        >
+                          <Maximize2 size={14} />
+                        </button>
+                        <div className="p-5 max-h-80 overflow-y-auto">
+                          <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{material.content}</ReactMarkdown>
+                        </div>
                       </div>
                     ) : (
                       <p className="px-5 py-4 text-sm font-bold text-on-surface-variant opacity-50">작성된 내용이 없습니다.</p>
