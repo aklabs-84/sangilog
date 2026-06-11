@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Play, ArrowRight } from 'lucide-react';
+import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Copy, Check, Share2, Link2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,42 +16,91 @@ interface BoardMeta {
   snapshot_url?: string;
   class_id?: string;
   class_name?: string;
+  is_public: boolean;
+  session_id?: string;
 }
+
+interface ClassInfo {
+  id: string;
+  name: string;
+}
+
+interface ClassSession {
+  code: string;
+  id: string;
+}
+
+const ALL_TAB = '__all__';
+const NO_CLASS_TAB = '__noclass__';
 
 export default function WhiteboardList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [boards, setBoards] = useState<BoardMeta[]>([]);
+  const [classInfos, setClassInfos] = useState<ClassInfo[]>([]);
+  const [classSessions, setClassSessions] = useState<Record<string, ClassSession>>({});
+  const [selectedClassId, setSelectedClassId] = useState<string>(ALL_TAB);
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sharingToggling, setSharingToggling] = useState<string | null>(null);
   const [showStartSession, setShowStartSession] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadBoards = useCallback(async () => {
     if (!user) return;
-    (async () => {
-      const { data } = await supabase
-        .from('whiteboards')
-        .select('id, title, template, group_name, updated_at, snapshot_url, class_id')
-        .eq('created_by', user.id)
-        .order('updated_at', { ascending: false });
+    setLoading(true);
 
-      if (!data) { setLoading(false); return; }
+    const { data } = await supabase
+      .from('whiteboards')
+      .select('id, title, template, group_name, updated_at, snapshot_url, class_id, is_public, session_id')
+      .eq('created_by', user.id)
+      .order('updated_at', { ascending: false });
 
-      // 연결된 클래스명 조회
-      const classIds = [...new Set(data.filter(b => b.class_id).map(b => b.class_id as string))];
-      let classMap: Record<string, string> = {};
-      if (classIds.length > 0) {
-        const { data: classes } = await supabase
-          .from('classes').select('id, name').in('id', classIds);
-        if (classes) classMap = Object.fromEntries(classes.map(c => [c.id, c.name]));
+    if (!data) { setLoading(false); return; }
+
+    const classIds = [...new Set(data.filter(b => b.class_id).map(b => b.class_id as string))];
+    let classMap: Record<string, string> = {};
+    let fetchedClasses: ClassInfo[] = [];
+
+    if (classIds.length > 0) {
+      const { data: classes } = await supabase
+        .from('classes').select('id, name').in('id', classIds);
+      if (classes) {
+        classMap = Object.fromEntries(classes.map(c => [c.id, c.name]));
+        fetchedClasses = classes;
       }
 
-      setBoards(data.map(b => ({ ...b, class_name: b.class_id ? classMap[b.class_id] : undefined })));
-      setLoading(false);
-    })();
+      // 클래스별 활성 세션 코드 조회
+      const { data: sessions } = await supabase
+        .from('class_board_sessions')
+        .select('id, class_id, session_code')
+        .in('class_id', classIds)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (sessions) {
+        const sessionMap: Record<string, ClassSession> = {};
+        sessions.forEach(s => {
+          if (s.class_id && !sessionMap[s.class_id]) {
+            sessionMap[s.class_id] = { code: s.session_code, id: s.id };
+          }
+        });
+        setClassSessions(sessionMap);
+      }
+    }
+
+    setClassInfos(fetchedClasses);
+    setBoards(data.map(b => ({
+      ...b,
+      is_public: b.is_public ?? false,
+      class_name: b.class_id ? classMap[b.class_id] : undefined,
+    })));
+    setLoading(false);
   }, [user]);
+
+  useEffect(() => { loadBoards(); }, [loadBoards]);
 
   const handleCreate = () => navigate(`/whiteboard/${uuidv4()}`);
 
@@ -64,37 +113,226 @@ export default function WhiteboardList() {
     setHoveredId(null);
   };
 
+  const toggleBoardShare = async (boardId: string, newValue: boolean) => {
+    setSharingToggling(boardId);
+    await supabase.from('whiteboards').update({ is_public: newValue }).eq('id', boardId);
+    setBoards(prev => prev.map(b => b.id === boardId ? { ...b, is_public: newValue } : b));
+    setSharingToggling(null);
+  };
+
+  const toggleClassShare = async (classId: string, newValue: boolean) => {
+    setSharingToggling(`class_${classId}`);
+    const ids = boards.filter(b => b.class_id === classId).map(b => b.id);
+    if (ids.length > 0) {
+      await supabase.from('whiteboards').update({ is_public: newValue }).in('id', ids);
+      setBoards(prev => prev.map(b => b.class_id === classId ? { ...b, is_public: newValue } : b));
+    }
+    setSharingToggling(null);
+  };
+
+  const handleCopy = async (text: string, id: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const formatDate = (iso: string) => {
     const d = new Date(iso);
     return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
+  // 탭 구성
+  const classesWithBoards = classInfos.filter(c => boards.some(b => b.class_id === c.id));
+  const hasNoClassBoards = boards.some(b => !b.class_id);
+
+  const filteredBoards = selectedClassId === ALL_TAB
+    ? boards
+    : selectedClassId === NO_CLASS_TAB
+      ? boards.filter(b => !b.class_id)
+      : boards.filter(b => b.class_id === selectedClassId);
+
+  const selectedClass = selectedClassId !== ALL_TAB && selectedClassId !== NO_CLASS_TAB
+    ? classInfos.find(c => c.id === selectedClassId)
+    : null;
+
+  const selectedSession = selectedClass ? classSessions[selectedClass.id] : null;
+
+  const allShared = selectedClass
+    ? filteredBoards.every(b => b.is_public)
+    : false;
+  const anyShared = selectedClass
+    ? filteredBoards.some(b => b.is_public)
+    : false;
+
+  const isClassSharingLoading = selectedClass
+    ? sharingToggling === `class_${selectedClass.id}`
+    : false;
+
+  const joinUrl = `${window.location.origin}/wb-join`;
+
   if (loading) return <div style={{ padding: 24, color: '#6B7280', fontSize: 14 }}>불러오는 중...</div>;
 
   return (
     <div style={{ padding: '4px 0' }}>
-      {/* 수업 시작 배너 */}
+      {/* 조별 보드 만들기 버튼 */}
       <motion.button
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
         onClick={() => setShowStartSession(true)}
         style={{
-          width: '100%', marginBottom: 14, padding: '14px 20px',
+          width: '100%', marginBottom: 16, padding: '12px 20px',
           background: 'linear-gradient(135deg, #1D4ED8, #7C3AED)',
           border: 'none', borderRadius: 12, cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: 12,
         }}
       >
-        <div style={{ width: 36, height: 36, background: 'rgba(255,255,255,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Play size={18} color="#fff" />
+        <div style={{ width: 32, height: 32, background: 'rgba(255,255,255,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Plus size={16} color="#fff" />
         </div>
         <div style={{ textAlign: 'left' }}>
-          <p style={{ color: '#fff', fontWeight: 700, fontSize: 14, margin: 0 }}>수업 보드 시작</p>
-          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>클래스 선택 → 조별 보드 자동 생성 → 학생 실시간 참여</p>
+          <p style={{ color: '#fff', fontWeight: 700, fontSize: 14, margin: 0 }}>조별 보드 만들기</p>
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: 0 }}>클래스 선택 → 조별 보드 자동 생성 → 공유로 학생 참여</p>
         </div>
-        <ArrowRight style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.7)', flexShrink: 0 }} size={18} />
       </motion.button>
 
+      {/* 클래스 탭 */}
+      {(classesWithBoards.length > 0 || hasNoClassBoards) && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', paddingBottom: 2, flexWrap: 'wrap' }}>
+          {/* 전체 탭 */}
+          <button
+            onClick={() => setSelectedClassId(ALL_TAB)}
+            style={{
+              padding: '5px 14px', borderRadius: 20, border: `1px solid ${selectedClassId === ALL_TAB ? '#2563EB' : '#E5E7EB'}`,
+              background: selectedClassId === ALL_TAB ? '#2563EB' : '#F9FAFB',
+              color: selectedClassId === ALL_TAB ? '#fff' : '#374151',
+              cursor: 'pointer', fontSize: 12, fontWeight: 600, flexShrink: 0,
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            전체
+            <span style={{ background: selectedClassId === ALL_TAB ? 'rgba(255,255,255,0.25)' : '#E5E7EB', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>
+              {boards.length}
+            </span>
+          </button>
+
+          {/* 클래스별 탭 */}
+          {classesWithBoards.map(cls => {
+            const count = boards.filter(b => b.class_id === cls.id).length;
+            const sharedCount = boards.filter(b => b.class_id === cls.id && b.is_public).length;
+            const isActive = selectedClassId === cls.id;
+            return (
+              <button
+                key={cls.id}
+                onClick={() => setSelectedClassId(cls.id)}
+                style={{
+                  padding: '5px 14px', borderRadius: 20, border: `1px solid ${isActive ? '#2563EB' : '#E5E7EB'}`,
+                  background: isActive ? '#2563EB' : '#F9FAFB',
+                  color: isActive ? '#fff' : '#374151',
+                  cursor: 'pointer', fontSize: 12, fontWeight: 600, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                {cls.name}
+                <span style={{ background: isActive ? 'rgba(255,255,255,0.25)' : '#E5E7EB', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>
+                  {count}
+                </span>
+                {sharedCount > 0 && (
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: isActive ? '#86EFAC' : '#22C55E', flexShrink: 0 }} />
+                )}
+              </button>
+            );
+          })}
+
+          {/* 클래스 없음 탭 */}
+          {hasNoClassBoards && (
+            <button
+              onClick={() => setSelectedClassId(NO_CLASS_TAB)}
+              style={{
+                padding: '5px 14px', borderRadius: 20, border: `1px solid ${selectedClassId === NO_CLASS_TAB ? '#2563EB' : '#E5E7EB'}`,
+                background: selectedClassId === NO_CLASS_TAB ? '#2563EB' : '#F9FAFB',
+                color: selectedClassId === NO_CLASS_TAB ? '#fff' : '#374151',
+                cursor: 'pointer', fontSize: 12, flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              클래스 없음
+              <span style={{ background: selectedClassId === NO_CLASS_TAB ? 'rgba(255,255,255,0.25)' : '#E5E7EB', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>
+                {boards.filter(b => !b.class_id).length}
+              </span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 클래스 선택 시 — 공유 컨트롤 + 학생 입장 정보 */}
+      {selectedClass && (
+        <div style={{
+          background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: 12,
+          padding: '12px 16px', marginBottom: 14,
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            {/* 학생 입장 코드 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ color: '#1D4ED8', fontSize: 12, fontWeight: 600 }}>학생 입장</span>
+              {selectedSession ? (
+                <>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 16, color: '#1e40af', letterSpacing: 2 }}>
+                    {selectedSession.code}
+                  </span>
+                  <button
+                    onClick={() => handleCopy(selectedSession.code, `code_${selectedClass.id}`)}
+                    style={{ background: copiedId === `code_${selectedClass.id}` ? '#059669' : '#DBEAFE', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: copiedId === `code_${selectedClass.id}` ? '#fff' : '#1D4ED8', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}
+                  >
+                    {copiedId === `code_${selectedClass.id}` ? <><Check size={11} /> 복사됨</> : <><Copy size={11} /> 코드 복사</>}
+                  </button>
+                  <button
+                    onClick={() => handleCopy(`${joinUrl}?code=${selectedSession.code}`, `link_${selectedClass.id}`)}
+                    style={{ background: copiedId === `link_${selectedClass.id}` ? '#059669' : '#DBEAFE', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: copiedId === `link_${selectedClass.id}` ? '#fff' : '#1D4ED8', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3 }}
+                  >
+                    {copiedId === `link_${selectedClass.id}` ? <><Check size={11} /> 복사됨</> : <><Link2 size={11} /> 링크 복사</>}
+                  </button>
+                </>
+              ) : (
+                <span style={{ color: '#6B7280', fontSize: 12 }}>— 보드를 만들면 코드가 생성됩니다</span>
+              )}
+            </div>
+
+            {/* 전체 공유 토글 */}
+            {filteredBoards.length > 0 && (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  onClick={() => toggleClassShare(selectedClass.id, true)}
+                  disabled={allShared || isClassSharingLoading}
+                  style={{
+                    padding: '5px 12px', borderRadius: 8, border: 'none', fontSize: 12,
+                    background: allShared ? '#86EFAC' : '#22C55E',
+                    color: '#fff', cursor: allShared ? 'default' : 'pointer',
+                    opacity: isClassSharingLoading ? 0.6 : allShared ? 0.7 : 1,
+                    display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600,
+                  }}
+                >
+                  <Share2 size={11} /> 전체 공유
+                </button>
+                <button
+                  onClick={() => toggleClassShare(selectedClass.id, false)}
+                  disabled={!anyShared || isClassSharingLoading}
+                  style={{
+                    padding: '5px 12px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 12,
+                    background: '#fff', color: !anyShared ? '#D1D5DB' : '#6B7280',
+                    cursor: !anyShared ? 'default' : 'pointer',
+                    opacity: isClassSharingLoading ? 0.6 : 1,
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  공유 중지
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 보드 그리드 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
 
         {/* 새 보드 만들기 */}
@@ -104,7 +342,7 @@ export default function WhiteboardList() {
           onClick={handleCreate}
           style={{
             background: 'none', border: '2px dashed #D1D5DB', borderRadius: 12, cursor: 'pointer',
-            height: 140, display: 'flex', flexDirection: 'column', alignItems: 'center',
+            height: 148, display: 'flex', flexDirection: 'column', alignItems: 'center',
             justifyContent: 'center', gap: 8, color: '#6B7280', transition: 'all 0.15s',
           }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#3B82F6'; e.currentTarget.style.color = '#3B82F6'; }}
@@ -116,10 +354,11 @@ export default function WhiteboardList() {
 
         {/* 보드 카드 */}
         <AnimatePresence>
-          {boards.map(board => {
+          {filteredBoards.map(board => {
             const isHovered = hoveredId === board.id;
             const isConfirming = confirmId === board.id;
             const isDeleting = deletingId === board.id;
+            const isSharing = sharingToggling === board.id;
 
             return (
               <motion.div
@@ -135,14 +374,15 @@ export default function WhiteboardList() {
                 style={{
                   background: '#fff',
                   border: `1px solid ${isConfirming ? '#FCA5A5' : isHovered ? '#3B82F6' : '#E5E7EB'}`,
+                  borderLeft: `3px solid ${board.is_public ? '#22C55E' : '#E5E7EB'}`,
                   borderRadius: 12, cursor: isConfirming ? 'default' : 'pointer',
-                  height: 140, overflow: 'hidden', position: 'relative',
+                  height: 148, overflow: 'hidden', position: 'relative',
                   boxShadow: isHovered ? '0 4px 12px rgba(59,130,246,0.15)' : '0 1px 4px rgba(0,0,0,0.06)',
                   transition: 'all 0.15s',
                 }}
               >
                 {/* 썸네일 */}
-                <div style={{ height: 88, background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                <div style={{ height: 84, background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   {board.snapshot_url
                     ? <img src={board.snapshot_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : <LayoutPanelTop size={28} color="#D1D5DB" />
@@ -151,25 +391,46 @@ export default function WhiteboardList() {
 
                 {/* 메타 정보 */}
                 <div style={{ padding: '8px 10px' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {board.title}
+                  {/* 타이틀 + 공유 뱃지 */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {board.title}
+                    </div>
+                    {/* 공유 토글 뱃지 */}
+                    <button
+                      onClick={e => { e.stopPropagation(); if (!isSharing) toggleBoardShare(board.id, !board.is_public); }}
+                      style={{
+                        flexShrink: 0, padding: '2px 7px', borderRadius: 10, border: 'none',
+                        background: board.is_public ? '#DCFCE7' : '#F3F4F6',
+                        color: board.is_public ? '#16A34A' : '#9CA3AF',
+                        fontSize: 10, fontWeight: 700, cursor: isSharing ? 'default' : 'pointer',
+                        opacity: isSharing ? 0.6 : 1,
+                        transition: 'all 0.15s',
+                        display: 'flex', alignItems: 'center', gap: 3,
+                      }}
+                    >
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: board.is_public ? '#16A34A' : '#D1D5DB', flexShrink: 0 }} />
+                      {board.is_public ? '공유 중' : '비공개'}
+                    </button>
                   </div>
-                  <div style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
+
+                  {/* 날짜 + 태그 */}
+                  <div style={{ fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
                     <Clock size={10} /> {formatDate(board.updated_at)}
                     {board.group_name && (
-                      <span style={{ marginLeft: 4, background: '#EFF6FF', color: '#3B82F6', borderRadius: 4, padding: '1px 5px', fontSize: 10 }}>
+                      <span style={{ background: '#EFF6FF', color: '#3B82F6', borderRadius: 4, padding: '1px 5px', fontSize: 10 }}>
                         {board.group_name}
                       </span>
                     )}
-                    {board.class_name && (
-                      <span style={{ marginLeft: 4, background: '#EEF2FF', color: '#4338CA', borderRadius: 4, padding: '1px 5px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {board.class_name && selectedClassId === ALL_TAB && (
+                      <span style={{ background: '#EEF2FF', color: '#4338CA', borderRadius: 4, padding: '1px 5px', fontSize: 10, display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Users size={8} /> {board.class_name}
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* 삭제 버튼 (hover 시 표시) */}
+                {/* 삭제 버튼 (hover 시) */}
                 {isHovered && !isConfirming && (
                   <button
                     onClick={e => { e.stopPropagation(); setConfirmId(board.id); }}
@@ -189,11 +450,9 @@ export default function WhiteboardList() {
                   <div
                     onClick={e => e.stopPropagation()}
                     style={{
-                      position: 'absolute', inset: 0,
-                      background: 'rgba(255,255,255,0.95)',
+                      position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.95)',
                       display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', justifyContent: 'center', gap: 10,
-                      borderRadius: 12,
+                      alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 12,
                     }}
                   >
                     <AlertTriangle size={20} color="#EF4444" />
@@ -205,16 +464,12 @@ export default function WhiteboardList() {
                       <button
                         onClick={() => setConfirmId(null)}
                         style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #E5E7EB', background: '#fff', cursor: 'pointer', fontSize: 12, color: '#374151' }}
-                      >
-                        취소
-                      </button>
+                      >취소</button>
                       <button
                         onClick={() => handleDeleteConfirm(board.id)}
                         disabled={isDeleting}
                         style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: '#EF4444', cursor: 'pointer', fontSize: 12, color: '#fff', fontWeight: 600 }}
-                      >
-                        {isDeleting ? '삭제 중...' : '삭제'}
-                      </button>
+                      >{isDeleting ? '삭제 중...' : '삭제'}</button>
                     </div>
                   </div>
                 )}
@@ -224,8 +479,22 @@ export default function WhiteboardList() {
         </AnimatePresence>
       </div>
 
+      {/* 빈 상태 */}
+      {filteredBoards.length === 0 && !loading && (
+        <div style={{ textAlign: 'center', padding: '32px 0', color: '#9CA3AF', fontSize: 13 }}>
+          {selectedClassId === NO_CLASS_TAB
+            ? '클래스에 연결되지 않은 보드가 없습니다.'
+            : selectedClass
+              ? `${selectedClass.name} 클래스에 보드가 없습니다. '조별 보드 만들기'로 생성해보세요.`
+              : '아직 만든 보드가 없습니다.'}
+        </div>
+      )}
+
       {showStartSession && (
-        <StartSessionModal onClose={() => setShowStartSession(false)} />
+        <StartSessionModal
+          onClose={() => setShowStartSession(false)}
+          onCreated={() => loadBoards()}
+        />
       )}
     </div>
   );
