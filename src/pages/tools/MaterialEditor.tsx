@@ -1,6 +1,28 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+
+// ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
+const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
+  new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob => {
+        resolve(blob
+          ? new File([blob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' })
+          : file);
+      }, 'image/webp', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
 import ReactMarkdown from 'react-markdown';
 import {
   Save, Trash2, Copy, Plus,
@@ -332,15 +354,22 @@ const MaterialEditor = () => {
     setIsEditorOpen(true);
   };
 
-  // ── 이미지 업로드 (RichEditor 콜백으로 사용) ──────────────────────────────
+  // ── 이미지 업로드 — WebP 변환 후 Supabase 저장 ───────────────────────────
   const handleUploadImage = async (file: File): Promise<string> => {
     if (!user) throw new Error('로그인 필요');
-    if (file.size > 20 * 1024 * 1024) { alert('20MB 이하 파일만 업로드 가능합니다.'); throw new Error('파일 크기 초과'); }
+    if (file.size > 50 * 1024 * 1024) {
+      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
+      throw new Error('파일 크기 초과');
+    }
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop() || 'png';
-      const path = `materials/${user.id}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('student-attachments').upload(path, file);
+      const compressed = await compressToWebP(file);
+      if (compressed.size > 20 * 1024 * 1024) {
+        alert('변환 후에도 20MB를 초과합니다. 더 작은 이미지를 사용해주세요.');
+        throw new Error('파일 크기 초과');
+      }
+      const path = `materials/${user.id}/${Date.now()}.webp`;
+      const { error } = await supabase.storage.from('student-attachments').upload(path, compressed);
       if (error) throw error;
       const { data } = supabase.storage.from('student-attachments').getPublicUrl(path);
       return data.publicUrl;
