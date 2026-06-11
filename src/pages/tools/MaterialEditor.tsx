@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import rehypeRaw from 'rehype-raw';
@@ -134,7 +135,7 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
   const prev = () => setCurrent(c => Math.max(c - 1, 0));
   const next = () => setCurrent(c => Math.min(c + 1, total - 1));
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] bg-[#0a0a14] flex flex-col select-none">
 
       {/* 상단 바 */}
@@ -213,7 +214,8 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
           to   { opacity: 1; transform: translateX(0); }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -233,7 +235,7 @@ const PreviewFullscreenModal = ({
     return () => window.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9998] bg-white flex flex-col">
       {/* 상단 헤더 */}
       <div className="flex items-center gap-3 px-5 py-3 bg-slate-800 shrink-0">
@@ -256,7 +258,8 @@ const PreviewFullscreenModal = ({
           </ReactMarkdown>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
