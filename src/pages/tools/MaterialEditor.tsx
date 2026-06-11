@@ -836,10 +836,10 @@ const MaterialEditor = () => {
                     {material.content && (
                       <button
                         onClick={() => setPresentingMaterial(material)}
-                        title="발표 모드로 보기"
-                        className="p-2 rounded-xl text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors"
+                        title="전체화면 발표 모드"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors"
                       >
-                        <Presentation size={15} />
+                        <Presentation size={13} /> 발표
                       </button>
                     )}
                     {/* 미리보기 토글 */}
