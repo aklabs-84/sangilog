@@ -57,6 +57,7 @@ interface HomeroomDashboardProps {
   onResetPin: (id: string) => void;
   onOpenResources?: () => void;
   onCopyLink?: () => void;
+  groupMap?: Record<string, { name: string; color: string }>;
 }
 
 const HomeroomDashboard = ({
@@ -82,6 +83,7 @@ const HomeroomDashboard = ({
   onResetPin,
   onOpenResources,
   onCopyLink,
+  groupMap = {},
 }: HomeroomDashboardProps) => {
   const navigate = useNavigate();
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
@@ -104,9 +106,10 @@ const HomeroomDashboard = ({
   const [activityTab, setActivityTab] = useState<'obs' | 'results'>('obs');
 
   // ── 주차별 제출 통계 ──
-  const HOMEROOM_COL_DEFAULTS = { number: true, linkedSubjects: true, approval: true };
+  const HOMEROOM_COL_DEFAULTS = { number: true, group: true, linkedSubjects: true, approval: true };
   const HOMEROOM_COL_LABELS: Record<string, string> = {
     number: '번호 (NO.)',
+    group: '지정 조',
     linkedSubjects: '연동 과목',
     approval: '승인 현황',
   };
@@ -565,6 +568,14 @@ const HomeroomDashboard = ({
                          <p className="text-sm font-black text-on-surface truncate">{s.name}</p>
                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                            <span className="text-[9px] font-bold text-on-surface-variant/40">{s.tag || '학생'}</span>
+                           {colVis.group && groupMap[s.id] && (
+                             <span
+                               className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
+                               style={{ backgroundColor: groupMap[s.id].color }}
+                             >
+                               {groupMap[s.id].name}
+                             </span>
+                           )}
                            {suggestionCounts[s.id] > 0 && (
                              <span className="text-[8px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">💬 {suggestionCounts[s.id]}</span>
                            )}
@@ -729,6 +740,14 @@ const HomeroomDashboard = ({
                                  <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
                                  <div className="flex items-center gap-1.5 mt-0.5">
                                     <span className="px-1.5 py-0.5 bg-primary/5 text-[8px] font-black text-primary/70 uppercase tracking-wider rounded border border-primary/10">{s.tag || '학생'}</span>
+                                    {colVis.group && groupMap[s.id] && (
+                                      <span
+                                        className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
+                                        style={{ backgroundColor: groupMap[s.id].color }}
+                                      >
+                                        {groupMap[s.id].name}
+                                      </span>
+                                    )}
                                     {suggestionCounts[s.id] > 0 && (
                                       <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-50 text-[8px] font-black text-rose-500 rounded border border-rose-100">
                                         💬 {suggestionCounts[s.id]}건

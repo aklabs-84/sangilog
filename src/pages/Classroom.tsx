@@ -1515,6 +1515,7 @@ const Classroom = () => {
                       setIsResourceModalOpen(true);
                     }}
                     onCopyLink={handleCopyLink}
+                    groupMap={groupMap}
                   />
                 ) : (
                   <SubjectDashboard

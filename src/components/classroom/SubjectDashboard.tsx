@@ -102,9 +102,10 @@ const SubjectDashboard = ({
   groupMap = {},
 }: SubjectDashboardProps) => {
   const navigate = useNavigate();
-  const SUBJECT_COL_DEFAULTS = { number: true, activity: true, status: true, approval: true };
+  const SUBJECT_COL_DEFAULTS = { number: true, group: true, activity: true, status: true, approval: true };
   const SUBJECT_COL_LABELS: Record<string, string> = {
     number: '번호 (NO.)',
+    group: '지정 조',
     activity: '활동 기록',
     status: '진행 상태',
     approval: '승인 현황',
@@ -879,7 +880,7 @@ const SubjectDashboard = ({
                                 <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-[10px] font-bold text-on-surface-variant/40">{s.tag || '학생'}</span>
-                                  {groupMap[s.id] && (
+                                  {colVis.group && groupMap[s.id] && (
                                     <span
                                       className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
                                       style={{ backgroundColor: groupMap[s.id].color }}
@@ -1033,7 +1034,7 @@ const SubjectDashboard = ({
                       <div className="flex-1 min-w-0 pt-0.5">
                         <p className="font-black text-sm leading-tight truncate">{s.name}</p>
                         <div className="flex items-center gap-1 mt-1 flex-wrap">
-                          {groupMap[s.id] && (
+                          {colVis.group && groupMap[s.id] && (
                             <span
                               className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
                               style={{ backgroundColor: groupMap[s.id].color }}
