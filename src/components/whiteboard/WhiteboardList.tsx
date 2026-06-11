@@ -184,11 +184,15 @@ export default function WhiteboardList() {
     setDisconnecting(`class_${classId}`);
     const ids = boards.filter(b => b.class_id === classId).map(b => b.id);
     if (ids.length > 0) {
-      await supabase.from('whiteboards').update({ is_public: false }).in('id', ids);
-      await supabase.from('class_board_sessions')
+      const { error: wErr } = await supabase.from('whiteboards').update({ is_public: false }).in('id', ids);
+      if (wErr) console.error('[공유중지] whiteboards 업데이트 실패:', wErr);
+
+      const { error: sErr } = await supabase.from('class_board_sessions')
         .update({ status: 'ended' })
         .eq('class_id', classId)
         .eq('status', 'active');
+      if (sErr) console.error('[공유중지] class_board_sessions 업데이트 실패:', sErr);
+
       setBoards(prev => prev.map(b => b.class_id === classId ? { ...b, is_public: false } : b));
       setClassSessions(prev => { const next = { ...prev }; delete next[classId]; return next; });
     }

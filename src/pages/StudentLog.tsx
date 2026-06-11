@@ -1085,6 +1085,22 @@ const StudentLog = () => {
 
     const sessions = data || [];
 
+    // 세션이 있어도 실제로 공개된 보드가 없으면 입장 버튼 숨김
+    // (선생님이 공유 중지 시 session.status 업데이트가 RLS로 막혀도 안전하게 동작)
+    if (sessions.length > 0) {
+      const { data: publicBoards } = await supabase
+        .from('whiteboards')
+        .select('id')
+        .eq('class_id', session.class_id)
+        .eq('is_public', true)
+        .limit(1);
+      if (!publicBoards || publicBoards.length === 0) {
+        setActiveBoardSessions([]);
+        isFirstBoardPoll.current = false;
+        return;
+      }
+    }
+
     if (!isFirstBoardPoll.current) {
       const newSession = sessions.find(s => !seenBoardSessionIds.current.has(s.id));
       if (newSession) setBoardSessionAlert(newSession);
