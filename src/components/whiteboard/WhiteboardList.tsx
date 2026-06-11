@@ -299,6 +299,10 @@ export default function WhiteboardList() {
 
   const selectedSession = selectedClass ? classSessions[selectedClass.id] : null;
   const isDisconnectingAll = selectedClass ? disconnecting === `class_${selectedClass.id}` : false;
+  // 버튼 표시 기준: 세션 상태가 아닌 is_public 기준 (세션 RLS 실패 시에도 정확히 표시)
+  const classIsSharing = selectedClass
+    ? boards.some(b => b.class_id === selectedClass.id && b.is_public)
+    : false;
   const joinUrl = `${window.location.origin}/wb-join`;
 
   if (loading) return <div style={{ padding: 24, color: '#6B7280', fontSize: 14 }}>불러오는 중...</div>;
@@ -348,7 +352,7 @@ export default function WhiteboardList() {
 
           {classesWithBoards.map(cls => {
             const count = boards.filter(b => b.class_id === cls.id).length;
-            const connectedCount = boards.filter(b => b.class_id === cls.id).length;
+            const sharingCount = boards.filter(b => b.class_id === cls.id && b.is_public).length;
             const isActive = selectedClassId === cls.id;
             return (
               <button
@@ -367,7 +371,7 @@ export default function WhiteboardList() {
                 <span style={{ background: isActive ? 'rgba(255,255,255,0.25)' : '#E5E7EB', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>
                   {count}
                 </span>
-                {connectedCount > 0 && (
+                {sharingCount > 0 && (
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: isActive ? '#86EFAC' : '#22C55E', flexShrink: 0 }} title="학생 입장 가능" />
                 )}
               </button>
@@ -428,9 +432,9 @@ export default function WhiteboardList() {
               )}
             </div>
 
-            {/* 전체 공유 중지 / 공유 시작 */}
+            {/* 전체 공유 중지 / 공유 시작 — is_public 기준으로 표시 */}
             {filteredBoards.length > 0 && (
-              selectedSession ? (
+              classIsSharing ? (
                 <button
                   onClick={() => disconnectAllClassBoards(selectedClass.id)}
                   disabled={isDisconnectingAll}
