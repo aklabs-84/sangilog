@@ -137,21 +137,19 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
   return (
     <div className="fixed inset-0 z-[9999] bg-[#0a0a14] flex flex-col select-none">
 
-      {/* 좌상단 나가기 버튼 */}
-      <button
-        onClick={onClose}
-        className="absolute top-4 left-4 z-[10000] flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/20 border border-white/30 text-white font-black text-sm hover:bg-white/30 active:scale-95 transition-all shadow-lg"
-      >
-        <ArrowLeft size={16} /> 나가기
-      </button>
-
       {/* 상단 바 */}
-      <div className="flex items-center justify-center px-8 py-4 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-primary" />
-          <span className="text-white/50 text-sm font-bold truncate max-w-xs">{material.title}</span>
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-white/5 shrink-0">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-800 font-black text-sm hover:bg-slate-100 active:scale-95 transition-all shadow"
+        >
+          <ArrowLeft size={15} /> 나가기
+        </button>
+        <div className="flex items-center gap-2 ml-2 flex-1 min-w-0">
+          <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+          <span className="text-white/60 text-sm font-bold truncate">{material.title}</span>
         </div>
-        <span className="ml-6 text-white/30 text-sm font-bold tabular-nums">
+        <span className="text-white/40 text-sm font-bold tabular-nums shrink-0">
           {current + 1} / {total}
         </span>
       </div>
@@ -237,19 +235,17 @@ const PreviewFullscreenModal = ({
 
   return (
     <div className="fixed inset-0 z-[9998] bg-white flex flex-col">
-      {/* 좌상단 나가기 버튼 */}
-      <button
-        onClick={onClose}
-        className="absolute top-4 left-4 z-[10000] flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container border border-surface-container-highest text-on-surface font-black text-sm hover:bg-surface-container-high active:scale-95 transition-all shadow-md"
-      >
-        <ArrowLeft size={16} /> 나가기
-      </button>
-
-      {/* 상단 바 */}
-      <div className="flex items-center justify-center px-6 py-3.5 border-b border-surface-container bg-surface-container-low shrink-0">
-        <div className="flex items-center gap-2">
-          <Eye size={16} className="text-primary" />
-          <span className="font-black text-sm truncate max-w-xs">{title || '미리보기'}</span>
+      {/* 상단 헤더 */}
+      <div className="flex items-center gap-3 px-5 py-3 bg-slate-800 shrink-0">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-800 font-black text-sm hover:bg-slate-100 active:scale-95 transition-all shadow"
+        >
+          <ArrowLeft size={15} /> 나가기
+        </button>
+        <div className="flex items-center gap-2 ml-2">
+          <Eye size={15} className="text-white/60" />
+          <span className="font-black text-sm text-white/80 truncate max-w-xs">{title || '미리보기'}</span>
         </div>
       </div>
       {/* 본문 */}
