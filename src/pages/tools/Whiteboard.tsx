@@ -98,9 +98,9 @@ export default function Whiteboard() {
     {
       id: user?.id ?? '',
       email: user?.email ?? '',
-      // 익명(학생) 유저일 때만 localStorage 이름 사용 — 교사 계정은 email 기반으로 표시
+      // wb-join 경유 학생일 때만 localStorage 이름 사용 — 교사는 email 기반으로 표시
       displayName: (user as any)?.user_metadata?.display_name ??
-        ((user as any)?.is_anonymous ? localStorage.getItem('wb_student_name') : undefined) ??
+        (fromWbJoin ? localStorage.getItem('wb_student_name') : undefined) ??
         undefined,
     },
     onRemoteChange,
@@ -370,8 +370,8 @@ export default function Whiteboard() {
         )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* 클래스 뱃지 */}
-          {linkedClassName && (
+          {/* 클래스 뱃지 — 선생님만 표시 (학생 진입 시 숨김) */}
+          {linkedClassName && !fromWbJoin && (
             <button
               onClick={() => setShowClassLinkModal(true)}
               title="클래스 연결 설정"
