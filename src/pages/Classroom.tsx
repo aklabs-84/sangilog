@@ -41,6 +41,8 @@ import {
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
+import CodeBlock from '../components/CodeBlock';
+
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
 import BriefingModal from '../components/classroom/BriefingModal';
@@ -1187,7 +1189,9 @@ const Classroom = () => {
                 pre: ({ children }: any) => {
                   const child = (Array.isArray(children) ? children[0] : children) as any;
                   const code = String(child?.props?.children ?? '').replace(/\n$/, '');
-                  return <pre className="bg-slate-800 rounded-xl p-4 overflow-x-auto text-sm text-slate-200 font-mono my-3">{code}</pre>;
+                  const langMatch = (child?.props?.className ?? '').match(/language-(\w+)/);
+                  const lang = langMatch ? langMatch[1] : 'text';
+                  return <CodeBlock lang={lang} code={code} />;
                 },
                 img: ({ src, alt, title }: any) => {
                   const wm = (title || '').match(/^width:(\d+)$/);
