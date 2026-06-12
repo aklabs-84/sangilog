@@ -73,7 +73,8 @@ const Dashboard = () => {
           const { data: allObsData, count } = await supabase
             .from('observations')
             .select('student_id, students(class_id)', { count: 'exact' })
-            .in('student_id', studentIds);
+            .in('student_id', studentIds)
+            .eq('is_student_record', true);
 
           setTotalActivitiesCount(count || 0);
 
@@ -130,11 +131,12 @@ const Dashboard = () => {
         }
       }
 
-      // 2. Fetch Recent Activities by teacher_id
+      // 2. Fetch Recent Activities — 학생 제출 기록만 표시
       const { data: obsData } = await supabase
         .from('observations')
         .select('*, students!inner(full_name, class_id(name))')
         .eq('teacher_id', user?.id)
+        .eq('is_student_record', true)
         .order('created_at', { ascending: false })
         .limit(5);
 
