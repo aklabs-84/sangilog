@@ -53,7 +53,7 @@ const Landing = () => {
   const navigate = useNavigate();
 
   // 공개 통계
-  const [pubStats, setPubStats] = useState({ total_observations: 0, total_classes: 0, total_reports: 0 });
+  const [pubStats, setPubStats] = useState({ total_observations: 0, total_classes: 0, total_students: 0 });
   useEffect(() => {
     supabase.rpc('get_public_stats').then(({ data }) => {
       if (data) setPubStats(data);
@@ -242,9 +242,9 @@ const Landing = () => {
             className="mt-16 grid grid-cols-3 gap-6 max-w-lg mx-auto"
           >
             {[
-              { icon: PenLine,   value: fmt(pubStats.total_observations), label: '누적 관찰 기록' },
+              { icon: PenLine,   value: fmt(pubStats.total_observations), label: '학생 활동 기록' },
               { icon: School,    value: fmt(pubStats.total_classes),      label: '운영 중인 학급' },
-              { icon: FileText,  value: fmt(pubStats.total_reports),      label: '생성된 세특 초안' },
+              { icon: Users,     value: fmt(pubStats.total_students),     label: '참여 중인 학생' },
             ].map(({ icon: Icon, value, label }) => (
               <div key={label} className="text-center">
                 <Icon size={20} className="text-amber-400 mx-auto mb-1" />
@@ -365,9 +365,9 @@ const Landing = () => {
                 {
                   icon: PenLine,
                   value: pubStats.total_observations,
-                  label: '누적 관찰 기록',
+                  label: '학생 활동 기록',
                   unit: '건',
-                  desc: '수업 중 관찰된 학생들의 활동',
+                  desc: '학생들이 직접 제출한 수업 활동',
                   color: 'from-amber-50 to-orange-50 border-amber-200',
                   iconColor: 'text-amber-500',
                 },
@@ -381,11 +381,11 @@ const Landing = () => {
                   iconColor: 'text-violet-500',
                 },
                 {
-                  icon: FileText,
-                  value: pubStats.total_reports,
-                  label: '생성된 세특 초안',
-                  unit: '건',
-                  desc: 'AI가 자동으로 작성한 세특 초안',
+                  icon: Users,
+                  value: pubStats.total_students,
+                  label: '참여 중인 학생',
+                  unit: '명',
+                  desc: '생기로그로 수업에 참여하는 학생',
                   color: 'from-emerald-50 to-teal-50 border-emerald-200',
                   iconColor: 'text-emerald-500',
                 },
