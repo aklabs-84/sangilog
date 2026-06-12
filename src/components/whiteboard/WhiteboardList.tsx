@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Copy, Check, Link2, Unlink, ExternalLink } from 'lucide-react';
+import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Copy, Check, Link2, Unlink, ExternalLink, Pencil } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -33,6 +33,7 @@ interface ClassInfo {
 interface ClassSession {
   code: string;
   id: string;
+  groupSize: number;
 }
 
 const ALL_TAB = '__all__';
@@ -57,6 +58,8 @@ export default function WhiteboardList() {
   const [showStartSession, setShowStartSession] = useState(false);
   const [classLinkBoardId, setClassLinkBoardId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingGroupSizeClassId, setEditingGroupSizeClassId] = useState<string | null>(null);
+  const [groupSizeInput, setGroupSizeInput] = useState<string>('');
 
   const loadBoards = useCallback(async () => {
     if (!user) return;
@@ -84,7 +87,7 @@ export default function WhiteboardList() {
 
       const { data: sessions } = await supabase
         .from('class_board_sessions')
-        .select('id, class_id, session_code')
+        .select('id, class_id, session_code, group_size')
         .in('class_id', classIds)
         .eq('status', 'active')
         .order('created_at', { ascending: false });
@@ -93,7 +96,7 @@ export default function WhiteboardList() {
         const sessionMap: Record<string, ClassSession> = {};
         sessions.forEach(s => {
           if (s.class_id && !sessionMap[s.class_id]) {
-            sessionMap[s.class_id] = { code: s.session_code, id: s.id };
+            sessionMap[s.class_id] = { code: s.session_code, id: s.id, groupSize: s.group_size ?? 5 };
           }
         });
         setClassSessions(sessionMap);
@@ -273,6 +276,16 @@ export default function WhiteboardList() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const saveGroupSize = async (classId: string) => {
+    const size = parseInt(groupSizeInput, 10);
+    if (isNaN(size) || size < 1 || size > 99) return;
+    const session = classSessions[classId];
+    if (!session) return;
+    await supabase.from('class_board_sessions').update({ group_size: size }).eq('id', session.id);
+    setClassSessions(prev => ({ ...prev, [classId]: { ...prev[classId], groupSize: size } }));
+    setEditingGroupSizeClassId(null);
+  };
+
   const handleCopy = async (text: string, id: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -432,6 +445,56 @@ export default function WhiteboardList() {
               )}
             </div>
 
+            {/* 조당 인원 표시 + 수정 */}
+            {selectedSession && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <Users size={12} color="#1D4ED8" />
+                <span style={{ color: '#1D4ED8', fontSize: 12, fontWeight: 600 }}>조당 최대</span>
+                {editingGroupSizeClassId === selectedClass.id ? (
+                  <>
+                    <input
+                      type="number"
+                      value={groupSizeInput}
+                      onChange={e => setGroupSizeInput(e.target.value)}
+                      min={1}
+                      max={99}
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveGroupSize(selectedClass.id);
+                        if (e.key === 'Escape') setEditingGroupSizeClassId(null);
+                      }}
+                      style={{ width: 52, padding: '2px 6px', border: '1px solid #93C5FD', borderRadius: 4, fontSize: 14, fontWeight: 800, color: '#1e40af', fontFamily: 'monospace', textAlign: 'center' }}
+                    />
+                    <span style={{ color: '#1D4ED8', fontSize: 12 }}>명</span>
+                    <button
+                      onClick={() => saveGroupSize(selectedClass.id)}
+                      style={{ background: '#2563EB', border: 'none', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', color: '#fff', fontSize: 11, fontWeight: 600 }}
+                    >저장</button>
+                    <button
+                      onClick={() => setEditingGroupSizeClassId(null)}
+                      style={{ background: '#DBEAFE', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', color: '#1D4ED8', fontSize: 11 }}
+                    >취소</button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 16, color: '#1e40af', letterSpacing: 1 }}>
+                      {selectedSession.groupSize}
+                    </span>
+                    <span style={{ color: '#1D4ED8', fontSize: 12 }}>명</span>
+                    <button
+                      onClick={() => { setEditingGroupSizeClassId(selectedClass.id); setGroupSizeInput(String(selectedSession.groupSize)); }}
+                      title="인원 수정"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: '#93C5FD', display: 'flex', alignItems: 'center', borderRadius: 4 }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#DBEAFE')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* 전체 공유 중지 / 공유 시작 — is_public 기준으로 표시 */}
             {filteredBoards.length > 0 && (
               classIsSharing ? (
@@ -524,7 +587,7 @@ export default function WhiteboardList() {
           onClick={handleCreate}
           style={{
             background: 'none', border: '2px dashed #D1D5DB', borderRadius: 12, cursor: 'pointer',
-            height: 148, display: 'flex', flexDirection: 'column', alignItems: 'center',
+            height: 168, display: 'flex', flexDirection: 'column', alignItems: 'center',
             justifyContent: 'center', gap: 8, color: '#6B7280', transition: 'all 0.15s',
           }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#3B82F6'; e.currentTarget.style.color = '#3B82F6'; }}
@@ -560,7 +623,7 @@ export default function WhiteboardList() {
                   border: `1px solid ${isConfirming ? '#FCA5A5' : isHovered ? '#3B82F6' : '#E5E7EB'}`,
                   borderLeft: `3px solid ${isConnected ? '#22C55E' : '#E5E7EB'}`,
                   borderRadius: 12, cursor: isConfirming ? 'default' : 'pointer',
-                  height: 148, overflow: 'hidden', position: 'relative',
+                  height: 168, overflow: 'hidden', position: 'relative',
                   boxShadow: isHovered ? '0 4px 12px rgba(59,130,246,0.15)' : '0 1px 4px rgba(0,0,0,0.06)',
                   transition: 'all 0.15s',
                 }}
@@ -577,7 +640,7 @@ export default function WhiteboardList() {
                 <div style={{ padding: '8px 10px' }}>
                   {/* 타이틀 + 연결 상태 배지 */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', flex: 1, lineHeight: 1.35 }}>
                       {board.title}
                     </div>
                     {/* 클래스 연결 상태 배지 */}
