@@ -30,7 +30,7 @@ import {
   Save, Trash2, Copy, Plus,
   Loader2, ChevronDown, Globe, Lock,
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
-  ExternalLink, Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
+  Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
   Maximize2,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
@@ -348,8 +348,6 @@ const MaterialEditor = () => {
   // 폼 필드
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [url, setUrl] = useState('');
-  const [weekNumber, setWeekNumber] = useState<number>(1);
   const [isPublished, setIsPublished] = useState(false);
 
   // UI 상태
@@ -406,8 +404,7 @@ const MaterialEditor = () => {
   };
 
   const resetForm = () => {
-    setTitle(''); setContent(''); setUrl('');
-    setWeekNumber(1); setIsPublished(false);
+    setTitle(''); setContent(''); setIsPublished(false);
     setEditingMaterial(null); setViewMode('edit');
   };
 
@@ -420,8 +417,6 @@ const MaterialEditor = () => {
     setEditingMaterial(material);
     setTitle(material.title || '');
     setContent(material.content || '');
-    setUrl(material.url || '');
-    setWeekNumber(material.week_number || 1);
     setIsPublished(material.is_published || false);
     setViewMode('edit');
     setIsEditorOpen(true);
@@ -459,10 +454,8 @@ const MaterialEditor = () => {
     try {
       const payload = {
         class_id: selectedClass.id,
-        week_number: weekNumber,
         title: title.trim(),
         content: content.trim(),
-        url: url.trim(),
         is_published: isPublished,
         updated_at: new Date().toISOString(),
       };
@@ -489,16 +482,11 @@ const MaterialEditor = () => {
 
   // ── 복사 ──────────────────────────────────────────────────────────────────
   const handleCopy = async (material: Material) => {
-    const weekStr = prompt(`복사할 주차를 입력하세요 (현재: ${material.week_number}주차):`, String(material.week_number + 1));
-    if (!weekStr) return;
-    const targetWeek = parseInt(weekStr);
-    if (isNaN(targetWeek) || targetWeek < 1) { alert('올바른 주차를 입력해주세요.'); return; }
+    if (!confirm(`"${material.title}"을(를) 복사하시겠습니까?`)) return;
     const { error } = await supabase.from('class_materials').insert({
       class_id: selectedClass.id,
-      week_number: targetWeek,
       title: `${material.title} (복사)`,
       content: material.content,
-      url: material.url,
       is_published: false,
     });
     if (!error) await fetchMaterials(selectedClass.id);
@@ -513,12 +501,6 @@ const MaterialEditor = () => {
       .eq('id', material.id);
     if (!error) setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, is_published: next } : m));
   };
-
-  // ── 주차 옵션 ──────────────────────────────────────────────────────────────
-  const weekOptions: { week: number; label: string }[] =
-    selectedClass?.weekly_plan?.length > 0
-      ? selectedClass.weekly_plan.map((p: any) => ({ week: p.week, label: `${p.week}주차${p.topic ? `: ${p.topic}` : ''}` }))
-      : Array.from({ length: 16 }, (_, i) => ({ week: i + 1, label: `${i + 1}주차` }));
 
   return (
     <>
@@ -611,22 +593,6 @@ const MaterialEditor = () => {
               placeholder="자료 제목을 입력하세요 *"
               className="flex-1 min-w-[180px] px-4 py-2 bg-white rounded-xl border border-surface-container font-black text-sm focus:outline-none focus:border-primary/40"
             />
-            <select
-              value={weekNumber}
-              onChange={e => setWeekNumber(parseInt(e.target.value))}
-              className="px-3 py-2 bg-white rounded-xl border border-surface-container font-bold text-sm focus:outline-none focus:border-primary/40"
-            >
-              {weekOptions.map(w => (
-                <option key={w.week} value={w.week}>{w.label}</option>
-              ))}
-            </select>
-            <input
-              type="url"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              placeholder="🔗 외부 링크 URL (선택)"
-              className="flex-1 min-w-[180px] px-4 py-2 bg-white rounded-xl border border-surface-container font-bold text-sm focus:outline-none focus:border-blue-300"
-            />
           </div>
 
           {/* 편집 / 미리보기 영역 */}
@@ -718,11 +684,10 @@ const MaterialEditor = () => {
               <div key={material.id} className="bg-white rounded-2xl border border-surface-container overflow-hidden transition-all hover:border-primary/20 hover:shadow-sm">
                 {/* 자료 헤더 */}
                 <div className="flex items-center gap-3 p-4">
-                  {/* 주차 뱃지 */}
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-xs font-black ${
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                     material.is_published ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-container text-on-surface-variant'
                   }`}>
-                    {material.week_number}
+                    <BookOpen size={16} />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -733,7 +698,6 @@ const MaterialEditor = () => {
                         : <span className="text-[10px] font-black text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">● 비공개</span>
                       }
                       {material.content && <span className="text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>}
-                      {material.url && <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">🔗 링크</span>}
                       {(material.view_count ?? 0) > 0 && (
                         <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1">
                           <Users size={9} /> {material.view_count}명 열람
@@ -804,16 +768,6 @@ const MaterialEditor = () => {
                 {/* 내용 미리보기 (확장) */}
                 {expandedId === material.id && (
                   <div className="border-t border-surface-container">
-                    {material.url && (
-                      <a
-                        href={material.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors border-b border-surface-container"
-                      >
-                        <ExternalLink size={14} /> {material.url}
-                      </a>
-                    )}
                     {material.content ? (
                       <div className="relative">
                         <button
