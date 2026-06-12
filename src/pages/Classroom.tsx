@@ -66,7 +66,9 @@ const Classroom = () => {
   const [classes, setClasses] = useState<any[]>([]);
   // student_id → { name, color }
   const [groupMap, setGroupMap] = useState<Record<string, { name: string; color: string }>>({});
-  const [activeClassId, setActiveClassId] = useState<string | null>(searchParams.get('id'));
+  const [activeClassId, setActiveClassId] = useState<string | null>(
+    searchParams.get('id') || localStorage.getItem('teacher_last_class_id')
+  );
   const [classInfo, setClassInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -171,10 +173,11 @@ const Classroom = () => {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // activeClassId가 바뀔 때마다 URL에 동기화 → 뒤로가기 시 선택 클래스 복원
+  // activeClassId가 바뀔 때마다 URL + localStorage에 동기화 → 페이지 재진입 시 선택 클래스 복원
   useEffect(() => {
     if (activeClassId) {
       setSearchParams({ id: activeClassId }, { replace: true });
+      localStorage.setItem('teacher_last_class_id', activeClassId);
     }
   }, [activeClassId]);
 
