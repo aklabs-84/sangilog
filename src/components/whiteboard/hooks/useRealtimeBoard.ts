@@ -55,11 +55,23 @@ export function useRealtimeBoard(
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cursorTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const sessionIdRef = useRef<string | null>(null);
+  const authTokenRef = useRef<string | null>(null);
   const isViewerRef = useRef(false);
   const lastCursorEmit = useRef(0);
 
   const avatarColor = getAvatarColor(user.id);
   const displayName = getDisplayName(user);
+
+  // auth 토큰을 ref에 캐싱 — beforeunload(동기) 핸들러에서 사용
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      authTokenRef.current = data.session?.access_token ?? null;
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      authTokenRef.current = session?.access_token ?? null;
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
@@ -76,6 +88,9 @@ export function useRealtimeBoard(
   }, [boardId, onPollSync]);
 
   const registerSession = useCallback(async () => {
+    // 이 사용자의 모든 기존 세션 제거 — 테스트/이탈 시 남은 stale 세션 방지
+    await supabase.from('whiteboard_sessions').delete().eq('user_id', user.id);
+
     const { data } = await supabase
       .from('whiteboard_sessions')
       .insert({ board_id: boardId, user_id: user.id, display_name: displayName, avatar_color: avatarColor })
@@ -206,7 +221,26 @@ export function useRealtimeBoard(
       return;
     }
     connect();
+
+    // 탭 닫힘/새로고침 시 세션 정리 — fetch keepalive로 DELETE 보장
+    const handleBeforeUnload = () => {
+      if (!sessionIdRef.current || !authTokenRef.current) return;
+      fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/whiteboard_sessions?id=eq.${sessionIdRef.current}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${authTokenRef.current}`,
+          },
+          keepalive: true,
+        },
+      );
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       // Announce leave
       channelRef.current?.send({ type: 'broadcast', event: 'member:leave', payload: { userId: user.id } });
       if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
