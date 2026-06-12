@@ -2,12 +2,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Sparkles, User as UserIcon, BookOpen, Clock, Activity, FileText, CheckCircle2,
   FolderOpen, AlignLeft, Link2, ImageIcon, File, Upload, ExternalLink, Megaphone, MessageSquare, Loader2,
-  Reply, Send, XCircle, MessageCircle, Check, AlertTriangle
+  Reply, Send, XCircle, MessageCircle, Check, AlertTriangle, Plus, PenLine
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../lib/auth';
 
 interface StudentDetailDrawerProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ interface StudentDetailDrawerProps {
 }
 
 const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: StudentDetailDrawerProps) => {
+  const { user } = useAuth();
   const [student, setStudent] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
@@ -32,6 +34,12 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
   const [feedbackResultId, setFeedbackResultId] = useState<string | null>(null);
   const [resultFeedback, setResultFeedback] = useState('');
   const [savingResultFeedback, setSavingResultFeedback] = useState(false);
+  // 관찰 기록 추가 폼
+  const [showObsForm, setShowObsForm] = useState(false);
+  const [obsTitle, setObsTitle] = useState('');
+  const [obsCategory, setObsCategory] = useState('과제물');
+  const [obsContent, setObsContent] = useState('');
+  const [savingObs, setSavingObs] = useState(false);
   const navigate = useNavigate();
 
   const handleSaveReply = async (suggestionId: string) => {
@@ -167,6 +175,34 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
     fetchStudentDetail();
   }, [studentId, isOpen]);
 
+  const handleSaveObs = async () => {
+    if (!obsTitle.trim() || !obsContent.trim()) return;
+    setSavingObs(true);
+    try {
+      const { data, error } = await supabase.from('observations').insert({
+        teacher_id: user?.id,
+        student_id: studentId,
+        activity_name: obsTitle.trim(),
+        category: obsCategory,
+        content: obsContent.trim(),
+        is_student_record: false,
+      }).select().single();
+      if (error) throw error;
+      setStudent((prev: any) => ({
+        ...prev,
+        observations: [data, ...(prev?.observations || [])],
+      }));
+      setObsTitle('');
+      setObsCategory('과제물');
+      setObsContent('');
+      setShowObsForm(false);
+    } catch (err) {
+      console.error('관찰 기록 저장 오류:', err);
+    } finally {
+      setSavingObs(false);
+    }
+  };
+
   const handleNavigateToFullPage = () => {
     if (studentId) {
       navigate(`/student-view/${studentId}`, { state: { fromClassId } });
@@ -280,17 +316,79 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
 
                 {/* Recent Activity Mini List */}
                 <div className="space-y-4">
-                   <button
-                     onClick={handleNavigateToFullPage}
-                     className="w-full flex items-center justify-between group"
-                   >
-                     <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2 group-hover:text-primary transition-colors">
-                       <Clock size={14} /> Recent Activities
-                     </h4>
-                     <span className="text-[10px] font-black text-primary/50 group-hover:text-primary transition-colors flex items-center gap-1">
-                       전체 보기 →
-                     </span>
-                   </button>
+                   <div className="flex items-center justify-between">
+                     <button
+                       onClick={handleNavigateToFullPage}
+                       className="flex items-center gap-2 group"
+                     >
+                       <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2 group-hover:text-primary transition-colors">
+                         <Clock size={14} /> Recent Activities
+                       </h4>
+                       <span className="text-[10px] font-black text-primary/50 group-hover:text-primary transition-colors flex items-center gap-1">
+                         전체 보기 →
+                       </span>
+                     </button>
+                     <button
+                       onClick={() => setShowObsForm(v => !v)}
+                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                         showObsForm
+                           ? 'bg-primary/10 text-primary'
+                           : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
+                       }`}
+                     >
+                       <PenLine size={11} /> 관찰 기록
+                     </button>
+                   </div>
+
+                   {/* 인라인 관찰 기록 폼 */}
+                   {showObsForm && (
+                     <div className="p-4 bg-white rounded-2xl border border-primary/15 shadow-sm space-y-3">
+                       <input
+                         type="text"
+                         value={obsTitle}
+                         onChange={e => setObsTitle(e.target.value)}
+                         placeholder="활동명 (예: 모둠 발표)"
+                         className="w-full px-3 py-2.5 bg-surface-container rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                       />
+                       <div className="flex gap-1.5 flex-wrap">
+                         {['발표', '과제물', '토론', '실험'].map(cat => (
+                           <button
+                             key={cat}
+                             onClick={() => setObsCategory(cat)}
+                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                               obsCategory === cat
+                                 ? 'bg-primary-container text-primary'
+                                 : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
+                             }`}
+                           >
+                             {cat}
+                           </button>
+                         ))}
+                       </div>
+                       <textarea
+                         value={obsContent}
+                         onChange={e => setObsContent(e.target.value)}
+                         placeholder="관찰 내용을 입력하세요..."
+                         rows={3}
+                         className="w-full px-3 py-2.5 bg-surface-container rounded-xl text-xs font-medium resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                       />
+                       <div className="flex gap-2 justify-end">
+                         <button
+                           onClick={() => { setShowObsForm(false); setObsTitle(''); setObsContent(''); setObsCategory('과제물'); }}
+                           className="px-3 py-1.5 text-[10px] font-black text-on-surface-variant bg-surface-container hover:bg-surface-container-high rounded-lg transition-all"
+                         >
+                           취소
+                         </button>
+                         <button
+                           onClick={handleSaveObs}
+                           disabled={savingObs || !obsTitle.trim() || !obsContent.trim()}
+                           className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-[10px] font-black disabled:opacity-50 hover:bg-primary/80 transition-all"
+                         >
+                           {savingObs ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 저장
+                         </button>
+                       </div>
+                     </div>
+                   )}
                    {student?.observations?.length > 0 ? (
                      <div className="space-y-3">
                        {student.observations.slice(0, 3).map((obs: any) => (

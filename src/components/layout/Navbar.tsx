@@ -140,11 +140,11 @@ const Navbar = () => {
 
       {/* 오른쪽: 액션 버튼 */}
       <div className="flex items-center gap-1.5 md:gap-2">
-        {/* 새 활동 — PC만 */}
+        {/* 관찰 기록 — PC만 */}
         <NavLink to="/activity-log"
           className="hidden md:flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-xl font-black text-xs shadow-md shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all"
         >
-          <Plus size={15} strokeWidth={3} /> 새 활동
+          <Plus size={15} strokeWidth={3} /> 관찰 기록
         </NavLink>
 
         <div className="hidden md:block w-px h-6 bg-on-surface/5" />
@@ -330,7 +330,7 @@ const Navbar = () => {
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2 px-4 py-3 btn-gradient rounded-xl font-black text-sm flex-1 justify-center"
               >
-                <ActivitySquare size={16} /> 새 활동 추가
+                <ActivitySquare size={16} /> 관찰 기록 추가
               </NavLink>
               <NavLink
                 to="/settings"

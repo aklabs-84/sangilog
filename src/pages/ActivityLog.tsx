@@ -131,7 +131,7 @@ const ActivityLog = () => {
     >
       <div className="px-2">
         <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">Activity Logging</p>
-        <h1 className="text-2xl md:text-4xl font-extrabold font-manrope mb-4">새 활동 기록</h1>
+        <h1 className="text-2xl md:text-4xl font-extrabold font-manrope mb-4">관찰 기록</h1>
         <p className="text-on-surface-variant text-base max-w-3xl leading-relaxed">
           수업 중 관찰된 학생들의 활동 내용과 성취도를 기록합니다. 기록된 내용은 AI 분석 및 생활기록부 초안 작성에 활용됩니다.
         </p>
