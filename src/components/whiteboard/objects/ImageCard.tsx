@@ -62,7 +62,11 @@ export default function ImageCard({ obj, isSelected, onSelect, onUpdate, onDelet
           <span style={{ fontSize: 12 }}>업로드 중...</span>
         </div>
       ) : url ? (
-        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+        <img
+          src={url} alt=""
+          draggable={false}
+          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
+        />
       ) : (
         <div
           style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#9CA3AF', cursor: 'pointer' }}

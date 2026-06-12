@@ -98,10 +98,11 @@ export default function Whiteboard() {
     {
       id: user?.id ?? '',
       email: user?.email ?? '',
-      // wb-join 경유 학생일 때만 localStorage 이름 사용 — 교사는 email 기반으로 표시
-      displayName: (user as any)?.user_metadata?.display_name ??
-        (fromWbJoin ? localStorage.getItem('wb_student_name') : undefined) ??
-        undefined,
+      // 교사는 user_metadata 무시하고 email 기반 표시 (테스트 중 오염된 메타데이터 우회)
+      // 학생(fromWbJoin)만 user_metadata.display_name 또는 localStorage 이름 사용
+      displayName: fromWbJoin
+        ? ((user as any)?.user_metadata?.display_name ?? localStorage.getItem('wb_student_name') ?? undefined)
+        : undefined,
     },
     onRemoteChange,
     onPollSync,
@@ -114,6 +115,13 @@ export default function Whiteboard() {
     if (fromWbJoin || isAnon) navigate('/wb-join', { replace: true });
     else navigate('/teaching-tools', { state: { activeToolId: 'whiteboard' } });
   }, [onDeclineViewer, navigate, user, fromWbJoin]);
+
+  // 교사 계정에 오염된 display_name 메타데이터가 있으면 자동 정리
+  useEffect(() => {
+    if (!fromWbJoin && user && (user as any)?.user_metadata?.display_name) {
+      supabase.auth.updateUser({ data: { display_name: null } });
+    }
+  }, [user, fromWbJoin]);
 
   // 보드 로드
   useEffect(() => {

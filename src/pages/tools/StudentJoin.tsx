@@ -198,13 +198,17 @@ export default function StudentJoin() {
     if (!session || !name.trim()) return;
     setJoining(boardId);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    let currentUser = (await supabase.auth.getUser()).data.user;
+    if (!currentUser) {
       const { error: authErr } = await supabase.auth.signInAnonymously();
       if (authErr) { setError('인증 오류. 다시 시도해주세요.'); setJoining(null); return; }
+      currentUser = (await supabase.auth.getUser()).data.user;
     }
 
-    await supabase.auth.updateUser({ data: { display_name: name.trim() } });
+    // 익명 사용자만 auth 메타데이터에 이름 저장 — 교사 계정 오염 방지
+    if ((currentUser as any)?.is_anonymous) {
+      await supabase.auth.updateUser({ data: { display_name: name.trim() } });
+    }
     localStorage.setItem('wb_student_name', name.trim());
 
     // 이전 참여 보드 저장 (재입장용)
