@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -14,6 +14,9 @@ import {
   Heart,
   Send,
   KeyRound,
+  PenLine,
+  School,
+  FileText,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -48,6 +51,16 @@ const steps = [
 
 const Landing = () => {
   const navigate = useNavigate();
+
+  // 공개 통계
+  const [pubStats, setPubStats] = useState({ total_observations: 0, total_classes: 0, total_reports: 0 });
+  useEffect(() => {
+    supabase.rpc('get_public_stats').then(({ data }) => {
+      if (data) setPubStats(data);
+    });
+  }, []);
+
+  const fmt = (n: number) => n > 0 ? n.toLocaleString('ko-KR') : '—';
 
   // 신청 폼 상태
   const [name, setName] = useState('');
@@ -229,9 +242,9 @@ const Landing = () => {
             className="mt-16 grid grid-cols-3 gap-6 max-w-lg mx-auto"
           >
             {[
-              { icon: Users, value: '300+', label: '사용 중인 선생님' },
-              { icon: Clock, value: '3시간', label: '세특 작성 시간 절감' },
-              { icon: CheckCircle2, value: '98%', label: '나이스 제출 호환성' },
+              { icon: PenLine,   value: fmt(pubStats.total_observations), label: '누적 관찰 기록' },
+              { icon: School,    value: fmt(pubStats.total_classes),      label: '운영 중인 학급' },
+              { icon: FileText,  value: fmt(pubStats.total_reports),      label: '생성된 세특 초안' },
             ].map(({ icon: Icon, value, label }) => (
               <div key={label} className="text-center">
                 <Icon size={20} className="text-amber-400 mx-auto mb-1" />
@@ -323,6 +336,78 @@ const Landing = () => {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── Social Proof ── */}
+      <section className="py-20 bg-white">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="space-y-10"
+          >
+            {/* Live badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-black text-emerald-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              지금 이 순간에도 선생님들이 생기로그를 사용하고 있습니다
+            </div>
+
+            <h2 className="text-3xl md:text-4xl font-extrabold text-amber-900 font-manrope leading-snug">
+              이미 많은 선생님들이<br />
+              <span className="text-amber-500">시간을 되찾고 있습니다</span>
+            </h2>
+
+            {/* Big numbers */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                {
+                  icon: PenLine,
+                  value: pubStats.total_observations,
+                  label: '누적 관찰 기록',
+                  unit: '건',
+                  desc: '수업 중 관찰된 학생들의 활동',
+                  color: 'from-amber-50 to-orange-50 border-amber-200',
+                  iconColor: 'text-amber-500',
+                },
+                {
+                  icon: School,
+                  value: pubStats.total_classes,
+                  label: '운영 중인 학급',
+                  unit: '개',
+                  desc: '전국 선생님들이 개설한 학급',
+                  color: 'from-violet-50 to-purple-50 border-violet-200',
+                  iconColor: 'text-violet-500',
+                },
+                {
+                  icon: FileText,
+                  value: pubStats.total_reports,
+                  label: '생성된 세특 초안',
+                  unit: '건',
+                  desc: 'AI가 자동으로 작성한 세특 초안',
+                  color: 'from-emerald-50 to-teal-50 border-emerald-200',
+                  iconColor: 'text-emerald-500',
+                },
+              ].map(({ icon: Icon, value, label, unit, desc, color, iconColor }) => (
+                <motion.div
+                  key={label}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  className={`bg-gradient-to-br ${color} border rounded-3xl p-8 text-left`}
+                >
+                  <Icon size={24} className={`${iconColor} mb-4`} />
+                  <div className="text-5xl font-black text-gray-900 font-manrope tracking-tighter mb-1">
+                    {value > 0 ? value.toLocaleString('ko-KR') : '—'}
+                    <span className="text-xl ml-1 font-bold text-gray-400">{unit}</span>
+                  </div>
+                  <p className="text-sm font-black text-gray-700 mb-1">{label}</p>
+                  <p className="text-xs text-gray-400 font-medium">{desc}</p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
         </div>
       </section>
 

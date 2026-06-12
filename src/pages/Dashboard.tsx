@@ -574,28 +574,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Footer Summary Section */}
-      <div className="bg-on-surface text-surface rounded-3xl p-10 flex items-center justify-between relative overflow-hidden">
-        <div className="relative z-10">
-          <h2 className="text-3xl font-extrabold mb-2 font-manrope">이번 학기 현황</h2>
-          <p className="text-sm text-surface/60">데이터 업데이트 기준: 2026년 4월 4일</p>
-        </div>
-        <div className="flex gap-16 relative z-10 px-10">
-          {[
-            { label: '전체 리포트', val: stats.total },
-            { label: '진행 중', val: stats.inProgress },
-            { label: '완료', val: stats.completed }
-          ].map((stat, i) => (
-            <div key={i} className="text-center">
-              <p className="text-[10px] text-surface/40 font-bold uppercase tracking-widest mb-1">{stat.label}</p>
-              <p className="text-5xl font-black font-manrope tracking-tighter">{stat.val}</p>
-            </div>
-          ))}
-        </div>
-        <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-5 pointer-events-none">
-          <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--color-primary)_0%,_transparent_70%)]" />
-        </div>
-      </div>
       {/* Activity Chart Modal */}
       <AnimatePresence>
         {showActivityChart && (
