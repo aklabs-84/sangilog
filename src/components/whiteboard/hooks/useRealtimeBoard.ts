@@ -175,6 +175,9 @@ export function useRealtimeBoard(
                 await supabase.from('whiteboard_sessions')
                   .update({ last_ping: new Date().toISOString() }).eq('id', sessionIdRef.current);
               }
+              // DB 기준으로 멤버 목록 재동기화 — 비정상 종료로 leave 브로드캐스트 없이
+              // 사라진 멤버를 주기적으로 제거
+              await fetchMembers();
             }, HEARTBEAT_MS);
           }
         } else if (['CLOSED', 'CHANNEL_ERROR', 'TIMED_OUT'].includes(status)) {
