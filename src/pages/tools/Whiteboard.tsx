@@ -98,7 +98,10 @@ export default function Whiteboard() {
     {
       id: user?.id ?? '',
       email: user?.email ?? '',
-      displayName: (user as any)?.user_metadata?.display_name ?? localStorage.getItem('wb_student_name') ?? undefined,
+      // 익명(학생) 유저일 때만 localStorage 이름 사용 — 교사 계정은 email 기반으로 표시
+      displayName: (user as any)?.user_metadata?.display_name ??
+        ((user as any)?.is_anonymous ? localStorage.getItem('wb_student_name') : undefined) ??
+        undefined,
     },
     onRemoteChange,
     onPollSync,
