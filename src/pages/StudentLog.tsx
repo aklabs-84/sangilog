@@ -97,12 +97,14 @@ const StudentLog = () => {
   const isFirstBoardPoll = useRef(true);
   const seenBoardSessionIds = useRef(new Set<string>());
   
-  // Resources State (weekly_plan + class_materials)
+  // Resources State (weekly_plan + class_materials + general)
   const [classResources, setClassResources] = useState<any[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
   const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string } | null>(null);
+  const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
+  const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'general'>('weekly');
 
   // Result Submission State
   const [results, setResults] = useState<any[]>([]);
@@ -459,20 +461,20 @@ const StudentLog = () => {
     if (!session?.class_id) return;
     setResourcesLoading(true);
     try {
-      // weekly_plan의 material_id 목록 기준으로 자료 로드
       const plan = classResources as any[];
       const materialIds = plan.map(p => p.material_id).filter(Boolean);
-      if (materialIds.length > 0) {
-        const { data } = await supabase
-          .from('class_materials')
-          .select('*')
-          .in('id', materialIds);
-        if (data) setClassMaterials(data);
-      } else {
-        setClassMaterials([]);
-      }
+
+      const [matsResult, generalResult] = await Promise.all([
+        materialIds.length > 0
+          ? supabase.from('class_materials').select('*').in('id', materialIds)
+          : Promise.resolve({ data: [] }),
+        supabase.from('class_general_materials').select('*').eq('class_id', session.class_id).eq('is_published', true).order('created_at', { ascending: false }),
+      ]);
+
+      setClassMaterials(matsResult.data || []);
+      setGeneralMaterials(generalResult.data || []);
     } catch (err) {
-      console.error('Error fetching class_materials:', err);
+      console.error('Error fetching resources:', err);
     } finally {
       setResourcesLoading(false);
     }
@@ -2226,22 +2228,39 @@ ${guidePrompt}
                   </div>
                   <div>
                     <h3 className="text-xl font-black">수업 자료실</h3>
-                    <p className="text-on-surface-variant text-xs font-bold mt-0.5">선생님이 작성하고 공개한 자료입니다.</p>
+                    <p className="text-on-surface-variant text-xs font-bold mt-0.5">선생님이 공유한 자료입니다.</p>
                   </div>
+                </div>
+
+                {/* 서브탭 */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setMaterialsSubTab('weekly')}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${materialsSubTab === 'weekly' ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-cyan-200'}`}
+                  >주차별 자료</button>
+                  <button
+                    onClick={() => setMaterialsSubTab('general')}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${materialsSubTab === 'general' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'}`}
+                  >
+                    일반 자료
+                    {generalMaterials.length > 0 && (
+                      <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-md ${materialsSubTab === 'general' ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>{generalMaterials.length}</span>
+                    )}
+                  </button>
                 </div>
 
                 {resourcesLoading ? (
                   <div className="flex items-center justify-center py-20">
                     <Loader2 size={32} className="animate-spin text-primary" />
                   </div>
-                ) : (() => {
+                ) : materialsSubTab === 'weekly' ? (() => {
                   // weekly_plan에 자료(material_id 또는 url)가 있는 주차만 필터링
                   const weeks = (classResources as any[]).filter(r => r.material_id || r.url);
                   if (weeks.length === 0) {
                     return (
                       <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
                         <BookOpen size={64} />
-                        <p className="font-black text-lg">아직 등록된 수업 자료가 없습니다.</p>
+                        <p className="font-black text-lg">아직 등록된 주차별 자료가 없습니다.</p>
                         <p className="text-sm font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
                       </div>
                     );
@@ -2306,7 +2325,64 @@ ${guidePrompt}
                       })}
                     </div>
                   );
-                })()}
+                })() : (
+                  /* ── 일반 자료 탭 ── */
+                  generalMaterials.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
+                      <File size={64} />
+                      <p className="font-black text-lg">등록된 일반 자료가 없습니다.</p>
+                      <p className="text-sm font-bold">선생님이 자료를 공유해주시면 이곳에 표시됩니다.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {generalMaterials.map((mat: any) => {
+                        if (mat.type === 'link') {
+                          const href = mat.url?.startsWith('http') ? mat.url : `https://${mat.url}`;
+                          return (
+                            <a
+                              key={mat.id}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container hover:border-primary/30 hover:shadow-sm transition-all group"
+                            >
+                              <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0">
+                                <Link2 size={16} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-sm truncate group-hover:text-primary transition-colors">{mat.title}</p>
+                                <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">{mat.url}</p>
+                              </div>
+                              <ExternalLink size={14} className="shrink-0 text-on-surface-variant group-hover:text-primary transition-colors" />
+                            </a>
+                          );
+                        }
+                        // 파일 자료
+                        return (
+                          <button
+                            key={mat.id}
+                            onClick={() => {
+                              const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
+                              window.open(data.publicUrl, '_blank');
+                            }}
+                            className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-amber-300 hover:shadow-sm transition-all group"
+                          >
+                            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                              <File size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-black text-sm truncate group-hover:text-amber-700 transition-colors">{mat.title}</p>
+                              <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">
+                                {mat.file_name}{mat.file_size ? ` · ${(mat.file_size / 1024).toFixed(0)}KB` : ''}
+                              </p>
+                            </div>
+                            <Download size={14} className="shrink-0 text-on-surface-variant group-hover:text-amber-600 transition-colors" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
+                )}
               </motion.div>
             )}
             {/* ─── 결과 제출 탭 ─── */}

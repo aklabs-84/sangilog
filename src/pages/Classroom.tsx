@@ -35,6 +35,8 @@ import {
   Search,
   ArrowLeft,
   Eye,
+  Upload,
+  FileText,
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -141,6 +143,12 @@ const Classroom = () => {
   // 학급정보 수정 팝업에서 에디터 자료 선택용
   const [editingClassMaterials, setEditingClassMaterials] = useState<any[]>([]);
   const [materialDropdownIdx, setMaterialDropdownIdx] = useState<number | null>(null);
+  // 일반 자료 관리 상태
+  const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
+  const [showAddGeneralForm, setShowAddGeneralForm] = useState(false);
+  const [generalMatForm, setGeneralMatForm] = useState<{ title: string; type: 'link' | 'file'; url: string; file: File | null }>({ title: '', type: 'link', url: '', file: null });
+  const [generalMatUploading, setGeneralMatUploading] = useState(false);
+  const [deletingGeneralMatId, setDeletingGeneralMatId] = useState<string | null>(null);
 
   // 학생 선택 및 드로어 상태
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -1042,14 +1050,78 @@ const Classroom = () => {
 
   const fetchResources = async (classId: string) => {
     try {
-      const { data } = await supabase
-        .from('class_materials')
-        .select('id, title, content, week_number, is_published')
-        .eq('class_id', classId)
-        .order('week_number', { ascending: true });
-      setClassMaterials(data || []);
+      const [matsRes, generalRes] = await Promise.all([
+        supabase.from('class_materials').select('id, title, content, week_number, is_published').eq('class_id', classId).order('week_number', { ascending: true }),
+        supabase.from('class_general_materials').select('*').eq('class_id', classId).order('created_at', { ascending: false }),
+      ]);
+      setClassMaterials(matsRes.data || []);
+      setGeneralMaterials(generalRes.data || []);
     } catch (err) {
       console.error('Error fetching resources:', err);
+    }
+  };
+
+  const handleAddGeneralMat = async () => {
+    if (!activeClassId || !user) return;
+    if (!generalMatForm.title.trim()) { showToast('제목을 입력해주세요.'); return; }
+    if (generalMatForm.type === 'link' && !generalMatForm.url.trim()) { showToast('링크 URL을 입력해주세요.'); return; }
+    if (generalMatForm.type === 'file' && !generalMatForm.file) { showToast('파일을 선택해주세요.'); return; }
+
+    setGeneralMatUploading(true);
+    try {
+      let filePath: string | null = null;
+      let fileName: string | null = null;
+      let fileSize: number | null = null;
+
+      if (generalMatForm.type === 'file' && generalMatForm.file) {
+        const ext = generalMatForm.file.name.split('.').pop() || '';
+        const path = `general-materials/${activeClassId}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('student-attachments').upload(path, generalMatForm.file);
+        if (upErr) throw upErr;
+        filePath = path;
+        fileName = generalMatForm.file.name;
+        fileSize = generalMatForm.file.size;
+      }
+
+      const { error } = await supabase.from('class_general_materials').insert({
+        class_id: activeClassId,
+        teacher_id: user.id,
+        title: generalMatForm.title.trim(),
+        type: generalMatForm.type,
+        url: generalMatForm.type === 'link' ? generalMatForm.url.trim() : null,
+        file_path: filePath,
+        file_name: fileName,
+        file_size: fileSize,
+        is_published: true,
+      });
+      if (error) throw error;
+
+      await fetchResources(activeClassId);
+      setGeneralMatForm({ title: '', type: 'link', url: '', file: null });
+      setShowAddGeneralForm(false);
+      showToast('자료가 등록되었습니다.');
+    } catch (err) {
+      console.error('handleAddGeneralMat error:', err);
+      showToast('등록 중 오류가 발생했습니다.');
+    } finally {
+      setGeneralMatUploading(false);
+    }
+  };
+
+  const handleDeleteGeneralMat = async (id: string, filePath?: string | null) => {
+    setDeletingGeneralMatId(id);
+    try {
+      if (filePath) {
+        await supabase.storage.from('student-attachments').remove([filePath]);
+      }
+      await supabase.from('class_general_materials').delete().eq('id', id);
+      setGeneralMaterials(prev => prev.filter(m => m.id !== id));
+      showToast('자료가 삭제되었습니다.');
+    } catch (err) {
+      console.error('handleDeleteGeneralMat error:', err);
+      showToast('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingGeneralMatId(null);
     }
   };
 
@@ -2364,7 +2436,7 @@ const Classroom = () => {
         {isResourceModalOpen && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg glass p-8 rounded-[3rem] space-y-6 relative shadow-2xl border border-white/20">
-              <button onClick={() => { setIsResourceModalOpen(false); setShowAddResourceForm(false); }} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
+              <button onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
 
               {/* 헤더 */}
               <div className="pr-8">
@@ -2450,14 +2522,124 @@ const Classroom = () => {
 
                     {/* 빈 상태 */}
                     {!hasAnything && (
-                      <div className="text-center py-10 text-on-surface-variant/30">
-                        <BookOpen size={32} className="mx-auto mb-3 opacity-30" />
-                        <p className="text-sm font-black">등록된 자료가 없습니다</p>
-                        <p className="text-xs mt-1 leading-relaxed">
-                          상단 학급 이름 → 수정에서<br />주차별 계획에 URL 또는 자료 에디터를 연결해보세요
-                        </p>
+                      <div className="text-center py-6 text-on-surface-variant/30">
+                        <BookOpen size={28} className="mx-auto mb-2 opacity-30" />
+                        <p className="text-sm font-black">주차별 자료 없음</p>
+                        <p className="text-xs mt-0.5">학급 수정에서 주차별 계획에 URL 또는 에디터를 연결해보세요</p>
                       </div>
                     )}
+
+                    {/* ── 일반 자료 섹션 ── */}
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between mb-2 px-1">
+                        <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">일반 자료</p>
+                        <button
+                          onClick={() => { setShowAddGeneralForm(v => !v); setGeneralMatForm({ title: '', type: 'link', url: '', file: null }); }}
+                          className="flex items-center gap-1 text-[10px] font-black text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-all"
+                        >
+                          <Plus size={11} /> 추가
+                        </button>
+                      </div>
+
+                      {/* 추가 폼 */}
+                      {showAddGeneralForm && (
+                        <div className="mb-3 p-4 bg-primary/5 border border-primary/20 rounded-2xl space-y-3">
+                          <input
+                            type="text"
+                            placeholder="자료 제목"
+                            value={generalMatForm.title}
+                            onChange={e => setGeneralMatForm(f => ({ ...f, title: e.target.value }))}
+                            className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setGeneralMatForm(f => ({ ...f, type: 'link', file: null }))}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black border-2 transition-all ${generalMatForm.type === 'link' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'}`}
+                            >
+                              <Link2 size={12} /> 링크
+                            </button>
+                            <button
+                              onClick={() => setGeneralMatForm(f => ({ ...f, type: 'file', url: '' }))}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black border-2 transition-all ${generalMatForm.type === 'file' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'}`}
+                            >
+                              <Upload size={12} /> 파일
+                            </button>
+                          </div>
+                          {generalMatForm.type === 'link' ? (
+                            <input
+                              type="url"
+                              placeholder="https://..."
+                              value={generalMatForm.url}
+                              onChange={e => setGeneralMatForm(f => ({ ...f, url: e.target.value }))}
+                              className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
+                            />
+                          ) : (
+                            <label className="flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dashed border-neutral-200 rounded-xl cursor-pointer hover:border-primary/40 transition-all">
+                              <Upload size={18} className="text-primary/60" />
+                              <span className="text-xs font-black text-neutral-500">
+                                {generalMatForm.file ? generalMatForm.file.name : '파일 선택 (PDF, PPT, HWP 등)'}
+                              </span>
+                              <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setGeneralMatForm(prev => ({ ...prev, file: f })); }} />
+                            </label>
+                          )}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setShowAddGeneralForm(false)}
+                              className="flex-1 py-2 rounded-xl text-xs font-black border border-neutral-200 text-neutral-400 hover:bg-neutral-50 transition-all"
+                            >취소</button>
+                            <button
+                              onClick={handleAddGeneralMat}
+                              disabled={generalMatUploading}
+                              className="flex-1 py-2 rounded-xl text-xs font-black bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-all flex items-center justify-center gap-1"
+                            >
+                              {generalMatUploading ? <Loader2 size={12} className="animate-spin" /> : null}
+                              {generalMatUploading ? '등록 중...' : '등록'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 일반 자료 목록 */}
+                      {generalMaterials.length === 0 && !showAddGeneralForm ? (
+                        <div className="text-center py-6 text-on-surface-variant/30">
+                          <FileText size={28} className="mx-auto mb-2 opacity-30" />
+                          <p className="text-xs font-black">등록된 일반 자료가 없습니다</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {generalMaterials.map(mat => (
+                            <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${mat.type === 'file' ? 'bg-amber-100' : 'bg-cyan-100'}`}>
+                                {mat.type === 'file' ? <File size={14} className="text-amber-600" /> : <Link2 size={14} className="text-cyan-600" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                {mat.type === 'link' ? (
+                                  <a href={mat.url} target="_blank" rel="noopener noreferrer" className="text-sm font-black hover:text-primary transition-colors truncate block">{mat.title}</a>
+                                ) : (
+                                  <button
+                                    onClick={async () => {
+                                      const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
+                                      window.open(data.publicUrl, '_blank');
+                                    }}
+                                    className="text-sm font-black hover:text-primary transition-colors truncate block text-left"
+                                  >{mat.title}</button>
+                                )}
+                                <p className="text-[10px] text-on-surface-variant/50 truncate">
+                                  {mat.type === 'link' ? mat.url : mat.file_name}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteGeneralMat(mat.id, mat.file_path)}
+                                disabled={deletingGeneralMatId === mat.id}
+                                className="p-1.5 text-neutral-200 hover:text-error hover:bg-error/5 rounded-lg transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                              >
+                                {deletingGeneralMatId === mat.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })()}
