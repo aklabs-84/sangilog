@@ -32,16 +32,17 @@ const ActivityLog = () => {
   const [activityTitle, setActivityTitle] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('과제물');
+  const [activityDate, setActivityDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    if (user?.id) fetchInitialData();
+  }, [user?.id]);
 
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const { data: classesData } = await supabase.from('classes').select('*');
+      const { data: classesData } = await supabase.from('classes').select('*').eq('teacher_id', user?.id).order('name');
       if (classesData) {
         setClasses(classesData);
         if (classesData.length > 0) {
@@ -103,11 +104,12 @@ const ActivityLog = () => {
     try {
       // 선택된 모든 학생에 대해 관찰 기록을 저장합니다.
       const observations = selectedStudents.map(studentId => ({
-        teacher_id: user?.id, // 로그인된 교사 ID
+        teacher_id: user?.id,
         student_id: studentId,
         content: content,
         activity_name: activityTitle,
-        category: category
+        category: category,
+        activity_date: activityDate,
       }));
 
       const { error } = await supabase.from('observations').insert(observations);
@@ -176,7 +178,7 @@ const ActivityLog = () => {
               <div className="space-y-2">
                 <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider ml-1">Activity Date</label>
                 <div className="relative">
-                  <input type="text" value="11/20/2023" className="w-full pl-4 pr-10 py-4 bg-surface-container rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 transition-all" />
+                  <input type="date" value={activityDate} onChange={e => setActivityDate(e.target.value)} className="w-full pl-4 pr-10 py-4 bg-surface-container rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 transition-all" />
                   <Calendar size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 </div>
               </div>
