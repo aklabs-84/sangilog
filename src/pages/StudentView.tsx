@@ -47,6 +47,9 @@ const StudentView = () => {
   const [obsRejectFeedback, setObsRejectFeedback] = useState('');
   const [obsRejectingId, setObsRejectingId] = useState<string | null>(null);
 
+  // 타임라인 탭
+  const [timelineTab, setTimelineTab] = useState<'all' | 'teacher' | 'student'>('all');
+
   // Reply States
   const [replyingId, setReplyingId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -582,7 +585,7 @@ ${activitiesContext}
 
         {/* Right: Timeline */}
         <div className="lg:col-span-8 surface-card p-10 shadow-ambient border-white/60 min-h-[600px] flex flex-col">
-          <div className="flex items-center justify-between border-b border-surface-container pb-6 mb-8">
+          <div className="flex items-center justify-between border-b border-surface-container pb-6 mb-6">
             <h2 className="text-xl font-black flex items-center gap-3">
               <Activity size={24} className="text-primary" />
               과목 통합 활동 타임라인
@@ -592,16 +595,48 @@ ${activitiesContext}
             </div>
           </div>
 
+          {/* 탭 */}
+          <div className="flex gap-1.5 mb-8 p-1 bg-surface-container rounded-xl w-fit">
+            {([
+              { key: 'all',     label: '전체',       count: observations.length },
+              { key: 'teacher', label: '관찰 기록',   count: observations.filter(o => !o.is_student_record).length },
+              { key: 'student', label: '학생 제출',   count: observations.filter(o => o.is_student_record).length },
+            ] as const).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setTimelineTab(tab.key)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-black transition-all ${
+                  timelineTab === tab.key
+                    ? 'bg-white shadow-sm text-on-surface'
+                    : 'text-on-surface-variant/60 hover:text-on-surface'
+                }`}
+              >
+                {tab.label}
+                <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                  timelineTab === tab.key ? 'bg-primary/10 text-primary' : 'bg-surface-container-high text-on-surface-variant/50'
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
           <div className="flex-1 space-y-8">
-            {observations.length > 0 ? (
+            {(() => {
+              const filtered = observations.filter(o =>
+                timelineTab === 'all' ? true :
+                timelineTab === 'teacher' ? !o.is_student_record :
+                o.is_student_record
+              );
+              return filtered.length > 0 ? (
               <div className="relative border-l-2 border-neutral-100 ml-4 space-y-10 pb-8">
-                {observations.map((obs) => {
+                {filtered.map((obs) => {
                   const isEditing = editingId === obs.id;
                   const isDeleting = deletingId === obs.id;
 
                   return (
                     <div key={obs.id} className="relative pl-8 group">
-                      <div className="absolute left-[-9px] top-1 w-4 h-4 rounded-full bg-white border-4 border-primary group-hover:scale-125 group-hover:border-secondary transition-all shadow-sm" />
+                      <div className={`absolute left-[-9px] top-1 w-4 h-4 rounded-full bg-white border-4 group-hover:scale-125 transition-all shadow-sm ${obs.is_student_record ? 'border-primary group-hover:border-secondary' : 'border-emerald-400 group-hover:border-emerald-500'}`} />
 
                       {isEditing ? (
                         /* ── 인라인 수정 폼 ── */
@@ -687,6 +722,11 @@ ${activitiesContext}
                           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-3">
                             <div>
                               <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                                {!obs.is_student_record && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded border border-emerald-200 tracking-widest">
+                                    선생님 관찰
+                                  </span>
+                                )}
                                 <span className="inline-block px-2.5 py-1 bg-surface-container text-[10px] font-black uppercase text-on-surface-variant/60 rounded border border-neutral-200 tracking-widest">
                                   {obs.category || '활동'}
                                 </span>
@@ -828,7 +868,8 @@ ${activitiesContext}
                   <p className="text-xs font-bold mt-2">학생이 활동을 등록하거나 선생님이 관찰 내용을 작성하면<br />여기에 타임라인으로 표시됩니다.</p>
                 </div>
               </div>
-            )}
+            );
+            })()}
           </div>
         </div>
       </div>

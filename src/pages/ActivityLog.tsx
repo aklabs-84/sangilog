@@ -109,7 +109,6 @@ const ActivityLog = () => {
         content: content,
         activity_name: activityTitle,
         category: category,
-        activity_date: activityDate,
       }));
 
       const { error } = await supabase.from('observations').insert(observations);
