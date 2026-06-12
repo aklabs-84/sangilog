@@ -1098,28 +1098,48 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                     <motion.div
                       key={idx}
                       initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
+                      animate={{ opacity: 1, x: 0, scale: isCorrect ? 1.02 : 1 }}
                       transition={{ delay: idx * 0.1 }}
-                      className={`relative overflow-hidden rounded-xl border ${isCorrect ? CORRECT_COLOR : OPTION_LIGHT_COLORS[idx]} p-3`}
+                      className={`relative overflow-hidden rounded-xl border-2 p-3 transition-all ${
+                        isCorrect
+                          ? 'bg-green-500 border-green-600 shadow-lg shadow-green-200'
+                          : `${OPTION_LIGHT_COLORS[idx]} opacity-50`
+                      }`}
                     >
                       {/* 바 */}
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.6, delay: idx * 0.1 + 0.2, ease: 'easeOut' }}
-                        className={`absolute inset-y-0 left-0 opacity-20 ${OPTION_COLORS[idx]}`}
-                      />
+                      {!isCorrect && (
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 0.6, delay: idx * 0.1 + 0.2, ease: 'easeOut' }}
+                          className={`absolute inset-y-0 left-0 opacity-20 ${OPTION_COLORS[idx]}`}
+                        />
+                      )}
                       <div className="relative flex items-center gap-3">
-                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-black shrink-0 ${OPTION_COLORS[idx]}`}>
+                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
+                          isCorrect ? 'bg-white/30 text-white' : `text-white ${OPTION_COLORS[idx]}`
+                        }`}>
                           {OPTION_LABELS[idx]}
                         </span>
-                        <span className="text-sm font-bold flex-1 truncate">{opt}</span>
-                        {isCorrect && <Check size={16} strokeWidth={3} className="text-green-600 shrink-0" />}
-                        <div className="text-right shrink-0">
-                          <span className="text-sm font-black">{count}명</span>
-                          <span className="text-xs ml-1 opacity-70">({pct}%)</span>
-                        </div>
+                        <span className={`text-sm font-black flex-1 truncate ${isCorrect ? 'text-white' : ''}`}>{opt}</span>
+                        {isCorrect ? (
+                          <span className="flex items-center gap-1 bg-white/25 text-white text-xs font-black px-2.5 py-1 rounded-full shrink-0">
+                            <Check size={13} strokeWidth={3} />
+                            정답
+                          </span>
+                        ) : (
+                          <div className="text-right shrink-0">
+                            <span className="text-xs font-black">{count}명</span>
+                            <span className="text-xs ml-1 opacity-70">({pct}%)</span>
+                          </div>
+                        )}
                       </div>
+                      {/* 정답 선택 인원 수 — 정답 행에서도 표시 */}
+                      {isCorrect && (
+                        <div className="relative mt-1.5 text-right text-white/70 text-xs font-bold">
+                          {count}명 정답 ({pct}%)
+                        </div>
+                      )}
                     </motion.div>
                   );
                 })}

@@ -644,13 +644,21 @@ const QuizStudentView = () => {
                             이번 획득: +{lastResult.score.toLocaleString()}점
                           </span>
                         </motion.div>
-                        {!lastResult.isCorrect && (
-                          <p className="text-white/70 text-sm">
-                            정답: <strong className="text-white">
-                              {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][lastResult.correctAnswer]}
-                            </strong>
+                        {/* 정답 확인 박스 — 항상 표시 */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 }}
+                          className="bg-green-400/30 border-2 border-green-400/70 rounded-2xl px-5 py-4 text-left"
+                        >
+                          <p className="text-green-300 text-xs font-black mb-1.5 flex items-center gap-1">
+                            <CheckCircle size={13} strokeWidth={3} />
+                            정답
                           </p>
-                        )}
+                          <p className="text-white font-black text-lg leading-snug">
+                            {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][lastResult.correctAnswer]}
+                          </p>
+                        </motion.div>
                       </div>
                     ) : (
                       <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 text-center space-y-3">
@@ -660,9 +668,21 @@ const QuizStudentView = () => {
                           <Zap size={18} className="text-white/30" />
                           <span className="text-white/50 font-black text-xl">이번 획득: +0점</span>
                         </div>
-                        <p className="text-white/50 text-xs">정답: <strong className="text-white">
-                          {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][currentQuestion.correct_answer]}
-                        </strong></p>
+                        {/* 정답 확인 박스 */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 }}
+                          className="bg-green-400/30 border-2 border-green-400/70 rounded-2xl px-5 py-4 text-left"
+                        >
+                          <p className="text-green-300 text-xs font-black mb-1.5 flex items-center gap-1">
+                            <CheckCircle size={13} strokeWidth={3} />
+                            정답
+                          </p>
+                          <p className="text-white font-black text-lg leading-snug">
+                            {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][currentQuestion.correct_answer]}
+                          </p>
+                        </motion.div>
                       </div>
                     )}
                     {/* 해설 */}
