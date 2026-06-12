@@ -32,6 +32,7 @@ interface Question {
   option_4: string;
   correct_answer: number; // 0~3
   time_limit: number;
+  explanation?: string;
 }
 
 interface Session {
@@ -293,6 +294,7 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
           option_4: editingQuestion.option_4,
           correct_answer: editingQuestion.correct_answer ?? 0,
           time_limit: editingQuestion.time_limit ?? 20,
+          explanation: editingQuestion.explanation?.trim() || null,
         })
         .eq('id', editingQuestion.id);
       if (!error) await fetchQuestions(selectedQuizSet.id);
@@ -308,6 +310,7 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
         option_4: editingQuestion.option_4,
         correct_answer: editingQuestion.correct_answer ?? 0,
         time_limit: editingQuestion.time_limit ?? 20,
+        explanation: editingQuestion.explanation?.trim() || null,
       });
       if (!error) await fetchQuestions(selectedQuizSet.id);
     }
@@ -703,7 +706,7 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                 setShowQuestionForm(true);
                 setEditingQuestion({
                   text: '', option_1: '', option_2: '', option_3: '', option_4: '',
-                  correct_answer: 0, time_limit: 20,
+                  correct_answer: 0, time_limit: 20, explanation: '',
                 });
               }}
               className="flex items-center gap-1.5 px-3 py-2 btn-vibrant rounded-xl text-xs font-black"
@@ -1121,6 +1124,19 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                   );
                 })}
               </div>
+
+              {/* 해설 */}
+              {currentQuestion.explanation && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="flex gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4"
+                >
+                  <span className="text-amber-500 text-lg shrink-0">💡</span>
+                  <p className="text-sm font-bold text-amber-800 leading-relaxed">{currentQuestion.explanation}</p>
+                </motion.div>
+              )}
             </div>
 
             <button
@@ -1339,6 +1355,20 @@ const QuestionFormModal = ({ question, onChange, onSave, onClose, saving }: QFMP
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* 해설 (선택) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-on-surface-variant">
+              해설 <span className="font-normal text-on-surface-variant/60">(선택 — 결과 화면에 자동 표시)</span>
+            </label>
+            <textarea
+              value={question.explanation ?? ''}
+              onChange={e => onChange({ ...question, explanation: e.target.value })}
+              placeholder="이 문제의 정답 이유나 핵심 내용을 입력하세요..."
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-xl border border-surface-container-high bg-amber-50/50 text-sm font-bold focus:outline-none focus:border-amber-400/60 transition-all resize-none placeholder:font-normal placeholder:text-on-surface-variant/50"
+            />
           </div>
         </div>
 

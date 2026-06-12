@@ -30,6 +30,7 @@ interface Question {
   option_4: string;
   correct_answer: number;
   time_limit: number;
+  explanation?: string;
 }
 
 interface Participant {
@@ -663,6 +664,18 @@ const QuizStudentView = () => {
                           {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4][currentQuestion.correct_answer]}
                         </strong></p>
                       </div>
+                    )}
+                    {/* 해설 */}
+                    {currentQuestion.explanation && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="bg-amber-400/20 border border-amber-300/40 rounded-2xl p-4 flex gap-3"
+                      >
+                        <span className="text-amber-300 text-lg shrink-0">💡</span>
+                        <p className="text-amber-100 text-sm font-bold leading-relaxed">{currentQuestion.explanation}</p>
+                      </motion.div>
                     )}
                     {/* 누적 점수는 항상 표시 — 이번 획득과 분리되어 혼동 없음 */}
                     <div className="bg-white/10 rounded-2xl p-4 border border-white/15 flex items-center justify-between">
