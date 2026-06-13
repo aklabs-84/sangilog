@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Loader2, ArrowRight, Users, GraduationCap, Clock, ExternalLink } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Users, GraduationCap } from 'lucide-react';
 
 type Step = 'code' | 'name' | 'lobby';
 
@@ -22,36 +22,11 @@ interface BoardCard {
   memberCount: number;
 }
 
-interface PreviousBoard {
-  boardId: string;
-  boardName: string;
-  className: string;
-  code: string;
-  name: string;
-  savedAt: string;
-}
-
 const BOARD_COLORS = [
   '#1D4ED8', '#7C3AED', '#BE185D', '#B45309',
   '#065F46', '#0E7490', '#9D174D', '#92400E',
   '#1E3A5F', '#4C1D95',
 ];
-
-const PREV_BOARDS_KEY = 'wb_previous_boards';
-
-function loadPreviousBoards(): PreviousBoard[] {
-  try {
-    return JSON.parse(localStorage.getItem(PREV_BOARDS_KEY) || '[]');
-  } catch {
-    return [];
-  }
-}
-
-function savePreviousBoard(entry: PreviousBoard) {
-  const prev = loadPreviousBoards();
-  const updated = [entry, ...prev.filter(e => e.boardId !== entry.boardId)].slice(0, 5);
-  localStorage.setItem(PREV_BOARDS_KEY, JSON.stringify(updated));
-}
 
 export default function StudentJoin() {
   const navigate = useNavigate();
@@ -66,13 +41,10 @@ export default function StudentJoin() {
   const [loading, setLoading] = useState(false);
   const [joining, setJoining] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [prevBoards, setPrevBoards] = useState<PreviousBoard[]>([]);
   const [myGroupName, setMyGroupName] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    setPrevBoards(loadPreviousBoards());
-  }, []);
+  const returnTo = (location.state as Record<string, unknown> | null)?.returnTo as string | undefined;
 
   // 코드가 URL 파라미터로 왔으면 자동 검증
   useEffect(() => {
@@ -109,7 +81,6 @@ export default function StudentJoin() {
     setLoading(true);
     setError('');
 
-    // 활성 세션과 종료된 세션 모두 허용 (학생 재입장 지원)
     const { data: sessionData } = await supabase
       .from('class_board_sessions')
       .select('id, class_id, class_name, group_count, group_size, session_code, status')
@@ -136,13 +107,11 @@ export default function StudentJoin() {
     setLoading(true);
     setError('');
 
-    // 익명 로그인 (그룹 조회 RLS 통과를 위해 미리 처리)
     const { data: { user: existingUser } } = await supabase.auth.getUser();
     if (!existingUser) {
       await supabase.auth.signInAnonymously();
     }
 
-    // class_id 기준으로 조회 — 해당 클래스에 연결된 보드만 표시
     const { data: boardData } = await supabase
       .from('whiteboards')
       .select('id, group_number, group_name')
@@ -155,7 +124,6 @@ export default function StudentJoin() {
       return;
     }
 
-    // 이름으로 내 조 자동 찾기 (SECURITY DEFINER RPC로 RLS 우회)
     let foundGroupName: string | null = null;
     try {
       const { data: groupName } = await supabase.rpc('get_student_group_name', {
@@ -164,10 +132,9 @@ export default function StudentJoin() {
       });
       foundGroupName = groupName ?? null;
     } catch {
-      // 조 찾기 실패 → 전체 보드 표시 (폴백)
+      // 조 찾기 실패 → 전체 보드 표시
     }
 
-    // 내 조 보드만 필터 (못 찾거나 매칭 보드 없으면 전체 표시)
     const filtered = foundGroupName ? boardData.filter(b => b.group_name === foundGroupName) : [];
     const displayBoards = filtered.length > 0 ? filtered : boardData;
     if (filtered.length === 0) foundGroupName = null;
@@ -186,7 +153,6 @@ export default function StudentJoin() {
     setStep('lobby');
     setLoading(false);
 
-    // 로비 폴링 (3초) — 활성 세션에서만
     if (session.status === 'active') {
       pollRef.current = setInterval(async () => {
         const updatedCounts = await fetchMemberCounts(displayBoardIds);
@@ -206,24 +172,12 @@ export default function StudentJoin() {
       currentUser = (await supabase.auth.getUser()).data.user;
     }
 
-    // 익명 사용자만 auth 메타데이터에 이름 저장 — 교사 계정 오염 방지
     if ((currentUser as any)?.is_anonymous) {
       await supabase.auth.updateUser({ data: { display_name: name.trim() } });
     }
     localStorage.setItem('wb_student_name', name.trim());
 
-    // 이전 참여 보드 저장 (재입장용)
-    savePreviousBoard({
-      boardId,
-      boardName,
-      className: session.class_name,
-      code: session.session_code,
-      name: name.trim(),
-      savedAt: new Date().toISOString(),
-    });
-
     if (pollRef.current) clearInterval(pollRef.current);
-    const returnTo = (location.state as Record<string, unknown> | null)?.returnTo as string | undefined;
     navigate(`/whiteboard/${boardId}`, { replace: true, state: { fromWbJoin: true, wbCode: session.session_code, returnTo } });
   };
 
@@ -234,9 +188,43 @@ export default function StudentJoin() {
   const totalJoined = boards.reduce((s, b) => s + b.memberCount, 0);
   const isEndedSession = session?.status === 'ended';
 
+  const handleGoBack = () => {
+    if (returnTo) {
+      navigate(returnTo, { state: { activeTab: 'board' } });
+    } else {
+      navigate('/student-log');
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ width: '100%', maxWidth: step === 'lobby' ? 640 : 400 }}>
+
+        {/* 학생 페이지로 돌아가기 버튼 */}
+        <div style={{ marginBottom: 20 }}>
+          <button
+            onClick={handleGoBack}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              background: '#1E293B', border: '1px solid #334155',
+              borderRadius: 12, padding: '10px 16px',
+              color: '#94A3B8', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = '#263548';
+              e.currentTarget.style.color = '#CBD5E1';
+              e.currentTarget.style.borderColor = '#475569';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = '#1E293B';
+              e.currentTarget.style.color = '#94A3B8';
+              e.currentTarget.style.borderColor = '#334155';
+            }}
+          >
+            <ArrowLeft size={15} /> 학생 페이지로 돌아가기
+          </button>
+        </div>
 
         {/* 로고 */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
@@ -249,81 +237,43 @@ export default function StudentJoin() {
 
         {/* Step 1: 코드 입력 */}
         {step === 'code' && (
-          <>
-            {/* 이전에 참여한 보드 */}
-            {prevBoards.length > 0 && (
-              <div style={{ background: '#1E293B', borderRadius: 14, padding: 16, marginBottom: 16 }}>
-                <p style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Clock size={12} /> 이전에 참여한 보드
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {prevBoards.map(entry => (
-                    <button
-                      key={entry.boardId}
-                      onClick={() => navigate(`/whiteboard/${entry.boardId}`, { state: { fromWbJoin: true, wbCode: entry.code } })}
-                      style={{
-                        background: '#0F172A', border: '1px solid #1E3A5F', borderRadius: 10,
-                        padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        transition: 'border-color 0.15s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#3B82F6'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#1E3A5F'; }}
-                    >
-                      <div>
-                        <div style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>
-                          {entry.boardName}
-                          <span style={{ color: '#60A5FA', fontSize: 11, marginLeft: 6 }}>{entry.className}</span>
-                        </div>
-                        <div style={{ color: '#6B7280', fontSize: 11, marginTop: 2 }}>{entry.name} · 코드 {entry.code}</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#3B82F6', fontSize: 12, flexShrink: 0 }}>
-                        <ExternalLink size={13} /> 이어서 입장
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div style={{ background: '#1E293B', borderRadius: 20, padding: 32, boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, textAlign: 'center', marginBottom: 6 }}>
+              수업 코드 입력
+            </h2>
+            <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
+              선생님이 알려준 6자리 코드를 입력하세요
+            </p>
 
-            <div style={{ background: '#1E293B', borderRadius: 20, padding: 32, boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-              <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, textAlign: 'center', marginBottom: 6 }}>
-                수업 코드 입력
-              </h2>
-              <p style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
-                선생님이 알려준 6자리 코드를 입력하세요
-              </p>
+            <input
+              autoFocus
+              value={code}
+              onChange={e => { setCode(e.target.value.toUpperCase().slice(0, 6)); setError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleCodeSubmit()}
+              placeholder="예: AB3K7M"
+              maxLength={6}
+              style={{
+                width: '100%', padding: '16px', borderRadius: 12, border: `2px solid ${error ? '#EF4444' : '#374151'}`,
+                background: '#0F172A', color: '#fff', fontSize: 28, fontWeight: 700,
+                textAlign: 'center', letterSpacing: 8, outline: 'none', boxSizing: 'border-box',
+                fontFamily: 'monospace',
+              }}
+            />
+            {error && <p style={{ color: '#EF4444', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{error}</p>}
 
-              <input
-                autoFocus
-                value={code}
-                onChange={e => { setCode(e.target.value.toUpperCase().slice(0, 6)); setError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleCodeSubmit()}
-                placeholder="예: AB3K7M"
-                maxLength={6}
-                style={{
-                  width: '100%', padding: '16px', borderRadius: 12, border: `2px solid ${error ? '#EF4444' : '#374151'}`,
-                  background: '#0F172A', color: '#fff', fontSize: 28, fontWeight: 700,
-                  textAlign: 'center', letterSpacing: 8, outline: 'none', boxSizing: 'border-box',
-                  fontFamily: 'monospace',
-                }}
-              />
-              {error && <p style={{ color: '#EF4444', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{error}</p>}
-
-              <button
-                onClick={() => handleCodeSubmit()}
-                disabled={loading || code.length < 6}
-                style={{
-                  width: '100%', marginTop: 16, padding: '14px', borderRadius: 12, border: 'none',
-                  background: code.length === 6 ? '#2563EB' : '#374151',
-                  color: '#fff', fontSize: 15, fontWeight: 700, cursor: code.length === 6 ? 'pointer' : 'not-allowed',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                }}
-              >
-                {loading ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <><ArrowRight size={18} /> 다음</>}
-              </button>
-            </div>
-          </>
+            <button
+              onClick={() => handleCodeSubmit()}
+              disabled={loading || code.length < 6}
+              style={{
+                width: '100%', marginTop: 16, padding: '14px', borderRadius: 12, border: 'none',
+                background: code.length === 6 ? '#2563EB' : '#374151',
+                color: '#fff', fontSize: 15, fontWeight: 700, cursor: code.length === 6 ? 'pointer' : 'not-allowed',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              {loading ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <><ArrowRight size={18} /> 다음</>}
+            </button>
+          </div>
         )}
 
         {/* Step 2: 이름 입력 */}
@@ -334,7 +284,6 @@ export default function StudentJoin() {
               <p style={{ color: '#6B7280', fontSize: 12, margin: 0 }}>코드: {session.session_code}</p>
             </div>
 
-            {/* 종료된 세션 안내 */}
             {isEndedSession && (
               <div style={{ background: '#1C1917', border: '1px solid #44403C', borderRadius: 8, padding: '8px 14px', marginBottom: 16, textAlign: 'center' }}>
                 <p style={{ color: '#A8A29E', fontSize: 12, margin: 0 }}>
@@ -401,7 +350,6 @@ export default function StudentJoin() {
               )}
             </div>
 
-            {/* 종료된 세션 안내 배너 */}
             {isEndedSession && (
               <div style={{ background: '#1C1917', border: '1px solid #44403C', borderRadius: 10, padding: '10px 16px', marginBottom: 12, textAlign: 'center' }}>
                 <p style={{ color: '#A8A29E', fontSize: 13, margin: 0 }}>
@@ -410,7 +358,6 @@ export default function StudentJoin() {
               </div>
             )}
 
-            {/* 내 조 자동 매칭 배너 */}
             {myGroupName && (
               <div style={{ background: '#0D2137', border: '1px solid #1E40AF', borderRadius: 10, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', flexShrink: 0 }} />
@@ -428,7 +375,6 @@ export default function StudentJoin() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               {boards.map((board, i) => {
-                // 종료된 세션에서는 정원 제한 없음 (이어서 작업)
                 const isFull = !isEndedSession && board.memberCount >= session.group_size;
                 const color = BOARD_COLORS[i % BOARD_COLORS.length];
                 return (
@@ -445,7 +391,6 @@ export default function StudentJoin() {
                     onMouseEnter={e => { if (!isFull) e.currentTarget.style.background = '#243044'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = '#1E293B'; }}
                   >
-                    {/* 색상 바 */}
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: isFull ? '#374151' : color, borderRadius: '14px 14px 0 0' }} />
 
                     <div style={{ color: '#fff', fontWeight: 800, fontSize: 22, marginBottom: 8 }}>
@@ -466,7 +411,6 @@ export default function StudentJoin() {
                       <div style={{ color: '#60A5FA', fontSize: 12, marginBottom: 8 }}>이어서 작업하기</div>
                     )}
 
-                    {/* 인원 도트 (활성 세션에서만) */}
                     {!isEndedSession && (
                       <div style={{ display: 'flex', gap: 4 }}>
                         {Array.from({ length: session.group_size }, (_, j) => (
