@@ -20,11 +20,10 @@ interface Props {
   onCursorMove?: (canvasX: number, canvasY: number) => void;
 }
 
-const CANVAS_W = 10000;
-const CANVAS_H = 8000;
 const INIT_X = 60;
 const INIT_Y = 40;
 const INIT_ZOOM = 0.7;
+const DOT_SPACING = 24; // px (canvas 좌표 기준)
 
 export default function WhiteboardCanvas({
   boardId, objects, activeTool, selectedId,
@@ -47,10 +46,16 @@ export default function WhiteboardCanvas({
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [isPanningState, setIsPanningState] = useState(false);
 
-  // Direct DOM transform — no React re-render
+  // Direct DOM transform — canvas position + container background sync (무한 캔버스)
   const applyTransform = useCallback((x: number, y: number, z: number) => {
     if (canvasRef.current) {
       canvasRef.current.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
+    }
+    if (containerRef.current) {
+      // 점 패턴을 팬/줌에 맞게 동기화 → 무한하게 이어지는 배경 효과
+      const dotSize = DOT_SPACING * z;
+      containerRef.current.style.backgroundSize = `${dotSize}px ${dotSize}px`;
+      containerRef.current.style.backgroundPosition = `${x}px ${y}px`;
     }
   }, []);
 
@@ -69,9 +74,8 @@ export default function WhiteboardCanvas({
         const rect = el.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
-        // zoom towards cursor
         const factor = e.deltaY < 0 ? 1.1 : 0.9;
-        const newZoom = Math.max(0.25, Math.min(3, zoomRef.current * factor));
+        const newZoom = Math.max(0.1, Math.min(3, zoomRef.current * factor));
         const ratio = newZoom / zoomRef.current;
         panRef.current.x = mouseX - (mouseX - panRef.current.x) * ratio;
         panRef.current.y = mouseY - (mouseY - panRef.current.y) * ratio;
@@ -134,7 +138,6 @@ export default function WhiteboardCanvas({
 
     const onMove = (ev: PointerEvent) => {
       if (!dragRef.current) return;
-      // Use zoomRef (not stale zoom state) for accurate delta
       const dx = (ev.clientX - dragRef.current.startX) / zoomRef.current;
       const dy = (ev.clientY - dragRef.current.startY) / zoomRef.current;
       onUpdateObject(dragRef.current.id, {
@@ -151,22 +154,16 @@ export default function WhiteboardCanvas({
     window.addEventListener('pointerup', onUp);
   }, [onUpdateObject]);
 
-  // Space+drag pan: direct DOM update, no React re-render
-  const handleContainerPointerDown = useCallback((e: React.PointerEvent) => {
-    const isPanMode = spaceHeld || activeTool === 'select';
-    if (!isPanMode) return;
-    if (!spaceHeld && e.target !== containerRef.current && e.target !== canvasRef.current) return;
-
+  const startPan = useCallback((startX: number, startY: number) => {
     isPanning.current = true;
     setIsPanningState(true);
-    lastPanPos.current = { x: e.clientX, y: e.clientY };
+    lastPanPos.current = { x: startX, y: startY };
 
     const onMove = (ev: PointerEvent) => {
       if (!isPanning.current) return;
       panRef.current.x += ev.clientX - lastPanPos.current.x;
       panRef.current.y += ev.clientY - lastPanPos.current.y;
       lastPanPos.current = { x: ev.clientX, y: ev.clientY };
-      // Direct DOM — zero React overhead during drag
       applyTransform(panRef.current.x, panRef.current.y, zoomRef.current);
     };
     const onUp = () => {
@@ -177,7 +174,33 @@ export default function WhiteboardCanvas({
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
-  }, [activeTool, spaceHeld, applyTransform]);
+  }, [applyTransform]);
+
+  // 컨테이너(배경) 클릭: 오브젝트 생성 / 선택 해제 / 패닝
+  const handleContainerPointerDown = useCallback((e: React.PointerEvent) => {
+    const isBackground = e.target === containerRef.current || e.target === canvasRef.current;
+
+    // Space+드래그: 어디서나 패닝
+    if (spaceHeld) {
+      startPan(e.clientX, e.clientY);
+      return;
+    }
+
+    // 오브젝트 위 클릭은 여기서 처리 안 함
+    if (!isBackground) return;
+
+    if (activeTool === 'select') {
+      // 빈 공간 클릭: 선택 해제 + 드래그로 패닝
+      onSelectObject(null);
+      startPan(e.clientX, e.clientY);
+      return;
+    }
+
+    // 도구 선택 상태: 오브젝트 생성
+    if (!isViewer) {
+      createObject(e);
+    }
+  }, [activeTool, spaceHeld, isViewer, createObject, onSelectObject, startPan]);
 
   // Zoom buttons
   const handleZoomChange = useCallback((newZoom: number) => {
@@ -225,7 +248,7 @@ export default function WhiteboardCanvas({
 
       {/* 줌 컨트롤 */}
       <div style={{ position: 'absolute', bottom: 20, right: 20, zIndex: 1000, display: 'flex', alignItems: 'center', gap: 4, background: '#1e1e1e', borderRadius: 10, padding: '6px 8px' }}>
-        <button onClick={() => handleZoomChange(Math.max(0.25, zoom - 0.1))} style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', display: 'flex' }}><ZoomOut size={16} /></button>
+        <button onClick={() => handleZoomChange(Math.max(0.1, zoom - 0.1))} style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', display: 'flex' }}><ZoomOut size={16} /></button>
         <span style={{ color: '#fff', fontSize: 12, minWidth: 40, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
         <button onClick={() => handleZoomChange(Math.min(3, zoom + 0.1))} style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', display: 'flex' }}><ZoomIn size={16} /></button>
         <div style={{ width: 1, background: '#333', margin: '0 2px' }} />
@@ -245,11 +268,15 @@ export default function WhiteboardCanvas({
         </div>
       )}
 
-      {/* 팬/줌 뷰포트 */}
+      {/* 팬/줌 뷰포트 — 흰 배경 + 점 패턴이 여기에 있어서 무한하게 이어짐 */}
       <div
         ref={containerRef}
         style={{
-          width: '100%', height: '100%', overflow: 'hidden', background: '#f3f4f6',
+          width: '100%', height: '100%', overflow: 'hidden',
+          background: '#ffffff',
+          backgroundImage: 'radial-gradient(circle, #d1d5db 1.2px, transparent 1.2px)',
+          backgroundSize: `${DOT_SPACING * INIT_ZOOM}px ${DOT_SPACING * INIT_ZOOM}px`,
+          backgroundPosition: `${INIT_X}px ${INIT_Y}px`,
           cursor,
         }}
         onPointerDown={handleContainerPointerDown}
@@ -259,30 +286,16 @@ export default function WhiteboardCanvas({
           onCursorMove(x, y);
         }}
       >
-        {/* transform은 useLayoutEffect + applyTransform으로만 관리 */}
+        {/* 캔버스 = 좌표 공간만 제공, 시각적 경계 없음 */}
         <div
           ref={canvasRef}
           data-canvas="true"
           style={{
             position: 'absolute',
             left: 0, top: 0,
-            width: CANVAS_W, height: CANVAS_H,
-            background: '#ffffff',
-            borderRadius: 12,
-            boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
-            backgroundImage: 'radial-gradient(circle, #e5e7eb 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
             transformOrigin: '0 0',
             willChange: 'transform',
             userSelect: 'none',
-            cursor: isViewer ? 'default' : activeTool === 'select' ? 'default' : 'crosshair',
-          }}
-          onPointerDown={e => {
-            if (isViewer || spaceHeld) return;
-            if (e.target === canvasRef.current) {
-              onSelectObject(null);
-              if (activeTool !== 'select') createObject(e);
-            }
           }}
         >
           {sorted.map(obj => (
@@ -313,11 +326,9 @@ export default function WhiteboardCanvas({
                 transition: 'left 0.05s, top 0.05s',
               }}
             >
-              {/* 커서 삼각형 */}
               <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block' }}>
                 <path d="M0 0 L0 12 L4 9 L7 14 L9 13 L6 8 L11 8 Z" fill={cursor.avatarColor} stroke="#fff" strokeWidth="1" />
               </svg>
-              {/* 이름 라벨 */}
               <div style={{
                 position: 'absolute', top: 14, left: 4,
                 background: cursor.avatarColor,
