@@ -48,7 +48,7 @@ import {
   Maximize2,
   Eye,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { geminiFlash } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
@@ -95,6 +95,7 @@ const MATERIAL_MD_COMPONENTS = {
 
 const StudentLog = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -383,6 +384,20 @@ const StudentLog = () => {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
+  }, [session?.class_id]);
+
+  // 화이트보드에서 돌아올 때 보드 탭 자동 복원
+  // - "나가기" 버튼: location.state.activeTab = 'board'
+  // - 브라우저 뒤로가기: sessionStorage 'studentLog_returnTab' = 'board'
+  useEffect(() => {
+    if (!session?.class_id) return;
+    const stateTab = (location.state as Record<string, unknown> | null)?.activeTab as string | undefined;
+    const sessionTab = sessionStorage.getItem('studentLog_returnTab');
+    if (stateTab === 'board' || sessionTab === 'board') {
+      if (sessionTab) sessionStorage.removeItem('studentLog_returnTab');
+      setActiveTab('board');
+      fetchBoard();
+    }
   }, [session?.class_id]);
 
   // 학생 알림 Realtime 구독
@@ -3459,7 +3474,12 @@ ${guidePrompt}
                             </div>
                           </div>
                           <button
-                            onClick={() => navigate(`/wb-join?code=${bs.session_code}&name=${encodeURIComponent(session?.student_name ?? '')}`)}
+                            onClick={() => {
+                              sessionStorage.setItem('studentLog_returnTab', 'board');
+                              navigate(`/wb-join?code=${bs.session_code}&name=${encodeURIComponent(session?.student_name ?? '')}`, {
+                                state: { returnTo: '/student-log' },
+                              });
+                            }}
                             className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm rounded-2xl transition-all shrink-0"
                           >
                             입장하기 <ArrowRight size={14} />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Loader2, ArrowRight, Users, GraduationCap, Clock, ExternalLink } from 'lucide-react';
 
@@ -55,6 +55,7 @@ function savePreviousBoard(entry: PreviousBoard) {
 
 export default function StudentJoin() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const [step, setStep] = useState<Step>('code');
@@ -222,7 +223,8 @@ export default function StudentJoin() {
     });
 
     if (pollRef.current) clearInterval(pollRef.current);
-    navigate(`/whiteboard/${boardId}`, { replace: true, state: { fromWbJoin: true, wbCode: session.session_code } });
+    const returnTo = (location.state as Record<string, unknown> | null)?.returnTo as string | undefined;
+    navigate(`/whiteboard/${boardId}`, { replace: true, state: { fromWbJoin: true, wbCode: session.session_code, returnTo } });
   };
 
   useEffect(() => {

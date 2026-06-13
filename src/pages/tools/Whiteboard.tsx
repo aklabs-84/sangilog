@@ -26,6 +26,8 @@ export default function Whiteboard() {
 
   // /wb-join 에서 진입한 학생이면 true (isAnon 체크 대신 state 기반으로 판단)
   const fromWbJoin = !!(location.state as Record<string, unknown> | null)?.fromWbJoin;
+  // 학생 페이지에서 진입한 경우 돌아갈 경로
+  const returnTo = (location.state as Record<string, unknown> | null)?.returnTo as string | undefined;
 
   const [board, setBoard] = useState<WhiteboardType | null>(null);
   const [objects, setObjects] = useState<BoardObject[]>([]);
@@ -112,12 +114,19 @@ export default function Whiteboard() {
   const handleStudentExit = useCallback(() => {
     const isAnon = isAnonymousUser(user);
     if (fromWbJoin || isAnon) {
-      if (isAnon) supabase.auth.signOut(); // 익명 세션 즉시 파기
-      navigate('/wb-join', { replace: true });
+      if (isAnon) {
+        supabase.auth.signOut(); // 익명 세션 즉시 파기
+        navigate('/wb-join', { replace: true });
+      } else if (returnTo) {
+        // 학생 페이지에서 왔을 경우 → 보드 탭으로 복귀
+        navigate(returnTo, { replace: true, state: { activeTab: 'board' } });
+      } else {
+        navigate('/wb-join', { replace: true });
+      }
     } else {
       navigate('/teaching-tools', { state: { activeToolId: 'whiteboard' } });
     }
-  }, [user, fromWbJoin, navigate]);
+  }, [user, fromWbJoin, returnTo, navigate]);
 
   // 정원 초과 거절 → 목록으로 이동 (학생이면 wb-join으로)
   const handleDeclineViewer = useCallback(() => {
