@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './lib/auth';
+import { AuthProvider, useAuth, isAnonymousUser } from './lib/auth';
+import { supabase } from './lib/supabase';
 import { TimerProvider } from './lib/timerContext';
 
 // Supabase가 redirect_to 미허용 시 루트(/)로 fallback하는 경우 대응
@@ -37,9 +39,15 @@ import SetPassword from './pages/SetPassword';
 import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
 
-// 비로그인이면 /login 으로, 로그인이면 children 렌더
+// 선생님 전용 라우트 가드
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, profile } = useAuth();
+  const isAnon = !loading && isAnonymousUser(user);
+
+  // 익명 세션이 보호된 경로에 접근하면 즉시 파기 (방어 2중화)
+  useEffect(() => {
+    if (isAnon) supabase.auth.signOut();
+  }, [isAnon]);
 
   if (loading) {
     return (
@@ -52,9 +60,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  // 미로그인 → 선생님 로그인 화면
+  if (!user) return <Navigate to="/login" replace />;
+
+  // 익명 유저(학생) → 학생 홈으로 (이중 감지: is_anonymous + app_metadata.provider)
+  if (isAnonymousUser(user)) return <Navigate to="/student-log" replace />;
 
   // 승인 취소된 계정 차단
   if (profile && profile.is_approved === false) {
@@ -85,6 +95,28 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// 화이트보드 전용: 익명(학생) + 인증(선생님) 모두 허용, 완전 미로그인만 /wb-join으로
+const WhiteboardRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-bold text-on-surface-variant font-manrope">인증 상태 확인 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/wb-join" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 // 루트 경로: 로그인 상태면 /dashboard, 아니면 랜딩
 const RootRedirect = () => {
   const { user, loading } = useAuth();
@@ -100,7 +132,8 @@ const RootRedirect = () => {
     );
   }
 
-  if (user) {
+  // 익명 유저(학생)는 미로그인으로 취급 — 선생님만 대시보드로
+  if (user && !isAnonymousUser(user)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -142,8 +175,8 @@ function App() {
               {/* 보드 */}
               <Route path="/board/:classId" element={<ProtectedRoute><ClassBoard /></ProtectedRoute>} />
 
-              {/* 화이트보드 (전체 화면, 레이아웃 없음) */}
-              <Route path="/whiteboard/:boardId" element={<ProtectedRoute><Whiteboard /></ProtectedRoute>} />
+              {/* 화이트보드 (전체 화면, 레이아웃 없음) — 익명(학생)+인증(선생님) 모두 허용 */}
+              <Route path="/whiteboard/:boardId" element={<WhiteboardRoute><Whiteboard /></WhiteboardRoute>} />
 
               {/* 보호된 레이아웃 라우트 (/dashboard 아래) */}
               <Route

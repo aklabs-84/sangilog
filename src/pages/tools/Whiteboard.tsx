@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Download, Share2, Save, Check, Loader2, AlertCircle, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useAuth, isAnonymousUser } from '../../lib/auth';
 import type { BoardObject, Whiteboard as WhiteboardType, ActiveTool, TemplateKey } from '../../components/whiteboard/types';
 import WhiteboardCanvas from '../../components/whiteboard/WhiteboardCanvas';
 import { createTemplateObjects } from '../../components/whiteboard/boardUtils';
@@ -108,17 +108,26 @@ export default function Whiteboard() {
     onPollSync,
   );
 
+  // 학생/익명 나가기 공통 처리 — 익명 세션 정리 후 이동
+  const handleStudentExit = useCallback(() => {
+    const isAnon = isAnonymousUser(user);
+    if (fromWbJoin || isAnon) {
+      if (isAnon) supabase.auth.signOut(); // 익명 세션 즉시 파기
+      navigate('/wb-join', { replace: true });
+    } else {
+      navigate('/teaching-tools', { state: { activeToolId: 'whiteboard' } });
+    }
+  }, [user, fromWbJoin, navigate]);
+
   // 정원 초과 거절 → 목록으로 이동 (학생이면 wb-join으로)
   const handleDeclineViewer = useCallback(() => {
     onDeclineViewer();
-    const isAnon = (user as any)?.is_anonymous === true;
-    if (fromWbJoin || isAnon) navigate('/wb-join', { replace: true });
-    else navigate('/teaching-tools', { state: { activeToolId: 'whiteboard' } });
-  }, [onDeclineViewer, navigate, user, fromWbJoin]);
+    handleStudentExit();
+  }, [onDeclineViewer, handleStudentExit]);
 
   // 교사 계정에 오염된 display_name 메타데이터가 있으면 자동 정리
   useEffect(() => {
-    if (!fromWbJoin && user && (user as any)?.user_metadata?.display_name) {
+    if (!fromWbJoin && user && !isAnonymousUser(user) && (user as any)?.user_metadata?.display_name) {
       supabase.auth.updateUser({ data: { display_name: null } });
     }
   }, [user, fromWbJoin]);
@@ -353,14 +362,10 @@ export default function Whiteboard() {
       {/* 헤더 */}
       <div style={{ height: 52, background: '#1e1e1e', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', flexShrink: 0, zIndex: 100 }}>
         <button
-          onClick={() => {
-            const isAnon = (user as any)?.is_anonymous === true;
-            if (fromWbJoin || isAnon) navigate('/wb-join', { replace: true });
-            else navigate('/teaching-tools', { state: { activeToolId: 'whiteboard' } });
-          }}
+          onClick={handleStudentExit}
           style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}
         >
-          <ArrowLeft size={16} /> {(fromWbJoin || (user as any)?.is_anonymous) ? '수업 나가기' : '뒤로'}
+          <ArrowLeft size={16} /> {(fromWbJoin || isAnonymousUser(user)) ? '수업 나가기' : '뒤로'}
         </button>
         <div style={{ width: 1, height: 20, background: '#333' }} />
         {editingTitle ? (

@@ -258,7 +258,7 @@ export default function StudentJoin() {
                   {prevBoards.map(entry => (
                     <button
                       key={entry.boardId}
-                      onClick={() => navigate(`/whiteboard/${entry.boardId}`)}
+                      onClick={() => navigate(`/whiteboard/${entry.boardId}`, { state: { fromWbJoin: true, wbCode: entry.code } })}
                       style={{
                         background: '#0F172A', border: '1px solid #1E3A5F', borderRadius: 10,
                         padding: '10px 14px', cursor: 'pointer', textAlign: 'left',

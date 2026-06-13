@@ -21,6 +21,7 @@ const ClassroomEntry = () => {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // PIN 관련 상태
+  const [hasPinSet, setHasPinSet] = useState<boolean | null>(null); // 서버 확인 전 null
   const [pinDigits, setPinDigits] = useState(['', '', '', '']);
   const [pinConfirmDigits, setPinConfirmDigits] = useState(['', '', '', '']);
   const [pinError, setPinError] = useState('');
@@ -95,10 +96,10 @@ const ClassroomEntry = () => {
       
       const targetClassId = data.linked_class_id || data.id;
 
-      // 해당 학급의 학생 명단 가져오기
+      // 해당 학급의 학생 명단 가져오기 (PIN 컬럼 제외 — 클라이언트 노출 방지)
       const { data: studentData, error: stuError } = await supabase
         .from('students')
-        .select('*')
+        .select('id, full_name, student_number, class_id')
         .eq('class_id', targetClassId)
         .order('full_name');
 
@@ -126,11 +127,20 @@ const ClassroomEntry = () => {
     setSelectedStudent(student);
   };
 
-  const handleFinalEnter = () => {
+  const handleFinalEnter = async () => {
     if (!selectedStudent || !targetClass) return;
+    setLoading(true);
+    // PIN 존재 여부만 서버에서 확인 — 실제 PIN 값은 클라이언트에 가져오지 않음
+    const { count } = await supabase
+      .from('students')
+      .select('id', { count: 'exact', head: true })
+      .eq('id', selectedStudent.id)
+      .not('pin', 'is', null);
+    setHasPinSet((count ?? 0) > 0);
     setPinDigits(['', '', '', '']);
     setPinConfirmDigits(['', '', '', '']);
     setPinError('');
+    setLoading(false);
     setStep(3);
   };
 
@@ -172,7 +182,7 @@ const ClassroomEntry = () => {
     if (pin.length < 4) { setPinError('4자리 PIN을 모두 입력해주세요.'); return; }
 
     // PIN 미설정 → 새로 설정
-    if (!selectedStudent?.pin) {
+    if (!hasPinSet) {
       const confirm = pinConfirmDigits.join('');
       if (pin !== confirm) { setPinError('PIN이 일치하지 않습니다. 다시 확인해주세요.'); return; }
       setPinLoading(true);
@@ -180,10 +190,10 @@ const ClassroomEntry = () => {
         .from('students')
         .update({ pin })
         .eq('id', selectedStudent!.id)
-        .select('pin');
+        .is('pin', null) // 안전장치: PIN 없을 때만 설정
+        .select('id');
       setPinLoading(false);
-      if (error) { setPinError(`저장 실패: ${error.message}`); return; }
-      if (!saved || saved.length === 0) {
+      if (error || !saved?.length) {
         setPinError('PIN 저장에 실패했습니다. 선생님께 문의하세요.');
         return;
       }
@@ -191,8 +201,17 @@ const ClassroomEntry = () => {
       return;
     }
 
-    // PIN 확인
-    if (pin !== selectedStudent.pin) {
+    // PIN 확인 — 서버에서 검증 (PIN 값을 클라이언트로 가져오지 않음)
+    setPinLoading(true);
+    const { data: verified } = await supabase
+      .from('students')
+      .select('id')
+      .eq('id', selectedStudent!.id)
+      .eq('pin', pin)
+      .maybeSingle();
+    setPinLoading(false);
+
+    if (!verified) {
       setPinError('PIN이 올바르지 않습니다. 다시 시도해주세요.');
       setPinDigits(['', '', '', '']);
       setTimeout(() => pinRefs.current[0]?.focus(), 50);
@@ -343,7 +362,7 @@ const ClassroomEntry = () => {
               </button>
               <button
                 onClick={handleFinalEnter}
-                disabled={!selectedStudent}
+                disabled={!selectedStudent || loading}
                 className="flex-[2] btn-gradient py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
               >
                 <span>학습 기록하기</span>
@@ -361,20 +380,20 @@ const ClassroomEntry = () => {
           >
             <div className="space-y-3">
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner text-white"
-                style={{ background: selectedStudent?.pin ? 'var(--color-primary)' : 'var(--color-secondary)' }}
+                style={{ background: hasPinSet ? 'var(--color-primary)' : 'var(--color-secondary)' }}
               >
-                {selectedStudent?.pin ? <KeyRound size={30} /> : <ShieldCheck size={30} />}
+                {hasPinSet ? <KeyRound size={30} /> : <ShieldCheck size={30} />}
               </div>
               <p className="text-[11px] font-black uppercase tracking-[0.3em]"
-                style={{ color: selectedStudent?.pin ? 'var(--color-primary)' : 'var(--color-secondary)' }}
+                style={{ color: hasPinSet ? 'var(--color-primary)' : 'var(--color-secondary)' }}
               >
-                {selectedStudent?.pin ? 'PIN Verification' : 'Set Your PIN'}
+                {hasPinSet ? 'PIN Verification' : 'Set Your PIN'}
               </p>
               <h2 className="text-3xl font-black font-manrope">
-                {selectedStudent?.pin ? 'PIN 입력' : '개인 PIN 설정'}
+                {hasPinSet ? 'PIN 입력' : '개인 PIN 설정'}
               </h2>
               <p className="text-on-surface-variant font-medium text-sm">
-                {selectedStudent?.pin
+                {hasPinSet
                   ? `${selectedStudent?.full_name}님, PIN 4자리를 입력하세요.`
                   : '처음 방문이군요! 앞으로 사용할 PIN 4자리를 설정해주세요.'}
               </p>
@@ -383,7 +402,7 @@ const ClassroomEntry = () => {
             {/* PIN 입력 */}
             <div className="space-y-2">
               <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">
-                {selectedStudent?.pin ? 'PIN' : '새 PIN'}
+                {hasPinSet ? 'PIN' : '새 PIN'}
               </p>
               <div className="flex justify-center gap-3">
                 {pinDigits.map((d, i) => (
@@ -403,7 +422,7 @@ const ClassroomEntry = () => {
             </div>
 
             {/* PIN 확인 (설정 시만) */}
-            {!selectedStudent?.pin && (
+            {!hasPinSet && (
               <div className="space-y-2">
                 <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">PIN 확인</p>
                 <div className="flex justify-center gap-3">
@@ -442,7 +461,7 @@ const ClassroomEntry = () => {
               >
                 {pinLoading ? <Loader2 className="animate-spin" size={22} /> : (
                   <>
-                    <span>{selectedStudent?.pin ? '입장하기' : 'PIN 설정 후 입장'}</span>
+                    <span>{hasPinSet ? '입장하기' : 'PIN 설정 후 입장'}</span>
                     <ArrowRight size={22} />
                   </>
                 )}

@@ -7,8 +7,16 @@ interface AuthContextType {
   session: Session | null;
   profile: any | null;
   loading: boolean;
+  isTeacher: boolean; // 인증된 선생님 여부 (익명 유저 제외)
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+}
+
+// 익명 유저 판별 — is_anonymous(최신 SDK) + app_metadata.provider(구버전) 이중 확인
+export function isAnonymousUser(user: User | null): boolean {
+  if (!user) return false;
+  return (user as any).is_anonymous === true ||
+    user.app_metadata?.provider === 'anonymous';
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -105,7 +113,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
-  const value = { user, session, profile, loading, signOut, refreshProfile };
+  const isTeacher = !!user && !isAnonymousUser(user);
+  const value = { user, session, profile, loading, isTeacher, signOut, refreshProfile };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

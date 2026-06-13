@@ -238,21 +238,61 @@ const StudentLog = () => {
       navigate('/classroom-entry');
       return;
     }
-    
-    const parsed = JSON.parse(sessionData);
-    setSession(parsed);
-    fetchClassDetails(parsed.class_id);
-    fetchUnreadReplyCount(parsed.student_id, parsed.class_id);
-    fetchMyGroup(parsed.student_id, parsed.class_id);
-    fetchStudentNotifs(parsed.student_id);
 
-    // 가이드 모달 표시 여부 확인 (학생별, 당일 기준)
-    const today = new Date().toISOString().slice(0, 10);
-    const guideKey = `guide_hidden_${parsed.student_id}`;
-    const hiddenDate = localStorage.getItem(guideKey);
-    if (hiddenDate !== today) {
-      setShowGuideModal(true);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(sessionData);
+      if (!parsed?.student_id || !parsed?.class_id) throw new Error('invalid');
+    } catch {
+      sessionStorage.removeItem('student_session');
+      alert('세션 정보가 손상되었습니다. 다시 입장해 주세요.');
+      navigate('/classroom-entry');
+      return;
     }
+
+    // 세션 무결성 서버 검증 — student_id + class_id 조합이 실제로 유효한지 확인
+    (async () => {
+      try {
+        // class의 linked_class_id 확인 (연결 학급 구조 대응)
+        const { data: classData } = await supabase
+          .from('classes')
+          .select('id, linked_class_id')
+          .eq('id', parsed.class_id)
+          .maybeSingle();
+
+        if (!classData) throw new Error('class not found');
+
+        const effectiveClassId = classData.linked_class_id || classData.id;
+
+        // student가 해당 class에 실제로 속하는지 서버에서 확인
+        const { data: studentExists } = await supabase
+          .from('students')
+          .select('id')
+          .eq('id', parsed.student_id)
+          .eq('class_id', effectiveClassId)
+          .maybeSingle();
+
+        if (!studentExists) throw new Error('student not in class');
+
+        // 검증 통과 — 세션 활성화
+        setSession(parsed);
+        fetchClassDetails(parsed.class_id);
+        fetchUnreadReplyCount(parsed.student_id, parsed.class_id);
+        fetchMyGroup(parsed.student_id, parsed.class_id);
+        fetchStudentNotifs(parsed.student_id);
+
+        // 가이드 모달 표시 여부 확인 (학생별, 당일 기준)
+        const today = new Date().toISOString().slice(0, 10);
+        const guideKey = `guide_hidden_${parsed.student_id}`;
+        if (localStorage.getItem(guideKey) !== today) {
+          setShowGuideModal(true);
+        }
+      } catch {
+        sessionStorage.removeItem('student_session');
+        alert('세션이 유효하지 않습니다. 다시 입장해 주세요.');
+        navigate('/classroom-entry');
+      }
+    })();
   }, []);
 
   // 반려 알림 폴링 — 15초마다 새 반려 확인
