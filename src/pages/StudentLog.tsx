@@ -54,6 +54,45 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import CodeBlock from '../components/CodeBlock';
 
+// 모듈 레벨로 고정 — 매 렌더마다 새 참조가 생기면 ReactMarkdown이 details DOM을 리마운트해서 토글 상태가 초기화됨
+const MATERIAL_MD_COMPONENTS = {
+  h1: ({ children }: any) => <h1 className="text-2xl font-black mb-4 mt-6">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-xl font-black mb-3 mt-5">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-lg font-black mb-2 mt-4">{children}</h3>,
+  p: ({ children }: any) => <p className="mb-3 text-sm leading-relaxed">{children}</p>,
+  ul: ({ children }: any) => <ul className="list-disc pl-6 mb-3 space-y-1">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-3 space-y-1">{children}</ol>,
+  li: ({ children }: any) => <li className="text-sm">{children}</li>,
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-4 border-cyan-400 pl-4 italic text-on-surface-variant my-3 bg-cyan-50 py-2 rounded-r-xl text-sm">{children}</blockquote>
+  ),
+  code: ({ children, className }: any) => {
+    if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
+    return <code className={className}>{children}</code>;
+  },
+  pre: ({ children }: any) => {
+    const child = (Array.isArray(children) ? children[0] : children) as any;
+    const lang = (child?.props?.className || '').replace('language-', '') || 'text';
+    const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return <CodeBlock lang={lang} code={code} />;
+  },
+  img: ({ src, alt, title }: any) => {
+    const wm = (title || '').match(/^width:(\d+)$/);
+    const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
+    return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-3 shadow" />;
+  },
+  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm hover:opacity-70">{children}</a>,
+  hr: () => <hr className="border-surface-container my-5" />,
+  strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
+  em: ({ children }: any) => <em className="italic">{children}</em>,
+  details: ({ children }: any) => <details className="my-3 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
+  summary: ({ children }: any) => (
+    <summary className="px-4 py-2.5 bg-surface-container-low cursor-pointer font-black text-sm list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
+      <span className="text-primary text-xs">▶</span> {children}
+    </summary>
+  ),
+};
+
 const StudentLog = () => {
   const navigate = useNavigate();
   const [session, setSession] = useState<any>(null);
@@ -1430,43 +1469,7 @@ ${guidePrompt}
           <div className="max-w-3xl mx-auto px-8 py-10">
             <ReactMarkdown
               rehypePlugins={[rehypeRaw]}
-              components={{
-                h1: ({ children }: any) => <h1 className="text-2xl font-black mb-4 mt-6">{children}</h1>,
-                h2: ({ children }: any) => <h2 className="text-xl font-black mb-3 mt-5">{children}</h2>,
-                h3: ({ children }: any) => <h3 className="text-lg font-black mb-2 mt-4">{children}</h3>,
-                p: ({ children }: any) => <p className="mb-3 text-sm leading-relaxed">{children}</p>,
-                ul: ({ children }: any) => <ul className="list-disc pl-6 mb-3 space-y-1">{children}</ul>,
-                ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-3 space-y-1">{children}</ol>,
-                li: ({ children }: any) => <li className="text-sm">{children}</li>,
-                blockquote: ({ children }: any) => (
-                  <blockquote className="border-l-4 border-cyan-400 pl-4 italic text-on-surface-variant my-3 bg-cyan-50 py-2 rounded-r-xl text-sm">{children}</blockquote>
-                ),
-                code: ({ children, className }: any) => {
-                  if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
-                  return <code className={className}>{children}</code>;
-                },
-                pre: ({ children }: any) => {
-                  const child = (Array.isArray(children) ? children[0] : children) as any;
-                  const lang = (child?.props?.className || '').replace('language-', '') || 'text';
-                  const code = String(child?.props?.children ?? '').replace(/\n$/, '');
-                  return <CodeBlock lang={lang} code={code} />;
-                },
-                img: ({ src, alt, title }: any) => {
-                  const wm = (title || '').match(/^width:(\d+)$/);
-                  const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
-                  return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-3 shadow" />;
-                },
-                a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm hover:opacity-70">{children}</a>,
-                hr: () => <hr className="border-surface-container my-5" />,
-                strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
-                em: ({ children }: any) => <em className="italic">{children}</em>,
-                details: ({ children }: any) => <details className="my-3 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
-                summary: ({ children }: any) => (
-                  <summary className="px-4 py-2.5 bg-surface-container-low cursor-pointer font-black text-sm list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
-                    <span className="text-primary text-xs">▶</span> {children}
-                  </summary>
-                ),
-              }}
+              components={MATERIAL_MD_COMPONENTS}
             >
               {fullscreenMaterial.content}
             </ReactMarkdown>
