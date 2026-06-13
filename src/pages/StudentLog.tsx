@@ -1821,16 +1821,18 @@ ${guidePrompt}
                   {/* 바로가기 */}
                   <div className="pt-2 border-t border-neutral-100">
                     <p className="text-[11px] font-black text-on-surface-variant/40 uppercase tracking-widest mb-3">바로가기</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-3 gap-3">
                       {[
-                        { key: 'materials' as const, label: '수업 자료', icon: BookOpen, color: 'text-cyan-600 bg-cyan-50' },
-                        { key: 'badges' as const,    label: '나의 배지', icon: Trophy,   color: 'text-yellow-600 bg-yellow-50' },
-                        { key: 'suggestions' as const, label: '건의사항', icon: Megaphone, color: 'text-rose-600 bg-rose-50' },
+                        { key: 'materials' as const,   label: '수업 자료', icon: BookOpen,  iconColor: 'text-cyan-600',   bg: 'bg-cyan-50',   border: 'border-cyan-200',   hoverBg: 'hover:bg-cyan-100' },
+                        { key: 'history' as const,     label: '나의 기록', icon: History,   iconColor: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', hoverBg: 'hover:bg-violet-100' },
+                        { key: 'suggestions' as const, label: '건의사항',  icon: Megaphone, iconColor: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-200',   hoverBg: 'hover:bg-rose-100' },
                       ].map(item => (
                         <button key={item.key} onClick={() => handleTabChange(item.key)}
-                          className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-neutral-200 hover:border-primary/30 bg-white hover:bg-primary/5 transition-all text-sm font-black text-on-surface-variant">
-                          <item.icon size={15} className={item.color.split(' ')[0]} />
-                          {item.label}
+                          className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl border ${item.bg} ${item.border} ${item.hoverBg} active:scale-95 transition-all`}>
+                          <div className={`w-10 h-10 rounded-xl bg-white/70 flex items-center justify-center shadow-sm`}>
+                            <item.icon size={20} className={item.iconColor} strokeWidth={2} />
+                          </div>
+                          <span className={`text-[12px] font-black ${item.iconColor}`}>{item.label}</span>
                         </button>
                       ))}
                     </div>
