@@ -850,16 +850,16 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                   {[q.option_1, q.option_2, q.option_3, q.option_4].map((opt, idx) => (
                     <div
                       key={idx}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border ${
+                      className={`flex items-start gap-2 px-3 py-2 rounded-xl text-sm font-bold border ${
                         idx === q.correct_answer ? CORRECT_COLOR : OPTION_LIGHT_COLORS[idx]
                       }`}
                     >
-                      <span className={`w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-black ${OPTION_COLORS[idx]}`}>
+                      <span className={`w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-black shrink-0 mt-0.5 ${OPTION_COLORS[idx]}`}>
                         {OPTION_LABELS[idx]}
                       </span>
-                      <span className="truncate">{opt}</span>
+                      <span className="flex-1 break-words leading-snug">{opt}</span>
                       {idx === q.correct_answer && (
-                        <Check size={12} className="ml-auto shrink-0 text-green-600" strokeWidth={3} />
+                        <Check size={12} className="shrink-0 text-green-600 mt-0.5" strokeWidth={3} />
                       )}
                     </div>
                   ))}
@@ -1057,14 +1057,14 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                 {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4].map((opt, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center gap-2 px-3 py-3 rounded-xl border border-white/40 bg-surface-container-low/50"
+                    className="flex items-start gap-2 px-3 py-3 rounded-xl border border-white/40 bg-surface-container-low/50"
                   >
-                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-black shrink-0 ${OPTION_COLORS[idx]}`}>
+                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5 ${OPTION_COLORS[idx]}`}>
                       {OPTION_LABELS[idx]}
                     </span>
-                    <span className="text-sm font-bold text-on-surface truncate">{opt}</span>
+                    <span className="text-sm font-bold text-on-surface flex-1 break-words leading-snug">{opt}</span>
                     {/* 실시간 답변 수 */}
-                    <span className="ml-auto text-xs text-on-surface-variant font-bold shrink-0">
+                    <span className="text-xs text-on-surface-variant font-bold shrink-0 mt-0.5">
                       {currentAnswers.filter(a => a.selected_option === idx).length}
                     </span>
                   </div>
@@ -1121,7 +1121,7 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                         }`}>
                           {OPTION_LABELS[idx]}
                         </span>
-                        <span className={`text-sm font-black flex-1 truncate ${isCorrect ? 'text-white' : ''}`}>{opt}</span>
+                        <span className={`text-sm font-black flex-1 break-words leading-snug ${isCorrect ? 'text-white' : ''}`}>{opt}</span>
                         {isCorrect ? (
                           <span className="flex items-center gap-1 bg-white/25 text-white text-xs font-black px-2.5 py-1 rounded-full shrink-0">
                             <Check size={13} strokeWidth={3} />

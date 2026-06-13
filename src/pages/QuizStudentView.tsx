@@ -577,7 +577,7 @@ const QuizStudentView = () => {
 
                     {/* 문제 */}
                     <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                      <p className="text-white font-black text-center text-2xl leading-relaxed">
+                      <p className="text-white font-black text-center text-2xl leading-relaxed break-words">
                         {currentQuestion.text}
                       </p>
                     </div>
@@ -590,12 +590,12 @@ const QuizStudentView = () => {
                             key={idx}
                             whileTap={{ scale: 0.94 }}
                             onClick={() => handleAnswer(idx)}
-                            className={`h-36 rounded-2xl bg-gradient-to-br ${OPTION_BG[idx]} shadow-xl ${OPTION_SHADOW[idx]} flex flex-col items-center justify-center gap-2 transition-all active:brightness-90`}
+                            className={`min-h-32 rounded-2xl bg-gradient-to-br ${OPTION_BG[idx]} shadow-xl ${OPTION_SHADOW[idx]} flex flex-col items-center justify-center gap-2 transition-all active:brightness-90 p-4`}
                           >
-                            <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white font-black text-xl">
+                            <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white font-black text-xl shrink-0">
                               {OPTION_LABELS[idx]}
                             </span>
-                            <span className="text-white font-bold text-sm text-center px-3 leading-snug">{opt}</span>
+                            <span className="text-white font-bold text-base text-center leading-snug break-words w-full">{opt}</span>
                           </motion.button>
                         ))}
                       </div>
