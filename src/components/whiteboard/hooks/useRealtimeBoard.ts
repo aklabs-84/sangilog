@@ -200,17 +200,39 @@ export function useRealtimeBoard(
 
   // Initial connect: check capacity → register session → subscribe
   const connect = useCallback(async () => {
-    const cutoff = new Date(Date.now() - 30_000).toISOString();
-    const { data } = await supabase
-      .from('whiteboard_sessions').select('user_id')
-      .eq('board_id', boardId).neq('user_id', user.id).gte('last_ping', cutoff);
+    // Fetch board info to determine ownership and class-specific group_size
+    const { data: boardRow } = await supabase
+      .from('whiteboards').select('class_id, created_by').eq('id', boardId).maybeSingle();
 
-    const uniqueEditors = new Set((data ?? []).map((s: { user_id: string }) => s.user_id)).size;
-    if (uniqueEditors >= MAX_EDITORS) {
-      setShowCapacityAlert(true);
-      // Connect as viewer immediately so they can see board while deciding
-      subscribe(true);
-      return;
+    // Board owner (teacher who created it) bypasses capacity check
+    const isOwner = boardRow?.created_by === user.id;
+
+    if (!isOwner) {
+      let maxEditors = MAX_EDITORS;
+      if (boardRow?.class_id) {
+        const { data: sess } = await supabase
+          .from('class_board_sessions')
+          .select('group_size')
+          .eq('class_id', boardRow.class_id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (sess?.group_size) maxEditors = sess.group_size;
+      }
+
+      const cutoff = new Date(Date.now() - 30_000).toISOString();
+      const { data } = await supabase
+        .from('whiteboard_sessions').select('user_id')
+        .eq('board_id', boardId).neq('user_id', user.id).gte('last_ping', cutoff);
+
+      const uniqueEditors = new Set((data ?? []).map((s: { user_id: string }) => s.user_id)).size;
+      if (uniqueEditors >= maxEditors) {
+        setShowCapacityAlert(true);
+        // Connect as viewer immediately so they can see board while deciding
+        subscribe(true);
+        return;
+      }
     }
 
     await registerSession();
