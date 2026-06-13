@@ -847,22 +847,31 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {[q.option_1, q.option_2, q.option_3, q.option_4].map((opt, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex items-start gap-2 px-3 py-2 rounded-xl text-sm font-bold border ${
-                        idx === q.correct_answer ? CORRECT_COLOR : OPTION_LIGHT_COLORS[idx]
-                      }`}
-                    >
-                      <span className={`w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-black shrink-0 mt-0.5 ${OPTION_COLORS[idx]}`}>
-                        {OPTION_LABELS[idx]}
-                      </span>
-                      <span className="flex-1 break-words leading-snug">{opt}</span>
-                      {idx === q.correct_answer && (
-                        <Check size={12} className="shrink-0 text-green-600 mt-0.5" strokeWidth={3} />
-                      )}
-                    </div>
-                  ))}
+                  {[q.option_1, q.option_2, q.option_3, q.option_4].map((opt, idx) => {
+                    const isCorrect = idx === q.correct_answer;
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-start gap-2 px-3 py-2.5 rounded-xl text-sm font-bold border-2 ${
+                          isCorrect
+                            ? 'bg-green-500 border-green-600 text-white shadow-md shadow-green-200'
+                            : `${OPTION_LIGHT_COLORS[idx]} opacity-60`
+                        }`}
+                      >
+                        <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 ${
+                          isCorrect ? 'bg-white/30 text-white' : `text-white ${OPTION_COLORS[idx]}`
+                        }`}>
+                          {isCorrect ? <Check size={11} strokeWidth={3} /> : OPTION_LABELS[idx]}
+                        </span>
+                        <span className="flex-1 break-words leading-snug">{opt}</span>
+                        {isCorrect && (
+                          <span className="shrink-0 text-[10px] font-black bg-white/25 text-white px-1.5 py-0.5 rounded-md mt-0.5">
+                            정답
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </motion.div>
             ))}
