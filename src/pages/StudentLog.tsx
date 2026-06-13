@@ -136,6 +136,8 @@ const StudentLog = () => {
   const seenRejectionIds = useRef(new Set<string>());
   const isFirstBoardPoll = useRef(true);
   const seenBoardSessionIds = useRef(new Set<string>());
+  const isFirstQuizPoll = useRef(true);
+  const seenQuizSessionIds = useRef(new Set<string>());
   
   // Resources State (weekly_plan + class_materials + general)
   const [classResources, setClassResources] = useState<any[]>([]);
@@ -217,6 +219,7 @@ const StudentLog = () => {
   // Quiz Tab States
   const [activeQuizSessions, setActiveQuizSessions] = useState<any[]>([]);
   const [quizLoading, setQuizLoading] = useState(false);
+  const [quizSessionAlert, setQuizSessionAlert] = useState<{ id: string; pin_code: string; title: string } | null>(null);
 
   // Survey Tab States
   const [activeSurveyForms, setActiveSurveyForms] = useState<any[]>([]);
@@ -384,6 +387,24 @@ const StudentLog = () => {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
+  }, [session?.class_id]);
+
+  // 퀴즈 세션 Realtime 구독 — 선생님이 퀴즈 시작 시 팝업 알림
+  useEffect(() => {
+    if (!session?.class_id) return;
+    fetchActiveQuizSessions();
+
+    const channel = supabase
+      .channel(`quiz-session-rt-${session.class_id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'quiz_sessions',
+        filter: `class_id=eq.${session.class_id}`,
+      }, () => { fetchActiveQuizSessions(); })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [session?.class_id]);
 
   // 화이트보드에서 돌아올 때 보드 탭 자동 복원
@@ -1148,6 +1169,16 @@ const StudentLog = () => {
 
       if (!error && data) {
         setActiveQuizSessions(data);
+        // 새 퀴즈 세션 팝업 알림 (최초 로드 제외)
+        if (!isFirstQuizPoll.current) {
+          const newSession = data.find(s => !seenQuizSessionIds.current.has(s.id));
+          if (newSession) {
+            const title = (newSession.quiz_sets as any)?.title ?? '퀴즈';
+            setQuizSessionAlert({ id: newSession.id, pin_code: newSession.pin_code, title });
+          }
+        }
+        data.forEach(s => seenQuizSessionIds.current.add(s.id));
+        isFirstQuizPoll.current = false;
       }
     } catch (err) {
       console.error('Error fetching quiz sessions:', err);
@@ -4458,6 +4489,58 @@ ${guidePrompt}
                 </button>
                 <button
                   onClick={() => setBoardSessionAlert(null)}
+                  className="px-5 py-4 bg-neutral-100 hover:bg-neutral-200 rounded-2xl font-black text-sm text-neutral-500 transition-all"
+                >
+                  닫기
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── 퀴즈 시작 알림 바텀시트 ── */}
+      <AnimatePresence>
+        {quizSessionAlert && (
+          <div className="fixed inset-0 z-[1600] flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setQuizSessionAlert(null)}
+            />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-violet-400"
+            >
+              <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center text-2xl shrink-0">🎮</div>
+                <div className="flex-1">
+                  <p className="font-black text-on-surface text-base leading-snug">
+                    선생님이 퀴즈를 시작했어요!
+                  </p>
+                  <p className="text-sm text-on-surface-variant font-bold mt-1">
+                    "{quizSessionAlert.title}"에 지금 바로 참여하세요
+                  </p>
+                  <div className="mt-2 flex items-center gap-2 bg-violet-50 rounded-xl px-3 py-2">
+                    <span className="text-xs font-black text-violet-500">PIN</span>
+                    <span className="text-xl font-black tracking-widest text-violet-700">{quizSessionAlert.pin_code}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setQuizSessionAlert(null);
+                    handleTabChange('quiz');
+                  }}
+                  className="flex-1 py-4 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-2xl font-black text-sm"
+                >
+                  퀴즈 탭으로 이동 →
+                </button>
+                <button
+                  onClick={() => setQuizSessionAlert(null)}
                   className="px-5 py-4 bg-neutral-100 hover:bg-neutral-200 rounded-2xl font-black text-sm text-neutral-500 transition-all"
                 >
                   닫기
