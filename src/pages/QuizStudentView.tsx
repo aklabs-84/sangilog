@@ -331,14 +331,26 @@ const QuizStudentView = () => {
       response_time: responseTime,
     });
 
-    // 참가자 점수 업데이트 — RPC로 서버사이드 누적 (score = score + delta)
-    // 클라이언트 state 값에 의존하지 않으므로 race condition 없음
+    // 참가자 점수 업데이트
     if (score > 0) {
-      await supabase.rpc('update_participant_score', {
+      const { error: rpcError } = await supabase.rpc('update_participant_score', {
         p_participant_id: participant.id,
         p_score_delta: score,
       });
-      // 로컬 state도 즉시 반영 (Realtime 이벤트 도착 전 UX용)
+
+      if (rpcError) {
+        console.error('[QuizScore] RPC 실패, 직접 UPDATE 시도:', rpcError);
+        // RPC 실패 시 직접 UPDATE로 폴백
+        const { error: updateError } = await supabase
+          .from('quiz_participants')
+          .update({ score: (participant.score ?? 0) + score })
+          .eq('id', participant.id);
+        if (updateError) {
+          console.error('[QuizScore] 직접 UPDATE도 실패:', updateError);
+        }
+      }
+
+      // 로컬 state 즉시 반영 (Realtime 이벤트 도착 전 UX용)
       setParticipant(prev => prev ? { ...prev, score: prev.score + score } : prev);
     }
   };
