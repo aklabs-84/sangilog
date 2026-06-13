@@ -29,7 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearTimeout(sessionTimeout);
         setSession(session);
         setUser(session?.user ?? null);
-        if (session?.user) {
+        if (session?.user && !session.user.is_anonymous) {
           fetchProfile(session.user.id);
         } else {
           setLoading(false);
@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
+      if (session?.user && !session.user.is_anonymous) {
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       setProfile(data);
