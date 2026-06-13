@@ -3737,9 +3737,9 @@ ${guidePrompt}
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
                   isActive ? `${tab.activeBg} scale-105` : 'hover:bg-white/5'
                 }`}>
-                  <tab.icon size={24} className={isActive ? tab.activeColor : 'text-slate-500'} strokeWidth={isActive ? 2.5 : 1.8} />
+                  <tab.icon size={26} className={isActive ? tab.activeColor : 'text-white/75'} strokeWidth={isActive ? 2.5 : 2} />
                 </div>
-                <span className={`text-[11px] font-black tracking-tight transition-colors ${isActive ? tab.activeColor : 'text-slate-500'}`}>
+                <span className={`text-[11px] font-black tracking-tight transition-colors ${isActive ? tab.activeColor : 'text-white/60'}`}>
                   {tab.label}
                 </span>
               </button>
@@ -3754,14 +3754,14 @@ ${guidePrompt}
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all relative ${
               isMoreSheetOpen ? 'bg-white/15 scale-105' : 'hover:bg-white/5'
             }`}>
-              <MoreHorizontal size={24} className={isMoreSheetOpen ? 'text-white' : 'text-slate-500'} strokeWidth={isMoreSheetOpen ? 2.5 : 1.8} />
+              <MoreHorizontal size={26} className={isMoreSheetOpen ? 'text-white' : 'text-white/75'} strokeWidth={isMoreSheetOpen ? 2.5 : 2} />
               {(unitPendingCount + unreadReplyCount) > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
                   {unitPendingCount + unreadReplyCount}
                 </span>
               )}
             </div>
-            <span className={`text-[11px] font-black tracking-tight transition-colors ${isMoreSheetOpen ? 'text-white' : 'text-slate-500'}`}>
+            <span className={`text-[11px] font-black tracking-tight transition-colors ${isMoreSheetOpen ? 'text-white' : 'text-white/60'}`}>
               더보기
             </span>
           </button>
