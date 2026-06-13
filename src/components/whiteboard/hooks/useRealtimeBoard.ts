@@ -4,7 +4,7 @@ import { supabase } from '../../../lib/supabase';
 import type { BoardObject, SessionMember, ConnectionStatus, RemoteCursor } from '../types';
 
 const AVATAR_COLORS = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899', '#06B6D4'];
-const MAX_EDITORS = 5;
+const MAX_EDITORS = 200; // class_board_sessions.group_size 미설정 시 사실상 무제한
 const HEARTBEAT_MS = 15_000;
 const CURSOR_FADE_MS = 5_000;
 const POLLING_MS = 3_000;
@@ -30,6 +30,7 @@ export interface UseRealtimeBoardReturn {
   remoteCursors: Record<string, RemoteCursor>;
   isViewer: boolean;
   showCapacityAlert: boolean;
+  capacityInfo: { maxEditors: number; currentEditors: number };
   onAcceptViewer: () => void;
   onDeclineViewer: () => void;
   emitObjectCreated: (obj: BoardObject) => void;
@@ -49,6 +50,7 @@ export function useRealtimeBoard(
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor>>({});
   const [showCapacityAlert, setShowCapacityAlert] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
+  const [capacityInfo, setCapacityInfo] = useState<{ maxEditors: number; currentEditors: number }>({ maxEditors: MAX_EDITORS, currentEditors: 0 });
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -222,11 +224,15 @@ export function useRealtimeBoard(
       }
 
       const cutoff = new Date(Date.now() - 30_000).toISOString();
-      const { data } = await supabase
+      let query = supabase
         .from('whiteboard_sessions').select('user_id')
         .eq('board_id', boardId).neq('user_id', user.id).gte('last_ping', cutoff);
+      // 교사(보드 소유자)는 학생 정원 카운팅에서 제외
+      if (boardRow?.created_by) query = query.neq('user_id', boardRow.created_by);
+      const { data } = await query;
 
       const uniqueEditors = new Set((data ?? []).map((s: { user_id: string }) => s.user_id)).size;
+      setCapacityInfo({ maxEditors, currentEditors: uniqueEditors });
       if (uniqueEditors >= maxEditors) {
         setShowCapacityAlert(true);
         // Connect as viewer immediately so they can see board while deciding
@@ -317,7 +323,7 @@ export function useRealtimeBoard(
 
   return {
     members, connectionStatus, remoteCursors,
-    isViewer, showCapacityAlert,
+    isViewer, showCapacityAlert, capacityInfo,
     onAcceptViewer, onDeclineViewer,
     emitObjectCreated, emitObjectUpdated, emitObjectDeleted, emitCursorMove,
   };

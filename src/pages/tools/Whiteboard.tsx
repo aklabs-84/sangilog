@@ -90,7 +90,7 @@ export default function Whiteboard() {
   // Realtime 훅 — boardReady(보드 존재 확인) 후에만 실제 연결
   const {
     members, connectionStatus, remoteCursors,
-    isViewer, showCapacityAlert,
+    isViewer, showCapacityAlert, capacityInfo,
     onAcceptViewer, onDeclineViewer,
     emitObjectCreated, emitObjectUpdated, emitObjectDeleted, emitCursorMove,
   } = useRealtimeBoard(
@@ -475,6 +475,8 @@ export default function Whiteboard() {
         <CapacityAlert
           onAcceptViewer={onAcceptViewer}
           onDecline={handleDeclineViewer}
+          maxEditors={capacityInfo.maxEditors}
+          currentEditors={capacityInfo.currentEditors}
         />
       )}
 

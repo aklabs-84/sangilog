@@ -3,9 +3,11 @@ import { Users, Eye, X } from 'lucide-react';
 interface Props {
   onAcceptViewer: () => void;
   onDecline: () => void;
+  maxEditors?: number;
+  currentEditors?: number;
 }
 
-export default function CapacityAlert({ onAcceptViewer, onDecline }: Props) {
+export default function CapacityAlert({ onAcceptViewer, onDecline, maxEditors, currentEditors }: Props) {
   return (
     <div style={{
       position: 'fixed', inset: 0,
@@ -33,7 +35,10 @@ export default function CapacityAlert({ onAcceptViewer, onDecline }: Props) {
           편집자 정원이 가득 찼어요
         </h3>
         <p style={{ color: '#9CA3AF', fontSize: 13, lineHeight: 1.6, margin: 0, marginBottom: 24 }}>
-          이 보드는 현재 5명이 편집 중입니다.<br />
+          {maxEditors
+            ? <>이 보드는 현재 {currentEditors ?? maxEditors}명 / 최대 {maxEditors}명이 편집 중입니다.</>
+            : <>이 보드의 편집 정원이 가득 찼습니다.</>
+          }<br />
           뷰어로 입장하면 내용을 볼 수 있지만 편집은 제한됩니다.
         </p>
 

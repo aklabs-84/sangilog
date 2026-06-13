@@ -20,8 +20,8 @@ interface Props {
   onCursorMove?: (canvasX: number, canvasY: number) => void;
 }
 
-const CANVAS_W = 1600;
-const CANVAS_H = 1000;
+const CANVAS_W = 10000;
+const CANVAS_H = 8000;
 const INIT_X = 60;
 const INIT_Y = 40;
 const INIT_ZOOM = 0.7;
@@ -107,7 +107,7 @@ export default function WhiteboardCanvas({
 
     const base: Omit<BoardObjectType, 'type' | 'content' | 'style' | 'width' | 'height'> = {
       id: uuidv4(), board_id: boardId,
-      x: Math.max(0, x - 100), y: Math.max(0, y - 60),
+      x: x - 100, y: y - 60,
       z_index: getNextZIndex(),
       created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
@@ -138,8 +138,8 @@ export default function WhiteboardCanvas({
       const dx = (ev.clientX - dragRef.current.startX) / zoomRef.current;
       const dy = (ev.clientY - dragRef.current.startY) / zoomRef.current;
       onUpdateObject(dragRef.current.id, {
-        x: Math.max(0, dragRef.current.objX + dx),
-        y: Math.max(0, dragRef.current.objY + dy),
+        x: dragRef.current.objX + dx,
+        y: dragRef.current.objY + dy,
       });
     };
     const onUp = () => {
