@@ -157,6 +157,19 @@ const Classroom = () => {
   const [detailedStudentId, setDetailedStudentId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+  // 전체화면 뷰어 — body/html 스크롤 잠금
+  useEffect(() => {
+    if (fullscreenMaterial) {
+      const prev = document.documentElement.style.overflow;
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.documentElement.style.overflow = prev;
+        document.body.style.overflow = '';
+      };
+    }
+  }, [fullscreenMaterial]);
+
   // 토스트 알림 헬퍼
   const showToast = (msg: string) => {
     const id = Date.now().toString();
@@ -1154,7 +1167,7 @@ const Classroom = () => {
   return (
     <>
     {fullscreenMaterial && createPortal(
-      <div className="fixed inset-0 z-[9999] bg-white flex flex-col">
+      <div className="fixed inset-0 z-[9999] bg-white flex flex-col overflow-hidden">
         <div className="flex items-center gap-3 px-5 py-3 bg-slate-800 shrink-0">
           <button
             onClick={() => setFullscreenMaterial(null)}
@@ -1167,7 +1180,7 @@ const Classroom = () => {
             <span className="font-black text-sm text-white/80 truncate max-w-xs">{fullscreenMaterial.title}</span>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-8 py-10">
             <ReactMarkdown
               rehypePlugins={[rehypeRaw]}

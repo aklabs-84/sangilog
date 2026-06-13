@@ -232,11 +232,13 @@ const PreviewFullscreenModal = ({
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKey);
-    const prev = document.body.style.overflow;
+    const prev = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = prev;
+      document.documentElement.style.overflow = prev;
+      document.body.style.overflow = '';
     };
   }, [onClose]);
 
