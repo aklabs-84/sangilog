@@ -232,11 +232,16 @@ const PreviewFullscreenModal = ({
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = prev;
+    };
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[9998] bg-white flex flex-col">
+    <div className="fixed inset-0 z-[9998] bg-white flex flex-col overflow-hidden">
       {/* 상단 헤더 */}
       <div className="flex items-center gap-3 px-5 py-3 bg-slate-800 shrink-0">
         <button
@@ -251,7 +256,7 @@ const PreviewFullscreenModal = ({
         </div>
       </div>
       {/* 본문 */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-8 py-10">
           <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>
             {content}
