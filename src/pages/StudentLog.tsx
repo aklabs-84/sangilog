@@ -85,10 +85,10 @@ const MATERIAL_MD_COMPONENTS = {
   hr: () => <hr className="border-surface-container my-5" />,
   strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
   em: ({ children }: any) => <em className="italic">{children}</em>,
-  details: ({ children }: any) => <details className="my-3 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
+  details: ({ children }: any) => <details className="group my-3 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
   summary: ({ children }: any) => (
     <summary className="px-4 py-2.5 bg-surface-container-low cursor-pointer font-black text-sm list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
-      <span className="text-primary text-xs">▶</span> {children}
+      <span className="text-primary text-xs transition-transform duration-200 group-open:rotate-90">▶</span> {children}
     </summary>
   ),
 };
