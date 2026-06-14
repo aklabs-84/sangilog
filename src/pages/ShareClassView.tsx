@@ -389,8 +389,13 @@ const ShareClassView = () => {
   }
 
   // ── 메인 뷰 ───────────────────────────────────────────────────────────────
+  const printImages = filteredGallery.filter((g) => g.file_type === 'image');
+  const filterLabel = weekFilter === 'all' ? '전체' : `${weekFilter}주차`;
+  const printToday = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+
   return (
-    <div className="min-h-screen bg-gray-50 print:bg-white font-sans">
+    <>
+    <div className="min-h-screen bg-gray-50 font-sans print:hidden">
       {/* 헤더 */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10 print:static print:border-b-2 print:border-gray-300">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
@@ -739,6 +744,133 @@ const ShareClassView = () => {
         </div>
       )}
     </div>
+
+    {/* ── 인쇄 전용 보고서 (화면 hidden, 인쇄 시만 표시) ── */}
+    <div className="hidden print:block text-black bg-white font-sans">
+      <style>{`
+        @media print {
+          @page { margin: 18mm 15mm; size: A4 portrait; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
+
+      {/* 보고서 헤더 */}
+      <div className="flex items-start justify-between pb-4 mb-5 border-b-2 border-gray-300">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">생기로그 AI · 수업 결과 보고서</p>
+          <h1 className="text-xl font-black text-gray-900">
+            {classInfo?.name}{classInfo?.subject ? ` · ${classInfo.subject}` : ''}
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">{filterLabel !== '전체' ? `${filterLabel} 기준` : '전체 주차'}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-gray-400">출력일</p>
+          <p className="text-xs font-black text-gray-700">{printToday}</p>
+        </div>
+      </div>
+
+      {/* 요약 통계 */}
+      <div className="flex gap-6 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+        {[
+          { label: '전체 학생', value: studentData.length, unit: '명', color: 'text-gray-900' },
+          { label: '참여 학생', value: activeCount, unit: '명', color: 'text-indigo-600' },
+          { label: '관찰기록', value: totalObs, unit: '건', color: 'text-violet-600' },
+          { label: '결과물', value: totalResults, unit: '건', color: 'text-emerald-600' },
+          { label: '갤러리', value: printImages.length, unit: '장', color: 'text-amber-600' },
+        ].map(({ label, value, unit, color }) => (
+          <div key={label} className="text-center">
+            <p className={`text-2xl font-black ${color}`}>{value}</p>
+            <p className="text-[10px] text-gray-500 font-bold">{label}<span className="ml-0.5">{unit}</span></p>
+          </div>
+        ))}
+      </div>
+
+      {/* 학생 결과물 */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-1 h-4 bg-indigo-500 rounded-full" />
+        <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest">학생 결과물</h2>
+      </div>
+      <div className="space-y-3 mb-8">
+        {filteredData.map(({ student, obs, results }) => {
+          const hasActivity = obs.length > 0 || results.length > 0;
+          return (
+            <div key={student.id} className="break-inside-avoid border border-gray-200 rounded-xl overflow-hidden">
+              <div className={`flex items-center gap-3 px-4 py-2.5 ${hasActivity ? 'bg-indigo-50' : 'bg-gray-50'}`}>
+                <span className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-xs font-black text-gray-600 shrink-0">
+                  {student.student_number ?? '—'}
+                </span>
+                <span className="font-black text-gray-900 text-sm">{student.full_name}</span>
+                <div className="ml-auto flex items-center gap-3 text-[10px] font-bold">
+                  {obs.length > 0 && <span className="text-violet-600">관찰기록 {obs.length}건</span>}
+                  {results.length > 0 && <span className="text-emerald-600">결과물 {results.length}건</span>}
+                  {!hasActivity && <span className="text-gray-400">미제출</span>}
+                </div>
+              </div>
+              {hasActivity && (
+                <div className="px-4 py-3 space-y-2.5">
+                  {obs.map((o) => (
+                    <div key={o.id} className="pl-3 border-l-2 border-violet-300">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-[9px] font-black text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">📝 관찰기록</span>
+                        {o.week_number && <span className="text-[9px] text-gray-400 font-bold">{o.week_number}주차</span>}
+                        {o.activity_name && <span className="text-[9px] text-gray-500 font-semibold">{o.activity_name}</span>}
+                        <span className="text-[9px] text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
+                      </div>
+                      <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                    </div>
+                  ))}
+                  {results.map((r) => (
+                    <div key={r.id} className="pl-3 border-l-2 border-emerald-300">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">📁 결과물</span>
+                        {r.week_number && <span className="text-[9px] text-gray-400 font-bold">{r.week_number}주차</span>}
+                        {r.title && <span className="text-[9px] text-gray-600 font-black">{r.title}</span>}
+                        <span className="text-[9px] text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                      </div>
+                      {r.text_content && <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>}
+                      {r.image_url && <img src={r.image_url} alt="결과물" className="mt-1.5 max-h-44 rounded-lg object-contain border border-gray-100" />}
+                      {r.link_url && <p className="text-[10px] text-indigo-500 mt-1 font-medium break-all">{r.link_url}</p>}
+                      {r.file_url && <p className="text-[10px] text-emerald-600 mt-1 font-medium">첨부 파일 포함</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 수업 갤러리 */}
+      {printImages.length > 0 && (
+        <div className="break-before-page">
+          <div className="flex items-center gap-2 mb-3 pt-2">
+            <span className="w-1 h-4 bg-emerald-500 rounded-full" />
+            <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest">수업 갤러리 ({printImages.length}장)</h2>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {printImages.map((item) => (
+              <div key={item.id} className="break-inside-avoid">
+                <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                  <img src={item.file_url} alt={item.caption || ''} className="w-full h-full object-cover" />
+                </div>
+                {(item.caption || item.week_number) && (
+                  <p className="text-[9px] text-gray-500 mt-0.5 truncate text-center">
+                    {item.week_number ? `${item.week_number}주차` : ''}{item.caption ? ` ${item.caption}` : ''}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 보고서 푸터 */}
+      <div className="flex items-center justify-between mt-8 pt-3 border-t border-gray-200 text-[9px] text-gray-400">
+        <span>생기로그 AI — 수업 기록부터 세특까지</span>
+        <span>{new Date().toLocaleString('ko-KR')}</span>
+      </div>
+    </div>
+    </>
   );
 };
 
