@@ -112,6 +112,7 @@ const StudentLog = () => {
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [guidePrompt, setGuidePrompt] = useState<string>('');
   const [minObsChars, setMinObsChars] = useState(0);
+  const [blockedKeywords, setBlockedKeywords] = useState<string[]>([]);
   const [reminderModal, setReminderModal] = useState<{
     type: 'need_result' | 'need_obs';
     week: number;
@@ -697,7 +698,7 @@ const StudentLog = () => {
     try {
       const { data } = await supabase
         .from('classes')
-        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars')
+        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords')
         .eq('id', classId)
         .single();
 
@@ -705,6 +706,7 @@ const StudentLog = () => {
         setTeacherId(data.teacher_id);
         setGuidePrompt(data.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요.');
         setMinObsChars(data.min_obs_chars || 0);
+        setBlockedKeywords(data.blocked_keywords || []);
         if (data.weekly_plan && Array.isArray(data.weekly_plan) && data.weekly_plan.length > 0) {
           setClassResources(data.weekly_plan);
 
@@ -1559,6 +1561,16 @@ const StudentLog = () => {
     if (minObsChars > 0 && content.trim().length < minObsChars) {
       showToast(`주요 활동 내용을 최소 ${minObsChars}자 이상 작성해주세요. (현재 ${content.trim().length}자)`, 'error');
       return;
+    }
+
+    // ── 금지어 검사 (하드 차단) ───────────────────────────────────────────────
+    if (blockedKeywords.length > 0) {
+      const fullText = `${title} ${content} ${feeling}`.toLowerCase();
+      const hit = blockedKeywords.find(kw => kw && fullText.includes(kw.toLowerCase()));
+      if (hit) {
+        showToast(`"${hit}"은(는) 사용할 수 없는 단어입니다. 내용을 수정한 후 다시 제출해주세요.`, 'error');
+        return;
+      }
     }
 
     setSubmitting(true);

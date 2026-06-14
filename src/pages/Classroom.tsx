@@ -82,15 +82,16 @@ const Classroom = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [upgradeModalReason, setUpgradeModalReason] = useState<'class_limit' | 'ai_limit' | 'ai_bulk' | 'teacher_invite' | 'naiss_export' | 'school_block' | null>(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-  const [newClassData, setNewClassData] = useState({ 
-    name: '', 
-    subject: '', 
-    class_type: 'subject', 
+  const [newClassData, setNewClassData] = useState({
+    name: '',
+    subject: '',
+    class_type: 'subject',
     linked_class_id: '',
     student_guide_prompt: '',
     teacher_report_prompt: '',
     weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true }],
     min_obs_chars: 0,
+    blocked_keywords: [] as string[],
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -489,6 +490,7 @@ const Classroom = () => {
           student_guide_prompt: newClassData.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 단답형이나 단순 감상평은 지양해 주세요.',
           teacher_report_prompt: newClassData.teacher_report_prompt || '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
           min_obs_chars: newClassData.min_obs_chars || 0,
+          blocked_keywords: newClassData.blocked_keywords || [],
           weekly_plan: newClassData.weekly_plan.filter((item: any) => item.topic.trim()),
           entry_code: entryCode
         })
@@ -516,14 +518,16 @@ const Classroom = () => {
       }
 
       setIsCreateModalOpen(false);
-      setNewClassData({ 
-        name: '', 
-        subject: '', 
-        class_type: 'subject', 
+      setNewClassData({
+        name: '',
+        subject: '',
+        class_type: 'subject',
         linked_class_id: '',
-        student_guide_prompt: '', 
+        student_guide_prompt: '',
         teacher_report_prompt: '',
-        weekly_plan: [{ week: 1, topic: '', url: '' }]
+        weekly_plan: [{ week: 1, topic: '', url: '' }],
+        min_obs_chars: 0,
+        blocked_keywords: [],
       });
       await fetchClasses();
       if (data) setActiveClassId(data.id);
@@ -549,6 +553,7 @@ const Classroom = () => {
           teacher_report_prompt: updateClassData.teacher_report_prompt,
           weekly_plan: updateClassData.weekly_plan || [],
           min_obs_chars: updateClassData.min_obs_chars || 0,
+          blocked_keywords: updateClassData.blocked_keywords || [],
         })
         .eq('id', updateClassData.id);
 
@@ -1911,6 +1916,20 @@ const Classroom = () => {
                           <span className="text-[10px] font-bold text-neutral-400">자 미만이면 제출 차단 (0 = 제한 없음)</span>
                         </div>
                       </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">제출 금지어 (하드 차단)</label>
+                        <textarea
+                          value={(newClassData.blocked_keywords || []).join('\n')}
+                          onChange={e => {
+                            const raw = e.target.value;
+                            const keywords = raw.split('\n').map(k => k.trim()).filter(Boolean);
+                            setNewClassData({...newClassData, blocked_keywords: keywords});
+                          }}
+                          placeholder={"한 줄에 하나씩 입력\n예: 모름\n예: 복붙\n예: 없음"}
+                          className="w-full h-20 px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold focus:bg-white outline-none resize-none"
+                        />
+                        <span className="text-[10px] font-bold text-neutral-400 ml-1">입력한 단어/문장이 포함되면 제출 즉시 차단</span>
+                      </div>
                     </div>
                   </details>
                 </div>
@@ -2172,6 +2191,23 @@ const Classroom = () => {
                           />
                           <span className="text-xs font-bold text-neutral-500">자 미만 제출 차단 <span className="text-neutral-400">(0 = 제한 없음)</span></span>
                         </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between ml-1">
+                          <label className="text-[10px] font-black text-orange-500 uppercase tracking-widest">제출 금지어 (하드 차단)</label>
+                          <span className="text-[9px] text-neutral-400 font-bold">포함 시 즉시 제출 차단</span>
+                        </div>
+                        <textarea
+                          value={(updateClassData.blocked_keywords || []).join('\n')}
+                          onChange={e => {
+                            const raw = e.target.value;
+                            const keywords = raw.split('\n').map((k: string) => k.trim()).filter(Boolean);
+                            setUpdateClassData({...updateClassData, blocked_keywords: keywords});
+                          }}
+                          placeholder={"한 줄에 하나씩 입력\n예: 모름\n예: 복붙\n예: 없음"}
+                          className="w-full h-28 px-5 py-4 bg-neutral-100 border-2 border-neutral-200 hover:border-orange-200 focus:border-orange-400 focus:bg-white rounded-2xl font-bold text-sm text-neutral-800 transition-all outline-none resize-none"
+                        />
+                        <span className="text-xs font-bold text-neutral-400 ml-1">입력한 단어/문장이 내용에 포함되면 AI 검토 없이 즉시 차단</span>
                       </div>
                     </motion.div>
                   ) : null}
