@@ -185,6 +185,18 @@ const ClassSelector = ({
           </AnimatePresence>
         </div>
 
+        {/* 학급 수정 버튼 — 드롭다운 밖에서 항상 노출 */}
+        {activeClass && (
+          <button
+            onClick={() => onEditClass(activeClass)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-neutral-200 hover:border-primary/30 hover:bg-primary/5 text-neutral-500 hover:text-primary font-black text-xs transition-all shadow-sm group shrink-0"
+            title="학급 설정"
+          >
+            <Settings2 size={14} className="group-hover:rotate-90 transition-transform duration-300" />
+            <span className="hidden sm:inline">학급 설정</span>
+          </button>
+        )}
+
         {/* 우측 여백 채우기 */}
         <div className="flex-1" />
 
