@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, LayoutPanelTop, Trash2, Clock, AlertTriangle, Users, Copy, Check, Link2, Unlink, ExternalLink, Pencil } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../../lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 import StartSessionModal from './ui/StartSessionModal';
 
@@ -39,8 +39,10 @@ interface ClassSession {
 const ALL_TAB = '__all__';
 const NO_CLASS_TAB = '__noclass__';
 
+const BASIC_BOARD_LIMIT = 3;
+
 export default function WhiteboardList() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [boards, setBoards] = useState<BoardMeta[]>([]);
   const [classInfos, setClassInfos] = useState<ClassInfo[]>([]);
@@ -56,6 +58,7 @@ export default function WhiteboardList() {
   const [bulkConnectClassId, setBulkConnectClassId] = useState('');
   const [bulkConnecting, setBulkConnecting] = useState(false);
   const [showStartSession, setShowStartSession] = useState(false);
+  const [showBoardLimitToast, setShowBoardLimitToast] = useState(false);
   const [classLinkBoardId, setClassLinkBoardId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [editingGroupSizeClassId, setEditingGroupSizeClassId] = useState<string | null>(null);
@@ -127,7 +130,15 @@ export default function WhiteboardList() {
     }
   }, [boards, selectedClassId]);
 
-  const handleCreate = () => navigate(`/whiteboard/${uuidv4()}`);
+  const handleCreate = () => {
+    const isBasicOnly = checkIsBasicOrAbove(profile) && !checkIsPro(profile);
+    if (isBasicOnly && boards.length >= BASIC_BOARD_LIMIT) {
+      setShowBoardLimitToast(true);
+      setTimeout(() => setShowBoardLimitToast(false), 3500);
+      return;
+    }
+    navigate(`/whiteboard/${uuidv4()}`);
+  };
 
   const handleDeleteConfirm = async (id: string) => {
     setDeletingId(id);
@@ -320,8 +331,33 @@ export default function WhiteboardList() {
 
   if (loading) return <div style={{ padding: 24, color: '#6B7280', fontSize: 14 }}>불러오는 중...</div>;
 
+  const isBasicOnly = checkIsBasicOrAbove(profile) && !checkIsPro(profile);
+
   return (
     <div style={{ padding: '4px 0' }}>
+      {/* Basic 보드 한도 토스트 */}
+      {showBoardLimitToast && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: '#1E293B', color: '#fff', borderRadius: 12, padding: '12px 20px',
+          fontSize: 13, fontWeight: 600, zIndex: 9999, display: 'flex', alignItems: 'center', gap: 8,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+        }}>
+          <span>🔒</span>
+          Basic 플랜은 보드를 최대 {BASIC_BOARD_LIMIT}개까지 만들 수 있습니다. Pro로 업그레이드하면 무제한입니다.
+        </div>
+      )}
+      {/* Basic 보드 잔여 안내 */}
+      {isBasicOnly && (
+        <div style={{
+          marginBottom: 12, padding: '8px 14px', background: '#EFF6FF', border: '1px solid #BFDBFE',
+          borderRadius: 10, fontSize: 12, color: '#1D4ED8', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <span>📋</span>
+          Basic 플랜 보드 사용: <strong>{boards.length} / {BASIC_BOARD_LIMIT}개</strong>
+          {boards.length >= BASIC_BOARD_LIMIT && <span style={{ color: '#DC2626', marginLeft: 4 }}>— 한도 도달 (Pro 업그레이드 시 무제한)</span>}
+        </div>
+      )}
       {/* 조별 보드 만들기 버튼 */}
       <motion.button
         whileHover={{ scale: 1.01 }}

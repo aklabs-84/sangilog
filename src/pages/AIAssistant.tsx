@@ -16,11 +16,10 @@ import {
   BookOpen,
   ChevronUp,
 } from 'lucide-react';
-import { useAuth, checkIsPro } from '../lib/auth';
+import { useAuth, checkIsPro, getAiDailyLimit } from '../lib/auth';
 import { geminiPro, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 
-const FREE_AI_DAILY_LIMIT = 10;
 
 interface StudentDraft {
   studentId: string;
@@ -54,6 +53,7 @@ const AIAssistant = () => {
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isHomeroom = selectedClass?.class_type === 'homeroom';
+  const aiDailyLimit = getAiDailyLimit(profile);
 
   useEffect(() => { fetchInitialData(); }, []);
   useEffect(() => { if (selectedClassId) fetchObsStats(selectedClassId); }, [selectedClassId]);
@@ -226,17 +226,18 @@ ${obsText}
   const handleGenerate = async () => {
     if (!selectedClassId) return;
 
-    const isFree = !checkIsPro(profile);
+    const isNotPro = !checkIsPro(profile);
 
-    if (isFree) {
-      // 무료 — 다중 학생 일괄 생성 차단
+    if (isNotPro) {
+      // Pro 미만 — 다중 학생 일괄 생성 차단 (Basic도 마찬가지)
       if (selectedStudentIds.length > 1) {
         setUpgradeReason('ai_bulk');
         setUpgradeOpen(true);
         return;
       }
-      // 무료 — 일일 10회 한도 체크
-      if (todayAiCount >= FREE_AI_DAILY_LIMIT) {
+      // 플랜별 일일 한도 체크 (free=10, basic=30)
+      const dailyLimit = getAiDailyLimit(profile);
+      if (todayAiCount >= dailyLimit) {
         setUpgradeReason('ai_limit');
         setUpgradeOpen(true);
         return;
@@ -329,8 +330,8 @@ ${obsText}
           } catch { /* 조용히 실패 */ }
         }
 
-        // 무료 플랜 — 학생 1명 생성마다 카운트 증가
-        if (isFree) {
+        // Pro 미만 플랜 — 학생 1명 생성마다 카운트 증가
+        if (isNotPro) {
           localAiCount += 1;
           const today = new Date().toISOString().split('T')[0];
           setTodayAiCount(localAiCount);
@@ -631,34 +632,34 @@ ${obsText}
               {/* 무료 플랜 일일 사용량 표시 */}
               {!checkIsPro(profile) && (
                 <div className={`flex items-center justify-between px-4 py-3 rounded-2xl border ${
-                  todayAiCount >= FREE_AI_DAILY_LIMIT
+                  todayAiCount >= aiDailyLimit
                     ? 'bg-red-50 border-red-200'
-                    : todayAiCount >= FREE_AI_DAILY_LIMIT * 0.7
+                    : todayAiCount >= aiDailyLimit * 0.7
                     ? 'bg-amber-50 border-amber-200'
                     : 'bg-surface-container-low border-surface-container-high'
                 }`}>
                   <div className="flex items-center gap-2">
                     <Sparkles size={13} className={
-                      todayAiCount >= FREE_AI_DAILY_LIMIT ? 'text-red-400' :
-                      todayAiCount >= FREE_AI_DAILY_LIMIT * 0.7 ? 'text-amber-400' : 'text-primary/50'
+                      todayAiCount >= aiDailyLimit ? 'text-red-400' :
+                      todayAiCount >= aiDailyLimit * 0.7 ? 'text-amber-400' : 'text-primary/50'
                     } />
                     <span className="text-[11px] font-bold text-on-surface-variant">오늘 AI 사용량</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex gap-0.5">
-                      {Array.from({ length: FREE_AI_DAILY_LIMIT }).map((_, i) => (
+                      {Array.from({ length: aiDailyLimit }).map((_, i) => (
                         <div key={i} className={`w-2 h-2 rounded-full ${
                           i < todayAiCount
-                            ? todayAiCount >= FREE_AI_DAILY_LIMIT ? 'bg-red-400' : 'bg-primary'
+                            ? todayAiCount >= aiDailyLimit ? 'bg-red-400' : 'bg-primary'
                             : 'bg-surface-container-high'
                         }`} />
                       ))}
                     </div>
                     <span className={`text-[11px] font-black ${
-                      todayAiCount >= FREE_AI_DAILY_LIMIT ? 'text-red-500' :
-                      todayAiCount >= FREE_AI_DAILY_LIMIT * 0.7 ? 'text-amber-500' : 'text-on-surface-variant'
+                      todayAiCount >= aiDailyLimit ? 'text-red-500' :
+                      todayAiCount >= aiDailyLimit * 0.7 ? 'text-amber-500' : 'text-on-surface-variant'
                     }`}>
-                      {todayAiCount}/{FREE_AI_DAILY_LIMIT}
+                      {todayAiCount}/{aiDailyLimit}
                     </span>
                   </div>
                 </div>

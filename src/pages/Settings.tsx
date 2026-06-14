@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth, checkIsPro, getBetaDaysLeft } from '../lib/auth';
+import { useAuth, checkIsPro, getBetaDaysLeft, checkIsBasicOrAbove, getAiDailyLimit } from '../lib/auth';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeMode } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -342,14 +342,19 @@ const Settings = () => {
     return profile.ai_daily_date === today ? (profile.ai_daily_count ?? 0) : 0;
   })();
 
+  const isBasicOnly = checkIsBasicOrAbove(profile) && !checkIsPro(profile);
+  const aiDailyLimit = getAiDailyLimit(profile);
+
   const PLAN_LABEL: Record<string, string> = {
     free: '무료 플랜',
+    basic: 'Basic 플랜',
     pro: 'Pro 플랜',
     school: 'School 플랜',
     admin: '관리자',
   };
   const PLAN_COLOR: Record<string, string> = {
     free: 'bg-gray-100 text-gray-600',
+    basic: 'bg-blue-100 text-blue-700',
     pro: 'bg-amber-100 text-amber-700',
     school: 'bg-violet-100 text-violet-700',
     admin: 'bg-emerald-100 text-emerald-700',
@@ -369,12 +374,14 @@ const Settings = () => {
               plan === 'admin'  ? 'bg-emerald-500' :
               plan === 'pro'    ? 'bg-amber-500' :
               plan === 'school' ? 'bg-violet-500' :
+              plan === 'basic'  ? 'bg-blue-500' :
               isBetaActive      ? 'bg-blue-500' :
                                   'bg-gray-400'
             }`}>
               {plan === 'admin'  ? <ShieldCheck size={18} className="text-white" /> :
                plan === 'pro'    ? <Crown size={18} className="text-white" /> :
                plan === 'school' ? <GraduationCap size={18} className="text-white" /> :
+               plan === 'basic'  ? <Crown size={18} className="text-white" /> :
                                    <User size={18} className="text-white" />}
             </div>
             <div>
@@ -393,6 +400,10 @@ const Settings = () => {
               {isBetaActive ? (
                 <p className="text-xs text-blue-600 mt-0.5">
                   베타 체험 기간 동안 Pro 기능을 모두 사용하실 수 있습니다
+                </p>
+              ) : plan === 'basic' ? (
+                <p className="text-xs text-blue-600 mt-0.5">
+                  클래스 최대 5개 · AI 세특 하루 30회 · 화이트보드 최대 3개
                 </p>
               ) : plan === 'free' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
@@ -419,19 +430,22 @@ const Settings = () => {
                 <div className="flex-1 h-2 bg-amber-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-amber-400 rounded-full transition-all"
-                    style={{ width: `${Math.min((aiUsedToday / 10) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((aiUsedToday / aiDailyLimit) * 100, 100)}%` }}
                   />
                 </div>
                 <span className="text-sm font-black text-amber-800 whitespace-nowrap">
-                  {aiUsedToday} / 10
+                  {aiUsedToday} / {aiDailyLimit}
                 </span>
               </div>
               <p className="text-[10px] text-amber-500 mt-1">자정에 자동 초기화</p>
             </div>
             <div>
-              <p className="text-xs font-bold text-amber-600 mb-2">Pro 플랜에서 가능한 것</p>
+              <p className="text-xs font-bold text-amber-600 mb-2">{isBasicOnly ? 'Pro 플랜에서 더 가능한 것' : 'Basic / Pro 플랜에서 가능한 것'}</p>
               <div className="space-y-1">
-                {['AI 세특 무제한', '클래스 무제한', '일괄 AI 생성', '교사 연동'].map(item => (
+                {(isBasicOnly
+                  ? ['AI 세특 무제한', '클래스 무제한', '화이트보드 무제한', '일괄 AI 생성']
+                  : ['AI 세특 하루 30회 (Basic)', 'AI 세특 무제한 (Pro)', '클래스 최대 5개 (Basic)', '수업 도구 전체 7가지']
+                ).map(item => (
                   <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                     <Sparkles size={10} className="text-amber-400" /> {item}
                   </div>
@@ -688,10 +702,11 @@ const Settings = () => {
               plan === 'admin'  ? 'bg-emerald-100 text-emerald-700 shadow-emerald-100' :
               plan === 'pro'    ? 'bg-amber-100 text-amber-700 shadow-amber-100' :
               plan === 'school' ? 'bg-violet-100 text-violet-700 shadow-violet-100' :
+              plan === 'basic'  ? 'bg-blue-100 text-blue-700 shadow-blue-100' :
               isBetaActive      ? 'bg-blue-100 text-blue-700 shadow-blue-100' :
                                   'bg-gray-100 text-gray-500'
             }`}>
-              {plan === 'admin' ? 'ADMIN' : plan === 'pro' ? 'PRO' : plan === 'school' ? 'SCHOOL' : isBetaActive ? 'BETA' : 'FREE'}
+              {plan === 'admin' ? 'ADMIN' : plan === 'pro' ? 'PRO' : plan === 'school' ? 'SCHOOL' : plan === 'basic' ? 'BASIC' : isBetaActive ? 'BETA' : 'FREE'}
             </span>
             <span className="px-3 py-1 bg-surface-container-highest text-on-surface-variant font-bold text-[11px] rounded-lg tracking-widest uppercase">ACTIVE</span>
           </div>

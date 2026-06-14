@@ -38,7 +38,7 @@ import {
   Upload,
   FileText,
 } from 'lucide-react';
-import { useAuth, checkIsPro } from '../lib/auth';
+import { useAuth, checkIsPro, getClassLimit } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
 import CodeBlock from '../components/CodeBlock';
@@ -57,7 +57,6 @@ import GroupTab from '../components/classroom/GroupTab';
 import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 import UpgradeModal from '../components/UpgradeModal';
 
-const FREE_CLASS_LIMIT = 2;
 
 const Classroom = () => {
   const { user, profile } = useAuth();
@@ -386,13 +385,14 @@ const Classroom = () => {
       return;
     }
 
-    // 무료 플랜 클래스 수 제한 (베타/Pro 사용자는 제한 없음)
+    // 플랜별 클래스 수 제한 (Pro/Admin은 무제한)
     if (!checkIsPro(profile)) {
+      const classLimit = getClassLimit(profile);
       const { count } = await supabase
         .from('classes')
         .select('*', { count: 'exact', head: true })
         .eq('teacher_id', user.id);
-      if ((count ?? 0) >= FREE_CLASS_LIMIT) {
+      if ((count ?? 0) >= classLimit) {
         setIsCreateModalOpen(false);
         setUpgradeModalReason('class_limit');
         return;

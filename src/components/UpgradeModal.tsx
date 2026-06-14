@@ -7,6 +7,7 @@ interface UpgradeModalProps {
   isOpen: boolean;
   onClose: () => void;
   reason: Reason;
+  currentPlan?: string;
 }
 
 const REASON_CONFIG: Record<Reason, {
@@ -19,15 +20,15 @@ const REASON_CONFIG: Record<Reason, {
   class_limit: {
     emoji: '🏫',
     title: '클래스 생성 한도 초과',
-    desc: '무료 플랜은 클래스를 최대 2개까지 만들 수 있습니다.',
-    freeLimit: '클래스 최대 2개',
+    desc: '현재 플랜의 클래스 생성 한도에 도달했습니다.\n무료: 2개 · Basic: 5개 · Pro: 무제한',
+    freeLimit: '무료 2개 / Basic 5개',
     proGain: '클래스 무제한 생성',
   },
   ai_limit: {
     emoji: '✨',
     title: 'AI 사용 한도 초과',
-    desc: '무료 플랜은 AI 세특 초안을 하루 10회까지 사용할 수 있습니다.\n자정이 지나면 자동으로 초기화됩니다.',
-    freeLimit: 'AI 세특 하루 10회',
+    desc: '오늘의 AI 세특 생성 한도에 도달했습니다.\n무료: 하루 10회 · Basic: 하루 30회 · Pro: 무제한\n자정이 지나면 자동으로 초기화됩니다.',
+    freeLimit: '무료 10회 / Basic 30회',
     proGain: 'AI 세특 무제한',
   },
   ai_bulk: {
@@ -60,7 +61,7 @@ const REASON_CONFIG: Record<Reason, {
   },
 };
 
-const UpgradeModal = ({ isOpen, onClose, reason }: UpgradeModalProps) => {
+const UpgradeModal = ({ isOpen, onClose, reason, currentPlan }: UpgradeModalProps) => {
   const config = REASON_CONFIG[reason];
 
   return (

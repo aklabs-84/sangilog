@@ -83,9 +83,13 @@ const STATUS_CFG = {
 };
 const PLAN_OPTIONS = [
   { value: 'free',   label: '무료',   color: 'bg-gray-100 text-gray-600' },
+  { value: 'basic',  label: 'Basic',  color: 'bg-blue-100 text-blue-700' },
   { value: 'pro',    label: 'Pro',    color: 'bg-amber-100 text-amber-700' },
-  { value: 'school', label: 'School', color: 'bg-violet-100 text-violet-700' },
   { value: 'admin',  label: '관리자', color: 'bg-emerald-100 text-emerald-700' },
+];
+const PLAN_OPTIONS_ALL = [
+  ...PLAN_OPTIONS,
+  { value: 'school', label: 'School', color: 'bg-violet-100 text-violet-700' },
 ];
 const OBS_STATUS: Record<string, { label: string; color: string }> = {
   pending:  { label: '대기', color: 'bg-amber-100 text-amber-700' },
@@ -985,7 +989,7 @@ const Admin = () => {
             {users.map(u => {
               const today = new Date().toISOString().split('T')[0];
               const aiToday = u.ai_daily_date === today ? (u.ai_daily_count ?? 0) : 0;
-              const planInfo = PLAN_OPTIONS.find(p => p.value === u.plan) ?? PLAN_OPTIONS[0];
+              const planInfo = PLAN_OPTIONS_ALL.find(p => p.value === u.plan) ?? PLAN_OPTIONS_ALL[0];
               const betaActive = u.beta_expires_at && new Date(u.beta_expires_at) > new Date();
               const betaDaysLeft = betaActive
                 ? Math.ceil((new Date(u.beta_expires_at).getTime() - Date.now()) / 86400000)
@@ -1006,17 +1010,23 @@ const Admin = () => {
                       </div>
                       <p className="text-xs text-amber-600/70 font-mono">{u.email}</p>
                       {u.school_name && <p className="text-xs text-amber-500 mt-0.5">{u.school_name}</p>}
-                      {u.plan === 'free' && <p className="text-xs text-gray-400 mt-1">오늘 AI 사용: {aiToday} / 10회</p>}
+                      {u.plan === 'free'  && <p className="text-xs text-gray-400 mt-1">오늘 AI 사용: {aiToday} / 10회</p>}
+                      {u.plan === 'basic' && <p className="text-xs text-blue-400 mt-1">오늘 AI 사용: {aiToday} / 30회</p>}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
                       {u.plan === 'admin'  ? <ShieldCheck size={14} className="text-emerald-500 shrink-0" /> :
                        u.plan === 'pro'    ? <Crown size={14} className="text-amber-400 shrink-0" /> :
                        u.plan === 'school' ? <GraduationCap size={14} className="text-violet-500 shrink-0" /> :
+                       u.plan === 'basic'  ? <Crown size={14} className="text-blue-400 shrink-0" /> :
                                             <User size={14} className="text-gray-400 shrink-0" />}
-                      <select value={u.plan ?? 'free'} onChange={e => updateUserPlan(u.id, e.target.value)} disabled={planUpdating === u.id}
-                        className="text-sm font-bold border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-50">
-                        {PLAN_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                      </select>
+                      {u.plan === 'school' ? (
+                        <span className="text-xs font-bold px-3 py-2 rounded-xl bg-violet-100 text-violet-600">School (레거시)</span>
+                      ) : (
+                        <select value={u.plan ?? 'free'} onChange={e => updateUserPlan(u.id, e.target.value)} disabled={planUpdating === u.id}
+                          className="text-sm font-bold border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-50">
+                          {PLAN_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                        </select>
+                      )}
                       {planUpdating === u.id && <Loader2 size={14} className="animate-spin text-amber-400" />}
                       {/* 베타 부여/철수 버튼 */}
                       <button

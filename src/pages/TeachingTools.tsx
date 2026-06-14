@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle } from 'lucide-react';
-import { useAuth, checkIsPro } from '../lib/auth';
+import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../lib/auth';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
 import QuizGame from './tools/QuizGame';
@@ -28,7 +28,7 @@ interface Tool {
   description: string;
   badge?: string;
   available: boolean;
-  planRequired: 'free' | 'limited' | 'pro';
+  planRequired: 'free' | 'limited' | 'basic' | 'pro';
   component?: React.ReactNode;
   quickGuide?: QuickGuide;
 }
@@ -95,7 +95,7 @@ const tools: Tool[] = [
     description: '마크다운으로 수업 자료를 작성하고 클래스 주차별로 학생에게 공개합니다',
     badge: 'NEW',
     available: true,
-    planRequired: 'pro',
+    planRequired: 'basic',
     component: <MaterialEditor />,
     quickGuide: {
       steps: [
@@ -114,7 +114,7 @@ const tools: Tool[] = [
     description: '수업을 실시간 전사하고 AI가 학생별 관찰 기록과 수업 품질을 자동 분석합니다',
     badge: 'NEW',
     available: true,
-    planRequired: 'pro',
+    planRequired: 'basic',
     component: <ClassTranscription />,
     quickGuide: {
       steps: [
@@ -133,7 +133,7 @@ const tools: Tool[] = [
     description: '조별 협업 보드를 만들고 포스트잇, 도형, 이미지로 수업 활동을 진행합니다',
     badge: 'NEW',
     available: true,
-    planRequired: 'pro',
+    planRequired: 'basic',
     component: <WhiteboardList />,
     quickGuide: {
       steps: [
@@ -152,7 +152,7 @@ const tools: Tool[] = [
     description: '객관식, 예/아니오, 별점, 순위 매기기, AI 분석까지 다양한 실시간 설문을 진행합니다',
     badge: 'NEW',
     available: true,
-    planRequired: 'pro',
+    planRequired: 'basic',
     component: <SurveyTool />,
     quickGuide: {
       steps: [
@@ -184,9 +184,14 @@ const TeachingTools = () => {
   const [guideTool, setGuideTool] = useState<Tool | null>(null);
 
   const isPro = checkIsPro(profile);
+  const isBasicOrAbove = checkIsBasicOrAbove(profile);
 
   const handleToolClick = (tool: Tool) => {
     if (!tool.available) return;
+    if (!isBasicOrAbove && (tool.planRequired === 'basic' || tool.planRequired === 'pro')) {
+      setShowUpgradeModal(true);
+      return;
+    }
     if (!isPro && tool.planRequired === 'pro') {
       setShowUpgradeModal(true);
       return;
@@ -249,17 +254,23 @@ const TeachingTools = () => {
               <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Crown size={32} className="text-amber-500" />
               </div>
-              <h3 className="text-xl font-black text-gray-900 mb-2">PRO 전용 도구입니다</h3>
+              <h3 className="text-xl font-black text-gray-900 mb-2">
+                {isBasicOrAbove ? 'PRO 전용 도구입니다' : 'Basic 이상 전용 도구입니다'}
+              </h3>
               <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-                이 수업 도구는 Pro 플랜 이상에서 사용할 수 있습니다.<br />
-                업그레이드 문의는 관리자에게 연락해 주세요.
+                {isBasicOrAbove
+                  ? <>이 도구는 Pro 플랜에서 사용할 수 있습니다.<br />업그레이드 문의는 관리자에게 연락해 주세요.</>
+                  : <>이 도구는 Basic 플랜 이상에서 사용할 수 있습니다.<br />베타 테스터 또는 플랜 업그레이드 문의는 관리자에게 연락해 주세요.</>
+                }
               </p>
               <div className="flex flex-col gap-3">
                 <a
-                  href="mailto:aklabs84@naver.com?subject=생기로그 Pro 플랜 업그레이드 문의"
+                  href={isBasicOrAbove
+                    ? 'mailto:aklabs84@naver.com?subject=생기로그 Pro 플랜 업그레이드 문의'
+                    : 'mailto:aklabs84@naver.com?subject=생기로그 Basic 플랜 문의'}
                   className="block w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl text-sm transition-colors"
                 >
-                  업그레이드 문의하기
+                  {isBasicOrAbove ? 'Pro 업그레이드 문의하기' : 'Basic 플랜 문의하기'}
                 </a>
                 <button
                   onClick={() => setShowUpgradeModal(false)}
@@ -358,7 +369,9 @@ const TeachingTools = () => {
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
           >
             {tools.map((tool, i) => {
-              const isLocked = !isPro && tool.planRequired === 'pro';
+              const isBasicLocked = !isBasicOrAbove && (tool.planRequired === 'basic' || tool.planRequired === 'pro');
+              const isProLocked = isBasicOrAbove && !isPro && tool.planRequired === 'pro';
+              const isLocked = isBasicLocked || isProLocked;
               const isLimited = !isPro && tool.planRequired === 'limited';
               return (
                 <motion.button
@@ -376,10 +389,15 @@ const TeachingTools = () => {
                       : 'border-white/40 hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 cursor-pointer'
                   }`}
                 >
-                  {/* PRO 잠금 배지 */}
-                  {isLocked && (
+                  {/* 잠금 배지 */}
+                  {isProLocked && (
                     <span className="absolute top-4 right-4 flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-white">
                       <Crown size={9} /> PRO
+                    </span>
+                  )}
+                  {isBasicLocked && (
+                    <span className="absolute top-4 right-4 flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 text-white">
+                      <Crown size={9} /> BASIC
                     </span>
                   )}
                   {/* 무료 제한 배지 */}

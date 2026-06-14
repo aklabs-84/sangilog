@@ -146,6 +146,25 @@ export function checkIsPro(profile: any): boolean {
   return false;
 }
 
+export function checkIsBasicOrAbove(profile: any): boolean {
+  if (!profile) return false;
+  if (['basic', 'pro', 'admin'].includes(profile.plan ?? 'free')) return true;
+  if (profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date()) return true;
+  return false;
+}
+
+export function getAiDailyLimit(profile: any): number {
+  if (checkIsPro(profile)) return Infinity;
+  if (checkIsBasicOrAbove(profile)) return 30;
+  return 10;
+}
+
+export function getClassLimit(profile: any): number {
+  if (checkIsPro(profile)) return Infinity;
+  if (checkIsBasicOrAbove(profile)) return 5;
+  return 2;
+}
+
 export function getBetaDaysLeft(profile: any): number | null {
   if (!profile?.beta_expires_at) return null;
   const diff = new Date(profile.beta_expires_at).getTime() - Date.now();

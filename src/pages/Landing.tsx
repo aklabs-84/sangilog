@@ -471,7 +471,7 @@ const Landing = () => {
             <p className="text-amber-700/70 text-sm">모든 플랜은 관리자 승인 후 활성화됩니다.</p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {[
               {
                 name: '무료',
@@ -485,9 +485,33 @@ const Landing = () => {
                   { text: '클래스 최대 2개', ok: true },
                   { text: 'AI 세특 하루 10회', ok: true },
                   { text: '학생 관찰 기록', ok: true },
-                  { text: '수업 도구 기본 2가지 (타이머·모둠뽑기)', ok: true },
-                  { text: '실시간 퀴즈 5문항 제한', ok: true },
-                  { text: '수업 도구 PRO (설문·화이트보드·전사·AI)', ok: false },
+                  { text: '수업 도구 기본 2가지', ok: true },
+                  { text: '실시간 퀴즈 (5문항 제한)', ok: true },
+                  { text: '수업 자료 에디터', ok: false },
+                  { text: '화이트보드·설문·전사', ok: false },
+                  { text: '일괄 AI 생성', ok: false },
+                  { text: 'NAISS 내보내기', ok: false },
+                ],
+              },
+              {
+                name: 'Basic',
+                badge: 'BASIC',
+                badgeColor: 'bg-blue-500 text-white',
+                headerColor: 'bg-gradient-to-br from-blue-50 to-indigo-50',
+                borderColor: 'border-blue-300',
+                emoji: '🚀',
+                desc: '베타 테스터 · 시범 운영',
+                betaBadge: true,
+                features: [
+                  { text: '클래스 최대 5개', ok: true },
+                  { text: 'AI 세특 하루 30회', ok: true },
+                  { text: '학생 관찰 기록', ok: true },
+                  { text: '수업 도구 전체 7가지', ok: true },
+                  { text: '실시간 퀴즈 (문항 수 무제한)', ok: true },
+                  { text: '수업 자료 에디터', ok: true },
+                  { text: '화이트보드 (최대 3개)', ok: true },
+                  { text: '실시간 설문 + AI 분석', ok: true },
+                  { text: '수업 전사 (Groq API 필요)', ok: true },
                   { text: '일괄 AI 생성', ok: false },
                   { text: 'NAISS 내보내기', ok: false },
                 ],
@@ -506,8 +530,8 @@ const Landing = () => {
                   { text: 'AI 세특 무제한', ok: true },
                   { text: '학생 관찰 기록', ok: true },
                   { text: '수업 도구 전체 7가지', ok: true },
+                  { text: '화이트보드 무제한', ok: true },
                   { text: '실시간 설문 + AI 분석', ok: true },
-                  { text: '협업 화이트보드', ok: true },
                   { text: '수업 전사 & AI 분석', ok: true },
                   { text: '일괄 AI 생성', ok: true },
                   { text: 'NAISS 내보내기', ok: true },
@@ -559,6 +583,9 @@ const Landing = () => {
                 <div className={`${plan.headerColor} px-5 py-5 relative`}>
                   {plan.highlight && (
                     <div className="absolute top-3 right-3 bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">추천</div>
+                  )}
+                  {(plan as any).betaBadge && (
+                    <div className="absolute top-3 right-3 bg-blue-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">베타전용</div>
                   )}
                   <div className="text-2xl mb-2">{plan.emoji}</div>
                   <div className="flex items-center gap-2 mb-1">
