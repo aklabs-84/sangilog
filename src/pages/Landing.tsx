@@ -548,23 +548,6 @@ const Landing = () => {
                   { text: 'NAISS 내보내기', ok: true },
                 ],
               },
-              {
-                name: '관리자',
-                badge: 'ADMIN',
-                badgeColor: 'bg-emerald-500 text-white',
-                headerColor: 'bg-gradient-to-br from-emerald-50 to-teal-50',
-                borderColor: 'border-emerald-200',
-                emoji: '👑',
-                desc: '시스템 전체 관리',
-                features: [
-                  { text: 'Pro 모든 기능', ok: true },
-                  { text: '관리자 패널', ok: true },
-                  { text: '사용자 승인·차단', ok: true },
-                  { text: '플랜 변경', ok: true },
-                  { text: '데이터 전체 조회', ok: true },
-                  { text: '공지사항 발송', ok: true },
-                ],
-              },
             ].map((plan, i) => (
               <motion.div
                 key={plan.name}
