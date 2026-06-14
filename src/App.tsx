@@ -67,8 +67,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   // 익명 유저(학생) → 학생 홈으로 (이중 감지: is_anonymous + app_metadata.provider)
   if (isAnonymousUser(user)) return <Navigate to="/student-log" replace />;
 
+  // 프로필 없음 = 삭제된 계정 → 로그인으로 (auth.tsx에서 signOut 처리, 여기선 리다이렉트 방어)
+  if (profile === null) return <Navigate to="/login" replace />;
+
   // 승인 취소된 계정 차단
-  if (profile && profile.is_approved === false) {
+  if (profile.is_approved === false) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FFFBF5] px-4">
         <div className="max-w-md w-full text-center space-y-6 p-10 bg-white rounded-3xl shadow-xl border border-amber-100">

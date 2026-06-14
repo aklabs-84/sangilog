@@ -84,9 +84,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (error) throw error;
+
+      // 프로필 없음 = 관리자가 계정 삭제 → 강제 로그아웃
+      if (data === null) {
+        await supabase.auth.signOut();
+        return;
+      }
+
       setProfile(data);
 
-      // Realtime 구독: admin이 plan/beta_expires_at 변경 시 즉시 반영
+      // Realtime 구독: UPDATE(플랜 변경 등) + DELETE(계정 삭제) 감지
       cleanupProfileChannel();
       profileChannelRef.current = supabase
         .channel(`profile-${userId}`)
@@ -94,6 +101,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
           (payload) => { setProfile(payload.new); }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+          () => { supabase.auth.signOut(); }
         )
         .subscribe();
 
