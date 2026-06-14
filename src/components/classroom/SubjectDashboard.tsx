@@ -1194,29 +1194,29 @@ const SubjectDashboard = ({
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
+              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between px-10 py-7 border-b border-neutral-100">
+              <div className="flex items-center justify-between px-10 py-5 border-b border-neutral-100">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black text-secondary uppercase tracking-[0.25em]">Activity Rate</p>
-                  <h3 className="text-2xl font-black tracking-tight">
+                  <p className="text-xs font-black text-secondary uppercase tracking-[0.2em]">활동 참여율</p>
+                  <h3 className="text-xl font-black tracking-tight">
                     {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}주차 ` : ''}{tabLabel} 현황
                   </h3>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-3 text-right">
                     <div className="space-y-0.5">
-                      <p className="text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
-                      <p className="text-[9px] font-black text-secondary/60 uppercase tracking-widest">제출 완료</p>
+                      <p className="text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-70">명</span></p>
+                      <p className="text-xs font-black text-secondary/70 uppercase tracking-widest">제출 완료</p>
                     </div>
-                    <div className="w-px h-10 bg-neutral-100" />
+                    <div className="w-px h-10 bg-neutral-200" />
                     <div className="space-y-0.5">
-                      <p className="text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
-                      <p className="text-[9px] font-black text-amber-500/60 uppercase tracking-widest">미제출</p>
+                      <p className="text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-70">명</span></p>
+                      <p className="text-xs font-black text-amber-500/70 uppercase tracking-widest">미제출</p>
                     </div>
                   </div>
-                  <button onClick={closeModal} className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all">
+                  <button onClick={closeModal} className="p-2.5 rounded-xl text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all">
                     <X size={20} />
                   </button>
                 </div>
@@ -1226,67 +1226,69 @@ const SubjectDashboard = ({
               <div className="px-10 py-3 border-b border-neutral-100 flex items-center gap-2">
                 <button
                   onClick={() => setActivityTab('obs')}
-                  className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-[11px] font-black transition-all border ${
+                  className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-black transition-all border ${
                     activityTab === 'obs'
                       ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
-                      : 'bg-white text-neutral-400 border-neutral-200 hover:border-violet-300 hover:text-violet-600'
+                      : 'bg-white text-neutral-500 border-neutral-200 hover:border-violet-300 hover:text-violet-600'
                   }`}
                 >
                   📋 관찰기록
                   {activityTab === 'obs' && selectedActivityWeek === null && (
-                    <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[9px]">{allObsIds.size}명</span>
+                    <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-xs">{allObsIds.size}명</span>
                   )}
                 </button>
                 <button
                   onClick={() => setActivityTab('results')}
-                  className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-[11px] font-black transition-all border ${
+                  className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-black transition-all border ${
                     activityTab === 'results'
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-white text-neutral-400 border-neutral-200 hover:border-emerald-300 hover:text-emerald-600'
+                      : 'bg-white text-neutral-500 border-neutral-200 hover:border-emerald-300 hover:text-emerald-600'
                   }`}
                 >
                   📦 결과제출
                   {activityTab === 'results' && selectedActivityWeek === null && (
-                    <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[9px]">{allResultIds.size}명</span>
+                    <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-xs">{allResultIds.size}명</span>
                   )}
                 </button>
               </div>
 
-              {/* 주차 필터 칩 */}
+              {/* 주차 필터 칩 — overflow-x-auto 와 px 분리로 오른쪽 잘림 방지 */}
               {statsWeeks.length > 0 && (
-                <div className="px-10 py-3 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
-                  <button
-                    onClick={() => setSelectedActivityWeek(null)}
-                    className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
-                      selectedActivityWeek === null
-                        ? 'bg-neutral-700 text-white border-neutral-700 shadow-sm'
-                        : 'bg-white text-neutral-400 border-neutral-200 hover:border-neutral-400'
-                    }`}
-                  >
-                    전체
-                  </button>
-                  {statsWeeks.map(week => {
-                    const topic = weeklyPlan.find(p => p.week === week)?.topic;
-                    const weekCount = activityTab === 'obs' ? getObsOnWeek(week).size : getResultsOnWeek(week).size;
-                    return (
-                      <button
-                        key={week}
-                        onClick={() => setSelectedActivityWeek(week)}
-                        className={`shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
-                          selectedActivityWeek === week
-                            ? tabColor === 'violet' ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                            : 'bg-white text-neutral-400 border-neutral-200 hover:border-neutral-400'
-                        }`}
-                      >
-                        {week}주차{topic && <span className="opacity-60">· {topic}</span>}
-                        {weekCount > 0 && (
-                          <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black ${
-                            selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'violet' ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
-                          }`}>{weekCount}</span>
-                        )}
-                      </button>
-                    );
-                  })}
+                <div className="border-b border-neutral-100 overflow-x-auto custom-scrollbar">
+                  <div className="flex items-center gap-2 py-3 px-10 w-max min-w-full">
+                    <button
+                      onClick={() => setSelectedActivityWeek(null)}
+                      className={`shrink-0 px-4 py-2 rounded-full text-xs font-black transition-all border ${
+                        selectedActivityWeek === null
+                          ? 'bg-neutral-700 text-white border-neutral-700 shadow-sm'
+                          : 'bg-white text-neutral-500 border-neutral-300 hover:border-neutral-500'
+                      }`}
+                    >
+                      전체
+                    </button>
+                    {statsWeeks.map(week => {
+                      const topic = weeklyPlan.find(p => p.week === week)?.topic;
+                      const weekCount = activityTab === 'obs' ? getObsOnWeek(week).size : getResultsOnWeek(week).size;
+                      return (
+                        <button
+                          key={week}
+                          onClick={() => setSelectedActivityWeek(week)}
+                          className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all border ${
+                            selectedActivityWeek === week
+                              ? tabColor === 'violet' ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                              : 'bg-white text-neutral-600 border-neutral-300 hover:border-neutral-500'
+                          }`}
+                        >
+                          {week}주차{topic && <span className="opacity-75">· {topic}</span>}
+                          {weekCount > 0 && (
+                            <span className={`px-1.5 py-0.5 rounded-md text-xs font-black ${
+                              selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'violet' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>{weekCount}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -1296,8 +1298,8 @@ const SubjectDashboard = ({
                 <div className="flex flex-col overflow-hidden">
                   <div className={`px-8 py-4 border-b flex items-center gap-2 ${tabColor === 'violet' ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'}`}>
                     <CheckCheck size={14} className={tabColor === 'violet' ? 'text-violet-600' : 'text-emerald-600'} />
-                    <span className={`text-[11px] font-black uppercase tracking-widest ${tabColor === 'violet' ? 'text-violet-700' : 'text-emerald-700'}`}>
-                      제출 완료 ({submitted.length}명)
+                    <span className={`text-sm font-black ${tabColor === 'violet' ? 'text-violet-700' : 'text-emerald-700'}`}>
+                      ✓ 제출 완료 ({submitted.length}명)
                     </span>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
@@ -1317,7 +1319,7 @@ const SubjectDashboard = ({
                             <p className={`text-sm font-black transition-colors ${tabColor === 'violet' ? 'group-hover:text-violet-600' : 'group-hover:text-emerald-600'}`}>
                               {s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
-                            <p className="text-[10px] text-neutral-400 font-medium truncate">{getActivityLabel(s)}</p>
+                            <p className="text-xs text-neutral-500 font-medium truncate">{getActivityLabel(s)}</p>
                           </div>
                           {activityTab === 'results' ? (
                             <ExternalLink size={13} className="shrink-0 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1339,7 +1341,7 @@ const SubjectDashboard = ({
                 <div className="flex flex-col overflow-hidden">
                   <div className="px-8 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
                     <ClockIcon size={14} className="text-amber-500" />
-                    <span className="text-[11px] font-black text-amber-600 uppercase tracking-widest">미제출 ({notSubmitted.length}명)</span>
+                    <span className="text-sm font-black text-amber-700">⏳ 미제출 ({notSubmitted.length}명)</span>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
                     {notSubmitted.length > 0 ? (
@@ -1352,7 +1354,7 @@ const SubjectDashboard = ({
                             <p className="text-sm font-black group-hover:text-amber-600 transition-colors">
                               {s.number && s.number !== '-' ? `${s.number}번 ` : ''}{s.name}
                             </p>
-                            <p className="text-[10px] text-neutral-300 font-medium">미제출</p>
+                            <p className="text-xs text-neutral-500 font-medium">미제출</p>
                           </div>
                           <ClockIcon size={14} className="text-amber-300 shrink-0" />
                         </div>
@@ -1376,7 +1378,7 @@ const SubjectDashboard = ({
                       style={{ width: students.length > 0 ? `${(submitted.length / students.length) * 100}%` : '0%' }}
                     />
                   </div>
-                  <span className="text-xs font-black text-on-surface-variant/60">
+                  <span className="text-sm font-black text-on-surface-variant/80">
                     {tabLabel} 참여율 {students.length > 0 ? Math.round((submitted.length / students.length) * 100) : 0}%
                   </span>
                 </div>
