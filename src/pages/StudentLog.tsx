@@ -1586,7 +1586,8 @@ const StudentLog = () => {
         try {
           const contentLength = content.trim().length;
           const prompt = `
-당신은 학생이 제출한 활동 기록을 검토하는 AI 가이드입니다.
+당신은 학생이 제출한 활동 기록의 내용 품질을 판단하는 AI입니다.
+글자수 미달·금지어는 이미 사전에 차단되었으므로 당신은 내용의 질만 평가합니다.
 
 [교사의 지침]
 ${guidePrompt}
@@ -1596,24 +1597,19 @@ ${guidePrompt}
 내용(${contentLength}자): "${content}"
 배운 점 및 느낀 점: "${feeling}"
 
-━━ 평가 기준 ━━
+━━ 평가 기준 (두 가지만) ━━
 
-1. reject (즉시 차단 — 명백한 불성실):
-   - 'ㅋ', 'ㅎ', '모름', '없음' 등 무성의한 단어만 있는 경우
-   - 내용이 사실상 비어 있거나 의미 없는 반복만 있는 경우
-   → reason: 학생에게 보여줄 간단한 안내
-   → guide: 어떻게 다시 써야 하는지 한 문장
-
-2. review_needed (자동 반려 — 교사 지침 미충족):
+1. review_needed (교사 검토 필요):
    - 교사 지침의 핵심 요구사항을 명백히 충족하지 못한 경우
-   - 구체적인 활동 내용 없이 단순 감상·감정만 작성한 경우
-   → reason: 학생에게 보여줄 반려 사유 (한두 문장, 왜 반려됐는지 구체적으로)
-   → guide: 어떻게 수정하면 승인될 수 있는지 친절한 개선 방향 (한두 문장)
+   - 수업과 무관하거나 구체적 활동 없이 단순 감상·감정만 나열한 경우
+   - 의미 없는 문장 반복으로 분량만 채운 경우
+   → reason: 학생에게 보여줄 반려 사유 (한두 문장, 구체적으로)
+   → guide: 어떻게 수정하면 좋을지 친절한 개선 방향 (한두 문장)
 
-3. good (자동 승인):
+2. good (승인):
    - 교사 지침을 어느 정도 충족하거나 수업과 관련된 내용이 있으면 승인
    - 분량·문체·맞춤법 무관, 진정성 있는 내용이면 승인
-   - 애매한 경우는 good으로 처리
+   - 애매한 경우는 반드시 good으로 처리
 
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
 {"status":"good","reason":"","guide":""}
@@ -1624,13 +1620,6 @@ ${guidePrompt}
           const jsonMatch = aiResponseText.match(/\{[\s\S]*?\}/);
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.status === 'reject') {
-              setAiFeedback({ reason: parsed.reason || '내용이 너무 짧거나 불성실합니다.', guide: parsed.guide || '활동한 내용을 구체적으로 작성해주세요.' });
-              setRejectModalType('block');
-              setIsRejectModalOpen(true);
-              setSubmitting(false);
-              return;
-            }
             if (parsed.status === 'review_needed' && parsed.reason) {
               aiReviewFlag = 'review_needed';
               aiConcern = parsed.reason;
