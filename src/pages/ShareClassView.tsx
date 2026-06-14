@@ -565,7 +565,9 @@ const ShareClassView = () => {
                           ))}
 
                           {results.map((r) => {
-                            const allImgUrls = results.filter((x) => x.image_url).map((x) => x.image_url as string);
+                            const allImgResults = results.filter((x) => x.image_url);
+                            const allImgUrls = allImgResults.map((x) => x.image_url as string);
+                            const allImgNames = allImgResults.map((x) => `${x.title || '결과물'}.webp`);
                             return (
                               <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
                                 <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -576,7 +578,7 @@ const ShareClassView = () => {
                                 {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
                                 {r.text_content && <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>}
                                 {r.image_url && (
-                                  <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, index: allImgUrls.indexOf(r.image_url as string) })}>
+                                  <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, names: allImgNames, index: allImgUrls.indexOf(r.image_url as string) })}>
                                     <img src={r.image_url} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                       <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
