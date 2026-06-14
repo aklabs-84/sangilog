@@ -1158,7 +1158,7 @@ const Classroom = () => {
               >
                 <Search size={14} className="group-hover:scale-110 transition-transform" />
                 <span>전체 학생 검색</span>
-                <span className="hidden sm:inline text-[9px] font-bold text-neutral-300 bg-neutral-100 px-1.5 py-0.5 rounded-md">⌘K</span>
+                <span className="hidden sm:inline text-[11px] font-bold text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded-md">⌘K</span>
               </button>
             )}
             {/* 이동 중 브리핑 버튼 */}
@@ -1204,7 +1204,7 @@ const Classroom = () => {
                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                       />
                     )}
-                    <tab.icon size={18} className={`transition-colors duration-500 ${isActive ? 'text-primary' : 'text-on-surface-variant/40'}`} />
+                    <tab.icon size={18} className={`transition-colors duration-500 ${isActive ? 'text-primary' : 'text-on-surface-variant/65'}`} />
                     <span>{tab.label}</span>
                   </button>
                 );
@@ -1250,7 +1250,7 @@ const Classroom = () => {
                     onOpenChat={() => setIsAIChatOpen(true)}
                   />
                   {sortedStudents.length > 0 && (
-                     <p className="mt-10 text-on-surface-variant/40 text-sm font-bold flex items-center gap-2">
+                     <p className="mt-10 text-on-surface-variant/70 text-sm font-bold flex items-center gap-2">
                        <Sparkles size={16} /> 
                        명단 데이터를 기반으로 분석된 실시간 결과입니다.
                      </p>
@@ -1268,7 +1268,7 @@ const Classroom = () => {
                       </div>
                       <div>
                         <h2 className="text-xl font-black">우리반 보드</h2>
-                        <p className="text-xs text-on-surface-variant font-bold">승인된 관찰기록·결과를 한눈에</p>
+                        <p className="text-xs text-on-surface-variant/80 font-bold">승인된 관찰기록·결과를 한눈에</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1345,8 +1345,8 @@ const Classroom = () => {
                         <div className="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center">
                           <StickyNote size={36} className="text-indigo-200" />
                         </div>
-                        <p className="font-black text-on-surface opacity-40">아직 승인된 게시물이 없어요</p>
-                        <p className="text-sm text-on-surface-variant/50 font-bold">학생 제출물을 승인하면 보드에 나타납니다</p>
+                        <p className="font-black text-on-surface opacity-60">아직 승인된 게시물이 없어요</p>
+                        <p className="text-sm text-on-surface-variant/75 font-bold">학생 제출물을 승인하면 보드에 나타납니다</p>
                       </div>
                     );
                     return (
@@ -1372,12 +1372,12 @@ const Classroom = () => {
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-xs font-black truncate">{post.student_name}</p>
-                                    <p className="text-[10px] text-on-surface-variant font-bold">
+                                    <p className="text-xs text-on-surface-variant/80 font-bold">
                                       {post.week_number ? `${post.week_number}주차 · ` : ''}{new Date(post.created_at).toLocaleDateString('ko-KR')}
                                     </p>
                                   </div>
                                 </div>
-                                <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${
                                   isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
                                 }`}>
                                   {isObs ? '관찰기록' : '결과'}
@@ -1391,7 +1391,7 @@ const Classroom = () => {
                                   <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.content}</p>
                                 )}
                                 {isObs && post.feeling && (
-                                  <p className="text-[11px] text-on-surface-variant/60 font-bold italic line-clamp-2">💬 {post.feeling}</p>
+                                  <p className="text-xs text-on-surface-variant/75 font-bold italic line-clamp-2">💬 {post.feeling}</p>
                                 )}
                                 {!isObs && post.text_content && (
                                   <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">{post.text_content}</p>
@@ -1488,7 +1488,7 @@ const Classroom = () => {
                   <h4 className="text-white font-black text-lg tracking-tight">
                     <span className="text-primary">{selectedStudentIds.length}명</span> 선택됨
                   </h4>
-                  <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Bulk Actions Ready</p>
+                  <p className="text-xs text-neutral-300 font-bold uppercase tracking-widest">선택된 학생에 대해 일괄 작업</p>
                 </div>
               </div>
 
@@ -1550,23 +1550,23 @@ const Classroom = () => {
               <h3 className="text-2xl font-black text-center text-neutral-900">새 학급 만들기</h3>
               <form onSubmit={handleCreateClass} className="space-y-5">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-neutral-500 ml-1 uppercase tracking-widest">학급 명칭</label>
+                  <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest">학급 명칭</label>
                   <input type="text" placeholder="예: 2학년 3반" value={newClassData.name} onChange={e => setNewClassData({...newClassData, name: e.target.value})} className="w-full px-5 py-3.5 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-neutral-900 transition-all outline-none placeholder:text-neutral-400" required />
                 </div>
                 {newClassData.class_type === 'subject' && (
                   <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <label className="text-[10px] font-black text-neutral-500 ml-1 uppercase tracking-widest">담당 과목</label>
+                    <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest">담당 과목</label>
                     <input type="text" placeholder="예: 국어" value={newClassData.subject} onChange={e => setNewClassData({...newClassData, subject: e.target.value})} className="w-full px-5 py-3.5 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-neutral-900 transition-all outline-none placeholder:text-neutral-400" required />
                   </div>
                 )}
                 <div className="flex p-1.5 bg-neutral-100 border border-neutral-200 rounded-2xl">
-                  <button type="button" onClick={() => setNewClassData({...newClassData, class_type: 'subject'})} className={`flex-1 py-3 text-[11px] font-black rounded-xl transition-all ${newClassData.class_type === 'subject' ? 'bg-white shadow-sm text-primary border border-primary/10' : 'text-neutral-400 hover:text-neutral-600'}`}>과목 수업 (세특 기반)</button>
-                  <button type="button" onClick={() => setNewClassData({...newClassData, class_type: 'homeroom'})} className={`flex-1 py-3 text-[11px] font-black rounded-xl transition-all ${newClassData.class_type === 'homeroom' ? 'bg-white shadow-sm text-secondary border border-secondary/10' : 'text-neutral-400 hover:text-neutral-600'}`}>담임 반 (행특 기반)</button>
+                  <button type="button" onClick={() => setNewClassData({...newClassData, class_type: 'subject'})} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${newClassData.class_type === 'subject' ? 'bg-white shadow-sm text-primary border border-primary/10' : 'text-neutral-500 hover:text-neutral-700'}`}>과목 수업 (세특 기반)</button>
+                  <button type="button" onClick={() => setNewClassData({...newClassData, class_type: 'homeroom'})} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${newClassData.class_type === 'homeroom' ? 'bg-white shadow-sm text-secondary border border-secondary/10' : 'text-neutral-500 hover:text-neutral-700'}`}>담임 반 (행특 기반)</button>
                 </div>
                 
                 <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-500 space-y-3">
                   <details className="group [&_summary::-webkit-details-marker]:hidden [&_summary]:list-none">
-                    <summary className="flex items-center justify-between gap-2 text-[11px] font-black text-secondary cursor-pointer select-none py-3 px-5 bg-secondary/5 rounded-2xl hover:bg-secondary/10 transition-all">
+                    <summary className="flex items-center justify-between gap-2 text-xs font-black text-secondary cursor-pointer select-none py-3 px-5 bg-secondary/5 rounded-2xl hover:bg-secondary/10 transition-all">
                       <div className="flex items-center gap-2">
                         <BookOpen size={14} />
                         주차별 수업 계획 (Syllabus)
@@ -1581,7 +1581,7 @@ const Classroom = () => {
                               <button type="button" onClick={() => {
                                 const plan = newClassData.weekly_plan.filter((_: any, i: number) => i !== idx);
                                 setNewClassData({ ...newClassData, weekly_plan: plan });
-                              }} className="absolute top-3 right-3 text-neutral-300 hover:text-error transition-colors"><X size={14} /></button>
+                              }} className="absolute top-3 right-3 text-neutral-500 hover:text-error transition-colors"><X size={14} /></button>
                             )}
                             <div className="flex items-center gap-3">
                                <div className="w-10 h-10 bg-white border border-neutral-100 rounded-lg flex flex-col items-center justify-center shrink-0">
@@ -1605,7 +1605,7 @@ const Classroom = () => {
                                      plan[idx].requires_result = e.target.checked;
                                      setNewClassData({ ...newClassData, weekly_plan: plan });
                                    }} className="w-3.5 h-3.5 rounded accent-secondary" />
-                                   <span className="text-[10px] font-black text-neutral-500">결과제출 필요</span>
+                                   <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
                                  </label>
                                </div>
                             </div>
@@ -1614,13 +1614,13 @@ const Classroom = () => {
                         <button type="button" onClick={() => {
                           const plan = newClassData.weekly_plan;
                           setNewClassData({ ...newClassData, weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true }] });
-                        }} className="w-full py-2 border-2 border-dashed border-neutral-200 rounded-xl text-[10px] font-black text-neutral-400 hover:border-secondary/40 hover:text-secondary transition-all">+ 주차 추가</button>
+                        }} className="w-full py-2 border-2 border-dashed border-neutral-300 rounded-xl text-xs font-black text-neutral-500 hover:border-secondary/40 hover:text-secondary transition-all">+ 주차 추가</button>
                       </div>
                     </div>
                   </details>
 
                   <details className="group [&_summary::-webkit-details-marker]:hidden [&_summary]:list-none">
-                    <summary className="flex items-center justify-between gap-2 text-[11px] font-black text-primary cursor-pointer select-none py-3 px-5 bg-primary/5 rounded-2xl hover:bg-primary/10 transition-all">
+                    <summary className="flex items-center justify-between gap-2 text-xs font-black text-primary cursor-pointer select-none py-3 px-5 bg-primary/5 rounded-2xl hover:bg-primary/10 transition-all">
                       <div className="flex items-center gap-2">
                         <Sparkles size={14} />
                         고급 AI 설정 (선택 사항)
@@ -1629,15 +1629,15 @@ const Classroom = () => {
                     </summary>
                     <div className="space-y-4 pt-4 px-1">
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">학생 활동 가이드</label>
+                        <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">학생 활동 가이드</label>
                         <textarea value={newClassData.student_guide_prompt} onChange={e => setNewClassData({...newClassData, student_guide_prompt: e.target.value})} placeholder="미입력 시 기본 지침이 적용됩니다." className="w-full h-24 px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold focus:bg-white outline-none resize-none" />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">AI 초안 작성 지침</label>
+                        <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">AI 초안 작성 지침</label>
                         <textarea value={newClassData.teacher_report_prompt} onChange={e => setNewClassData({...newClassData, teacher_report_prompt: e.target.value})} placeholder="미입력 시 기본 지침이 적용됩니다." className="w-full h-24 px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold focus:bg-white outline-none resize-none" />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">최소 제출 글자수</label>
+                        <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">최소 제출 글자수</label>
                         <div className="flex items-center gap-3">
                           <input
                             type="number"
@@ -1648,11 +1648,11 @@ const Classroom = () => {
                             placeholder="0 (제한 없음)"
                             className="w-40 px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-black focus:bg-white outline-none"
                           />
-                          <span className="text-[10px] font-bold text-neutral-400">자 미만이면 제출 차단 (0 = 제한 없음)</span>
+                          <span className="text-xs font-bold text-neutral-500">자 미만이면 제출 차단 (0 = 제한 없음)</span>
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">제출 금지어 (하드 차단)</label>
+                        <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">제출 금지어 (하드 차단)</label>
                         <textarea
                           value={(newClassData.blocked_keywords || []).join('\n')}
                           onChange={e => {
@@ -1663,13 +1663,13 @@ const Classroom = () => {
                           placeholder={"한 줄에 하나씩 입력\n예: 모름\n예: 복붙\n예: 없음"}
                           className="w-full h-20 px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold focus:bg-white outline-none resize-none"
                         />
-                        <span className="text-[10px] font-bold text-neutral-400 ml-1">입력한 단어/문장이 포함되면 제출 즉시 차단</span>
+                        <span className="text-xs font-bold text-neutral-500 ml-1">입력한 단어/문장이 포함되면 제출 즉시 차단</span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between px-1">
                           <div>
-                            <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">AI 내용 품질 검토</p>
-                            <p className="text-[10px] font-bold text-neutral-400 mt-0.5">꺼두면 글자수·금지어만 차단</p>
+                            <p className="text-xs font-black text-neutral-600 uppercase tracking-widest">AI 내용 품질 검토</p>
+                            <p className="text-xs font-bold text-neutral-500 mt-0.5">꺼두면 글자수·금지어만 차단</p>
                           </div>
                           <button
                             type="button"
@@ -1713,9 +1713,9 @@ const Classroom = () => {
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-black text-neutral-900">학급 정보 관리</h3>
                 <div className="flex p-1 bg-neutral-100 rounded-2xl border border-neutral-200">
-                  <button type="button" onClick={() => setEditModalTab('basic')} className={`px-6 py-2 text-[11px] font-black rounded-xl transition-all ${editModalTab === 'basic' ? 'bg-white shadow-sm text-primary' : 'text-neutral-400'}`}>기본 정보</button>
-                  <button type="button" onClick={() => setEditModalTab('syllabus')} className={`px-6 py-2 text-[11px] font-black rounded-xl transition-all ${editModalTab === 'syllabus' ? 'bg-white shadow-sm text-primary' : 'text-neutral-400'}`}>주차별 계획</button>
-                  <button type="button" onClick={() => setEditModalTab('ai')} className={`px-6 py-2 text-[11px] font-black rounded-xl transition-all ${editModalTab === 'ai' ? 'bg-white shadow-sm text-primary' : 'text-neutral-400'}`}>AI 지침 설정</button>
+                  <button type="button" onClick={() => setEditModalTab('basic')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${editModalTab === 'basic' ? 'bg-white shadow-sm text-primary' : 'text-neutral-500 hover:text-neutral-700'}`}>기본 정보</button>
+                  <button type="button" onClick={() => setEditModalTab('syllabus')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${editModalTab === 'syllabus' ? 'bg-white shadow-sm text-primary' : 'text-neutral-500 hover:text-neutral-700'}`}>주차별 계획</button>
+                  <button type="button" onClick={() => setEditModalTab('ai')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${editModalTab === 'ai' ? 'bg-white shadow-sm text-primary' : 'text-neutral-500 hover:text-neutral-700'}`}>AI 지침 설정</button>
                 </div>
               </div>
 
@@ -1730,12 +1730,12 @@ const Classroom = () => {
                       className="space-y-5"
                     >
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-neutral-500 ml-1 uppercase tracking-widest">학급 명칭</label>
+                        <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest">학급 명칭</label>
                         <input type="text" placeholder="학급 명칭" value={updateClassData.name} onChange={e => setUpdateClassData({...updateClassData, name: e.target.value})} className="w-full px-5 py-3.5 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-neutral-900 transition-all outline-none" required />
                       </div>
                       {updateClassData.class_type === 'subject' && (
                         <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <label className="text-[10px] font-black text-neutral-500 ml-1 uppercase tracking-widest">담당 과목</label>
+                          <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest">담당 과목</label>
                           <input type="text" placeholder="담당 과목" value={updateClassData.subject} onChange={e => setUpdateClassData({...updateClassData, subject: e.target.value})} className="w-full px-5 py-3.5 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-neutral-900 transition-all outline-none" required />
                         </div>
                       )}
@@ -1750,17 +1750,17 @@ const Classroom = () => {
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between ml-1 text-primary">
-                          <label className="text-[10px] font-black uppercase tracking-widest">주차별 수업 계획 (Syllabus)</label>
-                          <button 
-                            type="button" 
+                          <label className="text-xs font-black uppercase tracking-widest">주차별 수업 계획 (Syllabus)</label>
+                          <button
+                            type="button"
                             onClick={() => {
                               const plan = updateClassData.weekly_plan || [];
                               setUpdateClassData({
-                                ...updateClassData, 
+                                ...updateClassData,
                                 weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true }]
                               });
                             }}
-                            className="text-[10px] font-black px-3 py-1 bg-primary/10 rounded-lg hover:bg-primary hover:text-white transition-all"
+                            className="text-xs font-black px-3 py-1 bg-primary/10 rounded-lg hover:bg-primary hover:text-white transition-all"
                           >+ 주차 추가</button>
                         </div>
                         <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
@@ -1777,12 +1777,12 @@ const Classroom = () => {
                               
                               <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-white border-2 border-neutral-100 rounded-xl flex flex-col items-center justify-center shrink-0">
-                                  <span className="text-[8px] font-black text-neutral-400 uppercase">Week</span>
+                                  <span className="text-[10px] font-black text-neutral-500 uppercase">Week</span>
                                   <span className="text-sm font-black text-primary">{item.week}</span>
                                 </div>
                                 <div className="flex-1 space-y-4">
                                   <div className="space-y-1">
-                                    <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">수업 주제</label>
+                                    <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">수업 주제</label>
                                     <input 
                                       type="text" 
                                       value={item.topic} 
@@ -1796,7 +1796,7 @@ const Classroom = () => {
                                     />
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">자료 링크 (URL)</label>
+                                    <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">자료 링크 (URL)</label>
                                     <input
                                       type="text"
                                       value={item.url || ''}
@@ -1820,14 +1820,14 @@ const Classroom = () => {
                                         plan[idx].requires_result = e.target.checked;
                                         setUpdateClassData({ ...updateClassData, weekly_plan: plan });
                                       }} className="w-3.5 h-3.5 rounded accent-primary" />
-                                      <span className="text-[10px] font-black text-neutral-500">결과제출 필요</span>
+                                      <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
                                     </label>
                                   </div>
 
                                   {/* ── 에디터 자료 연결 ── */}
                                   <div className="space-y-1">
-                                    <label className="text-[9px] font-black text-neutral-400 uppercase tracking-widest ml-1">
-                                      수업자료 에디터 연결 {editingClassMaterials.length === 0 && <span className="normal-case font-bold text-neutral-300">(에디터에서 작성한 자료 없음)</span>}
+                                    <label className="text-xs font-black text-neutral-600 uppercase tracking-widest ml-1">
+                                      수업자료 에디터 연결 {editingClassMaterials.length === 0 && <span className="normal-case font-bold text-neutral-400">(에디터에서 작성한 자료 없음)</span>}
                                     </label>
 
                                     {item.material_id ? (
@@ -1914,8 +1914,8 @@ const Classroom = () => {
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between ml-1">
-                          <label className="text-[10px] font-black text-primary uppercase tracking-widest">학생 활동 가이드 (Guide Prompt)</label>
-                          <span className="text-[9px] text-neutral-400 font-bold">학생 입력 시 AI가 참고할 지침</span>
+                          <label className="text-xs font-black text-primary uppercase tracking-widest">학생 활동 가이드 (Guide Prompt)</label>
+                          <span className="text-xs text-neutral-500 font-bold">학생 입력 시 AI가 참고할 지침</span>
                         </div>
                         <textarea 
                           value={updateClassData.student_guide_prompt} 
@@ -1926,10 +1926,10 @@ const Classroom = () => {
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between ml-1">
-                          <label className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                          <label className="text-xs font-black text-secondary uppercase tracking-widest">
                             {updateClassData.class_type === 'homeroom' ? 'AI 행특 초안 작성 지침' : 'AI 세특 초안 작성 지침'}
                           </label>
-                          <span className="text-[9px] text-neutral-400 font-bold">AI 분석 및 생성 시 적용할 스타일</span>
+                          <span className="text-xs text-neutral-500 font-bold">AI 분석 및 생성 시 적용할 스타일</span>
                         </div>
                         <textarea
                           value={updateClassData.teacher_report_prompt}
@@ -1940,8 +1940,8 @@ const Classroom = () => {
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between ml-1">
-                          <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest">최소 제출 글자수</label>
-                          <span className="text-[9px] text-neutral-400 font-bold">미달 시 학생 제출 차단</span>
+                          <label className="text-xs font-black text-rose-500 uppercase tracking-widest">최소 제출 글자수</label>
+                          <span className="text-xs text-neutral-500 font-bold">미달 시 학생 제출 차단</span>
                         </div>
                         <div className="flex items-center gap-3">
                           <input
@@ -1958,8 +1958,8 @@ const Classroom = () => {
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between ml-1">
-                          <label className="text-[10px] font-black text-orange-500 uppercase tracking-widest">제출 금지어 (하드 차단)</label>
-                          <span className="text-[9px] text-neutral-400 font-bold">포함 시 즉시 제출 차단</span>
+                          <label className="text-xs font-black text-orange-500 uppercase tracking-widest">제출 금지어 (하드 차단)</label>
+                          <span className="text-xs text-neutral-500 font-bold">포함 시 즉시 제출 차단</span>
                         </div>
                         <textarea
                           value={(updateClassData.blocked_keywords || []).join('\n')}
@@ -1976,7 +1976,7 @@ const Classroom = () => {
                       <div className="space-y-3">
                         <div className="flex items-center justify-between px-1 py-1">
                           <div>
-                            <p className="text-[10px] font-black text-primary uppercase tracking-widest">AI 내용 품질 검토</p>
+                            <p className="text-xs font-black text-primary uppercase tracking-widest">AI 내용 품질 검토</p>
                             <p className="text-xs font-bold text-neutral-400 mt-0.5">꺼두면 글자수·금지어만 차단</p>
                           </div>
                           <button
@@ -2030,7 +2030,7 @@ const Classroom = () => {
                 <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://sangilog.vercel.app/classroom-entry?code=${classInfo.entry_code}`)}`} alt="QR Code" className="w-full h-full object-contain" />
               </div>
               <div className="bg-primary/5 p-6 rounded-3xl space-y-2">
-                <p className="text-[11px] font-black text-primary uppercase tracking-widest">입장 코드</p>
+                <p className="text-xs font-black text-primary uppercase tracking-widest">입장 코드</p>
                 <p className="text-4xl font-black font-manrope text-primary tracking-[0.2em]">{classInfo.entry_code}</p>
               </div>
             </motion.div>
@@ -2073,31 +2073,31 @@ const Classroom = () => {
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-3xl font-black font-manrope">학급 아카이브함</h3>
-                  <p className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">Manage your archived classes below.</p>
+                  <p className="text-xs font-bold text-on-surface-variant/80 uppercase tracking-widest">아카이브된 학급 목록</p>
                 </div>
               </div>
 
               <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
                 {archiveLoading ? (
-                  <div className="py-20 text-center space-y-4 opacity-40">
+                  <div className="py-20 text-center space-y-4 opacity-70">
                     <RefreshCcw size={40} className="mx-auto animate-spin" />
-                    <p className="text-xs font-black uppercase tracking-widest">Loading archives...</p>
+                    <p className="text-xs font-black uppercase tracking-widest">아카이브 불러오는 중...</p>
                   </div>
                 ) : archivedClasses.length > 0 ? (
                   archivedClasses.map(c => (
                     <div key={c.id} className="flex items-center justify-between p-6 bg-white/60 rounded-[2rem] border border-surface-container-high transition-all hover:bg-white hover:shadow-soft">
                       <div className="flex items-center gap-5">
-                         <div className="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-on-surface-variant/40"><GraduationCap size={24} /></div>
+                         <div className="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-on-surface-variant/60"><GraduationCap size={24} /></div>
                          <div className="flex flex-col">
                             <h4 className="text-lg font-black tracking-tight">{c.name}</h4>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">{c.subject}</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant/70">{c.subject}</p>
                          </div>
                       </div>
                       <div className="flex items-center gap-2">
-                         <button onClick={() => handleRestoreClass(c.id)} className="flex items-center gap-2 px-5 py-2.5 bg-primary/5 hover:bg-primary/10 text-primary rounded-xl text-[11px] font-black border border-primary/10 transition-all">
+                         <button onClick={() => handleRestoreClass(c.id)} className="flex items-center gap-2 px-5 py-2.5 bg-primary/5 hover:bg-primary/10 text-primary rounded-xl text-xs font-black border border-primary/10 transition-all">
                             <RefreshCcw size={14} /> 복원하기
                          </button>
-                         <button onClick={() => handlePermanentDelete(c.id, c.name)} className="p-2.5 hover:bg-error/10 text-error/30 hover:text-error transition-all rounded-xl" title="영구 삭제">
+                         <button onClick={() => handlePermanentDelete(c.id, c.name)} className="p-2.5 hover:bg-error/10 text-error/60 hover:text-error transition-all rounded-xl" title="영구 삭제">
                             <Trash2 size={16} />
                          </button>
                       </div>
@@ -2105,18 +2105,18 @@ const Classroom = () => {
                   ))
                 ) : (
                   <div className="py-20 text-center space-y-6 flex flex-col items-center">
-                    <div className="w-20 h-20 bg-surface-container rounded-[2rem] flex items-center justify-center opacity-20"><Archive size={32} /></div>
+                    <div className="w-20 h-20 bg-surface-container rounded-[2rem] flex items-center justify-center opacity-50"><Archive size={32} /></div>
                     <div className="space-y-2">
                       <p className="text-base font-black tracking-tight">아카이브함이 비어 있습니다.</p>
-                      <p className="text-[11px] font-bold text-on-surface-variant/40 uppercase tracking-widest">No archived classes found.</p>
+                      <p className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">아카이브된 학급이 없습니다.</p>
                     </div>
                   </div>
                 )}
               </div>
               
               <div className="bg-error/5 p-6 rounded-3xl flex items-start gap-4 border border-error/10">
-                <AlertCircle size={20} className="text-error/60 mt-0.5" />
-                <p className="text-[11px] text-error/60 leading-relaxed font-bold">
+                <AlertCircle size={20} className="text-error/70 mt-0.5" />
+                <p className="text-xs text-error/70 leading-relaxed font-bold">
                   아카이브함의 학급을 영구 삭제하면 학생 명단과 해당 학급에 기록된 모든 관찰 데이터가 영구적으로 손실됩니다. <br />
                   중요한 데이터는 사전에 [데이터 내보내기] 기능을 통해 백업하세요.
                 </p>

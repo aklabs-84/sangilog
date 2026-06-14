@@ -363,11 +363,11 @@ const SubjectDashboard = ({
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4 py-2">
         <div className="space-y-2">
           <div className="flex items-center gap-2.5">
-            <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] bg-primary/10 text-primary border border-primary/20 whitespace-nowrap">
+            <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-[0.12em] bg-primary/10 text-primary border border-primary/20 whitespace-nowrap">
               Subject Dashboard
             </span>
             {classInfo?.linked_class_id && (
-              <span className="flex items-center gap-1.5 px-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 rounded-full text-[9px] font-black uppercase tracking-[0.15em] whitespace-nowrap">
+              <span className="flex items-center gap-1.5 px-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 rounded-full text-xs font-black uppercase tracking-[0.12em] whitespace-nowrap">
                 <ArrowLeftRight size={10} /> Sync Active
               </span>
             )}
@@ -394,10 +394,10 @@ const SubjectDashboard = ({
             )}
           </button>
           <div className="flex p-1 glass rounded-2xl border border-white/40 shadow-soft">
-            <button onClick={() => setViewMode('grid')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40 hover:text-on-surface'}`}>
+            <button onClick={() => setViewMode('grid')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/65 hover:text-on-surface'}`}>
               <Grid size={17} />
             </button>
-            <button onClick={() => setViewMode('list')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'list' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/40 hover:text-on-surface'}`}>
+            <button onClick={() => setViewMode('list')} className={`p-2.5 rounded-xl transition-all ${viewMode === 'list' ? 'bg-white text-primary shadow-soft' : 'text-on-surface-variant/65 hover:text-on-surface'}`}>
               <List size={17} />
             </button>
           </div>
@@ -413,12 +413,12 @@ const SubjectDashboard = ({
               <Users size={26} className="text-primary/60" strokeWidth={1.8} />
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant/40">Total Students</span>
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-on-surface-variant/75">전체 학생 수</span>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-4xl font-black tracking-tight font-manrope">{students.length}</span>
-                <span className="text-base font-bold text-on-surface-variant/60">명</span>
+                <span className="text-base font-bold text-on-surface-variant/80">명</span>
               </div>
-              <span className="text-xs font-bold text-on-surface-variant/50 mt-0.5">전체 등록 인원</span>
+              <span className="text-xs font-bold text-on-surface-variant/70 mt-0.5">전체 등록 인원</span>
             </div>
           </div>
 
@@ -431,13 +431,13 @@ const SubjectDashboard = ({
               <BookOpen size={26} className="text-secondary/70" strokeWidth={1.8} />
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant/40">Activity Rate</span>
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-on-surface-variant/75">활동 참여율</span>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-4xl font-black tracking-tight font-manrope">{activeStudents.length}</span>
-                <span className="text-base font-bold text-on-surface-variant/60">명</span>
+                <span className="text-base font-bold text-on-surface-variant/80">명</span>
               </div>
-              <span className="text-xs font-bold text-on-surface-variant/50 mt-0.5">최근 활동 참여</span>
-              <span className="text-[10px] font-black text-secondary/60 group-hover:text-secondary transition-colors mt-1">클릭하여 현황 보기 →</span>
+              <span className="text-xs font-bold text-on-surface-variant/70 mt-0.5">최근 활동 참여</span>
+              <span className="text-xs font-black text-secondary/75 group-hover:text-secondary transition-colors mt-1">클릭하여 현황 보기 →</span>
             </div>
           </div>
         </div>
@@ -472,29 +472,29 @@ const SubjectDashboard = ({
               {copyCodeSuccess ? <Check size={14} /> : <KeyRound size={14} />}
               <span>{copyCodeSuccess ? '복사됨!' : (classInfo?.entry_code ?? '코드 없음')}</span>
             </button>
-            <button onClick={onOpenQR} className="w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft" title="QR 출결/입장">
+            <button onClick={onOpenQR} className="w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/80 transition-all shadow-soft" title="QR 출결/입장">
               <QrCode size={17} />
             </button>
-            <button onClick={onOpenResources} className="w-10 h-10 bg-white hover:bg-secondary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft" title="수업 자료실">
+            <button onClick={onOpenResources} className="w-10 h-10 bg-white hover:bg-secondary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/80 transition-all shadow-soft" title="수업 자료실">
               <BookOpen size={17} />
             </button>
-            <button onClick={onCopyLink} className={`w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft ${copySuccess ? 'text-primary' : 'text-on-surface-variant/60'}`} title="학생 기록 URL 복사">
+            <button onClick={onCopyLink} className={`w-10 h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft ${copySuccess ? 'text-primary' : 'text-on-surface-variant/80'}`} title="학생 기록 URL 복사">
               {copySuccess ? <Check size={17} /> : <LinkIcon size={17} />}
             </button>
             <button
               onClick={onShareTeacher}
-              className={`w-10 h-10 bg-white hover:bg-indigo-500 hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft ${shareTeacherSuccess ? 'text-indigo-500' : 'text-on-surface-variant/60'}`}
+              className={`w-10 h-10 bg-white hover:bg-indigo-500 hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft ${shareTeacherSuccess ? 'text-indigo-500' : 'text-on-surface-variant/80'}`}
               title="학교 선생님 공유 링크 복사"
             >
               {shareTeacherSuccess ? <Check size={17} /> : <Share2 size={17} />}
             </button>
-            <button onClick={onExport} className="w-10 h-10 bg-white hover:bg-on-surface hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft" title="데이터 내보내기">
+            <button onClick={onExport} className="w-10 h-10 bg-white hover:bg-on-surface hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/80 transition-all shadow-soft" title="데이터 내보내기">
               <Download size={17} />
             </button>
             <div className="relative">
               <button
                 onClick={() => setShowColDropdown(v => !v)}
-                className={`w-10 h-10 bg-white rounded-xl flex items-center justify-center transition-all shadow-soft ${showColDropdown ? 'text-primary bg-primary/10' : 'text-on-surface-variant/60 hover:bg-primary/10 hover:text-primary'}`}
+                className={`w-10 h-10 bg-white rounded-xl flex items-center justify-center transition-all shadow-soft ${showColDropdown ? 'text-primary bg-primary/10' : 'text-on-surface-variant/80 hover:bg-primary/10 hover:text-primary'}`}
                 title="컬럼 표시 설정"
               >
                 <SlidersHorizontal size={17} />
@@ -503,7 +503,7 @@ const SubjectDashboard = ({
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowColDropdown(false)} />
                   <div className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-xl border border-neutral-100 p-4 min-w-[180px]">
-                    <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
+                    <p className="text-xs font-black text-neutral-600 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
                     <div className="space-y-1">
                       {Object.entries(SUBJECT_COL_LABELS).map(([key, label]) => (
                         <label
@@ -520,7 +520,7 @@ const SubjectDashboard = ({
                     </div>
                     <button
                       onClick={resetCols}
-                      className="mt-3 w-full text-[10px] font-black text-neutral-400 hover:text-neutral-700 transition-colors text-center py-1.5 rounded-lg hover:bg-neutral-50"
+                      className="mt-3 w-full text-xs font-black text-neutral-500 hover:text-neutral-700 transition-colors text-center py-1.5 rounded-lg hover:bg-neutral-50"
                     >
                       기본값으로 초기화
                     </button>
@@ -568,23 +568,23 @@ const SubjectDashboard = ({
                 </span>
               )}
               {selectedStatsWeek !== null && (
-                <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
+                <span className="text-xs font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
                   {selectedStatsWeek}주차 선택됨
                 </span>
               )}
             </div>
-            {showStats ? <ChevronUp size={16} className="text-on-surface-variant/40" /> : <ChevronDown size={16} className="text-on-surface-variant/40" />}
+            {showStats ? <ChevronUp size={16} className="text-on-surface-variant/70" /> : <ChevronDown size={16} className="text-on-surface-variant/70" />}
           </button>
 
           {showStats && (
             <div className="px-6 pb-5">
               {statsLoading ? (
                 <div className="flex items-center justify-center py-6">
-                  <span className="text-xs font-bold text-on-surface-variant/40">불러오는 중...</span>
+                  <span className="text-xs font-bold text-on-surface-variant/70">불러오는 중...</span>
                 </div>
               ) : statsWeeks.length === 0 ? (
                 <div className="text-center py-6">
-                  <p className="text-xs font-black text-on-surface-variant/30">등록된 주차 계획이 없습니다. 학급 설정에서 주차별 계획을 추가해 주세요.</p>
+                  <p className="text-xs font-black text-on-surface-variant/70">등록된 주차 계획이 없습니다. 학급 설정에서 주차별 계획을 추가해 주세요.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -597,16 +597,16 @@ const SubjectDashboard = ({
                         <button
                           key={week}
                           onClick={() => setSelectedStatsWeek(isSelected ? null : week)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border ${
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
                             isSelected
                               ? 'bg-primary text-white border-primary shadow-sm'
-                              : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'
+                              : 'bg-white text-neutral-600 border-neutral-300 hover:border-primary/40 hover:text-primary'
                           }`}
                         >
                           <span>{week}주차</span>
-                          {topic && <span className={`text-[9px] ${isSelected ? 'text-white/70' : 'text-neutral-300'}`}>· {topic}</span>}
+                          {topic && <span className={`text-[11px] ${isSelected ? 'text-white/90' : 'text-neutral-500'}`}>· {topic}</span>}
                           {weekResultCount > 0 && (
-                            <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                            <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                               {weekResultCount}
                             </span>
                           )}
@@ -621,10 +621,10 @@ const SubjectDashboard = ({
                         <span className="text-base font-black">{obsOnWeek.size}</span>
                         <span className="font-bold opacity-60">명</span>
                       </div>
-                      <p className="text-[10px] font-bold text-on-surface-variant/40 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
+                      <p className="text-xs font-bold text-on-surface-variant/70 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
                     </div>
                   ) : (
-                    <p className="text-[11px] font-bold text-on-surface-variant/40">주차를 선택하면 해당 주차 결과 제출 현황이 아래 표에 표시됩니다.</p>
+                    <p className="text-xs font-bold text-on-surface-variant/70">주차를 선택하면 해당 주차 결과 제출 현황이 아래 표에 표시됩니다.</p>
                   )}
                 </div>
               )}
@@ -657,7 +657,7 @@ const SubjectDashboard = ({
               {/* ── 모바일 카드 뷰 (md 미만) ── */}
               <div className="md:hidden space-y-3">
                 {filteredStudents.length === 0 ? (
-                  <div className="text-center py-16 text-on-surface-variant/30 font-bold">학생이 없습니다</div>
+                  <div className="text-center py-16 text-on-surface-variant/70 font-bold">학생이 없습니다</div>
                 ) : filteredStudents.map((s) => {
                   const approvalStatus = (!s.activity || s.status === '미작성')
                     ? 'none'
@@ -680,14 +680,14 @@ const SubjectDashboard = ({
                             </div>
                           </label>
                           {s.number !== '-' && (
-                            <span className="text-xs font-black text-on-surface-variant/30 shrink-0 w-6">
+                            <span className="text-xs font-black text-on-surface-variant/70 shrink-0 w-6">
                               {s.number?.toString().padStart(2, '0')}
                             </span>
                           )}
                           <div className="min-w-0">
                             <p className="text-sm font-black text-on-surface truncate">{s.name}</p>
                             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                              <span className="text-[9px] font-bold text-on-surface-variant/40">{s.tag || '학생'}</span>
+                              <span className="text-xs font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
                               {suggestionCounts[s.id] > 0 && (
                                 <span className="text-[8px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">💬 {suggestionCounts[s.id]}</span>
                               )}
@@ -697,14 +697,14 @@ const SubjectDashboard = ({
                         {/* 승인 상태 배지 */}
                         <div className="shrink-0 flex items-center gap-2">
                           {approvalStatus === 'pending' && (
-                            <span className="text-[9px] font-black px-2 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">⏳ 대기</span>
+                            <span className="text-xs font-black px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-300 whitespace-nowrap">⏳ 대기</span>
                           )}
                           {approvalStatus === 'done' && (
-                            <span className="text-[9px] font-black px-2 py-1 rounded-lg bg-secondary/5 text-secondary border border-secondary/20 whitespace-nowrap">✅ 완료</span>
+                            <span className="text-xs font-black px-2 py-1 rounded-lg bg-secondary/10 text-secondary border border-secondary/30 whitespace-nowrap">✅ 완료</span>
                           )}
                           <button
                             onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant/30 hover:text-primary transition-all"
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant/70 hover:text-primary transition-all"
                           >
                             <ArrowRight size={14} />
                           </button>
@@ -720,13 +720,13 @@ const SubjectDashboard = ({
                             const topic = weeklyPlan.find(p => p.week === w)?.topic;
                             return (
                               <div key={w} className="flex items-center gap-2">
-                                <span className="text-[10px] font-black text-on-surface-variant/40 w-10 shrink-0">{w}주차</span>
-                                {topic && <span className="text-[10px] font-bold text-on-surface-variant/40 truncate flex-1 min-w-0">{topic}</span>}
+                                <span className="text-xs font-black text-on-surface-variant/75 w-10 shrink-0">{w}주차</span>
+                                {topic && <span className="text-xs font-bold text-on-surface-variant/70 truncate flex-1 min-w-0">{topic}</span>}
                                 <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-violet-50 text-violet-600 border-violet-100' : 'bg-neutral-50 text-neutral-300 border-neutral-100'}`}>
+                                  <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
                                     📝 {hasObs ? '제출' : '미제출'}
                                   </span>
-                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${hasResult ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-neutral-50 text-neutral-300 border-neutral-100'}`}>
+                                  <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md border ${hasResult ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
                                     📁 {hasResult ? '제출' : '미제출'}
                                   </span>
                                 </div>
@@ -863,8 +863,8 @@ const SubjectDashboard = ({
                                   className="w-16 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
                                 />
                               ) : (
-                                <span className="font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg">
-                                  {s.number === '-' ? <span className="text-neutral-300 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
+                                <span className="font-manrope font-black text-on-surface-variant/60 group-hover:text-primary transition-colors text-lg">
+                                  {s.number === '-' ? <span className="text-neutral-500 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
                                 </span>
                               )}
                             </td>
@@ -887,7 +887,7 @@ const SubjectDashboard = ({
                               <div className="flex flex-col">
                                 <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[10px] font-bold text-on-surface-variant/40">{s.tag || '학생'}</span>
+                                  <span className="text-xs font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
                                   {colVis.group && groupMap[s.id] && (
                                     <span
                                       className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
@@ -929,11 +929,11 @@ const SubjectDashboard = ({
                             <td className="p-6 text-center">
                               {s.status === '미작성' ||
                                (selectedStatsWeek !== null && !obsOnWeek.has(s.id) && !resultsOnWeek.has(s.id)) ? (
-                                <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
+                                <span className="text-on-surface-variant/50 text-xs font-bold">—</span>
                               ) : (s.pending_obs_ids?.length > 0) ? (
-                                <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200">승인 대기</span>
+                                <span className="px-3 py-1 rounded-lg text-xs font-black border bg-amber-50 text-amber-700 border-amber-300">승인 대기</span>
                               ) : (
-                                <span className="px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20">승인 완료</span>
+                                <span className="px-3 py-1 rounded-lg text-xs font-black border bg-secondary/10 text-secondary border-secondary/30">승인 완료</span>
                               )}
                             </td>
                           )}
@@ -942,16 +942,16 @@ const SubjectDashboard = ({
                             <>
                               <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                 {obsOnWeek.has(s.id) ? (
-                                  <span className="px-2 py-1 rounded-md text-[9px] font-black bg-violet-50 text-violet-600 border border-violet-100 whitespace-nowrap">📝 제출</span>
+                                  <span className="px-2 py-1 rounded-md text-xs font-black bg-violet-50 text-violet-700 border border-violet-200 whitespace-nowrap">📝 제출</span>
                                 ) : (
-                                  <span className="text-neutral-300 font-bold text-sm">—</span>
+                                  <span className="text-neutral-500 font-bold text-sm">—</span>
                                 )}
                               </td>
                               <td className="p-3 lg:p-6 text-center whitespace-nowrap">
                                 {resultsOnWeek.has(s.id) ? (
-                                  <span className="px-2 py-1 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 whitespace-nowrap">📁 제출</span>
+                                  <span className="px-2 py-1 rounded-md text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">📁 제출</span>
                                 ) : (
-                                  <span className="text-neutral-300 font-bold text-sm">—</span>
+                                  <span className="text-neutral-500 font-bold text-sm">—</span>
                                 )}
                               </td>
                             </>
@@ -990,7 +990,7 @@ const SubjectDashboard = ({
                                 </button>
                                 {pinPopupId === s.id && (
                                   <div className="absolute right-0 bottom-9 z-50 bg-neutral-900 text-white rounded-xl px-4 py-2.5 shadow-xl whitespace-nowrap">
-                                    <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-1">PIN</p>
+                                    <p className="text-xs font-black text-neutral-400 uppercase tracking-widest mb-1">PIN</p>
                                     <p className="text-lg font-black tracking-widest font-manrope">
                                       {s.pin ?? <span className="text-neutral-500 text-sm">미설정</span>}
                                     </p>
@@ -999,7 +999,7 @@ const SubjectDashboard = ({
                                 )}
                               </div>
                               <button onClick={(e) => { e.stopPropagation(); onResetPin(s.id); }} className="p-2 hover:bg-amber-50 text-neutral-400 hover:text-amber-500 transition-all rounded-lg" title="PIN 초기화"><KeyRound size={14} /></button>
-                              <button onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }} className="p-2 hover:bg-primary/10 text-primary/40 hover:text-primary transition-all rounded-lg" title="상세 보기"><ArrowRight size={16} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); onNavigateAI(s.id); }} className="p-2 hover:bg-primary/10 text-primary/70 hover:text-primary transition-all rounded-lg" title="상세 보기"><ArrowRight size={16} /></button>
                             </div>
                             )}
                           </td>
@@ -1067,7 +1067,7 @@ const SubjectDashboard = ({
                       className="px-4 py-1.5 cursor-pointer"
                       onClick={() => onNavigateAI(s.id)}
                     >
-                      <p className="text-[11px] text-on-surface-variant/55 font-medium line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-on-surface-variant/75 font-medium line-clamp-2 leading-relaxed">
                         {s.activity && s.activity !== '기록 없음'
                           ? <span className="italic">"{s.activity}"</span>
                           : <span className="opacity-40">활동 기록 없음</span>
@@ -1117,21 +1117,21 @@ const SubjectDashboard = ({
                     >
                       <button
                         onClick={() => onNavigateAI(s.id)}
-                        className="text-[10px] font-black text-primary flex items-center gap-0.5 hover:gap-1.5 transition-all"
+                        className="text-xs font-black text-primary flex items-center gap-0.5 hover:gap-1.5 transition-all"
                       >
                         기록 보기 <ArrowRight size={11} />
                       </button>
                       <div className="flex items-center gap-0.5">
                         <button
                           onClick={(e) => handleStartEdit(e, s)}
-                          className="p-1.5 hover:bg-primary/10 text-on-surface-variant/30 hover:text-primary rounded-lg transition-all"
+                          className="p-1.5 hover:bg-primary/10 text-on-surface-variant/65 hover:text-primary rounded-lg transition-all"
                           title="이름/번호 수정"
                         >
                           <Pencil size={12} />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); onDeleteStudent(s.id); }}
-                          className="p-1.5 hover:bg-error/10 text-on-surface-variant/30 hover:text-error rounded-lg transition-all"
+                          className="p-1.5 hover:bg-error/10 text-on-surface-variant/65 hover:text-error rounded-lg transition-all"
                           title="삭제"
                         >
                           <Trash2 size={12} />

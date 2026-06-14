@@ -296,7 +296,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
             <button onClick={addGroup} disabled={addLoading || !newName.trim()} className="px-4 py-2 text-xs font-black bg-primary text-white rounded-xl disabled:opacity-50">
               {addLoading ? <Loader2 size={13} className="animate-spin" /> : '추가'}
             </button>
-            <button onClick={() => { setAdding(false); setNewName(''); }} className="p-2 text-neutral-400 hover:text-neutral-600 rounded-xl">
+            <button onClick={() => { setAdding(false); setNewName(''); }} className="p-2 text-neutral-500 hover:text-neutral-700 rounded-xl">
               <X size={14} />
             </button>
           </motion.div>
@@ -305,8 +305,8 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
 
       {/* 조가 없을 때 안내 */}
       {groups.length === 0 && (
-        <div className="text-center py-16 text-on-surface-variant/40">
-          <Users size={36} className="mx-auto mb-3 opacity-30" />
+        <div className="text-center py-16 text-on-surface-variant/65">
+          <Users size={36} className="mx-auto mb-3 opacity-50" />
           <p className="font-black text-sm">조가 없습니다</p>
           <p className="text-xs mt-1">위의 "조 추가" 버튼으로 첫 번째 조를 만들어보세요</p>
         </div>
@@ -339,11 +339,11 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                       </div>
                       {deleteTarget === group.id ? (
                         <div className="flex items-center gap-1">
-                          <button onClick={() => deleteGroup(group.id)} className="px-2 py-1 text-[10px] font-black bg-red-500 text-white rounded-lg">삭제</button>
-                          <button onClick={() => setDeleteTarget(null)} className="p-1 text-neutral-400 hover:text-neutral-600 rounded-lg"><X size={12} /></button>
+                          <button onClick={() => deleteGroup(group.id)} className="px-2 py-1 text-xs font-black bg-red-500 text-white rounded-lg">삭제</button>
+                          <button onClick={() => setDeleteTarget(null)} className="p-1 text-neutral-500 hover:text-neutral-700 rounded-lg"><X size={12} /></button>
                         </div>
                       ) : (
-                        <button onClick={() => setDeleteTarget(group.id)} className="p-1 text-neutral-300 hover:text-red-400 rounded-lg transition-colors">
+                        <button onClick={() => setDeleteTarget(group.id)} className="p-1 text-neutral-500 hover:text-red-500 rounded-lg transition-colors">
                           <Trash2 size={13} />
                         </button>
                       )}
@@ -352,16 +352,16 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                     {/* 멤버 목록 */}
                     <div className="p-3 space-y-1.5 min-h-[56px]">
                       {members.length === 0 && (
-                        <p className="text-center text-[11px] text-neutral-300 py-3">아직 배정된 학생이 없어요</p>
+                        <p className="text-center text-xs text-neutral-500 py-3">아직 배정된 학생이 없어요</p>
                       )}
                       {members.map(s => (
                         <div key={s.id} className="flex items-center justify-between px-2.5 py-1.5 bg-neutral-50 rounded-xl group">
                           <span className="text-xs font-bold">
-                            <span className="text-neutral-400 mr-1.5">{s.number}</span>{s.name}
+                            <span className="text-neutral-500 mr-1.5">{s.number}</span>{s.name}
                           </span>
                           <button
                             onClick={() => assignStudent(s.id, null)}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 text-neutral-400 hover:text-red-400 transition-all rounded"
+                            className="opacity-0 group-hover:opacity-100 p-0.5 text-neutral-500 hover:text-red-500 transition-all rounded"
                             title="조에서 제거"
                           >
                             <X size={11} />
@@ -380,9 +380,9 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
             <div className="bg-neutral-50 border border-neutral-200 rounded-2xl overflow-hidden">
               {/* 패널 헤더 */}
               <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-white">
-                <UserPlus size={14} className="text-neutral-400" />
+                <UserPlus size={14} className="text-neutral-500" />
                 <span className="text-sm font-black text-neutral-600">미배정</span>
-                <span className="text-xs font-bold text-neutral-400">{unassigned.length}명</span>
+                <span className="text-xs font-bold text-neutral-500">{unassigned.length}명</span>
               </div>
 
               {/* 미배정 학생 목록 */}
@@ -404,7 +404,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                         <div className="flex items-center gap-1.5 min-w-0">
                           {saving === s.id
                             ? <Loader2 size={11} className="animate-spin text-primary shrink-0" />
-                            : <span className="text-[10px] text-neutral-400 shrink-0">{s.number}</span>
+                            : <span className="text-xs text-neutral-500 shrink-0">{s.number}</span>
                           }
                           <span className="text-xs font-black truncate">{s.name}</span>
                         </div>
@@ -416,7 +416,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
                             key={g.id}
                             onClick={() => assignStudent(s.id, g.id)}
                             disabled={saving === s.id}
-                            className="px-2 py-0.5 text-[10px] font-bold rounded-full text-white transition-opacity hover:opacity-75 disabled:opacity-40"
+                            className="px-2 py-0.5 text-xs font-bold rounded-full text-white transition-opacity hover:opacity-75 disabled:opacity-40"
                             style={{ backgroundColor: g.color }}
                           >
                             {g.name}
@@ -434,7 +434,7 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
 
       {/* 조는 있지만 학생이 없는 경우 */}
       {groups.length > 0 && students.length === 0 && (
-        <p className="text-center text-sm text-neutral-400 py-8">등록된 학생이 없습니다.</p>
+        <p className="text-center text-sm text-neutral-500 py-8">등록된 학생이 없습니다.</p>
       )}
     </div>
   );

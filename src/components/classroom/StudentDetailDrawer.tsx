@@ -274,7 +274,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                   {loading ? (
                      <div className="h-4 w-12 bg-surface-container animate-pulse rounded-md" />
                   ) : (
-                    <span className="px-2 py-0.5 bg-surface-container-high text-[10px] font-black uppercase text-on-surface-variant/60 rounded border border-neutral-200">
+                    <span className="px-2 py-0.5 bg-surface-container-high text-xs font-black uppercase text-on-surface-variant/75 rounded border border-neutral-200">
                        {student?.student_number ? `${student.student_number}번` : '정보 없음'}
                     </span>
                   )}
@@ -282,7 +282,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
               </div>
               <button 
                 onClick={onClose}
-                className="p-2 -mr-2 text-on-surface-variant/40 hover:text-on-surface hover:bg-surface-container rounded-xl transition-all"
+                className="p-2 -mr-2 text-on-surface-variant/65 hover:text-on-surface hover:bg-surface-container rounded-xl transition-all"
               >
                 <X size={20} />
               </button>
@@ -313,7 +313,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                    <div className="absolute -right-4 -top-4 text-primary/10 group-hover:rotate-12 transition-transform duration-500"><Sparkles size={60} /></div>
                    <div className="relative z-10 flex items-center gap-2 mb-3">
                       <Sparkles size={16} className="text-primary" />
-                      <h4 className="text-[11px] font-black uppercase tracking-widest text-primary">AI Quick Insight</h4>
+                      <h4 className="text-xs font-black uppercase tracking-widest text-primary">AI 빠른 인사이트</h4>
                    </div>
                    <p className="text-sm font-bold text-on-surface-variant leading-relaxed relative z-10 line-clamp-3">
                      {student?.observations?.length > 0 ? 
@@ -327,14 +327,14 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                    <div className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100 flex flex-col gap-2">
                       <div className="flex items-center gap-2 text-secondary/60">
                          <Activity size={14} />
-                         <span className="text-[9px] font-black uppercase tracking-widest">Total Activities</span>
+                         <span className="text-xs font-black uppercase tracking-widest">전체 활동</span>
                       </div>
                       <span className="text-2xl font-black">{student?.observations?.length || 0}</span>
                    </div>
                    <div className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100 flex flex-col gap-2">
                       <div className="flex items-center gap-2 text-primary/60">
                          <FileText size={14} />
-                         <span className="text-[9px] font-black uppercase tracking-widest">Reports</span>
+                         <span className="text-xs font-black uppercase tracking-widest">기록 보고서</span>
                       </div>
                       <span className="text-2xl font-black">0</span>
                    </div>
@@ -350,13 +350,13 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                        <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2 group-hover:text-primary transition-colors">
                          <Clock size={14} /> Recent Activities
                        </h4>
-                       <span className="text-[10px] font-black text-primary/50 group-hover:text-primary transition-colors flex items-center gap-1">
+                       <span className="text-xs font-black text-primary/70 group-hover:text-primary transition-colors flex items-center gap-1">
                          전체 보기 →
                        </span>
                      </button>
                      <button
                        onClick={() => setShowObsForm(v => !v)}
-                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-black transition-all ${
                          showObsForm
                            ? 'bg-primary/10 text-primary'
                            : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
@@ -381,7 +381,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                            <button
                              key={cat}
                              onClick={() => setObsCategory(cat)}
-                             className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                             className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
                                obsCategory === cat
                                  ? 'bg-primary-container text-primary'
                                  : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
@@ -401,14 +401,14 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                        <div className="flex gap-2 justify-end">
                          <button
                            onClick={() => { setShowObsForm(false); setObsTitle(''); setObsContent(''); setObsCategory('과제물'); }}
-                           className="px-3 py-1.5 text-[10px] font-black text-on-surface-variant bg-surface-container hover:bg-surface-container-high rounded-lg transition-all"
+                           className="px-3 py-1.5 text-xs font-black text-on-surface-variant bg-surface-container hover:bg-surface-container-high rounded-lg transition-all"
                          >
                            취소
                          </button>
                          <button
                            onClick={handleSaveObs}
                            disabled={savingObs || !obsTitle.trim() || !obsContent.trim()}
-                           className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-[10px] font-black disabled:opacity-50 hover:bg-primary/80 transition-all"
+                           className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-black disabled:opacity-50 hover:bg-primary/80 transition-all"
                          >
                            {savingObs ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 저장
                          </button>
@@ -424,26 +424,26 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                            className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100/50 hover:border-primary/20 hover:bg-primary/[0.02] transition-colors cursor-pointer"
                          >
                             <div className="flex items-center justify-between mb-1">
-                              <p className="text-[10px] font-bold text-on-surface-variant/40">
+                              <p className="text-xs font-bold text-on-surface-variant/65">
                                 {new Date(obs.created_at).toLocaleDateString('ko-KR')}
                               </p>
                               {obs.is_student_record && (
                                 obs.status === 'rejected' ? (
                                   <div className="flex items-center gap-1.5">
-                                    <span className="flex items-center gap-1 text-[9px] font-black text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md">
+                                    <span className="flex items-center gap-1 text-xs font-black text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md">
                                       <XCircle size={9} /> 반려됨
                                     </span>
                                     <button onClick={(e) => { e.stopPropagation(); handleApproveObs(obs.id); }}
-                                      className="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md hover:bg-emerald-100 transition-all">
+                                      className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md hover:bg-emerald-100 transition-all">
                                       승인으로 변경
                                     </button>
                                   </div>
                                 ) : obs.status === 'pending' ? (
-                                  <span className="flex items-center gap-1 text-[9px] font-black text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                  <span className="flex items-center gap-1 text-xs font-black text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
                                     <Clock size={9} /> 승인대기
                                   </span>
                                 ) : (
-                                  <span className="flex items-center gap-1 text-[9px] font-black text-secondary bg-secondary/10 px-1.5 py-0.5 rounded-md">
+                                  <span className="flex items-center gap-1 text-xs font-black text-secondary bg-secondary/10 px-1.5 py-0.5 rounded-md">
                                     <CheckCircle2 size={9} /> 승인완료
                                   </span>
                                 )
@@ -455,8 +455,8 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                               <div className="mt-2 rounded-xl border-2 border-amber-300 bg-amber-50 overflow-hidden">
                                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 border-b border-amber-200">
                                   <AlertTriangle size={11} className="text-amber-600 shrink-0" />
-                                  <span className="text-[9px] font-black text-amber-800 uppercase tracking-widest flex-1">AI 검토 권장</span>
-                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                                  <span className="text-xs font-black text-amber-800 uppercase tracking-widest flex-1">AI 검토 권장</span>
+                                  <span className={`text-xs font-black px-2 py-0.5 rounded-full border whitespace-nowrap ${
                                     obs.status === 'approved'
                                       ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                       : obs.status === 'rejected'
@@ -468,12 +468,12 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                     {obs.status === 'pending'  && '⏳ 대기'}
                                   </span>
                                 </div>
-                                <p className="px-3 py-2 text-[11px] font-bold text-amber-900 leading-relaxed">{obs.ai_concern}</p>
+                                <p className="px-3 py-2 text-xs font-bold text-amber-900 leading-relaxed">{obs.ai_concern}</p>
                               </div>
                             )}
                             {/* 기존 피드백 표시 */}
                             {obs.teacher_feedback && obs.status === 'rejected' && (
-                              <p className="mt-1.5 text-[10px] font-bold text-red-600 bg-red-50 rounded-lg px-2 py-1">
+                              <p className="mt-1.5 text-xs font-bold text-red-600 bg-red-50 rounded-lg px-2 py-1">
                                 💬 {obs.teacher_feedback}
                               </p>
                             )}
@@ -491,11 +491,11 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                   />
                                   <div className="flex gap-1.5">
                                     <button onClick={handleRejectObs} disabled={savingObsReject || !obsFeedback.trim()}
-                                      className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black disabled:opacity-50 transition-all">
+                                      className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-black disabled:opacity-50 transition-all">
                                       {savingObsReject ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 반려 전송
                                     </button>
                                     <button onClick={(e) => { e.stopPropagation(); setRejectingObsId(null); setObsFeedback(''); }}
-                                      className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-[10px] font-black hover:bg-neutral-200 transition-all">
+                                      className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-200 transition-all">
                                       취소
                                     </button>
                                   </div>
@@ -503,7 +503,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                               ) : (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setRejectingObsId(obs.id); setObsFeedback(''); }}
-                                  className="mt-1.5 flex items-center gap-1 text-[9px] font-black text-red-400 hover:text-red-600 transition-colors"
+                                  className="mt-1.5 flex items-center gap-1 text-xs font-black text-red-500 hover:text-red-600 transition-colors"
                                 >
                                   <XCircle size={10} /> 반려 + 피드백
                                 </button>
@@ -525,7 +525,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                     <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
                       <FolderOpen size={14} /> 결과 제출
                     </h4>
-                    <span className="text-[10px] font-black text-on-surface-variant/50 bg-surface-container px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-black text-on-surface-variant/70 bg-surface-container px-2 py-0.5 rounded-md">
                       {results.length}건
                     </span>
                   </div>
@@ -559,16 +559,16 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap mb-1">
                                   {r.title && <span className="font-black text-xs text-on-surface">{r.title}</span>}
-                                  <span className={`text-[8px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${cfg.color}`}>
+                                  <span className={`text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${cfg.color}`}>
                                     {cfg.label}
                                   </span>
                                 </div>
                                 {r.text_content && (
-                                  <p className="text-[11px] font-medium text-on-surface/70 line-clamp-2 leading-relaxed">{r.text_content}</p>
+                                  <p className="text-xs font-medium text-on-surface/80 line-clamp-2 leading-relaxed">{r.text_content}</p>
                                 )}
                                 {r.link_url && (
                                   <a href={r.link_url} target="_blank" rel="noopener noreferrer"
-                                    className="text-[11px] font-bold text-blue-500 hover:underline flex items-center gap-1 truncate">
+                                    className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 truncate">
                                     <ExternalLink size={10} />{r.link_url}
                                   </a>
                                 )}
@@ -581,7 +581,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                   />
                                 )}
                                 {r.result_type === 'file' && (
-                                  <p className="text-[11px] font-bold text-amber-600 flex items-center gap-1 mt-0.5">
+                                  <p className="text-xs font-bold text-amber-600 flex items-center gap-1 mt-0.5">
                                     <File size={10} />{r.display_name}
                                     {r.file_size ? ` (${formatFileSize(r.file_size)})` : ''}
                                   </p>
@@ -599,7 +599,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                             </div>
                             {/* 기존 피드백 표시 */}
                             {r.teacher_feedback && (
-                              <p className="mt-2 text-[10px] font-bold text-indigo-600 bg-indigo-50 rounded-lg px-2 py-1">
+                              <p className="mt-2 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-lg px-2 py-1">
                                 💬 선생님 피드백: {r.teacher_feedback}
                               </p>
                             )}
@@ -616,11 +616,11 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                 />
                                 <div className="flex gap-1.5">
                                   <button onClick={handleSaveResultFeedback} disabled={savingResultFeedback || !resultFeedback.trim()}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-black disabled:opacity-50 transition-all">
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-black disabled:opacity-50 transition-all">
                                     {savingResultFeedback ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 전송
                                   </button>
                                   <button onClick={() => { setFeedbackResultId(null); setResultFeedback(''); }}
-                                    className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-[10px] font-black hover:bg-neutral-200 transition-all">
+                                    className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-200 transition-all">
                                     취소
                                   </button>
                                 </div>
@@ -628,7 +628,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                             ) : (
                               <button
                                 onClick={() => { setFeedbackResultId(r.id); setResultFeedback(r.teacher_feedback || ''); }}
-                                className="mt-1.5 flex items-center gap-1 text-[9px] font-black text-indigo-400 hover:text-indigo-600 transition-colors"
+                                className="mt-1.5 flex items-center gap-1 text-xs font-black text-indigo-500 hover:text-indigo-600 transition-colors"
                               >
                                 <MessageCircle size={10} /> {r.teacher_feedback ? '피드백 수정' : '피드백 남기기'}
                               </button>
@@ -646,7 +646,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                     <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
                       <Megaphone size={14} /> 건의사항
                     </h4>
-                    <span className="text-[10px] font-black text-on-surface-variant/50 bg-surface-container px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-black text-on-surface-variant/70 bg-surface-container px-2 py-0.5 rounded-md">
                       {suggestions.length}건
                     </span>
                   </div>
@@ -669,8 +669,8 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                 <MessageSquare size={13} />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-[11px] font-medium text-on-surface/80 leading-relaxed">{s.content}</p>
-                                <p className="text-[9px] font-bold text-on-surface-variant/40 mt-1 flex items-center gap-1">
+                                <p className="text-xs font-medium text-on-surface/85 leading-relaxed">{s.content}</p>
+                                <p className="text-xs font-bold text-on-surface-variant/65 mt-1 flex items-center gap-1">
                                   <Clock size={9} />
                                   {new Date(s.created_at).toLocaleDateString('ko-KR')}
                                 </p>
@@ -692,14 +692,14 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                   <button
                                     onClick={() => handleSaveReply(s.id)}
                                     disabled={savingReplyId === s.id || !replyText.trim()}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-[10px] font-black hover:bg-primary/80 disabled:opacity-50 transition-all"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-black hover:bg-primary/80 disabled:opacity-50 transition-all"
                                   >
                                     {savingReplyId === s.id ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
                                     답변 저장
                                   </button>
                                   <button
                                     onClick={() => { setReplyingId(null); setReplyText(''); }}
-                                    className="px-3 py-1.5 text-neutral-400 rounded-lg text-[10px] font-black hover:bg-neutral-100 transition-all"
+                                    className="px-3 py-1.5 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-100 transition-all"
                                   >
                                     취소
                                   </button>
@@ -712,10 +712,10 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                     <Reply size={11} />
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-[9px] font-black text-primary uppercase tracking-wider mb-1">선생님 답변</p>
-                                    <p className="text-[11px] font-medium text-on-surface/80 leading-relaxed">{s.teacher_reply}</p>
+                                    <p className="text-xs font-black text-primary uppercase tracking-wider mb-1">선생님 답변</p>
+                                    <p className="text-xs font-medium text-on-surface/85 leading-relaxed">{s.teacher_reply}</p>
                                     {s.replied_at && (
-                                      <p className="text-[9px] font-bold text-on-surface-variant/30 mt-1 flex items-center gap-1">
+                                      <p className="text-xs font-bold text-on-surface-variant/65 mt-1 flex items-center gap-1">
                                         <Clock size={9} />
                                         {new Date(s.replied_at).toLocaleDateString('ko-KR')}
                                       </p>
@@ -723,7 +723,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                   </div>
                                   <button
                                     onClick={() => { setReplyingId(s.id); setReplyText(s.teacher_reply); }}
-                                    className="text-[9px] font-black text-primary/50 hover:text-primary transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-primary/10"
+                                    className="text-xs font-black text-primary/70 hover:text-primary transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-primary/10"
                                   >
                                     수정
                                   </button>
@@ -733,7 +733,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                               <div className="border-t border-neutral-100 px-3.5 py-2.5">
                                 <button
                                   onClick={() => { setReplyingId(s.id); setReplyText(''); }}
-                                  className="text-[10px] font-black text-primary/60 hover:text-primary flex items-center gap-1.5 transition-colors"
+                                  className="text-xs font-black text-primary/75 hover:text-primary flex items-center gap-1.5 transition-colors"
                                 >
                                   <Reply size={11} /> 답변 작성
                                 </button>

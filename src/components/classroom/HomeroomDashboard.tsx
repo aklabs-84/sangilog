@@ -236,11 +236,11 @@ const HomeroomDashboard = ({
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4 py-2">
         <div className="space-y-2">
           <div className="flex items-center gap-2.5">
-            <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] bg-primary/10 text-primary border border-primary/20 whitespace-nowrap">
+            <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-[0.12em] bg-primary/10 text-primary border border-primary/20 whitespace-nowrap">
               Homeroom Dashboard
             </span>
             {classInfo?.linked_class_id && (
-              <span className="flex items-center gap-1.5 px-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 rounded-full text-[9px] font-black uppercase tracking-[0.15em] whitespace-nowrap">
+              <span className="flex items-center gap-1.5 px-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 rounded-full text-xs font-black uppercase tracking-[0.12em] whitespace-nowrap">
                 <ArrowLeftRight size={10} /> Live Synced
               </span>
             )}
@@ -282,11 +282,11 @@ const HomeroomDashboard = ({
           <div className="absolute -top-8 -left-8 w-32 h-32 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors" />
           <div className="flex items-center justify-between relative z-10">
             <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform shadow-sm"><Users size={20} /></div>
-            <span className="text-[9px] font-black text-on-surface-variant/40 tracking-[0.15em] uppercase">Total Students</span>
+            <span className="text-xs font-black text-on-surface-variant/75 tracking-[0.12em] uppercase">전체 학생</span>
           </div>
           <div className="relative z-10">
-            <h3 className="text-4xl font-black tracking-tighter">{students.length}<span className="text-base ml-1.5 opacity-40">명</span></h3>
-            <p className="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wide">학급 전체 인원</p>
+            <h3 className="text-4xl font-black tracking-tighter">{students.length}<span className="text-base ml-1.5 opacity-70">명</span></h3>
+            <p className="text-xs font-bold text-on-surface-variant/75 uppercase tracking-wide">학급 전체 인원</p>
           </div>
         </motion.div>
 
@@ -298,14 +298,14 @@ const HomeroomDashboard = ({
           <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-secondary/5 rounded-full blur-3xl group-hover:bg-secondary/10 transition-colors" />
           <div className="flex items-center justify-between relative z-10">
             <div className="w-10 h-10 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary group-hover:scale-110 transition-transform shadow-sm"><BookOpen size={20} /></div>
-            <span className="text-[9px] font-black text-on-surface-variant/40 tracking-[0.15em] uppercase">Activity Rate</span>
+            <span className="text-xs font-black text-on-surface-variant/75 tracking-[0.12em] uppercase">활동 참여율</span>
           </div>
           <div className="relative z-10">
             <h3 className="text-4xl font-black tracking-tighter">
-              {students.filter(s => s.activity && s.activity !== '기록 없음').length}<span className="text-base ml-1.5 opacity-40">명</span>
+              {students.filter(s => s.activity && s.activity !== '기록 없음').length}<span className="text-base ml-1.5 opacity-70">명</span>
             </h3>
-            <p className="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wide">최근 활동 참여</p>
-            <p className="text-[9px] font-black text-secondary/40 mt-1 uppercase tracking-widest group-hover:text-secondary transition-colors">클릭하여 현황 보기 →</p>
+            <p className="text-xs font-bold text-on-surface-variant/75 uppercase tracking-wide">최근 활동 참여</p>
+            <p className="text-xs font-black text-secondary/75 mt-1 uppercase tracking-widest group-hover:text-secondary transition-colors">클릭하여 현황 보기 →</p>
           </div>
         </motion.div>
 
@@ -324,7 +324,7 @@ const HomeroomDashboard = ({
              <p className="text-sm font-bold text-on-surface leading-snug">
                학생들에게 참여 코드를 공유하여 <span className="text-primary font-black underline decoration-primary/20 underline-offset-4">수업 기록</span>을 시작하세요.
              </p>
-             <p className="text-[10px] font-black text-on-surface-variant/50 tracking-[0.15em] uppercase">Student Entry Code • 학생 전용</p>
+             <p className="text-xs font-black text-on-surface-variant/75 tracking-[0.12em] uppercase">학생 전용 입장 코드</p>
           </div>
         </motion.div>
       </div>
@@ -414,7 +414,7 @@ const HomeroomDashboard = ({
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowColDropdown(false)} />
                         <div className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-xl border border-neutral-100 p-4 min-w-[180px]">
-                          <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
+                          <p className="text-xs font-black text-neutral-600 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
                           <div className="space-y-1">
                             {Object.entries(HOMEROOM_COL_LABELS).map(([key, label]) => (
                               <label
@@ -431,7 +431,7 @@ const HomeroomDashboard = ({
                           </div>
                           <button
                             onClick={resetCols}
-                            className="mt-3 w-full text-[10px] font-black text-neutral-400 hover:text-neutral-700 transition-colors text-center py-1.5 rounded-lg hover:bg-neutral-50"
+                            className="mt-3 w-full text-xs font-black text-neutral-500 hover:text-neutral-700 transition-colors text-center py-1.5 rounded-lg hover:bg-neutral-50"
                           >
                             기본값으로 초기화
                           </button>
@@ -472,17 +472,17 @@ const HomeroomDashboard = ({
                    </span>
                  )}
                </div>
-               {showStats ? <ChevronUp size={16} className="text-on-surface-variant/40" /> : <ChevronDown size={16} className="text-on-surface-variant/40" />}
+               {showStats ? <ChevronUp size={16} className="text-on-surface-variant/70" /> : <ChevronDown size={16} className="text-on-surface-variant/70" />}
              </button>
 
              {showStats && (
                <div className="px-6 pb-5">
                  {statsLoading ? (
-                   <div className="flex items-center justify-center py-6 text-on-surface-variant/40">
+                   <div className="flex items-center justify-center py-6 text-on-surface-variant/70">
                      <span className="text-xs font-bold">불러오는 중...</span>
                    </div>
                  ) : statsWeeks.length === 0 ? (
-                   <div className="text-center py-6 text-on-surface-variant/30">
+                   <div className="text-center py-6 text-on-surface-variant/70">
                      <p className="text-xs font-black">등록된 주차 계획이 없습니다. 학급 설정에서 주차별 계획을 추가해 주세요.</p>
                    </div>
                  ) : (
@@ -497,16 +497,16 @@ const HomeroomDashboard = ({
                            <button
                              key={week}
                              onClick={() => setSelectedStatsWeek(isSelected ? null : week)}
-                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all border ${
+                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${
                                isSelected
                                  ? 'bg-primary text-white border-primary shadow-sm'
                                  : 'bg-white text-neutral-400 border-neutral-200 hover:border-primary/40 hover:text-primary'
                              }`}
                            >
                              <span>{week}주차</span>
-                             {topic && <span className={`text-[9px] ${isSelected ? 'text-white/70' : 'text-neutral-300'}`}>· {topic}</span>}
+                             {topic && <span className={`text-[11px] ${isSelected ? 'text-white/90' : 'text-neutral-500'}`}>· {topic}</span>}
                              {weekResultCount > 0 && (
-                               <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                               <span className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[11px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
                                  {weekResultCount}
                                </span>
                              )}
@@ -523,10 +523,10 @@ const HomeroomDashboard = ({
                            <span className="text-base font-black">{obsOnWeek.size}</span>
                            <span className="font-bold opacity-60">명</span>
                          </div>
-                         <p className="text-[10px] font-bold text-on-surface-variant/40 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
+                         <p className="text-xs font-bold text-on-surface-variant/70 ml-1">아래 표에서 주차별 결과 제출 현황을 확인하세요</p>
                        </div>
                      ) : (
-                       <p className="text-[11px] font-bold text-on-surface-variant/40">주차를 선택하면 해당 주차 결과 제출 현황이 아래 표에 표시됩니다.</p>
+                       <p className="text-xs font-bold text-on-surface-variant/70">주차를 선택하면 해당 주차 결과 제출 현황이 아래 표에 표시됩니다.</p>
                      )}
                    </div>
                  )}
@@ -537,7 +537,7 @@ const HomeroomDashboard = ({
            {/* ── 모바일 카드 뷰 (md 미만) ── */}
            <div className="md:hidden space-y-3">
              {filteredStudents.length === 0 ? (
-               <div className="text-center py-16 text-on-surface-variant/30 font-bold">학생이 없습니다</div>
+               <div className="text-center py-16 text-on-surface-variant/70 font-bold">학생이 없습니다</div>
              ) : filteredStudents.map((s) => {
                const approvalStatus = (!s.activity || s.activity === '기록 없음')
                  ? 'none'
@@ -560,14 +560,14 @@ const HomeroomDashboard = ({
                          </div>
                        </label>
                        {s.number !== '-' && (
-                         <span className="text-xs font-black text-on-surface-variant/30 shrink-0 w-6">
+                         <span className="text-xs font-black text-on-surface-variant/70 shrink-0 w-6">
                            {s.number?.toString().padStart(2, '0')}
                          </span>
                        )}
                        <div className="min-w-0">
                          <p className="text-sm font-black text-on-surface truncate">{s.name}</p>
                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                           <span className="text-[9px] font-bold text-on-surface-variant/40">{s.tag || '학생'}</span>
+                           <span className="text-xs font-bold text-on-surface-variant/70">{s.tag || '학생'}</span>
                            {colVis.group && groupMap[s.id] && (
                              <span
                                className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-white"
@@ -584,14 +584,14 @@ const HomeroomDashboard = ({
                      </div>
                      <div className="shrink-0 flex items-center gap-2">
                        {approvalStatus === 'pending' && (
-                         <span className="text-[9px] font-black px-2 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">⏳ 대기</span>
+                         <span className="text-xs font-black px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-300 whitespace-nowrap">⏳ 대기</span>
                        )}
                        {approvalStatus === 'done' && (
-                         <span className="text-[9px] font-black px-2 py-1 rounded-lg bg-secondary/5 text-secondary border border-secondary/20 whitespace-nowrap">✅ 완료</span>
+                         <span className="text-xs font-black px-2 py-1 rounded-lg bg-secondary/10 text-secondary border border-secondary/30 whitespace-nowrap">✅ 완료</span>
                        )}
                        <button
                          onClick={(e) => { e.stopPropagation(); onNavigateToStudent(s.id); }}
-                         className="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant/30 hover:text-primary transition-all"
+                         className="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant/70 hover:text-primary transition-all"
                        >
                          <ArrowRight size={14} />
                        </button>
@@ -607,13 +607,13 @@ const HomeroomDashboard = ({
                          const topic = weeklyPlan.find(p => p.week === w)?.topic;
                          return (
                            <div key={w} className="flex items-center gap-2">
-                             <span className="text-[10px] font-black text-on-surface-variant/40 w-10 shrink-0">{w}주차</span>
-                             {topic && <span className="text-[10px] font-bold text-on-surface-variant/40 truncate flex-1 min-w-0">{topic}</span>}
+                             <span className="text-xs font-black text-on-surface-variant/75 w-10 shrink-0">{w}주차</span>
+                             {topic && <span className="text-xs font-bold text-on-surface-variant/70 truncate flex-1 min-w-0">{topic}</span>}
                              <div className="flex items-center gap-1.5 shrink-0">
-                               <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-violet-50 text-violet-600 border-violet-100' : 'bg-neutral-50 text-neutral-300 border-neutral-100'}`}>
+                               <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md border ${hasObs ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
                                  📝 {hasObs ? '제출' : '미제출'}
                                </span>
-                               <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${hasResult ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-neutral-50 text-neutral-300 border-neutral-100'}`}>
+                               <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md border ${hasResult ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-neutral-100 text-neutral-500 border-neutral-200'}`}>
                                  📁 {hasResult ? '제출' : '미제출'}
                                </span>
                              </div>
@@ -713,8 +713,8 @@ const HomeroomDashboard = ({
                                  className="w-16 px-3 py-2 bg-white border-2 border-primary/30 rounded-xl text-sm font-black text-primary focus:outline-none focus:border-primary"
                                />
                              ) : (
-                               <span className="font-manrope font-black text-on-surface-variant/20 group-hover:text-primary transition-colors text-lg">
-                                 {s.number === '-' ? <span className="text-neutral-300 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
+                               <span className="font-manrope font-black text-on-surface-variant/60 group-hover:text-primary transition-colors text-lg">
+                                 {s.number === '-' ? <span className="text-neutral-500 text-sm">미입력</span> : s.number.toString().padStart(2, '0')}
                                </span>
                              )}
                            </td>
@@ -767,13 +767,13 @@ const HomeroomDashboard = ({
                                    <div
                                      key={linkedClass.id}
                                      title={linkedClass.subject}
-                                     className="w-8 h-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center text-[10px] font-black text-on-surface-variant/40 group-hover:border-primary/20 group-hover:text-primary transition-all shadow-sm shrink-0"
+                                     className="w-8 h-8 rounded-lg border border-neutral-200 bg-white flex items-center justify-center text-xs font-black text-on-surface-variant/70 group-hover:border-primary/20 group-hover:text-primary transition-all shadow-sm shrink-0"
                                    >
                                      {linkedClass.subject.charAt(0)}
                                    </div>
                                  ))
                                ) : (
-                                 <span className="text-[10px] font-bold text-on-surface-variant/20 italic">No linked subjects</span>
+                                 <span className="text-xs font-bold text-on-surface-variant/60 italic">연동 과목 없음</span>
                                )}
                              </div>
                            </td>
@@ -783,11 +783,11 @@ const HomeroomDashboard = ({
                          {colVis.approval && (
                            <td className="p-3 lg:p-6 text-center">
                              {(!s.activity || s.activity === '기록 없음') ? (
-                               <span className="text-on-surface-variant/20 text-[10px] font-bold">—</span>
+                               <span className="text-on-surface-variant/50 text-xs font-bold">—</span>
                              ) : (s.pending_obs_ids?.length > 0) ? (
-                               <span className="px-2 lg:px-3 py-1 rounded-lg text-[9px] font-black border bg-amber-50 text-amber-600 border-amber-200 whitespace-nowrap">승인 대기</span>
+                               <span className="px-2 lg:px-3 py-1 rounded-lg text-xs font-black border bg-amber-50 text-amber-700 border-amber-300 whitespace-nowrap">승인 대기</span>
                              ) : (
-                               <span className="px-2 lg:px-3 py-1 rounded-lg text-[9px] font-black border bg-secondary/5 text-secondary border-secondary/20 whitespace-nowrap">승인 완료</span>
+                               <span className="px-2 lg:px-3 py-1 rounded-lg text-xs font-black border bg-secondary/10 text-secondary border-secondary/30 whitespace-nowrap">승인 완료</span>
                              )}
                            </td>
                          )}
