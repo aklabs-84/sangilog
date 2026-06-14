@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check } from 'lucide-react';
+import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check, School, SlidersHorizontal } from 'lucide-react';
 
 interface ClassSelectorProps {
   classes: any[];
@@ -10,6 +10,8 @@ interface ClassSelectorProps {
   onEditClass: (classInfo: any) => void;
   onDeleteClass: (id: string) => void;
   onOpenArchive: () => void;
+  schoolName?: string;
+  onSchoolSettings?: () => void;
 }
 
 const ClassSelector = ({
@@ -19,7 +21,9 @@ const ClassSelector = ({
   onCreateClass,
   onEditClass,
   onDeleteClass,
-  onOpenArchive
+  onOpenArchive,
+  schoolName,
+  onSchoolSettings,
 }: ClassSelectorProps) => {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -183,6 +187,23 @@ const ClassSelector = ({
 
         {/* 우측 여백 채우기 */}
         <div className="flex-1" />
+
+        {/* 학교 이름 + 설정 버튼 */}
+        {schoolName && (
+          <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-2xl bg-surface-container border border-surface-container-high shrink-0">
+            <School size={14} className="text-on-surface-variant/50 shrink-0" />
+            <span className="text-xs font-black text-on-surface-variant truncate max-w-[140px]">{schoolName}</span>
+            {onSchoolSettings && (
+              <button
+                onClick={onSchoolSettings}
+                className="ml-1 p-1 rounded-lg hover:bg-primary/10 text-on-surface-variant/40 hover:text-primary transition-all"
+                title="학교 설정"
+              >
+                <SlidersHorizontal size={13} />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Global Actions (드롭다운 외부에도 유지) */}
         <div className="flex items-center gap-3 shrink-0">

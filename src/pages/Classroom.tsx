@@ -64,7 +64,7 @@ const FREE_CLASS_LIMIT = 2;
 const Classroom = () => {
   const { user, profile } = useAuth();
   const location = useLocation();
-  useNavigate();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
@@ -1241,11 +1241,13 @@ const Classroom = () => {
     )}
     <div className="flex flex-col relative bg-surface-container-low/20 rounded-[3rem] border border-white/40 shadow-2xl">
       {/* 1. 상단 학급 선택기 (기존 사이드바에서 수평형으로 전환) */}
-      <ClassSelector 
-        classes={classes} 
-        activeClassId={activeClassId} 
+      <ClassSelector
+        classes={classes}
+        activeClassId={activeClassId}
         onSelectClass={setActiveClassId}
         onCreateClass={() => setIsCreateModalOpen(true)}
+        schoolName={profile?.school_name || ''}
+        onSchoolSettings={() => navigate('/settings')}
         onEditClass={async (c) => {
           setUpdateClassData(c);
           setIsUpdateModalOpen(true);
@@ -1934,18 +1936,34 @@ const Classroom = () => {
                         />
                         <span className="text-[10px] font-bold text-neutral-400 ml-1">입력한 단어/문장이 포함되면 제출 즉시 차단</span>
                       </div>
-                      <div className="flex items-center justify-between px-1">
-                        <div>
-                          <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">AI 내용 품질 검토</p>
-                          <p className="text-[10px] font-bold text-neutral-400 mt-0.5">꺼두면 글자수·금지어만 차단</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <div>
+                            <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">AI 내용 품질 검토</p>
+                            <p className="text-[10px] font-bold text-neutral-400 mt-0.5">꺼두면 글자수·금지어만 차단</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setNewClassData({...newClassData, ai_review_enabled: !newClassData.ai_review_enabled})}
+                            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${newClassData.ai_review_enabled ? 'bg-primary' : 'bg-neutral-300'}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${newClassData.ai_review_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setNewClassData({...newClassData, ai_review_enabled: !newClassData.ai_review_enabled})}
-                          className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${newClassData.ai_review_enabled ? 'bg-primary' : 'bg-neutral-300'}`}
-                        >
-                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${newClassData.ai_review_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                        </button>
+                        <div className={`rounded-xl px-3 py-2.5 text-[10px] font-bold leading-relaxed transition-colors ${newClassData.ai_review_enabled ? 'bg-primary/5 text-primary/80 border border-primary/10' : 'bg-neutral-100 text-neutral-400 border border-neutral-200'}`}>
+                          {newClassData.ai_review_enabled ? (
+                            <>
+                              <span className="font-black">ON</span> — 학생이 제출하면 AI가 내용의 구체성·관련성을 판단합니다.<br />
+                              교사 지침에 맞지 않으면 자동으로 <span className="font-black">반려 플래그</span>가 붙어 교사 화면에 표시됩니다.<br />
+                              <span className="text-primary/50">※ 글자수·금지어 차단은 AI와 무관하게 항상 작동합니다.</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-black">OFF</span> — AI 검토 없이 글자수·금지어 조건만 통과하면 즉시 승인됩니다.<br />
+                              <span className="text-neutral-400">Gemini API가 호출되지 않으므로 비용이 발생하지 않습니다.</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </details>
@@ -2226,18 +2244,34 @@ const Classroom = () => {
                         />
                         <span className="text-xs font-bold text-neutral-400 ml-1">입력한 단어/문장이 내용에 포함되면 AI 검토 없이 즉시 차단</span>
                       </div>
-                      <div className="flex items-center justify-between px-1 py-2">
-                        <div>
-                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">AI 내용 품질 검토</p>
-                          <p className="text-xs font-bold text-neutral-400 mt-0.5">꺼두면 글자수·금지어만 차단</p>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between px-1 py-1">
+                          <div>
+                            <p className="text-[10px] font-black text-primary uppercase tracking-widest">AI 내용 품질 검토</p>
+                            <p className="text-xs font-bold text-neutral-400 mt-0.5">꺼두면 글자수·금지어만 차단</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setUpdateClassData({...updateClassData, ai_review_enabled: !(updateClassData.ai_review_enabled ?? true)})}
+                            className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${(updateClassData.ai_review_enabled ?? true) ? 'bg-primary' : 'bg-neutral-300'}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${(updateClassData.ai_review_enabled ?? true) ? 'translate-x-6' : 'translate-x-0'}`} />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setUpdateClassData({...updateClassData, ai_review_enabled: !(updateClassData.ai_review_enabled ?? true)})}
-                          className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${(updateClassData.ai_review_enabled ?? true) ? 'bg-primary' : 'bg-neutral-300'}`}
-                        >
-                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${(updateClassData.ai_review_enabled ?? true) ? 'translate-x-6' : 'translate-x-0'}`} />
-                        </button>
+                        <div className={`rounded-2xl px-4 py-3 text-xs font-bold leading-relaxed transition-colors ${(updateClassData.ai_review_enabled ?? true) ? 'bg-primary/5 text-primary/80 border border-primary/10' : 'bg-neutral-100 text-neutral-400 border border-neutral-200'}`}>
+                          {(updateClassData.ai_review_enabled ?? true) ? (
+                            <>
+                              <span className="font-black">ON</span> — 학생이 제출하면 AI가 내용의 구체성·관련성을 판단합니다.<br />
+                              교사 지침에 맞지 않으면 자동으로 <span className="font-black">반려 플래그</span>가 붙어 교사 화면에 표시됩니다.<br />
+                              <span className="text-primary/50 text-[11px]">※ 글자수·금지어 차단은 AI와 무관하게 항상 작동합니다.</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-black">OFF</span> — AI 검토 없이 글자수·금지어 조건만 통과하면 즉시 승인됩니다.<br />
+                              <span className="text-[11px]">Gemini API가 호출되지 않으므로 비용이 발생하지 않습니다.</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   ) : null}
