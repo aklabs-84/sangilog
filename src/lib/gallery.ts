@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import heic2any from 'heic2any';
 
 export interface GalleryItem {
   id: string;
@@ -104,23 +105,29 @@ export async function uploadGalleryItem(
   file: File
 ): Promise<GalleryItem> {
   const isHeic = /\.(heic|heif)$/i.test(file.name) || file.type === 'image/heic' || file.type === 'image/heif';
-  if (isHeic) throw new Error('HEIC/HEIF 형식은 지원되지 않습니다. PNG 또는 JPG로 변환 후 업로드해 주세요.');
 
-  const isImage = file.type.startsWith('image/');
-  const isVideo = file.type.startsWith('video/');
+  let sourceFile: File = file;
+  if (isHeic) {
+    const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+    const blob = Array.isArray(converted) ? converted[0] : converted;
+    sourceFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+  }
+
+  const isImage = sourceFile.type.startsWith('image/');
+  const isVideo = sourceFile.type.startsWith('video/');
   if (!isImage && !isVideo) throw new Error('이미지 또는 영상 파일만 업로드할 수 있습니다.');
 
-  const ext = isImage ? 'webp' : file.name.split('.').pop() ?? 'mp4';
+  const ext = isImage ? 'webp' : sourceFile.name.split('.').pop() ?? 'mp4';
   const path = `${teacherId}/${classId}/${Date.now()}.${ext}`;
 
-  let uploadBlob: Blob = file;
+  let uploadBlob: Blob = sourceFile;
   if (isImage) {
-    uploadBlob = await compressImage(file);
+    uploadBlob = await compressImage(sourceFile);
   }
 
   const { error: uploadError } = await supabase.storage
     .from('class-gallery')
-    .upload(path, uploadBlob, { contentType: isImage ? 'image/webp' : file.type });
+    .upload(path, uploadBlob, { contentType: isImage ? 'image/webp' : sourceFile.type });
   if (uploadError) throw uploadError;
 
   const { data: urlData } = supabase.storage.from('class-gallery').getPublicUrl(path);
@@ -133,7 +140,7 @@ export async function uploadGalleryItem(
       week_number: weekNumber,
       file_url: urlData.publicUrl,
       file_type: isImage ? 'image' : 'video',
-      file_name: file.name,
+      file_name: sourceFile.name,
       file_size: uploadBlob.size,
     })
     .select()
