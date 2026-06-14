@@ -1252,43 +1252,43 @@ const SubjectDashboard = ({
                 </button>
               </div>
 
-              {/* 주차 필터 칩 — overflow-x-auto 와 px 분리로 오른쪽 잘림 방지 */}
+              {/* 주차 필터 칩 */}
               {statsWeeks.length > 0 && (
-                <div className="border-b border-neutral-100 overflow-x-auto custom-scrollbar">
-                  <div className="flex items-center gap-2 py-3 px-10 w-max min-w-full">
-                    <button
-                      onClick={() => setSelectedActivityWeek(null)}
-                      className={`shrink-0 px-4 py-2 rounded-full text-xs font-black transition-all border ${
-                        selectedActivityWeek === null
-                          ? 'bg-neutral-700 text-white border-neutral-700 shadow-sm'
-                          : 'bg-white text-neutral-500 border-neutral-300 hover:border-neutral-500'
-                      }`}
-                    >
-                      전체
-                    </button>
-                    {statsWeeks.map(week => {
-                      const topic = weeklyPlan.find(p => p.week === week)?.topic;
-                      const weekCount = activityTab === 'obs' ? getObsOnWeek(week).size : getResultsOnWeek(week).size;
-                      return (
-                        <button
-                          key={week}
-                          onClick={() => setSelectedActivityWeek(week)}
-                          className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all border ${
-                            selectedActivityWeek === week
-                              ? tabColor === 'violet' ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                              : 'bg-white text-neutral-600 border-neutral-300 hover:border-neutral-500'
-                          }`}
-                        >
-                          {week}주차{topic && <span className="opacity-75">· {topic}</span>}
-                          {weekCount > 0 && (
-                            <span className={`px-1.5 py-0.5 rounded-md text-xs font-black ${
-                              selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'violet' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
-                            }`}>{weekCount}</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="pl-10 py-3 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                  <button
+                    onClick={() => setSelectedActivityWeek(null)}
+                    className={`shrink-0 px-4 py-2 rounded-full text-xs font-black transition-all border ${
+                      selectedActivityWeek === null
+                        ? 'bg-neutral-700 text-white border-neutral-700 shadow-sm'
+                        : 'bg-white text-neutral-500 border-neutral-300 hover:border-neutral-500'
+                    }`}
+                  >
+                    전체
+                  </button>
+                  {statsWeeks.map(week => {
+                    const topic = weeklyPlan.find(p => p.week === week)?.topic;
+                    const weekCount = activityTab === 'obs' ? getObsOnWeek(week).size : getResultsOnWeek(week).size;
+                    return (
+                      <button
+                        key={week}
+                        onClick={() => setSelectedActivityWeek(week)}
+                        className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all border ${
+                          selectedActivityWeek === week
+                            ? tabColor === 'violet' ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-white text-neutral-600 border-neutral-300 hover:border-neutral-500'
+                        }`}
+                      >
+                        {week}주차{topic && <span className="opacity-75">· {topic}</span>}
+                        {weekCount > 0 && (
+                          <span className={`px-1.5 py-0.5 rounded-md text-xs font-black ${
+                            selectedActivityWeek === week ? 'bg-white/20 text-white' : tabColor === 'violet' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'
+                          }`}>{weekCount}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {/* 마지막 칩 오른쪽 여백 확보 */}
+                  <div className="shrink-0 w-10" />
                 </div>
               )}
 
