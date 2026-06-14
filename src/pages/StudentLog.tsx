@@ -318,9 +318,10 @@ const StudentLog = () => {
           .eq('student_id', session.student_id)
           .in('status', ['rejected', 'approved'])
           .eq('is_student_record', true);
+        // 현재 상태에 맞는 set에만 추가 (cross-오염 방지)
         for (const obs of (processedObs || [])) {
-          seenRejectionIds.current.add(`obs-${obs.id}`);
-          seenApprovalIds.current.add(`obs-${obs.id}`);
+          if (obs.status === 'rejected') seenRejectionIds.current.add(`obs-${obs.id}`);
+          else if (obs.status === 'approved') seenApprovalIds.current.add(`obs-${obs.id}`);
         }
 
         const { data: processedResults } = await supabase
@@ -333,8 +334,8 @@ const StudentLog = () => {
           const gId = r.submission_group || r.id;
           if (!seenGroups.has(gId)) {
             seenGroups.add(gId);
-            seenRejectionIds.current.add(`result-${gId}`);
-            seenApprovalIds.current.add(`result-${gId}`);
+            if (r.status === 'rejected') seenRejectionIds.current.add(`result-${gId}`);
+            else if (r.status === 'approved') seenApprovalIds.current.add(`result-${gId}`);
           }
         }
       } catch { /* 무시 */ }
