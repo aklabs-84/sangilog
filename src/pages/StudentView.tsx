@@ -599,7 +599,7 @@ ${activitiesContext}
           <div className="flex gap-1.5 mb-8 p-1 bg-surface-container rounded-xl w-fit">
             {([
               { key: 'all',     label: '전체',       count: observations.length },
-              { key: 'teacher', label: '관찰 기록',   count: observations.filter(o => !o.is_student_record).length },
+              { key: 'teacher', label: '교사 메모',    count: observations.filter(o => !o.is_student_record).length },
               { key: 'student', label: '학생 제출',   count: observations.filter(o => o.is_student_record).length },
             ] as const).map(tab => (
               <button

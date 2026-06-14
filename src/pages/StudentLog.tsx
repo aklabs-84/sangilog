@@ -1963,7 +1963,7 @@ ${guidePrompt}
               const steps = [
                 {
                   step: 1,
-                  label: '관찰 기록 작성',
+                  label: '활동 기록 작성',
                   desc: '수업에서 한 활동, 배운 점, 느낀 점을 기록하세요',
                   done: obsSubmitted,
                   tab: 'record' as const,
@@ -2110,7 +2110,7 @@ ${guidePrompt}
                 <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-violet-50 border border-violet-200">
                   <div className="w-8 h-8 rounded-xl bg-violet-500 text-white flex items-center justify-center font-black text-sm shrink-0">1</div>
                   <div>
-                    <p className="text-xs font-black text-violet-700">Step 1 · 관찰 기록 작성</p>
+                    <p className="text-xs font-black text-violet-700">Step 1 · 활동 기록 작성</p>
                     <p className="text-[11px] font-bold text-violet-500/80">수업에서 한 활동, 배운 점, 느낀 점을 기록하고 제출하세요.</p>
                   </div>
                   <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-violet-400 hover:text-violet-600 shrink-0">홈으로 →</button>
@@ -2285,14 +2285,14 @@ ${guidePrompt}
                       </div>
                       <div>
                         <h3 className="text-2xl font-black font-manrope">제출 기록 이력</h3>
-                        <p className="text-on-surface-variant text-sm font-bold mt-1">관찰 기록과 결과 제출 내역을 함께 확인하세요.</p>
+                        <p className="text-on-surface-variant text-sm font-bold mt-1">활동 기록과 결과 제출 내역을 함께 확인하세요.</p>
                       </div>
                     </div>
                     {/* 필터 칩 */}
                     <div className="flex gap-2 shrink-0">
                       {([
                         { key: 'all' as const,    label: `전체 (${allItems.length})` },
-                        { key: 'obs' as const,    label: `📝 관찰 기록 (${obsItems.length})` },
+                        { key: 'obs' as const,    label: `📝 활동 기록 (${obsItems.length})` },
                         { key: 'result' as const, label: `📁 결과 제출 (${resItems.length})` },
                       ]).map(f => (
                         <button
@@ -2385,7 +2385,7 @@ ${guidePrompt}
                                       </div>
                                       <div className="space-y-1 min-w-0">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-[10px] font-black text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md">📝 관찰 기록</span>
+                                          <span className="text-[10px] font-black text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-md">📝 활동 기록</span>
                                           {log.category && <span className="text-[10px] font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-md">{log.category}</span>}
                                         </div>
                                         <p className="font-black text-base group-hover:text-primary transition-colors">{log.activity_name}</p>
@@ -2731,7 +2731,7 @@ ${guidePrompt}
                   <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shrink-0">2</div>
                   <div>
                     <p className="text-xs font-black text-emerald-700">Step 2 · 결과물 제출</p>
-                    <p className="text-[11px] font-bold text-emerald-500/80">관찰 기록 작성 후 결과물을 업로드하세요.</p>
+                    <p className="text-[11px] font-bold text-emerald-500/80">활동 기록 작성 후 결과물을 업로드하세요.</p>
                   </div>
                   <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-emerald-400 hover:text-emerald-600 shrink-0">홈으로 →</button>
                 </div>
@@ -4158,7 +4158,7 @@ ${guidePrompt}
                         <h3 className="text-sm font-black text-violet-600 uppercase tracking-widest">📌 입력 방법</h3>
                         <div className="space-y-2">
                           {[
-                            { step: '1', text: '상단 탭에서 "관찰 기록" 클릭' },
+                            { step: '1', text: '상단 탭에서 "활동 기록" 클릭' },
                             { step: '2', text: '오늘 배운 활동의 주차를 선택 (예: 2주차)' },
                             { step: '3', text: '활동 제목을 입력하거나 주차를 선택하면 자동 입력됩니다' },
                             { step: '4', text: '오늘 수업에서 무엇을 했는지, 느낀 점을 자유롭게 작성' },
@@ -4414,7 +4414,7 @@ ${guidePrompt}
                     <div className="space-y-2 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         {isObs ? (
-                          <span className="text-[10px] font-black text-violet-600 bg-white border border-violet-200 px-2.5 py-1 rounded-lg">📝 관찰 기록</span>
+                          <span className="text-[10px] font-black text-violet-600 bg-white border border-violet-200 px-2.5 py-1 rounded-lg">📝 활동 기록</span>
                         ) : (
                           <span className="text-[10px] font-black text-emerald-600 bg-white border border-emerald-200 px-2.5 py-1 rounded-lg">📁 결과 제출</span>
                         )}

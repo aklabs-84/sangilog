@@ -316,9 +316,9 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                       <h4 className="text-xs font-black uppercase tracking-widest text-primary">AI 빠른 인사이트</h4>
                    </div>
                    <p className="text-sm font-bold text-on-surface-variant leading-relaxed relative z-10 line-clamp-3">
-                     {student?.observations?.length > 0 ? 
-                       "누적된 관찰 기록을 분석하여 학생의 주요 성장 키워드와 성취도를 시각적으로 시뮬레이션 할 수 있습니다."
-                       : "아직 등록된 활동 기록이 없습니다. 새로운 관찰 기록을 추가하여 AI 분석을 시작하세요."}
+                     {student?.observations?.length > 0 ?
+                       "누적된 활동 기록을 분석하여 학생의 주요 성장 키워드와 성취도를 시각적으로 시뮬레이션 할 수 있습니다."
+                       : "아직 등록된 활동 기록이 없습니다. 새로운 교사 메모를 추가하여 AI 분석을 시작하세요."}
                    </p>
                 </div>
 
@@ -362,7 +362,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                            : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
                        }`}
                      >
-                       <PenLine size={11} /> 관찰 기록
+                       <PenLine size={11} /> 교사 메모
                      </button>
                    </div>
 
@@ -423,30 +423,40 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                            onClick={handleNavigateToFullPage}
                            className="p-4 bg-white rounded-2xl shadow-sm border border-neutral-100/50 hover:border-primary/20 hover:bg-primary/[0.02] transition-colors cursor-pointer"
                          >
-                            <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-start justify-between mb-1">
                               <p className="text-xs font-bold text-on-surface-variant/65">
                                 {new Date(obs.created_at).toLocaleDateString('ko-KR')}
                               </p>
                               {obs.is_student_record && (
-                                obs.status === 'rejected' ? (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="flex items-center gap-1 text-xs font-black text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md">
-                                      <XCircle size={9} /> 반려됨
+                                <div className="flex flex-col items-end gap-1">
+                                  {obs.status === 'rejected' ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="flex items-center gap-1 text-xs font-black text-red-500 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md">
+                                        <XCircle size={9} /> 반려됨
+                                      </span>
+                                      <button onClick={(e) => { e.stopPropagation(); handleApproveObs(obs.id); }}
+                                        className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md hover:bg-emerald-100 transition-all">
+                                        승인으로 변경
+                                      </button>
+                                    </div>
+                                  ) : obs.status === 'pending' ? (
+                                    <span className="flex items-center gap-1 text-xs font-black text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                                      <Clock size={9} /> 승인대기
                                     </span>
-                                    <button onClick={(e) => { e.stopPropagation(); handleApproveObs(obs.id); }}
-                                      className="text-xs font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md hover:bg-emerald-100 transition-all">
-                                      승인으로 변경
+                                  ) : (
+                                    <span className="flex items-center gap-1 text-xs font-black text-secondary bg-secondary/10 px-1.5 py-0.5 rounded-md">
+                                      <CheckCircle2 size={9} /> 승인완료
+                                    </span>
+                                  )}
+                                  {obs.status !== 'rejected' && rejectingObsId !== obs.id && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setRejectingObsId(obs.id); setObsFeedback(''); }}
+                                      className="flex items-center gap-1 text-xs font-black text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md hover:bg-red-100 transition-all"
+                                    >
+                                      <XCircle size={9} /> 반려+피드백
                                     </button>
-                                  </div>
-                                ) : obs.status === 'pending' ? (
-                                  <span className="flex items-center gap-1 text-xs font-black text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
-                                    <Clock size={9} /> 승인대기
-                                  </span>
-                                ) : (
-                                  <span className="flex items-center gap-1 text-xs font-black text-secondary bg-secondary/10 px-1.5 py-0.5 rounded-md">
-                                    <CheckCircle2 size={9} /> 승인완료
-                                  </span>
-                                )
+                                  )}
+                                </div>
                               )}
                             </div>
                             <p className="text-sm font-black text-on-surface/80">{obs.activity_name}</p>
@@ -477,37 +487,28 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                 💬 {obs.teacher_feedback}
                               </p>
                             )}
-                            {/* 반려 버튼 / 인라인 피드백 입력 */}
-                            {obs.is_student_record && obs.status !== 'rejected' && (
-                              rejectingObsId === obs.id ? (
-                                <div className="mt-2 space-y-1.5" onClick={e => e.stopPropagation()}>
-                                  <textarea
-                                    value={obsFeedback}
-                                    onChange={e => setObsFeedback(e.target.value)}
-                                    placeholder="반려 사유를 입력하세요..."
-                                    className="w-full text-xs p-2.5 border border-red-200 rounded-xl resize-none bg-red-50 focus:outline-none focus:border-red-400"
-                                    rows={2}
-                                    autoFocus
-                                  />
-                                  <div className="flex gap-1.5">
-                                    <button onClick={handleRejectObs} disabled={savingObsReject || !obsFeedback.trim()}
-                                      className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-black disabled:opacity-50 transition-all">
-                                      {savingObsReject ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 반려 전송
-                                    </button>
-                                    <button onClick={(e) => { e.stopPropagation(); setRejectingObsId(null); setObsFeedback(''); }}
-                                      className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-200 transition-all">
-                                      취소
-                                    </button>
-                                  </div>
+                            {/* 인라인 피드백 입력 폼 */}
+                            {obs.is_student_record && obs.status !== 'rejected' && rejectingObsId === obs.id && (
+                              <div className="mt-2 space-y-1.5" onClick={e => e.stopPropagation()}>
+                                <textarea
+                                  value={obsFeedback}
+                                  onChange={e => setObsFeedback(e.target.value)}
+                                  placeholder="반려 사유를 입력하세요..."
+                                  className="w-full text-xs p-2.5 border border-red-200 rounded-xl resize-none bg-red-50 focus:outline-none focus:border-red-400"
+                                  rows={2}
+                                  autoFocus
+                                />
+                                <div className="flex gap-1.5">
+                                  <button onClick={handleRejectObs} disabled={savingObsReject || !obsFeedback.trim()}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-black disabled:opacity-50 transition-all">
+                                    {savingObsReject ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 반려 전송
+                                  </button>
+                                  <button onClick={(e) => { e.stopPropagation(); setRejectingObsId(null); setObsFeedback(''); }}
+                                    className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-200 transition-all">
+                                    취소
+                                  </button>
                                 </div>
-                              ) : (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setRejectingObsId(obs.id); setObsFeedback(''); }}
-                                  className="mt-1.5 flex items-center gap-1 text-xs font-black text-red-500 hover:text-red-600 transition-colors"
-                                >
-                                  <XCircle size={10} /> 반려 + 피드백
-                                </button>
-                              )
+                              </div>
                             )}
                          </div>
                        ))}
