@@ -103,6 +103,9 @@ export async function uploadGalleryItem(
   weekNumber: number | null,
   file: File
 ): Promise<GalleryItem> {
+  const isHeic = /\.(heic|heif)$/i.test(file.name) || file.type === 'image/heic' || file.type === 'image/heif';
+  if (isHeic) throw new Error('HEIC/HEIF 형식은 지원되지 않습니다. PNG 또는 JPG로 변환 후 업로드해 주세요.');
+
   const isImage = file.type.startsWith('image/');
   const isVideo = file.type.startsWith('video/');
   if (!isImage && !isVideo) throw new Error('이미지 또는 영상 파일만 업로드할 수 있습니다.');
