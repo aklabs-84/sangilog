@@ -1816,8 +1816,8 @@ const Classroom = () => {
 
       <AnimatePresence>
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-on-surface/20 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-white p-10 rounded-[2.5rem] space-y-8 shadow-2xl border border-neutral-200">
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-on-surface/20 backdrop-blur-sm overflow-y-auto">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-white p-8 md:p-10 rounded-[2.5rem] space-y-8 shadow-2xl border border-neutral-200 my-auto">
               <h3 className="text-2xl font-black text-center text-neutral-900">새 학급 만들기</h3>
               <form onSubmit={handleCreateClass} className="space-y-5">
                 <div className="space-y-1.5">
@@ -1979,8 +1979,8 @@ const Classroom = () => {
         )}
 
         {isUpdateModalOpen && updateClassData && (
-          <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-black/30 backdrop-blur-md">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-white p-10 rounded-[3rem] space-y-8 shadow-2xl border border-neutral-200">
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-black/30 backdrop-blur-md overflow-y-auto">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-white p-8 md:p-10 rounded-[3rem] space-y-8 shadow-2xl border border-neutral-200 my-auto">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-black text-neutral-900">학급 정보 관리</h3>
                 <div className="flex p-1 bg-neutral-100 rounded-2xl border border-neutral-200">
