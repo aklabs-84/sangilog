@@ -76,7 +76,7 @@ const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIIn
           <div className="space-y-3 z-10">
             <h3 className="text-2xl font-black tracking-tight">AI 인사이트 분석</h3>
             <p className="text-base text-on-surface-variant leading-relaxed max-w-md">
-              누적된 관찰기록을 AI가 분석하여 <span className="font-black text-on-surface">학급 현황 인사이트</span>를 생성합니다.
+              누적된 활동 기록을 AI가 분석하여 <span className="font-black text-on-surface">학급 현황 인사이트</span>를 생성합니다.
             </p>
             {/* 데이터 현황 */}
             <div className="flex items-center justify-center gap-6 pt-2">
@@ -87,12 +87,12 @@ const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIIn
               <div className="w-px h-8 bg-surface-container-high" />
               <div className="text-center">
                 <p className="text-2xl font-black text-primary">{obsCount}</p>
-                <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">관찰기록</p>
+                <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">활동 기록</p>
               </div>
             </div>
             {obsCount === 0 && (
               <p className="text-xs text-on-surface-variant/50 mt-1">
-                관찰기록이 없으면 분석 결과가 제한적일 수 있습니다.
+                활동 기록이 없으면 분석 결과가 제한적일 수 있습니다.
               </p>
             )}
           </div>

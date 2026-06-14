@@ -157,7 +157,7 @@ const AIChatModal = ({ isOpen, onClose, className, students }: AIChatModalProps)
                       </p>
                       <div className="flex flex-wrap justify-center gap-2">
                         <span className="px-3 py-1 bg-primary/5 text-primary text-[10px] font-black rounded-full border border-primary/10">#세특작성</span>
-                        <span className="px-3 py-1 bg-secondary/5 text-secondary text-[10px] font-black rounded-full border border-secondary/10">#관찰기록분석</span>
+                        <span className="px-3 py-1 bg-secondary/5 text-secondary text-[10px] font-black rounded-full border border-secondary/10">#활동기록분석</span>
                         <span className="px-3 py-1 bg-tertiary/5 text-tertiary text-[10px] font-black rounded-full border border-tertiary/10">#이미지인식</span>
                       </div>
                     </div>

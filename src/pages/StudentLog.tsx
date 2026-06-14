@@ -357,7 +357,7 @@ const StudentLog = () => {
         const obs = payload.new;
         if (!obs?.is_student_record) return;
         const key = `obs-${obs.id}`;
-        const obsTitle = obs.activity_name || '관찰기록';
+        const obsTitle = obs.activity_name || '활동 기록';
 
         if (obs?.status === 'rejected') {
           // 재반려 감지 허용: 승인 seen에서 제거
@@ -449,7 +449,7 @@ const StudentLog = () => {
           for (const obs of (obsData || [])) {
             const key = `obs-${obs.id}`;
             const prev = statusTrackMap.current.get(key);
-            const obsTitle = obs.activity_name || '관찰기록';
+            const obsTitle = obs.activity_name || '활동 기록';
             if (obs.status === 'rejected' && prev !== 'rejected') {
               seenApprovalIds.current.delete(key);
               seenRejectionIds.current.add(key);
@@ -458,7 +458,7 @@ const StudentLog = () => {
               fetchHistory();
               setStudentNotifs(p => [{
                 id: `local-rej-${key}`, student_id: session.student_id,
-                title: '관찰기록이 반려되었습니다',
+                title: '활동 기록이 반려되었습니다',
                 content: `"${obsTitle}"${obs.teacher_feedback ? ` — ${obs.teacher_feedback}` : ''}`,
                 type: 'rejection', is_read: false, created_at: new Date().toISOString(),
               }, ...p.filter(n => n.id !== `local-rej-${key}`)]);
@@ -471,7 +471,7 @@ const StudentLog = () => {
               fetchHistory();
               setStudentNotifs(p => [{
                 id: `local-apr-${key}`, student_id: session.student_id,
-                title: '관찰기록이 승인되었습니다 ✅',
+                title: '활동 기록이 승인되었습니다 ✅',
                 content: `"${obsTitle}"이 선생님께 승인되었습니다.`,
                 type: 'approval', is_read: false, created_at: new Date().toISOString(),
               }, ...p.filter(n => n.id !== `local-apr-${key}`)]);
@@ -3774,7 +3774,7 @@ ${guidePrompt}
                       </div>
                       <h2 className="text-xl font-black">우리 반 보드</h2>
                     </div>
-                    <p className="text-xs text-on-surface-variant font-bold ml-10">승인된 관찰기록·결과를 함께 봐요</p>
+                    <p className="text-xs text-on-surface-variant font-bold ml-10">승인된 활동 기록·결과를 함께 봐요</p>
                   </div>
                   <button
                     onClick={fetchBoard}
@@ -3790,7 +3790,7 @@ ${guidePrompt}
                   <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
                     {[
                       { key: 'all', label: '전체' },
-                      { key: 'obs', label: '📝 관찰기록' },
+                      { key: 'obs', label: '📝 활동 기록' },
                       { key: 'result', label: '📁 결과' },
                     ].map(f => (
                       <button
@@ -3903,7 +3903,7 @@ ${guidePrompt}
                               <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
                                 isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
                               }`}>
-                                {isObs ? '관찰기록' : '결과'}
+                                {isObs ? '활동 기록' : '결과'}
                               </span>
                             </div>
 
@@ -4124,7 +4124,7 @@ ${guidePrompt}
                   <div>
                     <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">시작 가이드</p>
                     <h2 className="text-2xl font-black">어떻게 사용하나요?</h2>
-                    <p className="text-sm text-on-surface-variant font-bold mt-1">관찰기록과 결과 제출 방법을 확인해 보세요!</p>
+                    <p className="text-sm text-on-surface-variant font-bold mt-1">활동 기록과 결과 제출 방법을 확인해 보세요!</p>
                   </div>
                   <button onClick={handleCloseGuide} className="w-9 h-9 rounded-xl bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant transition-all shrink-0">
                     <X size={16} />
@@ -4137,7 +4137,7 @@ ${guidePrompt}
                     onClick={() => setGuideTab('obs')}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all ${guideTab === 'obs' ? 'bg-violet-600 text-white shadow-md' : 'bg-surface-container text-on-surface-variant hover:bg-violet-50 hover:text-violet-600'}`}
                   >
-                    📝 관찰기록
+                    📝 활동 기록
                   </button>
                   <button
                     onClick={() => setGuideTab('result')}
@@ -4609,7 +4609,7 @@ ${guidePrompt}
                           {new Date(p.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
                           &nbsp;·&nbsp;
                           <span className={isObs ? 'text-violet-600' : 'text-emerald-600'}>
-                            {isObs ? '관찰기록' : '결과물'}
+                            {isObs ? '활동 기록' : '결과물'}
                           </span>
                         </p>
                       </div>
@@ -4812,7 +4812,7 @@ ${guidePrompt}
                 <div className="flex-1">
                   <p className="font-black text-on-surface text-base leading-snug">
                     {rejectionNotification.type === 'obs'
-                      ? `"${rejectionNotification.title}" 관찰기록이 반려되었습니다`
+                      ? `"${rejectionNotification.title}" 활동 기록이 반려되었습니다`
                       : `"${rejectionNotification.title}" 결과물이 반려되었습니다`}
                   </p>
                   {rejectionNotification.feedback && (
@@ -4867,7 +4867,7 @@ ${guidePrompt}
                 <div className="flex-1">
                   <p className="font-black text-on-surface text-base leading-snug">
                     {approvalNotification.type === 'obs'
-                      ? `"${approvalNotification.title}" 관찰기록이 승인되었습니다`
+                      ? `"${approvalNotification.title}" 활동 기록이 승인되었습니다`
                       : `"${approvalNotification.title}" 결과물이 승인되었습니다`}
                   </p>
                   <p className="text-xs text-on-surface-variant/60 font-bold mt-2">선생님이 확인하고 승인했습니다. 🎉</p>
@@ -4927,12 +4927,12 @@ ${guidePrompt}
                   <p className="font-black text-on-surface text-base leading-snug">
                     {reminderModal.type === 'need_result'
                       ? `${reminderModal.week}주차 결과물도 제출해주세요!`
-                      : `${reminderModal.week}주차 관찰기록도 작성해주세요!`}
+                      : `${reminderModal.week}주차 활동 기록도 작성해주세요!`}
                   </p>
                   <p className="text-sm text-on-surface-variant/70 mt-1.5 leading-relaxed">
                     {reminderModal.type === 'need_result'
-                      ? `"${reminderModal.topic}" 관찰기록은 제출됐어요.\n이번 주차 결과물도 함께 제출해야 완성돼요.`
-                      : `"${reminderModal.topic}" 결과물은 제출됐어요.\n관찰기록도 빠짐없이 작성해주세요.`}
+                      ? `"${reminderModal.topic}" 활동 기록은 제출됐어요.\n이번 주차 결과물도 함께 제출해야 완성돼요.`
+                      : `"${reminderModal.topic}" 결과물은 제출됐어요.\n활동 기록도 빠짐없이 작성해주세요.`}
                   </p>
                 </div>
               </div>
@@ -4952,7 +4952,7 @@ ${guidePrompt}
                   }}
                   className="flex-1 py-4 btn-gradient rounded-2xl font-black text-sm"
                 >
-                  지금 {reminderModal.type === 'need_result' ? '결과물' : '관찰기록'} 작성하기 →
+                  지금 {reminderModal.type === 'need_result' ? '결과물' : '활동 기록'} 작성하기 →
                 </button>
                 <button
                   onClick={() => setReminderModal(null)}

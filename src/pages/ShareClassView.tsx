@@ -478,7 +478,7 @@ const ShareClassView = () => {
                 {[
                   { label: '전체 학생', value: studentData.length, unit: '명', icon: Users },
                   { label: '활동 참여', value: activeCount, unit: '명', icon: CheckCircle2 },
-                  { label: '관찰기록', value: totalObs, unit: '건', icon: FileText },
+                  { label: '활동 기록', value: totalObs, unit: '건', icon: FileText },
                   { label: '결과물', value: totalResults, unit: '건', icon: FolderOpen },
                 ].map(({ label, value, unit, icon: Icon }) => (
                   <div key={label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
@@ -542,7 +542,7 @@ const ShareClassView = () => {
                         <div className="flex-1 min-w-0">
                           <p className="font-black text-gray-900 text-sm">{student.full_name}</p>
                           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                            {obs.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 관찰기록 {obs.length}건</span>}
+                            {obs.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 활동 기록 {obs.length}건</span>}
                             {results.length > 0 && <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {results.length}건</span>}
                             {!hasActivity && <span className="text-[10px] font-bold text-gray-400">미제출</span>}
                           </div>
@@ -555,7 +555,7 @@ const ShareClassView = () => {
                           {obs.map((o) => (
                             <div key={o.id} className="bg-white rounded-xl border border-violet-100 p-4">
                               <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 관찰기록</span>
+                                <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
                                 {o.week_number && <span className="text-[10px] font-bold text-gray-400">{o.week_number}주차</span>}
                                 <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                               </div>
@@ -776,7 +776,7 @@ const ShareClassView = () => {
         {[
           { label: '전체 학생', value: studentData.length, unit: '명', color: 'text-gray-900' },
           { label: '참여 학생', value: activeCount, unit: '명', color: 'text-indigo-600' },
-          { label: '관찰기록', value: totalObs, unit: '건', color: 'text-violet-600' },
+          { label: '활동 기록', value: totalObs, unit: '건', color: 'text-violet-600' },
           { label: '결과물', value: totalResults, unit: '건', color: 'text-emerald-600' },
           { label: '갤러리', value: printImages.length, unit: '장', color: 'text-amber-600' },
         ].map(({ label, value, unit, color }) => (
@@ -803,7 +803,7 @@ const ShareClassView = () => {
                 </span>
                 <span className="font-black text-gray-900 text-sm">{student.full_name}</span>
                 <div className="ml-auto flex items-center gap-3 text-[10px] font-bold">
-                  {obs.length > 0 && <span className="text-violet-600">관찰기록 {obs.length}건</span>}
+                  {obs.length > 0 && <span className="text-violet-600">활동 기록 {obs.length}건</span>}
                   {results.length > 0 && <span className="text-emerald-600">결과물 {results.length}건</span>}
                   {!hasActivity && <span className="text-gray-400">미제출</span>}
                 </div>
@@ -813,7 +813,7 @@ const ShareClassView = () => {
                   {obs.map((o) => (
                     <div key={o.id} className="pl-3 border-l-2 border-violet-300">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-[9px] font-black text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">📝 관찰기록</span>
+                        <span className="text-[9px] font-black text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full">📝 활동 기록</span>
                         {o.week_number && <span className="text-[9px] text-gray-400 font-bold">{o.week_number}주차</span>}
                         {o.activity_name && <span className="text-[9px] text-gray-500 font-semibold">{o.activity_name}</span>}
                         <span className="text-[9px] text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>

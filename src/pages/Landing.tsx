@@ -26,14 +26,14 @@ const features = [
   {
     icon: BookOpen,
     color: 'bg-amber-100 text-amber-600',
-    title: '관찰기록 수집',
+    title: '활동 기록 수집',
     desc: '학생이 참여 코드로 직접 제출. 선생님은 승인만 하면 됩니다.',
   },
   {
     icon: Sparkles,
     color: 'bg-violet-100 text-violet-600',
     title: 'AI 세특 초안',
-    desc: 'Gemini AI가 관찰기록을 분석해 세특 초안을 자동 생성합니다.',
+    desc: 'Gemini AI가 활동 기록을 분석해 세특 초안을 자동 생성합니다.',
   },
   {
     icon: FileDown,
@@ -45,7 +45,7 @@ const features = [
 
 const steps = [
   { num: '01', title: '학급 생성', desc: '학급 코드를 만들면 학생들이 바로 참여합니다.' },
-  { num: '02', title: '기록 쌓기', desc: '학생이 제출한 관찰기록을 승인하며 포트폴리오를 쌓습니다.' },
+  { num: '02', title: '기록 쌓기', desc: '학생이 제출한 활동 기록을 승인하며 포트폴리오를 쌓습니다.' },
   { num: '03', title: '세특 완성', desc: 'AI 초안을 확인·수정하고 나이스 엑셀로 제출합니다.' },
 ];
 
@@ -206,7 +206,7 @@ const Landing = () => {
               <span className="text-amber-500">돌려드립니다</span>
             </h1>
             <p className="text-lg text-amber-800/70 max-w-xl mx-auto mb-10 leading-relaxed">
-              관찰기록 수집부터 AI 세특 초안 생성, 나이스 제출까지.<br />
+              활동 기록 수집부터 AI 세특 초안 생성, 나이스 제출까지.<br />
               생기로그 AI가 반복 업무를 대신합니다.
             </p>
 

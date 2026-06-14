@@ -141,7 +141,7 @@ const NaissWorkstation = ({ classes }: Props) => {
     { key: 'name',     label: '이름',              naissLabel: '이름',                  checked: true,  required: true  },
     { key: 'level',    label: '성취도 (상중하)',    naissLabel: '성취도',                checked: true,  required: false },
     { key: 'setech',   label: '세특 내용',          naissLabel: '세부능력및특기사항',    checked: true,  required: true  },
-    { key: 'obs',      label: '관찰기록 수',        naissLabel: '관찰기록수',            checked: false, required: false },
+    { key: 'obs',      label: '활동 기록 수',        naissLabel: '활동기록수',            checked: false, required: false },
     { key: 'chars',    label: '글자수',             naissLabel: '글자수',               checked: false, required: false },
     { key: 'status',   label: '완료 상태',          naissLabel: '상태',                  checked: false, required: false },
   ]);
@@ -369,7 +369,7 @@ ${row.setech_content}`;
       '성취도': r.achievement_level || '',
       '세특내용': r.setech_content,
       '글자수': charCount(r.setech_content), '바이트': byteCount(r.setech_content),
-      '관찰기록수': r.obs_count, '상태': STATUS_LABELS[r.status],
+      '활동기록수': r.obs_count, '상태': STATUS_LABELS[r.status],
     }));
     const ws2 = XLSX.utils.json_to_sheet(fullData);
     ws2['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 12 }, { wch: 8 }, { wch: 55 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }];
@@ -992,10 +992,10 @@ CREATE POLICY "teacher_own" ON student_evaluations
                     </div>
                   </div>
 
-                  {/* 관찰기록 참고 패널 */}
+                  {/* 활동 기록 참고 패널 */}
                   <div className="p-4 bg-surface-container/30 border-t lg:border-t-0 lg:border-l border-surface-container flex flex-col gap-2 overflow-auto">
                     <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest shrink-0">
-                      관찰 기록 ({fsRow.obs_count}건)
+                      활동 기록 ({fsRow.obs_count}건)
                     </p>
                     {fsRow.observations.length > 0 ? (
                       <div className="space-y-2 overflow-y-auto custom-scrollbar pr-1">
@@ -1025,7 +1025,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
             <p className="font-black text-primary mb-1">나이스 엑셀 다운로드 시트 구성</p>
             <p className="text-on-surface-variant/70">
               <strong>시트1 나이스제출</strong>: 반·번호·이름·성취도·세부능력및특기사항 — 나이스 일괄 업로드용<br />
-              <strong>시트2 전체현황</strong>: 글자수·바이트수·관찰기록수·상태 포함 전체 현황
+              <strong>시트2 전체현황</strong>: 글자수·바이트수·활동기록수·상태 포함 전체 현황
             </p>
           </div>
         </div>

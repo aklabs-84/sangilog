@@ -845,7 +845,7 @@ const SubjectDashboard = ({
                         {selectedStatsWeek !== null && (
                           <>
                             <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-violet-600/80 uppercase tracking-widest text-center whitespace-nowrap">
-                              {selectedStatsWeek}주차 관찰기록
+                              {selectedStatsWeek}주차 활동 기록
                             </th>
                             <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-emerald-600/80 uppercase tracking-widest text-center whitespace-nowrap">
                               {selectedStatsWeek}주차 결과제출
@@ -1195,9 +1195,9 @@ const SubjectDashboard = ({
         const getActivityLabel = (s: any) => {
           if (submittedIds.has(s.id)) {
             if (selectedActivityWeek !== null) {
-              return activityTab === 'obs' ? `${selectedActivityWeek}주차 관찰기록 제출` : `${selectedActivityWeek}주차 결과물 제출`;
+              return activityTab === 'obs' ? `${selectedActivityWeek}주차 활동 기록 제출` : `${selectedActivityWeek}주차 결과물 제출`;
             }
-            return activityTab === 'obs' ? '관찰기록 제출' : '결과물 제출';
+            return activityTab === 'obs' ? '활동 기록 제출' : '결과물 제출';
           }
           return s.activity || '기록 없음';
         };
@@ -1209,7 +1209,7 @@ const SubjectDashboard = ({
         };
 
         const tabColor = activityTab === 'obs' ? 'violet' : 'emerald';
-        const tabLabel = activityTab === 'obs' ? '관찰기록' : '결과제출';
+        const tabLabel = activityTab === 'obs' ? '활동 기록' : '결과제출';
 
         return (
           <div className="fixed inset-0 z-[900] flex items-end sm:items-center justify-center px-4 pb-4 pt-20 sm:p-8 bg-slate-900/60 backdrop-blur-md">
@@ -1255,7 +1255,7 @@ const SubjectDashboard = ({
                       : 'bg-white text-neutral-500 border-neutral-200 hover:border-violet-300 hover:text-violet-600'
                   }`}
                 >
-                  📋 관찰기록
+                  📋 활동 기록
                   {activityTab === 'obs' && selectedActivityWeek === null && (
                     <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-xs">{allObsIds.size}명</span>
                   )}

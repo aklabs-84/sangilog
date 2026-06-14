@@ -106,8 +106,8 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
         const { error: notifErr } = await supabase.from('student_notifications').insert({
           student_id: studentId,
           class_id: classId,
-          title: '관찰기록이 반려되었습니다',
-          content: `"${obs?.activity_name || '관찰기록'}" — ${obsFeedback.trim()}`,
+          title: '활동 기록이 반려되었습니다',
+          content: `"${obs?.activity_name || '활동 기록'}" — ${obsFeedback.trim()}`,
           type: 'rejection',
           is_read: false,
         });
@@ -136,8 +136,8 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
       const { error: notifErr } = await supabase.from('student_notifications').insert({
         student_id: studentId,
         class_id: classId,
-        title: '관찰기록이 승인되었습니다 ✅',
-        content: `"${obs?.activity_name || '관찰기록'}"이 선생님께 승인되었습니다.`,
+        title: '활동 기록이 승인되었습니다 ✅',
+        content: `"${obs?.activity_name || '활동 기록'}"이 선생님께 승인되었습니다.`,
         type: 'approval',
         is_read: false,
       });

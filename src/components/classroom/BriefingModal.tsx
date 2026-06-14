@@ -447,7 +447,7 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
                     </div>
                   ) : byStudent.length === 0 ? (
                     <div className="text-center py-8 space-y-2">
-                      <p className="text-slate-400 font-bold text-sm">제출된 관찰기록이 없습니다</p>
+                      <p className="text-slate-400 font-bold text-sm">제출된 활동 기록이 없습니다</p>
                       <p className="text-slate-600 text-xs">({weekFilter === 'all' ? '전체 주차' : `${weekFilter}주차`} · 총 {records.length}건 조회됨)</p>
                     </div>
                   ) : (

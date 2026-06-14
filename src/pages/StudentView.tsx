@@ -1313,7 +1313,7 @@ ${activitiesContext}
             >
               <div className="p-6 space-y-4">
                 <div>
-                  <h3 className="font-black text-lg">관찰기록 반려</h3>
+                  <h3 className="font-black text-lg">활동 기록 반려</h3>
                   <p className="text-sm text-on-surface-variant/70 mt-1">학생에게 전달할 피드백을 입력하세요. (선택사항)</p>
                 </div>
                 <textarea

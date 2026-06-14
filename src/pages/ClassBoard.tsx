@@ -185,7 +185,7 @@ const ClassBoard = () => {
         <div className="flex items-center gap-1 bg-surface-container rounded-xl p-1">
           {[
             { key: 'all', label: '전체' },
-            { key: 'obs', label: '📝 관찰기록' },
+            { key: 'obs', label: '📝 활동 기록' },
             { key: 'result', label: '📁 결과' },
           ].map(f => (
             <button
@@ -289,7 +289,7 @@ const ClassBoard = () => {
                           ? 'bg-violet-100 dark:bg-violet-700/40 text-violet-700 dark:text-violet-300'
                           : 'bg-emerald-100 dark:bg-emerald-700/40 text-emerald-700 dark:text-emerald-300'
                       }`}>
-                        {isObs ? '관찰기록' : '결과'}
+                        {isObs ? '활동 기록' : '결과'}
                       </span>
                     </div>
 
@@ -403,7 +403,7 @@ const ClassBoard = () => {
                           {new Date(selectedPost.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                           &nbsp;·&nbsp;
                           <span className={isObs ? 'text-violet-600 dark:text-violet-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                            {isObs ? '관찰기록' : '결과물'}
+                            {isObs ? '활동 기록' : '결과물'}
                           </span>
                         </p>
                       </div>

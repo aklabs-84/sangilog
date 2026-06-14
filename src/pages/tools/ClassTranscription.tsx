@@ -1369,7 +1369,7 @@ ${transcriptText}
                     className="flex items-center gap-1.5 px-4 py-2 bg-primary/10 text-primary rounded-xl text-xs font-black hover:bg-primary/20 transition-all"
                   >
                     <Plus size={13} />
-                    전체 관찰기록 추가
+                    전체 활동 기록으로 저장
                   </button>
                 )}
               </div>

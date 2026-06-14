@@ -1269,7 +1269,7 @@ const Classroom = () => {
                       </div>
                       <div>
                         <h2 className="text-xl font-black">우리반 보드</h2>
-                        <p className="text-xs text-on-surface-variant/80 font-bold">승인된 관찰기록·결과를 한눈에</p>
+                        <p className="text-xs text-on-surface-variant/80 font-bold">승인된 활동 기록·결과를 한눈에</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1293,7 +1293,7 @@ const Classroom = () => {
                     <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
                       {[
                         { key: 'all', label: '전체' },
-                        { key: 'obs', label: '📝 관찰기록' },
+                        { key: 'obs', label: '📝 활동 기록' },
                         { key: 'result', label: '📁 결과' },
                       ].map(f => (
                         <button
@@ -1381,7 +1381,7 @@ const Classroom = () => {
                                 <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${
                                   isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
                                 }`}>
-                                  {isObs ? '관찰기록' : '결과'}
+                                  {isObs ? '활동 기록' : '결과'}
                                 </span>
                               </div>
                               <div className="space-y-1.5">
@@ -2178,7 +2178,7 @@ const Classroom = () => {
                           {new Date(p.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                           &nbsp;·&nbsp;
                           <span className={isObs ? 'text-violet-600' : 'text-emerald-600'}>
-                            {isObs ? '관찰기록' : '결과물'}
+                            {isObs ? '활동 기록' : '결과물'}
                           </span>
                         </p>
                       </div>

@@ -102,7 +102,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'users',         label: '사용자',     icon: Users },
   { id: 'classes',       label: '학급',       icon: BookOpen },
   { id: 'students',      label: '학생',       icon: GraduationCap },
-  { id: 'observations',  label: '관찰기록',   icon: ClipboardList },
+  { id: 'observations',  label: '활동 기록',  icon: ClipboardList },
   { id: 'results',       label: '결과제출',   icon: FileCheck },
   { id: 'suggestions',   label: '건의사항',   icon: Megaphone },
   { id: 'announcements', label: '공지사항',   icon: Bell },
@@ -694,7 +694,7 @@ const Admin = () => {
       상태: OBS_STATUS[o.status]?.label ?? o.status,
       날짜: new Date(o.created_at).toLocaleDateString('ko-KR'),
     })),
-    `관찰기록_${new Date().toISOString().slice(0, 10)}.csv`
+    `활동기록_${new Date().toISOString().slice(0, 10)}.csv`
   );
 
   const exportResults = () => downloadCSV(
@@ -837,7 +837,7 @@ const Admin = () => {
                   <StatCard label="전체 사용자" value={dashStats.users} icon={Users} color="bg-blue-50 border-blue-100 text-blue-700" />
                   <StatCard label="전체 학급"   value={dashStats.classes} icon={BookOpen} color="bg-violet-50 border-violet-100 text-violet-700" />
                   <StatCard label="전체 학생"   value={dashStats.students} icon={GraduationCap} color="bg-emerald-50 border-emerald-100 text-emerald-700" />
-                  <StatCard label="관찰기록"     value={dashStats.observations} icon={ClipboardList} color="bg-amber-50 border-amber-100 text-amber-700" />
+                  <StatCard label="활동 기록"    value={dashStats.observations} icon={ClipboardList} color="bg-amber-50 border-amber-100 text-amber-700" />
                   <StatCard label="결과제출"     value={dashStats.results} icon={FileCheck} color="bg-cyan-50 border-cyan-100 text-cyan-700" />
                   <StatCard label="미답변 건의"  value={dashStats.pendingSuggestions} icon={Megaphone} color="bg-rose-50 border-rose-100 text-rose-700" />
                   <StatCard label="대기 신청"    value={dashStats.pendingRequests} icon={Clock} color="bg-orange-50 border-orange-100 text-orange-700" />
@@ -1297,7 +1297,7 @@ const Admin = () => {
               </div>
             </div>
             {obsLoading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
-            : filteredObs.length === 0 ? <div className="text-center py-20 text-amber-400"><ClipboardList size={40} className="mx-auto mb-3 opacity-40" /><p>관찰기록이 없습니다</p></div>
+            : filteredObs.length === 0 ? <div className="text-center py-20 text-amber-400"><ClipboardList size={40} className="mx-auto mb-3 opacity-40" /><p>활동 기록이 없습니다</p></div>
             : <div className="space-y-3">
               {filteredObs.map((obs, i) => (
                 <motion.div key={obs.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
@@ -1312,7 +1312,7 @@ const Admin = () => {
                       <p className="text-xs text-amber-600 leading-relaxed line-clamp-2">{obs.content}</p>
                       <p className="text-[11px] text-amber-400">작성: {obs.profiles?.full_name ?? '미확인'} · {new Date(obs.created_at).toLocaleDateString('ko-KR')}</p>
                     </div>
-                    <button onClick={() => setDeleteTarget({ table: 'observations', id: obs.id, label: `관찰기록: ${obs.students?.full_name ?? '미확인'} — ${obs.activity_name}` })}
+                    <button onClick={() => setDeleteTarget({ table: 'observations', id: obs.id, label: `활동 기록: ${obs.students?.full_name ?? '미확인'} — ${obs.activity_name}` })}
                       className="shrink-0 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
                   </div>
                 </motion.div>
