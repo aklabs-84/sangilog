@@ -11,7 +11,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  Wrench
+  Wrench,
+  Images
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { motion } from 'framer-motion';
@@ -28,6 +29,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
     { icon: LayoutDashboard, label: '대시보드', path: '/dashboard' },
     { icon: Users, label: '클래스룸', path: '/classroom' },
     { icon: Wrench, label: '수업 도구', path: '/teaching-tools' },
+    { icon: Images, label: '수업 갤러리', path: '/gallery' },
     { icon: Sparkles, label: 'AI 어시스턴트', path: '/ai-assistant' },
     { icon: Download, label: '데이터 내보내기', path: '/export' },
     { icon: Archive, label: '아카이브', path: '/archive' },

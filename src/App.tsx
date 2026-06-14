@@ -38,6 +38,7 @@ import ShareClassView from './pages/ShareClassView';
 import SetPassword from './pages/SetPassword';
 import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
+import Gallery from './pages/Gallery';
 
 // 선생님 전용 라우트 가드
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -204,6 +205,7 @@ function App() {
                 <Route path="archive" element={<Archive />} />
                 <Route path="activity-log" element={<ActivityLog />} />
                 <Route path="teaching-tools" element={<TeachingTools />} />
+                <Route path="gallery" element={<Gallery />} />
                 <Route path="suggestions" element={<SuggestionsPage />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="help" element={<Help />} />

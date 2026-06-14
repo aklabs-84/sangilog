@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Bell, Settings, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
-  ActivitySquare, Bug,
+  ActivitySquare, Bug, Images,
 } from 'lucide-react';
 import BugReportModal from '../BugReportModal';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -98,6 +98,7 @@ const Navbar = () => {
     { label: '대시보드', path: '/dashboard', icon: LayoutDashboard },
     { label: '클래스룸', path: '/classroom', icon: School },
     { label: '수업 도구', path: '/teaching-tools', icon: Wrench },
+    { label: '갤러리', path: '/gallery', icon: Images },
     { label: 'AI 초안', path: '/ai-assistant', icon: Sparkles },
     { label: '보고서', path: '/export', icon: FileBarChart2 },
     { label: '아카이브', path: '/archive', icon: Archive },
