@@ -9,7 +9,6 @@ import {
   BookOpen,
   Download,
   Plus,
-  Key,
   Pencil,
   Trash2,
   ArrowRight,
@@ -55,7 +54,6 @@ interface SubjectDashboardProps {
   onOpenResources: () => void;
   onExport: () => void;
   onAddStudent: () => void;
-  onLinkClass: () => void;
   onEditStudent: (id: string, number: string, name: string) => Promise<void>;
   onDeleteStudent: (id: string) => void;
   onNavigateAI: (studentId: string) => void;
@@ -84,7 +82,6 @@ const SubjectDashboard = ({
   onOpenResources,
   onExport,
   onAddStudent,
-  onLinkClass,
   onEditStudent,
   onDeleteStudent,
   onNavigateAI,
@@ -650,8 +647,7 @@ const SubjectDashboard = ({
               </p>
             </div>
             <div className="flex gap-4">
-              <button onClick={onAddStudent} className="px-8 py-4 layered-card hover:bg-white rounded-2xl font-black text-sm flex items-center gap-3 transition-all">직접 추가</button>
-              <button onClick={onLinkClass} className="btn-vibrant px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-3"><Key size={18} /> 학급 연동</button>
+              <button onClick={onAddStudent} className="btn-vibrant px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-3"><Plus size={18} /> 학생 추가</button>
             </div>
           </div>
         ) : (

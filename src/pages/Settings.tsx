@@ -172,9 +172,6 @@ const Settings = () => {
     setTimeout(() => setGroqKeySaved(false), 2000);
   };
 
-  const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
-  const [schoolAction, setSchoolAction] = useState<'create' | 'join'>('create');
-  const [scInput, setScInput] = useState({ name: '', code: '' });
 
   // 페이지 진입 시 항상 최신 프로필(플랜 포함) 로드
   useEffect(() => {
@@ -313,104 +310,6 @@ const Settings = () => {
     }
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert('학교 코드가 복사되었습니다! ✨');
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-    }
-  };
-
-  const handleDeleteSchool = async () => {
-    const isMember = !profile?.is_school_admin;
-    const confirmMsg = isMember 
-      ? '소속 학교 정보를 초기화하고 학교 워크스페이스에서 나가시겠습니까?' 
-      : '정말 학교 워크스페이스를 삭제하고 소속 정보를 초기화하시겠습니까? (본인 프로필만 초기화됩니다.)';
-    
-    if (!confirm(confirmMsg)) return;
-    
-    setIsSaving(true);
-    try {
-      const updateData = { 
-        school_name: null, 
-        school_code: null, 
-        is_school_admin: false 
-      };
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', user?.id);
-
-      if (error) throw error;
-      
-      await supabase.auth.updateUser({ data: updateData });
-      await refreshProfile();
-      alert('학교 소속이 해제되었습니다.');
-    } catch (error: any) {
-      alert('삭제 중 오류가 발생했습니다: ' + error.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleSchoolAction = async () => {
-    if (!user) return;
-    setIsSaving(true);
-    try {
-      let updateData = {};
-      if (schoolAction === 'create') {
-        const code = `SCH-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-        updateData = { 
-          school_name: scInput.name, 
-          school_code: code,
-          is_school_admin: true // 최초 생성자가 관리자
-        };
-      } else {
-        const cleanedCode = scInput.code.trim().toUpperCase();
-        // 1. 해당 코드를 사용 중인 다른 프로필에서 학교 이름 가져오기
-        const { data: schoolsWithName, error: fetchError } = await supabase
-          .from('profiles')
-          .select('school_name')
-          .eq('school_code', cleanedCode)
-          .not('school_name', 'is', null) // 이름이 실제 존재하는 데이터만
-          .limit(1);
-          
-        if (fetchError) throw fetchError;
-        
-        if (!schoolsWithName || schoolsWithName.length === 0) {
-          throw new Error('유효하지 않은 학교 코드이거나 가입된 학교 정보를 찾을 수 없습니다.');
-        }
-
-        updateData = { 
-          school_code: cleanedCode,
-          school_name: schoolsWithName[0].school_name,
-          is_school_admin: false 
-        };
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', user.id);
-
-      if (error) throw error;
-      
-      // auth metadata도 업데이트 (대시보드 필터용)
-      await supabase.auth.updateUser({
-        data: { ...updateData }
-      });
-
-      await refreshProfile();
-      setIsSchoolModalOpen(false);
-      alert(schoolAction === 'create' ? '새 학교 워크스페이스가 생성되었습니다! 코드를 동료들에게 공유하세요.' : '학교 워크스페이스에 성공적으로 참여했습니다.');
-    } catch (error: any) {
-      alert('처리 중 오류가 발생했습니다: ' + error.message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const sections = [
     { 
@@ -808,14 +707,6 @@ const Settings = () => {
                 <section.icon size={22} className="text-primary" />
                 {section.title}
               </h3>
-              {section.id === 'workspace' && (!profile?.school_code || profile?.school_name === '미지정') && (
-                <button 
-                  onClick={() => setIsSchoolModalOpen(true)}
-                  className="px-4 py-2 bg-primary/10 text-primary rounded-lg text-[10px] font-black hover:bg-primary hover:text-white transition-all shadow-sm"
-                >
-                  기존 가입자 학교 코드 발급/참여
-                </button>
-              )}
             </div>
             <div className="divide-y divide-surface-container">
               {section.items.map((item, i) => (
@@ -840,46 +731,7 @@ const Settings = () => {
                         />
                       )
                     ) : (
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-3">
-                          <p className="text-base font-semibold">{item.value}</p>
-                          {item.key === 'school_name' && profile?.school_code && (
-                            <button
-                              onClick={() => copyToClipboard(profile.school_code)}
-                              className="px-3 py-1.5 bg-secondary/10 text-secondary border border-secondary/20 rounded-xl text-[10px] font-black tracking-widest uppercase flex items-center gap-2 hover:bg-secondary hover:text-white transition-all shadow-sm"
-                              title="코드 복사"
-                            >
-                              CODE: {profile.school_code}
-                              <Copy size={12} />
-                            </button>
-                          )}
-                        </div>
-                        
-                        {item.key === 'school_name' && profile?.school_code && (
-                          <div className="flex items-center gap-2">
-                            {profile.is_school_admin && (
-                              <button 
-                                onClick={() => {
-                                  setSchoolAction('create');
-                                  setScInput({ name: profile.school_name, code: '' });
-                                  setIsSchoolModalOpen(true);
-                                }}
-                                className="p-2 text-slate-400 hover:text-primary transition-all rounded-lg hover:bg-primary/5"
-                                title="학교 정보 수정"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                            )}
-                            <button 
-                              onClick={handleDeleteSchool}
-                              className="p-2 text-slate-400 hover:text-error transition-all rounded-lg hover:bg-error/5"
-                              title={profile.is_school_admin ? "학교 워크스페이스 삭제" : "소속 학교 나가기"}
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <p className="text-base font-semibold">{item.value}</p>
                     )}
                   </div>
                 </div>
@@ -1031,92 +883,6 @@ const Settings = () => {
 
       {/* Modals */}
       <AnimatePresence>
-        {isSchoolModalOpen && (
-          <div className="fixed inset-0 flex items-center justify-center z-[100] px-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsSchoolModalOpen(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-white p-12 rounded-[2.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-slate-100"
-            >
-              {/* Decorative corner glow */}
-              <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />
-              
-              <div className="space-y-10">
-                <div className="text-center space-y-3">
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tight">
-                    {schoolAction === 'create' ? '학교 워크스페이스 생성' : '기존 학교 참여'}
-                  </h3>
-                  <p className="text-[11px] text-slate-400 font-black uppercase tracking-[0.3em]">School Workspace Configuration</p>
-                </div>
-
-                <div className="flex bg-slate-50 rounded-2xl p-1.5 border border-slate-100 shadow-inner">
-                  {['create', 'join'].map((it) => (
-                    <button
-                      key={it}
-                      onClick={() => setSchoolAction(it as 'create' | 'join')}
-                      className={`flex-1 py-3.5 text-xs font-black rounded-xl transition-all uppercase tracking-widest ${schoolAction === it ? 'bg-white shadow-md text-primary' : 'text-slate-400 hover:text-slate-600'}`}
-                    >
-                      {it === 'create' ? '새로 만들기' : '코드 입력'}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="space-y-8">
-                  {schoolAction === 'create' ? (
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">학교 명칭</label>
-                      <input 
-                        type="text" 
-                        value={scInput.name}
-                        onChange={(e) => setScInput({...scInput, name: e.target.value})}
-                        className="w-full px-6 py-5 bg-slate-50 border-2 border-transparent focus:border-primary/20 focus:bg-white rounded-2xl text-sm font-bold text-slate-900 transition-all outline-none placeholder:text-slate-300 shadow-sm"
-                        placeholder="예: 아크 고등학교"
-                      />
-                      <p className="text-[10px] text-slate-400 font-bold leading-relaxed px-1">최초 생성 시 6자리의 고유 코드가 발급됩니다.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">학교 코드 (6자리)</label>
-                      <input 
-                        type="text" 
-                        value={scInput.code}
-                        onChange={(e) => setScInput({...scInput, code: e.target.value.toUpperCase()})}
-                        className="w-full px-6 py-5 bg-slate-50 border-2 border-transparent focus:border-primary/20 focus:bg-white rounded-2xl text-sm font-bold tracking-[0.2em] text-slate-900 transition-all outline-none placeholder:text-slate-300 shadow-sm"
-                        placeholder="SCH-ABC"
-                      />
-                      <p className="text-[10px] text-slate-400 font-bold leading-relaxed px-1">동료 선생님으로부터 받은 코드를 입력하세요.</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-4 pt-2">
-                  <button 
-                    onClick={() => setIsSchoolModalOpen(false)}
-                    className="flex-1 py-4 bg-slate-100/50 hover:bg-slate-100 border border-slate-200 rounded-2xl font-black text-slate-500 text-sm transition-all active:scale-95"
-                  >
-                    취소
-                  </button>
-                  <button 
-                    onClick={handleSchoolAction}
-                    disabled={isSaving || (schoolAction === 'create' ? !scInput.name : !scInput.code)}
-                    className="flex-1 py-4 bg-primary text-white rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
-                  >
-                    {isSaving && <Loader2 size={16} className="animate-spin" />}
-                    {schoolAction === 'create' ? '생성 및 발급' : '연동 완료'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
         {showLangModal && (
           <div className="fixed inset-0 flex items-center justify-center z-[100] px-4">
             <motion.div

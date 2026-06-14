@@ -46,9 +46,7 @@ import CodeBlock from '../components/CodeBlock';
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
 import BriefingModal from '../components/classroom/BriefingModal';
-import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
 import SubjectDashboard from '../components/classroom/SubjectDashboard';
-import TeacherInviteModal from '../components/classroom/TeacherInviteModal';
 import AIInsightBanner from '../components/classroom/AIInsightBanner';
 import AIReportModal from '../components/classroom/AIReportModal';
 import AIChatModal from '../components/classroom/AIChatModal';
@@ -86,7 +84,6 @@ const Classroom = () => {
     name: '',
     subject: '',
     class_type: 'subject',
-    linked_class_id: '',
     student_guide_prompt: '',
     teacher_report_prompt: '',
     weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true }],
@@ -96,7 +93,7 @@ const Classroom = () => {
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance' | 'board' | 'groups'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups'>('list');
   // 보드 탭 state
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
@@ -111,11 +108,6 @@ const Classroom = () => {
   const [archivedClasses, setArchivedClasses] = useState<any[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
   
-  // 학교 선생님 목록 및 초대 관련 상태
-  const [schoolTeachers, setSchoolTeachers] = useState<any[]>([]);
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [linkedClasses, setLinkedClasses] = useState<any[]>([]);
   
   // 정렬 상태
   type SortKey = 'name' | 'number' | 'created_at' | 'activity_time';
@@ -133,9 +125,6 @@ const Classroom = () => {
 
   // 학생 명단 관리 모달 상태
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
-  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
-  const [linkEntryCode, setLinkEntryCode] = useState('');
-  const [linkLoading, setLinkLoading] = useState(false);
   const [newStudentData, setNewStudentData] = useState({ name: '', number: '' });
   const [bulkNames, setBulkNames] = useState('');
   const [registerMode, setRegisterMode] = useState<'bulk' | 'single'>('bulk');
@@ -268,12 +257,6 @@ const Classroom = () => {
   }, [searchParams.get('student_id')]);
 
   useEffect(() => {
-    if (profile?.school_name) {
-      fetchSchoolTeachers();
-    }
-  }, [profile]);
-
-  useEffect(() => {
     const importId = searchParams.get('importId');
     const importName = searchParams.get('name');
     if (importId && importName) {
@@ -281,10 +264,8 @@ const Classroom = () => {
         ...prev,
         name: importName,
         class_type: 'subject',
-        linked_class_id: importId
       }));
       setIsCreateModalOpen(true);
-      // URL 파라미터 제거 (뒤로가기 시 중복 방지)
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [searchParams]);
@@ -296,25 +277,21 @@ const Classroom = () => {
       const currentLocalClass = classes.find(c => c.id === activeClassId);
       if (currentLocalClass) {
         setClassInfo(currentLocalClass);
-        fetchStudents(activeClassId, currentLocalClass.linked_class_id);
+        fetchStudents(activeClassId);
         loadGroupMap(activeClassId);
-        if (currentLocalClass.class_type === 'homeroom') {
-          fetchLinkedClasses(activeClassId);
-        }
       } else {
-        // 내 학급 목록에 없는 경우(외부 연동 과목) 직접 fetch
+        // 내 학급 목록에 없는 경우 직접 fetch
         try {
           const { data, error } = await supabase
             .from('classes')
             .select('*')
             .eq('id', activeClassId)
             .single();
-          
+
           if (error) throw error;
           if (data) {
             setClassInfo(data);
-            fetchStudents(activeClassId, data.linked_class_id);
-            // 외부 과목이라도 담임일 수 없으므로(연동된 쪽이므로) fetchLinkedClasses는 생략하거나 필요시 추가
+            fetchStudents(activeClassId);
           }
         } catch (err) {
           console.error('Error fetching external class:', err);
@@ -396,60 +373,6 @@ const Classroom = () => {
     }
   };
 
-  const fetchLinkedClasses = async (homeroomId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('classes')
-        .select(`
-          *,
-          teacher_profile:profiles!classes_teacher_id_fkey(full_name, avatar_url)
-        `)
-        .eq('linked_class_id', homeroomId);
-
-      if (error) throw error;
-      setLinkedClasses(data || []);
-    } catch (error) {
-      console.error('Error fetching linked classes:', error);
-    }
-  };
-
-  const fetchSchoolTeachers = async () => {
-    if (!profile?.school_name) return;
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, school_name')
-        .eq('school_name', profile.school_name)
-        .neq('id', user?.id); // 본인 제외
-
-      if (error) throw error;
-      setSchoolTeachers(data || []);
-    } catch (error) {
-      console.error('Error fetching school teachers:', error);
-    }
-  };
-
-  const handleSendInvite = async (receiverId: string) => {
-    if (!activeClassId || !user) return;
-    setInviteLoading(true);
-    try {
-      const { error } = await supabase
-        .from('class_invitations')
-        .insert({
-          sender_id: user.id,
-          receiver_id: receiverId,
-          source_class_id: activeClassId,
-          status: 'pending'
-        });
-
-      if (error) throw error;
-      showToast('초대장을 성공적으로 보냈습니다. 📨');
-    } catch (error: any) {
-      showToast('초대 발송 중 오류가 발생했습니다.');
-    } finally {
-      setInviteLoading(false);
-    }
-  };
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -486,8 +409,6 @@ const Classroom = () => {
           name: newClassData.name,
           subject: newClassData.class_type === 'homeroom' ? '담임' : newClassData.subject,
           class_type: newClassData.class_type,
-          school_code: profile?.school_code || null,
-          linked_class_id: newClassData.class_type === 'subject' ? newClassData.linked_class_id || null : null,
           student_guide_prompt: newClassData.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 단답형이나 단순 감상평은 지양해 주세요.',
           teacher_report_prompt: newClassData.teacher_report_prompt || '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
           min_obs_chars: newClassData.min_obs_chars || 0,
@@ -501,30 +422,11 @@ const Classroom = () => {
 
       if (error) throw error;
 
-      // 만약 연동된 반(linked_class_id)이 있다면 학생 명단 복제
-      if (data && data.linked_class_id) {
-        const { data: sourceStudents, error: fetchError } = await supabase
-          .from('students')
-          .select('full_name, student_number')
-          .eq('class_id', data.linked_class_id);
-        
-        if (!fetchError && sourceStudents && sourceStudents.length > 0) {
-          const studentInserts = sourceStudents.map(s => ({
-            class_id: data.id,
-            full_name: s.full_name,
-            student_number: s.student_number || null,
-            teacher_id: user.id
-          }));
-          await supabase.from('students').insert(studentInserts);
-        }
-      }
-
       setIsCreateModalOpen(false);
       setNewClassData({
         name: '',
         subject: '',
         class_type: 'subject',
-        linked_class_id: '',
         student_guide_prompt: '',
         teacher_report_prompt: '',
         weekly_plan: [{ week: 1, topic: '', url: '' }],
@@ -694,11 +596,10 @@ const Classroom = () => {
     setGroupMap(map);
   };
 
-  const fetchStudents = async (classId: string, linkedClassIdOverride?: string) => {
-    if (!classInfo) setLoading(true); // 초기 로딩시에만 전체 로딩 표시
-    
-    // 만약 현재 클래스가 다른 클래스와 연동되어 있다면 해당 학급 ID로 학생 조회
-    const targetClassId = linkedClassIdOverride || classInfo?.linked_class_id || classId;
+  const fetchStudents = async (classId: string) => {
+    if (!classInfo) setLoading(true);
+
+    const targetClassId = classId;
 
     try {
       // 1. 학생 명단 조회
@@ -757,46 +658,6 @@ const Classroom = () => {
     }
   };
 
-  const handleLinkClass = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeClassId || !linkEntryCode || linkEntryCode.length < 6) return;
-    setLinkLoading(true);
-    try {
-      const { data: targetClass, error: searchError } = await supabase
-        .from('classes')
-        .select('id, name, class_type')
-        .eq('entry_code', linkEntryCode)
-        .single();
-
-      if (searchError || !targetClass) {
-        alert('유효하지 않은 입장 코드입니다. 다시 확인해 주세요.');
-        setLinkLoading(false);
-        return;
-      }
-      if (targetClass.id === activeClassId) {
-        alert('자기 자신의 학급으로는 연동할 수 없습니다.');
-        setLinkLoading(false);
-        return;
-      }
-
-      const { error: updateError } = await supabase
-        .from('classes')
-        .update({ linked_class_id: targetClass.id })
-        .eq('id', activeClassId);
-
-      if (updateError) throw updateError;
-
-      showToast(`'${targetClass.name}' 학급 명단과 연동되었습니다! 🔗`);
-      setIsLinkModalOpen(false);
-      setLinkEntryCode('');
-      await fetchClasses();
-    } catch (error) {
-      console.error('Error linking class:', error);
-      showToast('연동 중 오류가 발생했습니다.');
-    } finally {
-      setLinkLoading(false);
-    }
-  };
 
   const handleCopyCode = () => {
     if (classInfo?.entry_code) {
@@ -1317,10 +1178,6 @@ const Classroom = () => {
             <div className="p-1 md:p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[2rem] md:rounded-[2.5rem] flex items-center border border-white/40 shadow-soft relative overflow-x-auto max-w-full custom-scrollbar">
               {[
                 { id: 'list', label: '전체 명단', icon: LayoutDashboard },
-                ...(classInfo?.class_type === 'homeroom' ? [
-                  { id: 'linked', label: 'Linked Subjects', icon: Link2 },
-                  { id: 'analytics', label: 'AI Smart Analytics', icon: Sparkles },
-                ] : []),
                 { id: 'units', label: '단원 관리', icon: BookOpen },
                 { id: 'attendance', label: '출석 체크', icon: ClipboardList },
                 { id: 'groups', label: '조 편성', icon: Layers },
@@ -1332,7 +1189,7 @@ const Classroom = () => {
                   <button
                     key={tab.id}
                     onClick={() => {
-                      setActiveTab(tab.id as 'list' | 'ai' | 'linked' | 'analytics' | 'units' | 'attendance' | 'board');
+                      setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups');
                       if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);
                     }}
                     className={`
@@ -1359,89 +1216,6 @@ const Classroom = () => {
             <DashboardSkeleton />
           ) : (
             <>
-              {activeTab === 'linked' && classInfo && (
-                <div className="max-w-2xl mx-auto">
-                  <div className="layered-card p-10 space-y-8">
-                    <div className="flex items-center justify-between px-1">
-                      <h3 className="text-xl font-black tracking-tight">Linked Subjects</h3>
-                      <span className="text-[9px] bg-secondary/10 text-secondary px-3 py-1.5 rounded-full font-black border border-secondary/20">{linkedClasses.length} Linked</span>
-                    </div>
-                    <div className="space-y-3">
-                      {linkedClasses.length > 0 ? (
-                        linkedClasses.map((lc: any) => (
-                          <div
-                            key={lc.id}
-                            onClick={() => setActiveClassId(lc.id)}
-                            className="flex items-center justify-between p-5 bg-surface-container/30 rounded-2xl hover:bg-white hover:shadow-soft transition-all cursor-pointer border border-transparent hover:border-primary/10"
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-primary"><BookOpen size={18} /></div>
-                              <div>
-                                <p className="text-base font-black">{lc.subject}</p>
-                                <p className="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">{lc.teacher_profile?.full_name} 선생님</p>
-                              </div>
-                            </div>
-                            <ArrowRight size={16} className="text-primary/40" />
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-16 text-center border-2 border-dashed border-neutral-100 rounded-2xl">
-                          <p className="text-sm font-bold text-neutral-400">연동된 교과 수업이 없습니다.</p>
-                          <p className="text-xs text-neutral-300 mt-2">교과 선생님 초대 버튼으로 연동을 시작하세요.</p>
-                        </div>
-                      )}
-                      <button
-                        onClick={() => {
-                          if (profile?.plan === 'school') { setUpgradeModalReason('school_block'); return; }
-                          if (!checkIsPro(profile)) { setUpgradeModalReason('teacher_invite'); return; }
-                          setIsInviteModalOpen(true);
-                        }}
-                        className="w-full p-6 border-2 border-dashed border-primary/10 rounded-2xl text-[11px] font-black text-primary/40 hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all uppercase tracking-[0.2em] flex items-center justify-center gap-2 group"
-                      >
-                        <Plus size={16} className="group-hover:rotate-90 transition-transform duration-500" />
-                        교과 연동 요청하기
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'analytics' && classInfo && (
-                <div className="max-w-2xl mx-auto">
-                  <div className="layered-card p-10 bg-gradient-to-br from-secondary/5 via-white to-white relative overflow-hidden">
-                    <div className="absolute top-[-20%] right-[-10%] p-8 text-secondary/5 rotate-12"><Sparkles size={200} /></div>
-                    <div className="flex items-center gap-3 mb-6 relative z-10">
-                      <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-secondary"><Sparkles size={22} /></div>
-                      <div>
-                        <h3 className="text-xl font-black tracking-tight">AI Smart Analytics</h3>
-                        <p className="text-[10px] font-bold text-secondary/60 uppercase tracking-widest">학생 맞춤형 세특 초안 생성</p>
-                      </div>
-                    </div>
-                    <p className="text-base font-bold text-on-surface-variant leading-relaxed mb-8 relative z-10">
-                      누적된 과목별 활동 성향을 AI가 분석하여, <span className="text-on-surface font-black">학생별 맞춤형 세특 초안</span>을 생성합니다.
-                    </p>
-                    <div className="grid grid-cols-2 gap-4 mb-8 relative z-10">
-                      {[
-                        { label: '연동 과목', value: linkedClasses.length, unit: '개' },
-                        { label: '전체 학생', value: sortedStudents.length, unit: '명' },
-                      ].map(item => (
-                        <div key={item.label} className="bg-white/80 rounded-2xl p-5 border border-secondary/10">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-secondary/60 mb-1">{item.label}</p>
-                          <p className="text-3xl font-black">{item.value}<span className="text-sm ml-1 text-secondary/60">{item.unit}</span></p>
-                        </div>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => setIsAIReportOpen(true)}
-                      className="w-full py-5 bg-secondary text-white rounded-2xl text-sm font-black uppercase tracking-[0.15em] shadow-lg shadow-secondary/20 hover:scale-[1.02] active:scale-95 transition-all relative z-10 flex items-center justify-center gap-2"
-                    >
-                      <Sparkles size={18} />
-                      AI 분석 리포트 생성하기
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {activeTab === 'units' && classInfo && (
                 <div className="max-w-3xl mx-auto">
                   <UnitManager
@@ -1657,74 +1431,39 @@ const Classroom = () => {
               )}
 
               {activeTab === 'list' && (
-                classInfo?.class_type === 'homeroom' ? (
-                  <HomeroomDashboard
-                    classInfo={classInfo}
-                    students={sortedStudents}
-                    onInviteTeachers={() => setIsInviteModalOpen(true)}
-                    onSelectStudent={(id) => {
-                      setDetailedStudentId(id);
-                      setIsDrawerOpen(true);
-                    }}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    copySuccess={copySuccess}
-                    onCopyCode={handleCopyCode}
-                    onShareTeacher={handleShareTeacher}
-                    shareTeacherSuccess={shareTeacherSuccess}
-                    selectedIds={selectedStudentIds}
-                    onSelectStudentToggle={handleSelectStudent}
-                    onSelectAll={handleSelectAll}
-                    onAddStudent={() => setIsStudentModalOpen(true)}
-                    linkedClasses={linkedClasses}
-                    onSelectClass={setActiveClassId}
-                    onEditStudent={handleEditStudent}
-                    onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
-                    onBulkApprove={handleBulkApprove}
-                    onResetPin={handleResetPin}
-                    onOpenResources={() => {
-                      if (activeClassId) fetchResources(activeClassId);
-                      setIsResourceModalOpen(true);
-                    }}
-                    onCopyLink={handleCopyLink}
-                    groupMap={groupMap}
-                  />
-                ) : (
-                  <SubjectDashboard
-                    classInfo={classInfo}
-                    students={sortedStudents}
-                    viewMode={viewMode}
-                    setViewMode={setViewMode}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    onOpenQR={() => setIsQRModalOpen(true)}
-                    onOpenResources={() => {
-                      if (activeClassId) fetchResources(activeClassId);
-                      setIsResourceModalOpen(true);
-                    }}
-                    onExport={handleExportCSV}
-                    onAddStudent={() => setIsStudentModalOpen(true)}
-                    onLinkClass={() => setIsLinkModalOpen(true)}
-                    onEditStudent={handleEditStudent}
-                    onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
-                    onNavigateAI={(id) => {
-                      setDetailedStudentId(id);
-                      setIsDrawerOpen(true);
-                    }}
-                    onSort={handleSort}
-                    sortConfig={sortConfig}
-                    onCopyLink={handleCopyLink}
-                    copySuccess={copySuccess}
-                    onShareTeacher={handleShareTeacher}
-                    shareTeacherSuccess={shareTeacherSuccess}
-                    selectedIds={selectedStudentIds}
-                    onSelectStudent={handleSelectStudent}
-                    onSelectAll={handleSelectAll}
-                    onBulkApprove={handleBulkApprove}
-                    onResetPin={handleResetPin}
-                    groupMap={groupMap}
-                  />
-                )
+                <SubjectDashboard
+                  classInfo={classInfo}
+                  students={sortedStudents}
+                  viewMode={viewMode}
+                  setViewMode={setViewMode}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  onOpenQR={() => setIsQRModalOpen(true)}
+                  onOpenResources={() => {
+                    if (activeClassId) fetchResources(activeClassId);
+                    setIsResourceModalOpen(true);
+                  }}
+                  onExport={handleExportCSV}
+                  onAddStudent={() => setIsStudentModalOpen(true)}
+                  onEditStudent={handleEditStudent}
+                  onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
+                  onNavigateAI={(id) => {
+                    setDetailedStudentId(id);
+                    setIsDrawerOpen(true);
+                  }}
+                  onSort={handleSort}
+                  sortConfig={sortConfig}
+                  onCopyLink={handleCopyLink}
+                  copySuccess={copySuccess}
+                  onShareTeacher={handleShareTeacher}
+                  shareTeacherSuccess={shareTeacherSuccess}
+                  selectedIds={selectedStudentIds}
+                  onSelectStudent={handleSelectStudent}
+                  onSelectAll={handleSelectAll}
+                  onBulkApprove={handleBulkApprove}
+                  onResetPin={handleResetPin}
+                  groupMap={groupMap}
+                />
               )}
             </>
           )}
@@ -1780,17 +1519,7 @@ const Classroom = () => {
         classes={classes}
       />
 
-      <TeacherInviteModal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-        schoolName={profile?.school_name || ''}
-        teachers={schoolTeachers}
-        onSendInvite={handleSendInvite}
-        loading={inviteLoading}
-        classId={activeClassId || ''}
-      />
-
-      <AIReportModal 
+      <AIReportModal
         isOpen={isAIReportOpen}
         onClose={() => setIsAIReportOpen(false)}
         className={classInfo?.name || ''}
@@ -2285,26 +2014,6 @@ const Classroom = () => {
                   <button type="submit" className="flex-1 py-4 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95">설정 저장하기</button>
                 </div>
               </form>
-            </motion.div>
-          </div>
-        )}
-
-        {isLinkModalOpen && (
-          <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-on-surface/20 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md glass p-10 rounded-[3rem] space-y-8 relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary to-secondary" />
-               <div className="space-y-2 text-center">
-                 <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mx-auto mb-4"><Key size={32} /></div>
-                 <h3 className="text-2xl font-black">동료 교사 학급 연동</h3>
-                 <p className="text-sm font-medium text-on-surface-variant leading-relaxed">다른 반 선생님이 제공한 <strong className="text-on-surface">6자리 입장 코드</strong>를 입력하세요.</p>
-               </div>
-               <form onSubmit={handleLinkClass} className="space-y-6">
-                 <input type="text" placeholder="입장 코드 6자리" value={linkEntryCode} onChange={e => setLinkEntryCode(e.target.value.toUpperCase())} className="w-full px-6 py-4 bg-neutral-100 border-2 border-transparent focus:border-primary/20 rounded-2xl font-black text-center text-xl tracking-[0.2em] uppercase focus:bg-white transition-all shadow-inner border border-surface-container-highest" maxLength={6} required />
-                 <div className="flex gap-3 pt-2">
-                   <button type="button" onClick={() => setIsLinkModalOpen(false)} className="flex-1 py-4 bg-surface-container hover:bg-surface-container-high rounded-2xl font-black transition-all">취소</button>
-                   <button type="submit" disabled={linkLoading || linkEntryCode.length < 6} className="flex-2 btn-gradient py-4 rounded-2xl font-black text-white shadow-xl shadow-primary/30 disabled:grayscale disabled:opacity-20 transition-all hover:scale-[1.02] active:scale-95">연동하기</button>
-                 </div>
-               </form>
             </motion.div>
           </div>
         )}
