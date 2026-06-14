@@ -160,6 +160,7 @@ const Admin = () => {
   const [reqLoading, setReqLoading]     = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [noteInputs, setNoteInputs]     = useState<Record<string, string>>({});
+  const [planSelects, setPlanSelects]   = useState<Record<string, string>>({});
   const [copiedId, setCopiedId]         = useState<string | null>(null);
   const [reqPage, setReqPage]           = useState(1);
 
@@ -558,7 +559,7 @@ const Admin = () => {
     if (!error) setRequests(prev => prev.filter(r => r.id !== id));
   };
 
-  const updateStatus = async (id: string, status: 'approved' | 'rejected') => {
+  const updateStatus = async (id: string, status: 'approved' | 'rejected', plan?: string) => {
     setActionLoading(id + status);
     const req = requests.find(r => r.id === id);
 
@@ -587,7 +588,7 @@ const Admin = () => {
           const res = await fetch('/api/invite-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: req.email, name: req.name }),
+            body: JSON.stringify({ email: req.email, name: req.name, plan: plan || 'free' }),
           });
           const resData = await res.json();
           if (!res.ok) {
@@ -922,8 +923,17 @@ const Admin = () => {
                             <textarea placeholder="관리자 메모 (선택)" rows={2} value={noteInputs[req.id] || ''}
                               onChange={e => setNoteInputs(prev => ({ ...prev, [req.id]: e.target.value }))}
                               className="w-full px-3 py-2 text-xs border border-amber-200 rounded-xl resize-none focus:outline-none focus:border-amber-400 bg-amber-50" />
+                            <select
+                              value={planSelects[req.id] || 'free'}
+                              onChange={e => setPlanSelects(prev => ({ ...prev, [req.id]: e.target.value }))}
+                              className="w-full px-3 py-2 text-xs border border-amber-200 rounded-xl focus:outline-none focus:border-amber-400 bg-amber-50 font-bold text-amber-800 cursor-pointer"
+                            >
+                              <option value="free">Free — 일반 선생님</option>
+                              <option value="pro">Pro — 프리미엄</option>
+                              <option value="school">School — 열람 전용</option>
+                            </select>
                             <div className="flex gap-2">
-                              <button onClick={() => updateStatus(req.id, 'approved')} disabled={!!actionLoading}
+                              <button onClick={() => updateStatus(req.id, 'approved', planSelects[req.id] || 'free')} disabled={!!actionLoading}
                                 className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors">
                                 {actionLoading === req.id + 'approved' ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} 승인
                               </button>

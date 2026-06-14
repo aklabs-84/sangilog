@@ -16,10 +16,11 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
-  const { email, name } = req.body;
+  const { email, name, plan } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
+  const assignedPlan = ['free', 'pro', 'school', 'admin'].includes(plan) ? plan : 'free';
 
   const host     = req.headers['x-forwarded-host'] || req.headers.host || 'sangilog.vercel.app';
   const protocol = host.includes('localhost') ? 'http' : 'https';
@@ -90,7 +91,7 @@ export default async function handler(req: any, res: any) {
 
   // ── Step 3: 프로필 업데이트 ───────────────────────────────────────────────
   await supabaseAdmin.from('profiles')
-    .update({ full_name: name || '', role: 'teacher', email, is_approved: true })
+    .update({ full_name: name || '', role: 'teacher', email, is_approved: true, plan: assignedPlan })
     .eq('id', userId);
 
   // ── Step 4: Recovery 링크 생성 (confirmed 유저에서 100% 동작) ────────────
@@ -110,11 +111,16 @@ export default async function handler(req: any, res: any) {
   console.log('[api/invite-user] recovery action_link generated, sending email to:', email);
 
   // ── Step 5: 승인 이메일 발송 ─────────────────────────────────────────────
-  await sendCustomEmail(
+  const emailSent = await sendCustomEmail(
     email,
     '생기로그 AI 사용 승인 안내',
     inviteEmailHtml(name, actionUrl),
   );
+
+  if (!emailSent) {
+    console.error('[api/invite-user] email send failed for:', email);
+    return res.status(500).json({ error: 'Email send failed. Check Gmail credentials in Vercel env vars.' });
+  }
 
   return res.status(200).json({ ok: true, type: 'invite' });
 }
