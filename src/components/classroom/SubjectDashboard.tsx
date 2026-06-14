@@ -99,12 +99,11 @@ const SubjectDashboard = ({
   groupMap = {},
 }: SubjectDashboardProps) => {
   const navigate = useNavigate();
-  const SUBJECT_COL_DEFAULTS = { number: true, group: true, activity: true, status: true, approval: true };
+  const SUBJECT_COL_DEFAULTS = { number: true, group: true, activity: true, approval: true };
   const SUBJECT_COL_LABELS: Record<string, string> = {
     number: '번호 (NO.)',
     group: '지정 조',
     activity: '활동 기록',
-    status: '진행 상태',
     approval: '승인 현황',
   };
   const { visibility: colVis, toggle: toggleCol, reset: resetCols } = useColumnVisibility(
@@ -809,9 +808,6 @@ const SubjectDashboard = ({
                         {colVis.activity && (
                           <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest whitespace-nowrap hidden lg:table-cell">활동 및 관찰 기록</th>
                         )}
-                        {colVis.status && (
-                          <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap hidden md:table-cell">진행 상태</th>
-                        )}
                         {colVis.approval && (
                           <th className="p-4 lg:p-6 text-[11px] lg:text-[13px] font-black text-on-surface/80 uppercase tracking-widest text-center whitespace-nowrap">승인</th>
                         )}
@@ -913,16 +909,6 @@ const SubjectDashboard = ({
                                   {s.activity ? `"${s.activity}"` : <span className="text-on-surface-variant/30 not-italic">최근 기록 없음</span>}
                                 </p>
                               </div>
-                            </td>
-                          )}
-                          {colVis.status && (
-                            <td className="p-3 lg:p-6 text-center hidden md:table-cell">
-                              <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border whitespace-nowrap ${
-                                s.status === '발행됨' ? 'bg-secondary/5 text-secondary border-secondary/20' :
-                                s.status === '미작성' ? 'bg-neutral-50 text-on-surface-variant/30 border-neutral-200' : 'bg-primary/5 text-primary border-primary/20'
-                              }`}>
-                                {s.status}
-                              </span>
                             </td>
                           )}
                           {colVis.approval && (
@@ -1050,14 +1036,6 @@ const SubjectDashboard = ({
                               {groupMap[s.id].name}
                             </span>
                           )}
-                          <span className={`inline-block text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                            s.status === '발행됨'    ? 'bg-secondary/10 text-secondary' :
-                            s.status === '미작성'    ? 'bg-on-surface/5 text-on-surface/40' :
-                            s.status === '초안 완료' ? 'bg-primary/10 text-primary' :
-                                                       'bg-amber-50 text-amber-600'
-                          }`}>
-                            {s.status}
-                          </span>
                         </div>
                       </div>
                     </div>

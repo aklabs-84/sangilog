@@ -930,6 +930,11 @@ ${activitiesContext}
                         <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>
                           {cfg.label}
                         </span>
+                        {r.week_number && (
+                          <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                            {r.week_number}주차
+                          </span>
+                        )}
                         {isRejected && (
                           <span className="text-[9px] font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1">
                             <X size={9} /> 반려됨

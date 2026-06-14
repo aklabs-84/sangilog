@@ -566,8 +566,8 @@ const Classroom = () => {
 
   const handleExportCSV = () => {
     if (students.length === 0) return;
-    const headers = ['이름', '번호', '태그', '최근 활동', '기록 시간', '상태'];
-    const rows = students.map(s => [s.name, s.number, s.tag, s.activity, s.time, s.status]);
+    const headers = ['이름', '번호', '태그', '최근 활동', '기록 시간'];
+    const rows = students.map(s => [s.name, s.number, s.tag, s.activity, s.time]);
     const csvContent = ['\uFEFF' + headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
