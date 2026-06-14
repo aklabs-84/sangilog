@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Images, Upload, X, ChevronLeft, ChevronRight, Trash2,
-  Play, Crown, AlertCircle, Loader2, ImageOff, Plus
+  Play, Crown, AlertCircle, Loader2, ImageOff, Plus, Check, BadgeCheck
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -171,6 +171,9 @@ export default function Gallery() {
         )}
       </div>
 
+      {/* 플랜 안내 카드 */}
+      <PlanGuide isPro={isPro} totalCount={totalCount} />
+
       {/* 필터 바 */}
       <div className="flex gap-3 mb-6 flex-wrap">
         {/* 클래스 선택 */}
@@ -281,16 +284,6 @@ export default function Gallery() {
         )}
       </div>
 
-      {/* PRO 업그레이드 배너 (무료 + 영상 안내) */}
-      {!isPro && (
-        <div className="mt-6 flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/60 rounded-2xl">
-          <Crown size={20} className="text-amber-500 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-amber-800">PRO 플랜에서 영상 업로드 + 무제한 사진 이용 가능</p>
-            <p className="text-xs text-amber-600 mt-0.5">무료 플랜은 사진 {FREE_IMAGE_LIMIT}장, 영상 업로드 불가</p>
-          </div>
-        </div>
-      )}
 
       {/* 삭제 확인 모달 */}
       <AnimatePresence>
@@ -474,6 +467,77 @@ function GalleryCard({
         </div>
       )}
     </motion.div>
+  );
+}
+
+// 플랜 안내 카드
+function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }) {
+  const freeRows = [
+    { label: '사진 업로드', free: `최대 ${FREE_IMAGE_LIMIT}장`, pro: '무제한', freeOk: true },
+    { label: '영상 업로드', free: '불가', pro: '가능 (파일당 500MB)', freeOk: false },
+    { label: '이미지 자동 최적화', free: 'WebP 변환 + 리사이즈', pro: 'WebP 변환 + 리사이즈', freeOk: true },
+    { label: '드래그 & 드롭', free: '지원', pro: '지원', freeOk: true },
+    { label: '라이트박스 뷰어', free: '지원', pro: '지원', freeOk: true },
+  ];
+
+  if (isPro) {
+    return (
+      <div className="flex items-center gap-2.5 mb-5 px-4 py-3 bg-emerald-50 border border-emerald-200/70 rounded-2xl">
+        <BadgeCheck size={18} className="text-emerald-500 shrink-0" />
+        <p className="text-sm font-bold text-emerald-700">PRO 플랜 이용 중 — 사진 무제한 + 영상 업로드 모두 이용 가능합니다</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-5 rounded-2xl border border-on-surface/8 overflow-hidden bg-white shadow-sm">
+      {/* 제목 행 */}
+      <div className="grid grid-cols-3 bg-surface-container-low/60">
+        <div className="px-4 py-2.5 text-xs font-black text-on-surface-variant uppercase tracking-wider">기능</div>
+        <div className="px-4 py-2.5 text-xs font-black text-on-surface-variant text-center border-l border-on-surface/5">
+          무료 플랜
+          <span className="ml-1.5 text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+            {totalCount}/{FREE_IMAGE_LIMIT}장
+          </span>
+        </div>
+        <div className="px-4 py-2.5 text-xs font-black text-amber-600 text-center border-l border-on-surface/5 bg-amber-50/60">
+          <span className="flex items-center justify-center gap-1">
+            <Crown size={11} /> PRO 플랜
+          </span>
+        </div>
+      </div>
+
+      {/* 비교 행 */}
+      {freeRows.map((row, i) => (
+        <div
+          key={row.label}
+          className={`grid grid-cols-3 border-t border-on-surface/5 ${i % 2 === 1 ? 'bg-surface-container-low/30' : ''}`}
+        >
+          <div className="px-4 py-2.5 text-xs font-bold text-on-surface">{row.label}</div>
+          <div className={`px-4 py-2.5 text-xs text-center border-l border-on-surface/5 font-medium flex items-center justify-center gap-1 ${row.freeOk ? 'text-on-surface-variant' : 'text-error/70'}`}>
+            {row.freeOk
+              ? <Check size={12} className="text-emerald-500 shrink-0" />
+              : <X size={12} className="text-error/60 shrink-0" />}
+            {row.free}
+          </div>
+          <div className="px-4 py-2.5 text-xs text-center border-l border-on-surface/5 font-medium text-amber-700 bg-amber-50/40 flex items-center justify-center gap-1">
+            <Check size={12} className="text-amber-500 shrink-0" />
+            {row.pro}
+          </div>
+        </div>
+      ))}
+
+      {/* 업그레이드 CTA */}
+      <div className="border-t border-amber-100 bg-amber-50/60 px-4 py-3 flex items-center justify-between gap-4">
+        <p className="text-xs text-amber-700 font-medium">PRO로 업그레이드하면 영상 업로드 + 사진 무제한이 가능합니다</p>
+        <a
+          href="mailto:aklabs84@naver.com?subject=생기로그 Pro 플랜 업그레이드 문의"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl transition-colors"
+        >
+          <Crown size={12} /> 업그레이드 문의
+        </a>
+      </div>
+    </div>
   );
 }
 
