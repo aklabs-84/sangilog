@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import JSZip from 'jszip';
 import { supabase } from '../lib/supabase';
 import {
   GraduationCap,
@@ -24,6 +25,16 @@ import {
   Lock,
   ArrowRight,
 } from 'lucide-react';
+
+async function blobDownload(url: string, filename: string) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 interface StudentRow {
   id: string;
@@ -94,7 +105,8 @@ const ShareClassView = () => {
   const [activeTab, setActiveTab] = useState<'results' | 'gallery'>('results');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
-  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
+  const [lightbox, setLightbox] = useState<{ urls: string[]; names: string[]; index: number } | null>(null);
+  const [zipping, setZipping] = useState(false);
 
   // ── Step 1: 클래스 메타 로드 (항상 실행) ──────────────────────────────────
   useEffect(() => {
@@ -256,7 +268,35 @@ const ShareClassView = () => {
   const totalResults = filteredData.reduce((a, sd) => a + sd.results.length, 0);
   const activeCount = filteredData.filter((sd) => sd.obs.length > 0 || sd.results.length > 0).length;
 
-  const allGalleryImgUrls = filteredGallery.filter((g) => g.file_type === 'image').map((g) => g.file_url);
+  const allGalleryImgs = filteredGallery.filter((g) => g.file_type === 'image');
+  const allGalleryImgUrls = allGalleryImgs.map((g) => g.file_url);
+  const allGalleryImgNames = allGalleryImgs.map((g, i) => g.file_name || `image_${i + 1}.webp`);
+
+  const handleZipDownload = async () => {
+    if (zipping || allGalleryImgs.length === 0) return;
+    setZipping(true);
+    try {
+      const zip = new JSZip();
+      await Promise.all(
+        allGalleryImgs.map(async (item, i) => {
+          const res = await fetch(item.file_url);
+          const blob = await res.blob();
+          const ext = item.file_url.split('.').pop()?.split('?')[0] || 'webp';
+          const name = `${String(i + 1).padStart(3, '0')}_${item.file_name?.replace(/\.[^.]+$/, '') || `image_${i + 1}`}.${ext}`;
+          zip.file(name, blob);
+        })
+      );
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const label = weekFilter === 'all' ? '전체' : `${weekFilter}주차`;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(zipBlob);
+      a.download = `${classInfo?.name || '갤러리'}_${label}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      setZipping(false);
+    }
+  };
 
   // ── 로딩 / 에러 ───────────────────────────────────────────────────────────
   if (metaLoading) {
@@ -572,25 +612,39 @@ const ShareClassView = () => {
           {/* ── 갤러리 탭 ── */}
           {activeTab === 'gallery' && (
             <>
-              {/* 주차 필터 */}
-              {allWeeks.length > 0 && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-black text-gray-500 mr-1">주차:</span>
-                  <button
-                    onClick={() => setWeekFilter('all')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
-                  >
-                    전체
-                  </button>
-                  {allWeeks.map((w) => (
-                    <button key={w} onClick={() => setWeekFilter(w)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
+              {/* 주차 필터 + ZIP 다운로드 */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {allWeeks.length > 0 && (
+                  <>
+                    <span className="text-xs font-black text-gray-500 mr-1">주차:</span>
+                    <button
+                      onClick={() => setWeekFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
                     >
-                      {w}주차
+                      전체
                     </button>
-                  ))}
-                </div>
-              )}
+                    {allWeeks.map((w) => (
+                      <button key={w} onClick={() => setWeekFilter(w)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === w ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300'}`}
+                      >
+                        {w}주차
+                      </button>
+                    ))}
+                  </>
+                )}
+                {allGalleryImgs.length > 0 && (
+                  <button
+                    onClick={handleZipDownload}
+                    disabled={zipping}
+                    className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black transition-all shadow-sm"
+                  >
+                    {zipping
+                      ? <><Loader2 size={13} className="animate-spin" /> ZIP 생성 중...</>
+                      : <><Download size={13} /> 전체 ZIP 다운로드 ({allGalleryImgs.length}장)</>
+                    }
+                  </button>
+                )}
+              </div>
 
               {filteredGallery.length === 0 ? (
                 <div className="flex flex-col items-center py-24 space-y-3">
@@ -606,12 +660,20 @@ const ShareClassView = () => {
                       {item.file_type === 'image' ? (
                         <div
                           className="relative group cursor-pointer rounded-2xl overflow-hidden bg-gray-100 shadow-sm hover:shadow-md transition-all"
-                          onClick={() => setLightbox({ urls: allGalleryImgUrls, index: allGalleryImgUrls.indexOf(item.file_url) })}
+                          onClick={() => setLightbox({ urls: allGalleryImgUrls, names: allGalleryImgNames, index: allGalleryImgUrls.indexOf(item.file_url) })}
                         >
                           <img src={item.file_url} alt={item.caption || item.file_name || '갤러리'} className="w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
-                            <ZoomIn size={22} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ZoomIn size={22} className="text-white" />
                           </div>
+                          <button
+                            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-indigo-600 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={(e) => { e.stopPropagation(); blobDownload(item.file_url, item.file_name || 'image.webp'); }}
+                            title="개별 다운로드"
+                          >
+                            <Download size={13} />
+                          </button>
                           {(item.caption || item.week_number) && (
                             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               {item.week_number && <p className="text-[10px] font-bold text-white/80">{item.week_number}주차</p>}
@@ -647,12 +709,13 @@ const ShareClassView = () => {
           <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors" onClick={() => setLightbox(null)}>
             <X size={20} />
           </button>
-          <a href={lightbox.urls[lightbox.index]} download target="_blank" rel="noopener noreferrer"
+          <button
             className="absolute top-4 right-16 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); blobDownload(lightbox.urls[lightbox.index], lightbox.names[lightbox.index]); }}
+            title="다운로드"
           >
             <Download size={18} />
-          </a>
+          </button>
           {lightbox.urls.length > 1 && (
             <button className="absolute left-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
               onClick={(e) => { e.stopPropagation(); setLightbox(prev => prev ? { ...prev, index: (prev.index - 1 + prev.urls.length) % prev.urls.length } : null); }}
