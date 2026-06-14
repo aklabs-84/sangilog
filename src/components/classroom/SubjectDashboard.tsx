@@ -1189,12 +1189,12 @@ const SubjectDashboard = ({
         const tabLabel = activityTab === 'obs' ? '관찰기록' : '결과제출';
 
         return (
-          <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-[900] flex items-end sm:items-center justify-center px-4 pb-4 pt-20 sm:p-8 bg-slate-900/60 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+              className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
             >
               {/* Modal Header */}
               <div className="flex items-center justify-between px-10 py-5 border-b border-neutral-100">
