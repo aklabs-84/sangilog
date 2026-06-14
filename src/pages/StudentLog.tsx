@@ -454,7 +454,12 @@ const StudentLog = () => {
               statusTrackMap.current.set(key, 'rejected');
               setRejectionNotification({ type: 'obs', title: obsTitle, feedback: obs.teacher_feedback || null });
               fetchHistory();
-              fetchStudentNotifs(session.student_id); // 벨 알림 폴백 새로고침
+              setStudentNotifs(p => [{
+                id: `local-rej-${key}`, student_id: session.student_id,
+                title: '관찰기록이 반려되었습니다',
+                content: `"${obsTitle}"${obs.teacher_feedback ? ` — ${obs.teacher_feedback}` : ''}`,
+                type: 'rejection', is_read: false, created_at: new Date().toISOString(),
+              }, ...p.filter(n => n.id !== `local-rej-${key}`)]);
               break;
             } else if (obs.status === 'approved' && prev !== 'approved' && prev !== undefined) {
               seenRejectionIds.current.delete(key);
@@ -462,7 +467,12 @@ const StudentLog = () => {
               statusTrackMap.current.set(key, 'approved');
               setApprovalNotification({ type: 'obs', title: obsTitle });
               fetchHistory();
-              fetchStudentNotifs(session.student_id); // 벨 알림 폴백 새로고침
+              setStudentNotifs(p => [{
+                id: `local-apr-${key}`, student_id: session.student_id,
+                title: '관찰기록이 승인되었습니다 ✅',
+                content: `"${obsTitle}"이 선생님께 승인되었습니다.`,
+                type: 'approval', is_read: false, created_at: new Date().toISOString(),
+              }, ...p.filter(n => n.id !== `local-apr-${key}`)]);
               break;
             } else {
               statusTrackMap.current.set(key, obs.status);
@@ -484,7 +494,12 @@ const StudentLog = () => {
               statusTrackMap.current.set(key, 'rejected');
               setRejectionNotification({ type: 'result', title: rTitle, feedback: r.rejection_feedback || null });
               fetchResults();
-              fetchStudentNotifs(session.student_id); // 벨 알림 폴백 새로고침
+              setStudentNotifs(p => [{
+                id: `local-rej-${key}`, student_id: session.student_id,
+                title: '결과물이 반려되었습니다',
+                content: `"${rTitle}"${r.rejection_feedback ? ` — ${r.rejection_feedback}` : ' (수정 후 재제출하세요)'}`,
+                type: 'rejection', is_read: false, created_at: new Date().toISOString(),
+              }, ...p.filter(n => n.id !== `local-rej-${key}`)]);
               break;
             } else if (r.status === 'approved' && prev !== 'approved' && prev !== undefined) {
               seenRejectionIds.current.delete(key);
@@ -492,7 +507,12 @@ const StudentLog = () => {
               statusTrackMap.current.set(key, 'approved');
               setApprovalNotification({ type: 'result', title: rTitle });
               fetchResults();
-              fetchStudentNotifs(session.student_id); // 벨 알림 폴백 새로고침
+              setStudentNotifs(p => [{
+                id: `local-apr-${key}`, student_id: session.student_id,
+                title: '결과물이 승인되었습니다 ✅',
+                content: `"${rTitle}"이 선생님께 승인되었습니다.`,
+                type: 'approval', is_read: false, created_at: new Date().toISOString(),
+              }, ...p.filter(n => n.id !== `local-apr-${key}`)]);
               break;
             } else {
               statusTrackMap.current.set(key, r.status);
@@ -1334,14 +1354,15 @@ const StudentLog = () => {
           if (newSession && session?.student_id) {
             const title = (newSession.quiz_sets as any)?.title ?? '퀴즈';
             setQuizSessionAlert({ id: newSession.id, pin_code: newSession.pin_code, title });
-            supabase.from('student_notifications').insert({
+            setStudentNotifs(prev => [{
+              id: `local-quiz-${newSession.id}`,
               student_id: session.student_id,
-              class_id: session.class_id,
               title: '퀴즈가 시작되었습니다! 🎮',
               content: `"${title}" — PIN: ${newSession.pin_code}`,
               type: 'quiz_started',
               is_read: false,
-            }).then(() => {});
+              created_at: new Date().toISOString(),
+            }, ...prev]);
           }
         }
         data.forEach(s => seenQuizSessionIds.current.add(s.id));
@@ -1404,16 +1425,15 @@ const StudentLog = () => {
       const newSession = sessions.find(s => !seenBoardSessionIds.current.has(s.id));
       if (newSession) {
         setBoardSessionAlert(newSession);
-        if (session?.student_id) {
-          supabase.from('student_notifications').insert({
-            student_id: session.student_id,
-            class_id: session.class_id,
-            title: '수업 보드가 시작되었습니다! 🎨',
-            content: '보드 탭에서 바로 참여할 수 있습니다.',
-            type: 'board_started',
-            is_read: false,
-          }).then(() => {});
-        }
+        setStudentNotifs(prev => [{
+          id: `local-board-${newSession.id}`,
+          student_id: session?.student_id ?? '',
+          title: '수업 보드가 시작되었습니다! 🎨',
+          content: '보드 탭에서 바로 참여할 수 있습니다.',
+          type: 'board_started',
+          is_read: false,
+          created_at: new Date().toISOString(),
+        }, ...prev]);
       }
     }
     sessions.forEach(s => seenBoardSessionIds.current.add(s.id));
