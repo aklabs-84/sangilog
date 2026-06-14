@@ -234,8 +234,8 @@ const SubjectDashboard = ({
   const [showStats, setShowStats] = useState(true);
   const [statsLoading, setStatsLoading] = useState(false);
   const [selectedStatsWeek, setSelectedStatsWeek] = useState<number | null>(null);
-  const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string, activity_name: string}>>([]);
-  const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string, week_number: number | null}>>([]);
+  const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string, activity_name: string, status: string}>>([]);
+  const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string, week_number: number | null, status: string}>>([]);
   const [suggestionCounts, setSuggestionCounts] = useState<Record<string, number>>({});
   // 연결된 담임반의 weekly_plan (학생이 담임반 코드로 입장 시 activity_name이 담임반 주제로 저장됨)
   const [linkedWeeklyPlan, setLinkedWeeklyPlan] = useState<{week: number, topic: string}[]>([]);
@@ -279,6 +279,18 @@ const SubjectDashboard = ({
   const getResultsOnWeek = (week: number | null): Set<string> =>
     week === null ? new Set() : new Set(rawResults.filter(r => r.week_number === week).map(r => r.student_id));
 
+  // 선택된 주차의 obs + results 상태 기반 승인 상태 계산
+  // 우선순위: 승인 대기 > 반려됨 > 승인 완료 > —
+  const getApprovalStatusForWeek = (studentId: string, week: number): 'none' | 'pending' | 'rejected' | 'done' => {
+    const topics = getTopicsForWeek(week);
+    const weekObs = rawObs.filter(r => r.student_id === studentId && topics.includes(norm(r.activity_name)));
+    const weekResults = rawResults.filter(r => r.student_id === studentId && r.week_number === week);
+    if (weekObs.length === 0 && weekResults.length === 0) return 'none';
+    if (weekObs.some(r => r.status === 'pending')) return 'pending';
+    if (weekObs.some(r => r.status === 'rejected') || weekResults.some(r => r.status === 'rejected')) return 'rejected';
+    return 'done';
+  };
+
   const obsOnWeek = getObsOnWeek(selectedStatsWeek);
   const resultsOnWeek = getResultsOnWeek(selectedStatsWeek);
 
@@ -293,8 +305,8 @@ const SubjectDashboard = ({
         //   과목반 ID로 조회하면 결과가 없어 주차별 결과제출이 항상 공백으로 표시됨
         //   HomeroomDashboard와 동일하게 student_id 기반 조회로 통일
         const [obsRes, resultsRes, suggRes] = await Promise.all([
-          supabase.from('observations').select('created_at, student_id, activity_name').in('student_id', studentIds).eq('is_student_record', true),
-          supabase.from('student_results').select('created_at, student_id, week_number').in('student_id', studentIds),
+          supabase.from('observations').select('created_at, student_id, activity_name, status').in('student_id', studentIds).eq('is_student_record', true),
+          supabase.from('student_results').select('created_at, student_id, week_number, status').in('student_id', studentIds),
           supabase.from('student_suggestions').select('student_id').eq('class_id', classInfo.id).is('teacher_reply', null),
         ]);
         setRawObs(obsRes.data || []);
@@ -658,8 +670,9 @@ const SubjectDashboard = ({
                 {filteredStudents.length === 0 ? (
                   <div className="text-center py-16 text-on-surface-variant/70 font-bold">학생이 없습니다</div>
                 ) : filteredStudents.map((s) => {
-                  const approvalStatus = (!s.activity || s.status === '미작성')
-                    ? 'none'
+                  const approvalStatus = selectedStatsWeek !== null
+                    ? getApprovalStatusForWeek(s.id, selectedStatsWeek)
+                    : (!s.activity || s.status === '미작성') ? 'none'
                     : s.pending_obs_ids?.length > 0 ? 'pending'
                     : s.has_rejected ? 'rejected' : 'done';
                   return (
@@ -917,16 +930,19 @@ const SubjectDashboard = ({
                           )}
                           {colVis.approval && (
                             <td className="p-6 text-center">
-                              {s.status === '미작성' ||
-                               (selectedStatsWeek !== null && !obsOnWeek.has(s.id) && !resultsOnWeek.has(s.id)) ? (
-                                <span className="text-on-surface-variant/50 text-xs font-bold">—</span>
-                              ) : (s.pending_obs_ids?.length > 0) ? (
-                                <span className="px-3 py-1 rounded-lg text-xs font-black border bg-amber-50 text-amber-700 border-amber-300">승인 대기</span>
-                              ) : s.has_rejected ? (
-                                <span className="px-3 py-1 rounded-lg text-xs font-black border bg-red-50 text-red-500 border-red-200">반려됨</span>
-                              ) : (
-                                <span className="px-3 py-1 rounded-lg text-xs font-black border bg-secondary/10 text-secondary border-secondary/30">승인 완료</span>
-                              )}
+                              {(() => {
+                                if (selectedStatsWeek !== null) {
+                                  const ws = getApprovalStatusForWeek(s.id, selectedStatsWeek);
+                                  if (ws === 'none') return <span className="text-on-surface-variant/50 text-xs font-bold">—</span>;
+                                  if (ws === 'pending') return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-amber-50 text-amber-700 border-amber-300">승인 대기</span>;
+                                  if (ws === 'rejected') return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-red-50 text-red-500 border-red-200">반려됨</span>;
+                                  return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-secondary/10 text-secondary border-secondary/30">승인 완료</span>;
+                                }
+                                if (s.status === '미작성') return <span className="text-on-surface-variant/50 text-xs font-bold">—</span>;
+                                if (s.pending_obs_ids?.length > 0) return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-amber-50 text-amber-700 border-amber-300">승인 대기</span>;
+                                if (s.has_rejected) return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-red-50 text-red-500 border-red-200">반려됨</span>;
+                                return <span className="px-3 py-1 rounded-lg text-xs font-black border bg-secondary/10 text-secondary border-secondary/30">승인 완료</span>;
+                              })()}
                             </td>
                           )}
                           {/* 주차별 관찰기록 / 결과제출 현황 셀 */}
