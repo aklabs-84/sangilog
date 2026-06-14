@@ -454,6 +454,7 @@ const StudentLog = () => {
               statusTrackMap.current.set(key, 'rejected');
               setRejectionNotification({ type: 'obs', title: obsTitle, feedback: obs.teacher_feedback || null });
               fetchHistory();
+              fetchStudentNotifs(session.student_id); // 벨 알림 폴백 새로고침
               break;
             } else if (obs.status === 'approved' && prev !== 'approved' && prev !== undefined) {
               seenRejectionIds.current.delete(key);
@@ -461,6 +462,7 @@ const StudentLog = () => {
               statusTrackMap.current.set(key, 'approved');
               setApprovalNotification({ type: 'obs', title: obsTitle });
               fetchHistory();
+              fetchStudentNotifs(session.student_id); // 벨 알림 폴백 새로고침
               break;
             } else {
               statusTrackMap.current.set(key, obs.status);
@@ -482,6 +484,7 @@ const StudentLog = () => {
               statusTrackMap.current.set(key, 'rejected');
               setRejectionNotification({ type: 'result', title: rTitle, feedback: r.rejection_feedback || null });
               fetchResults();
+              fetchStudentNotifs(session.student_id); // 벨 알림 폴백 새로고침
               break;
             } else if (r.status === 'approved' && prev !== 'approved' && prev !== undefined) {
               seenRejectionIds.current.delete(key);
@@ -489,6 +492,7 @@ const StudentLog = () => {
               statusTrackMap.current.set(key, 'approved');
               setApprovalNotification({ type: 'result', title: rTitle });
               fetchResults();
+              fetchStudentNotifs(session.student_id); // 벨 알림 폴백 새로고침
               break;
             } else {
               statusTrackMap.current.set(key, r.status);
@@ -578,12 +582,15 @@ const StudentLog = () => {
         table: 'student_notifications',
         filter: `student_id=eq.${session.student_id}`,
       }, (payload: any) => {
+        console.log('[student-notifs] Realtime INSERT:', payload.new);
         setStudentNotifs(prev => [payload.new, ...prev]);
         if (payload.new?.type === 'group_assignment') {
           fetchMyGroup(session.student_id, session.class_id);
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[student-notifs] Realtime status:', status);
+      });
     return () => { supabase.removeChannel(channel); };
   }, [session?.student_id]);
 
