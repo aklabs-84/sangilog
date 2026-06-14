@@ -471,7 +471,18 @@ const Landing = () => {
             <p className="text-amber-700/70 text-sm">모든 플랜은 관리자 승인 후 활성화됩니다.</p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* 공유 링크 안내 */}
+          <div className="mb-8 bg-violet-50 border border-violet-200 rounded-2xl px-6 py-4 flex items-start gap-3">
+            <span className="text-xl mt-0.5">🔗</span>
+            <div>
+              <p className="text-sm font-bold text-violet-800 mb-0.5">클래스 결과 공유 링크</p>
+              <p className="text-xs text-violet-600 leading-relaxed">
+                선생님은 별도 계정 없이도 <strong>공유 입장 링크</strong>를 통해 클래스별 학생 기록과 갤러리를 열람할 수 있습니다. 담임 선생님이 교과 교사에게 링크를 공유하면 해당 클래스의 결과를 바로 확인할 수 있습니다.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               {
                 name: '무료',
@@ -484,7 +495,7 @@ const Landing = () => {
                 features: [
                   { text: '클래스 최대 2개', ok: true },
                   { text: 'AI 세특 하루 10회', ok: true },
-                  { text: '학생 관찰 기록', ok: true },
+                  { text: '학생 관찰 기록 · 교사 메모', ok: true },
                   { text: '수업 도구 기본 2가지', ok: true },
                   { text: '실시간 퀴즈 (5문항 제한)', ok: true },
                   { text: '수업 자료 에디터', ok: false },
@@ -505,8 +516,8 @@ const Landing = () => {
                 features: [
                   { text: '클래스 최대 5개', ok: true },
                   { text: 'AI 세특 하루 30회', ok: true },
-                  { text: '학생 관찰 기록', ok: true },
-                  { text: '수업 도구 전체 7가지', ok: true },
+                  { text: '학생 관찰 기록 · 교사 메모', ok: true },
+                  { text: '수업 도구 5가지', ok: true },
                   { text: '실시간 퀴즈 (문항 수 무제한)', ok: true },
                   { text: '수업 자료 에디터', ok: true },
                   { text: '화이트보드 (최대 3개)', ok: true },
@@ -528,30 +539,13 @@ const Landing = () => {
                 features: [
                   { text: '클래스 무제한', ok: true },
                   { text: 'AI 세특 무제한', ok: true },
-                  { text: '학생 관찰 기록', ok: true },
+                  { text: '학생 관찰 기록 · 교사 메모', ok: true },
                   { text: '수업 도구 전체 7가지', ok: true },
                   { text: '화이트보드 무제한', ok: true },
                   { text: '실시간 설문 + AI 분석', ok: true },
                   { text: '수업 전사 & AI 분석', ok: true },
                   { text: '일괄 AI 생성', ok: true },
                   { text: 'NAISS 내보내기', ok: true },
-                ],
-              },
-              {
-                name: 'School',
-                badge: 'SCHOOL',
-                badgeColor: 'bg-violet-500 text-white',
-                headerColor: 'bg-gradient-to-br from-violet-50 to-indigo-50',
-                borderColor: 'border-violet-200',
-                emoji: '🏫',
-                desc: '교장·교감·장학사 등 관찰자',
-                features: [
-                  { text: '초대된 클래스 열람', ok: true },
-                  { text: '학교 현황 대시보드', ok: true },
-                  { text: '클래스 직접 생성', ok: false },
-                  { text: 'AI 기능', ok: false },
-                  { text: '교사 연동', ok: false },
-                  { text: 'NAISS 내보내기', ok: false },
                 ],
               },
               {
