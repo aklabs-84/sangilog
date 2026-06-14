@@ -182,7 +182,7 @@ const SubjectDashboard = ({
       ));
       if (resultDetailStudent?.id) {
         const rTitle = firstItem?.title || (firstItem?.week_number ? `${firstItem.week_number}주차 결과물` : '결과물');
-        await supabase.from('student_notifications').insert({
+        const { error: notifErr } = await supabase.from('student_notifications').insert({
           student_id: resultDetailStudent.id,
           class_id: classInfo?.id,
           title: '결과물이 반려되었습니다',
@@ -190,6 +190,7 @@ const SubjectDashboard = ({
           type: 'rejection',
           is_read: false,
         });
+        if (notifErr) console.error('student_notifications insert error (reject result):', notifErr);
       }
       setResultRejectModal(null);
       setResultRejectFeedback('');

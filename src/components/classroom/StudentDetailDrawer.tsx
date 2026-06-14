@@ -103,7 +103,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
       }));
       if (studentId) {
         const classId = fromClassId || student?.class_id;
-        await supabase.from('student_notifications').insert({
+        const { error: notifErr } = await supabase.from('student_notifications').insert({
           student_id: studentId,
           class_id: classId,
           title: '관찰기록이 반려되었습니다',
@@ -111,6 +111,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
           type: 'rejection',
           is_read: false,
         });
+        if (notifErr) console.error('student_notifications insert error (reject obs):', notifErr);
       }
       setRejectingObsId(null);
       setObsFeedback('');
@@ -132,7 +133,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
     }));
     if (studentId) {
       const classId = fromClassId || student?.class_id;
-      await supabase.from('student_notifications').insert({
+      const { error: notifErr } = await supabase.from('student_notifications').insert({
         student_id: studentId,
         class_id: classId,
         title: '관찰기록이 승인되었습니다 ✅',
@@ -140,6 +141,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
         type: 'approval',
         is_read: false,
       });
+      if (notifErr) console.error('student_notifications insert error (approve obs):', notifErr);
     }
   };
 
