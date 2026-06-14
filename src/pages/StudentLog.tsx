@@ -1940,23 +1940,6 @@ ${guidePrompt}
           animate={{ opacity: 1, y: 0 }}
           className="surface-card rounded-[3.5rem] shadow-ambient overflow-hidden border border-surface-container-highest"
         >
-          {/* 관찰 기록 탭 제출 버튼 — 상단 고정 */}
-          {activeTab === 'record' && (
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-end gap-3 bg-violet-50/40">
-              <button className="flex items-center gap-2 px-4 py-2 text-sm font-black text-slate-500 hover:text-slate-700 transition-all rounded-xl hover:bg-slate-200 whitespace-nowrap">
-                <Save size={15} />임시 저장
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-2xl font-black text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
-              >
-                {submitting ? <Loader2 size={15} className="animate-spin" /> : (
-                  <><Send size={15} /> 활동 기록 제출하기</>
-                )}
-              </button>
-            </div>
-          )}
 
           {/* Tab Contents */}
           <AnimatePresence mode="wait">
@@ -2247,6 +2230,22 @@ ${guidePrompt}
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* 제출 버튼 — 입력창 바로 아래 */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
+                  <button className="flex items-center gap-2 px-5 py-3 text-sm font-black text-slate-500 hover:text-slate-700 transition-all rounded-2xl hover:bg-slate-100 whitespace-nowrap">
+                    <Save size={15} />임시 저장
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="flex items-center gap-2 px-8 py-3.5 btn-gradient rounded-2xl font-black text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {submitting ? <Loader2 size={15} className="animate-spin" /> : (
+                      <><Send size={15} /> 활동 기록 제출하기</>
+                    )}
+                  </button>
                 </div>
               </motion.div>
             )}
