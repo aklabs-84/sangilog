@@ -640,12 +640,13 @@ const StudentLog = () => {
   };
 
   const fetchStudentNotifs = async (studentId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('student_notifications')
       .select('*')
       .eq('student_id', studentId)
       .order('created_at', { ascending: false })
       .limit(50);
+    console.log('[fetchStudentNotifs] rows:', data?.length, 'error:', error);
     if (data) setStudentNotifs(data);
   };
 
