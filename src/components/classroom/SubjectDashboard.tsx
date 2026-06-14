@@ -180,6 +180,17 @@ const SubjectDashboard = ({
       setResultDetailItems(prev => prev.map((r: any) =>
         (r.submission_group || r.id) === groupId ? { ...r, status: 'rejected', rejection_feedback: feedback.trim() || null } : r
       ));
+      if (resultDetailStudent?.id) {
+        const rTitle = firstItem?.title || (firstItem?.week_number ? `${firstItem.week_number}주차 결과물` : '결과물');
+        await supabase.from('student_notifications').insert({
+          student_id: resultDetailStudent.id,
+          class_id: classInfo?.id,
+          title: '결과물이 반려되었습니다',
+          content: `"${rTitle}"${feedback.trim() ? ` — ${feedback.trim()}` : ' (수정 후 재제출하세요)'}`,
+          type: 'rejection',
+          is_read: false,
+        });
+      }
       setResultRejectModal(null);
       setResultRejectFeedback('');
     } catch { alert('처리 중 오류가 발생했습니다.'); }

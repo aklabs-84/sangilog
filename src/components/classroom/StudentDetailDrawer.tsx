@@ -90,6 +90,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
     if (!rejectingObsId || !obsFeedback.trim()) return;
     setSavingObsReject(true);
     try {
+      const obs = student?.observations?.find((o: any) => o.id === rejectingObsId);
       await supabase.from('observations').update({
         status: 'rejected',
         teacher_feedback: obsFeedback.trim(),
@@ -100,6 +101,16 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
           o.id === rejectingObsId ? { ...o, status: 'rejected', teacher_feedback: obsFeedback.trim() } : o
         ),
       }));
+      if (studentId) {
+        await supabase.from('student_notifications').insert({
+          student_id: studentId,
+          class_id: student?.class_id || fromClassId,
+          title: '관찰기록이 반려되었습니다',
+          content: `"${obs?.activity_name || '관찰기록'}" — ${obsFeedback.trim()}`,
+          type: 'rejection',
+          is_read: false,
+        });
+      }
       setRejectingObsId(null);
       setObsFeedback('');
     } catch (err) {
@@ -110,6 +121,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
   };
 
   const handleApproveObs = async (obsId: string) => {
+    const obs = student?.observations?.find((o: any) => o.id === obsId);
     await supabase.from('observations').update({ status: 'approved', teacher_feedback: null }).eq('id', obsId);
     setStudent((prev: any) => ({
       ...prev,
@@ -117,6 +129,16 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
         o.id === obsId ? { ...o, status: 'approved', teacher_feedback: null } : o
       ),
     }));
+    if (studentId) {
+      await supabase.from('student_notifications').insert({
+        student_id: studentId,
+        class_id: student?.class_id || fromClassId,
+        title: '관찰기록이 승인되었습니다 ✅',
+        content: `"${obs?.activity_name || '관찰기록'}"이 선생님께 승인되었습니다.`,
+        type: 'approval',
+        is_read: false,
+      });
+    }
   };
 
   const handleSaveResultFeedback = async () => {

@@ -339,17 +339,6 @@ const StudentLog = () => {
 
     initSeen();
 
-    const insertBellNotif = (title: string, content: string, type: string) => {
-      supabase.from('student_notifications').insert({
-        student_id: session.student_id,
-        class_id: session.class_id,
-        title,
-        content,
-        type,
-        is_read: false,
-      }).then(() => {});
-    };
-
     // 관찰기록 반려/승인 Realtime 구독
     const obsChannel = supabase
       .channel(`obs-status-rt-${session.student_id}`)
@@ -365,27 +354,25 @@ const StudentLog = () => {
         const obsTitle = obs.activity_name || '관찰기록';
 
         if (obs?.status === 'rejected') {
+          // 재반려 감지 허용: 승인 seen에서 제거
+          seenApprovalIds.current.delete(key);
           if (!seenRejectionIds.current.has(key)) {
             seenRejectionIds.current.add(key);
             setRejectionNotification({ type: 'obs', title: obsTitle, feedback: obs.teacher_feedback || null });
-            insertBellNotif(
-              `관찰기록이 반려되었습니다`,
-              `"${obsTitle}"${obs.teacher_feedback ? ` — ${obs.teacher_feedback}` : ' (수정 후 재제출하세요)'}`,
-              'rejection'
-            );
             fetchHistory();
           }
         } else if (obs?.status === 'approved') {
+          // 재승인 감지 허용: 반려 seen에서 제거
+          seenRejectionIds.current.delete(key);
           if (!seenApprovalIds.current.has(key)) {
             seenApprovalIds.current.add(key);
             setApprovalNotification({ type: 'obs', title: obsTitle });
-            insertBellNotif(
-              `관찰기록이 승인되었습니다 ✅`,
-              `"${obsTitle}"이 선생님께 승인되었습니다.`,
-              'approval'
-            );
             fetchHistory();
           }
+        } else {
+          // pending 등: 다음 반려/승인 모두 다시 감지
+          seenRejectionIds.current.delete(key);
+          seenApprovalIds.current.delete(key);
         }
       })
       .subscribe();
@@ -405,27 +392,22 @@ const StudentLog = () => {
         const rTitle = r.title || (r.week_number ? `${r.week_number}주차 결과물` : '결과물');
 
         if (r?.status === 'rejected') {
+          seenApprovalIds.current.delete(key);
           if (!seenRejectionIds.current.has(key)) {
             seenRejectionIds.current.add(key);
             setRejectionNotification({ type: 'result', title: rTitle, feedback: r.rejection_feedback || null });
-            insertBellNotif(
-              `결과물이 반려되었습니다`,
-              `"${rTitle}"${r.rejection_feedback ? ` — ${r.rejection_feedback}` : ' (수정 후 재제출하세요)'}`,
-              'rejection'
-            );
             fetchResults();
           }
         } else if (r?.status === 'approved') {
+          seenRejectionIds.current.delete(key);
           if (!seenApprovalIds.current.has(key)) {
             seenApprovalIds.current.add(key);
             setApprovalNotification({ type: 'result', title: rTitle });
-            insertBellNotif(
-              `결과물이 승인되었습니다 ✅`,
-              `"${rTitle}"이 선생님께 승인되었습니다.`,
-              'approval'
-            );
             fetchResults();
           }
+        } else {
+          seenRejectionIds.current.delete(key);
+          seenApprovalIds.current.delete(key);
         }
       })
       .subscribe();
