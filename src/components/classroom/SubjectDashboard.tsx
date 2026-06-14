@@ -660,7 +660,8 @@ const SubjectDashboard = ({
                 ) : filteredStudents.map((s) => {
                   const approvalStatus = (!s.activity || s.status === '미작성')
                     ? 'none'
-                    : s.pending_obs_ids?.length > 0 ? 'pending' : 'done';
+                    : s.pending_obs_ids?.length > 0 ? 'pending'
+                    : s.has_rejected ? 'rejected' : 'done';
                   return (
                     <motion.div
                       key={s.id}
@@ -697,6 +698,9 @@ const SubjectDashboard = ({
                         <div className="shrink-0 flex items-center gap-2">
                           {approvalStatus === 'pending' && (
                             <span className="text-xs font-black px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-300 whitespace-nowrap">⏳ 대기</span>
+                          )}
+                          {approvalStatus === 'rejected' && (
+                            <span className="text-xs font-black px-2 py-1 rounded-lg bg-red-50 text-red-500 border border-red-200 whitespace-nowrap">반려됨</span>
                           )}
                           {approvalStatus === 'done' && (
                             <span className="text-xs font-black px-2 py-1 rounded-lg bg-secondary/10 text-secondary border border-secondary/30 whitespace-nowrap">✅ 완료</span>
@@ -918,6 +922,8 @@ const SubjectDashboard = ({
                                 <span className="text-on-surface-variant/50 text-xs font-bold">—</span>
                               ) : (s.pending_obs_ids?.length > 0) ? (
                                 <span className="px-3 py-1 rounded-lg text-xs font-black border bg-amber-50 text-amber-700 border-amber-300">승인 대기</span>
+                              ) : s.has_rejected ? (
+                                <span className="px-3 py-1 rounded-lg text-xs font-black border bg-red-50 text-red-500 border-red-200">반려됨</span>
                               ) : (
                                 <span className="px-3 py-1 rounded-lg text-xs font-black border bg-secondary/10 text-secondary border-secondary/30">승인 완료</span>
                               )}
