@@ -126,14 +126,17 @@ const StudentLog = () => {
   const [notifOpen, setNotifOpen] = useState(false);
   const unreadNotifCount = studentNotifs.filter(n => !n.is_read).length;
 
-  // 반려 실시간 알림 (폴링)
   const [rejectionNotification, setRejectionNotification] = useState<{
     type: 'obs' | 'result';
     title: string;
     feedback: string | null;
   } | null>(null);
-  const isFirstRejectionPoll = useRef(true);
+  const [approvalNotification, setApprovalNotification] = useState<{
+    type: 'obs' | 'result';
+    title: string;
+  } | null>(null);
   const seenRejectionIds = useRef(new Set<string>());
+  const seenApprovalIds = useRef(new Set<string>());
   const isFirstBoardPoll = useRef(true);
   const seenBoardSessionIds = useRef(new Set<string>());
   const isFirstQuizPoll = useRef(true);
@@ -299,72 +302,138 @@ const StudentLog = () => {
     })();
   }, []);
 
-  // 반려 알림 폴링 — 15초마다 새 반려 확인
+  // 반려/승인 알림 — 초기 seen ID 로드 + Realtime 구독
   useEffect(() => {
     if (!session?.student_id) return;
 
-    const check = async () => {
+    // 마운트 시 이미 반려/승인된 항목을 seen으로 등록 (알림 없이)
+    const initSeen = async () => {
       try {
-        // 관찰기록 반려 체크
-        const { data: rejectedObs } = await supabase
+        const { data: processedObs } = await supabase
           .from('observations')
-          .select('id, activity_name, teacher_feedback')
+          .select('id, status')
           .eq('student_id', session.student_id)
-          .eq('status', 'rejected')
+          .in('status', ['rejected', 'approved'])
           .eq('is_student_record', true);
-
-        for (const obs of (rejectedObs || [])) {
-          const key = `obs-${obs.id}`;
-          if (isFirstRejectionPoll.current) {
-            seenRejectionIds.current.add(key);
-          } else if (!seenRejectionIds.current.has(key)) {
-            seenRejectionIds.current.add(key);
-            setRejectionNotification({
-              type: 'obs',
-              title: obs.activity_name || '관찰기록',
-              feedback: obs.teacher_feedback || null,
-            });
-            fetchHistory();
-            return;
-          }
+        for (const obs of (processedObs || [])) {
+          seenRejectionIds.current.add(`obs-${obs.id}`);
+          seenApprovalIds.current.add(`obs-${obs.id}`);
         }
 
-        // 결과물 반려 체크
-        const { data: rejectedResults } = await supabase
+        const { data: processedResults } = await supabase
           .from('student_results')
-          .select('id, submission_group, week_number, title, rejection_feedback')
+          .select('id, submission_group, status')
           .eq('student_id', session.student_id)
-          .eq('status', 'rejected');
-
+          .in('status', ['rejected', 'approved']);
         const seenGroups = new Set<string>();
-        for (const r of (rejectedResults || [])) {
+        for (const r of (processedResults || [])) {
           const gId = r.submission_group || r.id;
-          if (seenGroups.has(gId)) continue;
-          seenGroups.add(gId);
-          const key = `result-${gId}`;
-          if (isFirstRejectionPoll.current) {
-            seenRejectionIds.current.add(key);
-          } else if (!seenRejectionIds.current.has(key)) {
-            seenRejectionIds.current.add(key);
-            setRejectionNotification({
-              type: 'result',
-              title: r.title || (r.week_number ? `${r.week_number}주차 결과물` : '결과물'),
-              feedback: (r as any).rejection_feedback || null,
-            });
-            fetchResults();
-            return;
+          if (!seenGroups.has(gId)) {
+            seenGroups.add(gId);
+            seenRejectionIds.current.add(`result-${gId}`);
+            seenApprovalIds.current.add(`result-${gId}`);
           }
         }
-      } catch {
-        // 백그라운드 폴링 오류 무시
-      } finally {
-        isFirstRejectionPoll.current = false;
-      }
+      } catch { /* 무시 */ }
     };
 
-    check();
-    const interval = setInterval(check, 15000);
-    return () => clearInterval(interval);
+    initSeen();
+
+    const insertBellNotif = (title: string, content: string, type: string) => {
+      supabase.from('student_notifications').insert({
+        student_id: session.student_id,
+        class_id: session.class_id,
+        title,
+        content,
+        type,
+        is_read: false,
+      }).then(() => {});
+    };
+
+    // 관찰기록 반려/승인 Realtime 구독
+    const obsChannel = supabase
+      .channel(`obs-status-rt-${session.student_id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'observations',
+        filter: `student_id=eq.${session.student_id}`,
+      }, (payload: any) => {
+        const obs = payload.new;
+        if (!obs?.is_student_record) return;
+        const key = `obs-${obs.id}`;
+        const obsTitle = obs.activity_name || '관찰기록';
+
+        if (obs?.status === 'rejected') {
+          if (!seenRejectionIds.current.has(key)) {
+            seenRejectionIds.current.add(key);
+            setRejectionNotification({ type: 'obs', title: obsTitle, feedback: obs.teacher_feedback || null });
+            insertBellNotif(
+              `관찰기록이 반려되었습니다`,
+              `"${obsTitle}"${obs.teacher_feedback ? ` — ${obs.teacher_feedback}` : ' (수정 후 재제출하세요)'}`,
+              'rejection'
+            );
+            fetchHistory();
+          }
+        } else if (obs?.status === 'approved') {
+          if (!seenApprovalIds.current.has(key)) {
+            seenApprovalIds.current.add(key);
+            setApprovalNotification({ type: 'obs', title: obsTitle });
+            insertBellNotif(
+              `관찰기록이 승인되었습니다 ✅`,
+              `"${obsTitle}"이 선생님께 승인되었습니다.`,
+              'approval'
+            );
+            fetchHistory();
+          }
+        }
+      })
+      .subscribe();
+
+    // 결과물 반려/승인 Realtime 구독
+    const resultChannel = supabase
+      .channel(`result-status-rt-${session.student_id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'student_results',
+        filter: `student_id=eq.${session.student_id}`,
+      }, (payload: any) => {
+        const r = payload.new;
+        const gId = r.submission_group || r.id;
+        const key = `result-${gId}`;
+        const rTitle = r.title || (r.week_number ? `${r.week_number}주차 결과물` : '결과물');
+
+        if (r?.status === 'rejected') {
+          if (!seenRejectionIds.current.has(key)) {
+            seenRejectionIds.current.add(key);
+            setRejectionNotification({ type: 'result', title: rTitle, feedback: r.rejection_feedback || null });
+            insertBellNotif(
+              `결과물이 반려되었습니다`,
+              `"${rTitle}"${r.rejection_feedback ? ` — ${r.rejection_feedback}` : ' (수정 후 재제출하세요)'}`,
+              'rejection'
+            );
+            fetchResults();
+          }
+        } else if (r?.status === 'approved') {
+          if (!seenApprovalIds.current.has(key)) {
+            seenApprovalIds.current.add(key);
+            setApprovalNotification({ type: 'result', title: rTitle });
+            insertBellNotif(
+              `결과물이 승인되었습니다 ✅`,
+              `"${rTitle}"이 선생님께 승인되었습니다.`,
+              'approval'
+            );
+            fetchResults();
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(obsChannel);
+      supabase.removeChannel(resultChannel);
+    };
   }, [session?.student_id]);
 
   // 수업 보드 세션 폴링 + Realtime 구독 — 선생님 공유 중지/시작 즉시 반영
@@ -1172,9 +1241,17 @@ const StudentLog = () => {
         // 새 퀴즈 세션 팝업 알림 (최초 로드 제외)
         if (!isFirstQuizPoll.current) {
           const newSession = data.find(s => !seenQuizSessionIds.current.has(s.id));
-          if (newSession) {
+          if (newSession && session?.student_id) {
             const title = (newSession.quiz_sets as any)?.title ?? '퀴즈';
             setQuizSessionAlert({ id: newSession.id, pin_code: newSession.pin_code, title });
+            supabase.from('student_notifications').insert({
+              student_id: session.student_id,
+              class_id: session.class_id,
+              title: '퀴즈가 시작되었습니다! 🎮',
+              content: `"${title}" — PIN: ${newSession.pin_code}`,
+              type: 'quiz_started',
+              is_read: false,
+            }).then(() => {});
           }
         }
         data.forEach(s => seenQuizSessionIds.current.add(s.id));
@@ -1235,7 +1312,19 @@ const StudentLog = () => {
 
     if (!isFirstBoardPoll.current) {
       const newSession = sessions.find(s => !seenBoardSessionIds.current.has(s.id));
-      if (newSession) setBoardSessionAlert(newSession);
+      if (newSession) {
+        setBoardSessionAlert(newSession);
+        if (session?.student_id) {
+          supabase.from('student_notifications').insert({
+            student_id: session.student_id,
+            class_id: session.class_id,
+            title: '수업 보드가 시작되었습니다! 🎨',
+            content: '보드 탭에서 바로 참여할 수 있습니다.',
+            type: 'board_started',
+            is_read: false,
+          }).then(() => {});
+        }
+      }
     }
     sessions.forEach(s => seenBoardSessionIds.current.add(s.id));
     isFirstBoardPoll.current = false;
@@ -1613,18 +1702,47 @@ ${guidePrompt}
                     <div className="max-h-80 overflow-y-auto">
                       {studentNotifs.length === 0 ? (
                         <div className="py-10 text-center text-neutral-400 text-xs font-bold">알림이 없습니다</div>
-                      ) : studentNotifs.map(n => (
-                        <div key={n.id} className={`px-5 py-4 border-b border-neutral-50 last:border-0 ${n.is_read ? 'opacity-60' : 'bg-indigo-50/40'}`}>
-                          <div className="flex items-start gap-2">
-                            {!n.is_read && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />}
-                            <div className={n.is_read ? 'ml-3.5' : ''}>
-                              <p className="text-xs font-black text-on-surface leading-snug">{n.title}</p>
-                              {n.content && <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">{n.content}</p>}
-                              <p className="text-[10px] text-neutral-400 mt-1">{new Date(n.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                      ) : studentNotifs.map(n => {
+                        const iconMap: Record<string, string> = {
+                          rejection: '🚨',
+                          approval: '✅',
+                          quiz_started: '🎮',
+                          board_started: '🎨',
+                          group_assignment: '📋',
+                        };
+                        const bgMap: Record<string, string> = {
+                          rejection: 'bg-red-50/60',
+                          approval: 'bg-green-50/60',
+                          quiz_started: 'bg-violet-50/60',
+                          board_started: 'bg-blue-50/60',
+                          group_assignment: 'bg-indigo-50/40',
+                        };
+                        const dotMap: Record<string, string> = {
+                          rejection: 'bg-red-500',
+                          approval: 'bg-green-500',
+                          quiz_started: 'bg-violet-500',
+                          board_started: 'bg-blue-500',
+                          group_assignment: 'bg-indigo-500',
+                        };
+                        const icon = iconMap[n.type] ?? '🔔';
+                        const bg = n.is_read ? '' : (bgMap[n.type] ?? 'bg-indigo-50/40');
+                        const dot = dotMap[n.type] ?? 'bg-indigo-500';
+                        return (
+                          <div key={n.id} className={`px-5 py-3.5 border-b border-neutral-50 last:border-0 ${n.is_read ? 'opacity-60' : bg}`}>
+                            <div className="flex items-start gap-2.5">
+                              <span className="text-base shrink-0 mt-0.5">{icon}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  {!n.is_read && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />}
+                                  <p className="text-xs font-black text-on-surface leading-snug">{n.title}</p>
+                                </div>
+                                {n.content && <p className="text-[11px] text-neutral-500 mt-0.5 leading-snug">{n.content}</p>}
+                                <p className="text-[10px] text-neutral-400 mt-1">{new Date(n.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </motion.div>
                 </>
@@ -4599,6 +4717,55 @@ ${guidePrompt}
                   className="px-5 py-4 bg-neutral-100 hover:bg-neutral-200 rounded-2xl font-black text-sm text-neutral-500 transition-all"
                 >
                   확인
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── 승인 알림 바텀시트 ── */}
+      <AnimatePresence>
+        {approvalNotification && (
+          <div className="fixed inset-0 z-[1600] flex items-end justify-center">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setApprovalNotification(null)}
+            />
+            <motion.div
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-green-400"
+            >
+              <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-green-100 flex items-center justify-center text-2xl shrink-0">✅</div>
+                <div className="flex-1">
+                  <p className="font-black text-on-surface text-base leading-snug">
+                    {approvalNotification.type === 'obs'
+                      ? `"${approvalNotification.title}" 관찰기록이 승인되었습니다`
+                      : `"${approvalNotification.title}" 결과물이 승인되었습니다`}
+                  </p>
+                  <p className="text-xs text-on-surface-variant/60 font-bold mt-2">선생님이 확인하고 승인했습니다. 🎉</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const type = approvalNotification.type;
+                    setApprovalNotification(null);
+                    handleTabChange(type === 'obs' ? 'record' : 'results');
+                  }}
+                  className="flex-1 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl font-black text-sm"
+                >
+                  확인하러 가기 →
+                </button>
+                <button
+                  onClick={() => setApprovalNotification(null)}
+                  className="px-5 py-4 bg-neutral-100 hover:bg-neutral-200 rounded-2xl font-black text-sm text-neutral-500 transition-all"
+                >
+                  닫기
                 </button>
               </div>
             </motion.div>
