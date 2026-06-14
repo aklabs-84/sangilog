@@ -1254,7 +1254,7 @@ const SubjectDashboard = ({
 
               {/* 주차 필터 칩 */}
               {statsWeeks.length > 0 && (
-                <div className="pl-10 pt-4 pb-6 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                <div className="pl-10 pt-5 pb-8 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
                   <button
                     onClick={() => setSelectedActivityWeek(null)}
                     className={`shrink-0 px-4 py-2 rounded-full text-xs font-black transition-all border ${
