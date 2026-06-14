@@ -1160,6 +1160,11 @@ ${activitiesContext}
                     <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${selectedResult.cfg.color}`}>
                       {selectedResult.cfg.label}
                     </span>
+                    {selectedResult.week_number && (
+                      <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                        {selectedResult.week_number}주차
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] font-bold text-on-surface-variant/50 flex items-center gap-1">
                     <Clock size={11} />{new Date(selectedResult.created_at).toLocaleString('ko-KR')}
