@@ -137,6 +137,9 @@ const StudentLog = () => {
   } | null>(null);
   const seenRejectionIds = useRef(new Set<string>());
   const seenApprovalIds = useRef(new Set<string>());
+  // 폴링용 상태 추적 (Realtime 미지원 테이블 대비)
+  const statusTrackMap = useRef(new Map<string, string>());
+  const isFirstStatusPoll = useRef(true);
   const isFirstBoardPoll = useRef(true);
   const seenBoardSessionIds = useRef(new Set<string>());
   const isFirstQuizPoll = useRef(true);
@@ -358,21 +361,22 @@ const StudentLog = () => {
           seenApprovalIds.current.delete(key);
           if (!seenRejectionIds.current.has(key)) {
             seenRejectionIds.current.add(key);
+            statusTrackMap.current.set(key, 'rejected'); // 폴링과 동기화
             setRejectionNotification({ type: 'obs', title: obsTitle, feedback: obs.teacher_feedback || null });
             fetchHistory();
           }
         } else if (obs?.status === 'approved') {
-          // 재승인 감지 허용: 반려 seen에서 제거
           seenRejectionIds.current.delete(key);
           if (!seenApprovalIds.current.has(key)) {
             seenApprovalIds.current.add(key);
+            statusTrackMap.current.set(key, 'approved'); // 폴링과 동기화
             setApprovalNotification({ type: 'obs', title: obsTitle });
             fetchHistory();
           }
         } else {
-          // pending 등: 다음 반려/승인 모두 다시 감지
           seenRejectionIds.current.delete(key);
           seenApprovalIds.current.delete(key);
+          statusTrackMap.current.set(key, obs.status);
         }
       })
       .subscribe();
@@ -395,6 +399,7 @@ const StudentLog = () => {
           seenApprovalIds.current.delete(key);
           if (!seenRejectionIds.current.has(key)) {
             seenRejectionIds.current.add(key);
+            statusTrackMap.current.set(key, 'rejected');
             setRejectionNotification({ type: 'result', title: rTitle, feedback: r.rejection_feedback || null });
             fetchResults();
           }
@@ -402,12 +407,14 @@ const StudentLog = () => {
           seenRejectionIds.current.delete(key);
           if (!seenApprovalIds.current.has(key)) {
             seenApprovalIds.current.add(key);
+            statusTrackMap.current.set(key, 'approved');
             setApprovalNotification({ type: 'result', title: rTitle });
             fetchResults();
           }
         } else {
           seenRejectionIds.current.delete(key);
           seenApprovalIds.current.delete(key);
+          statusTrackMap.current.set(key, r.status);
         }
       })
       .subscribe();
@@ -416,6 +423,93 @@ const StudentLog = () => {
       supabase.removeChannel(obsChannel);
       supabase.removeChannel(resultChannel);
     };
+  }, [session?.student_id]);
+
+  // 반려/승인 폴링 — observations/student_results가 realtime publication에 없을 때 대비
+  useEffect(() => {
+    if (!session?.student_id) return;
+
+    const check = async () => {
+      try {
+        const [{ data: obsData }, { data: resultsData }] = await Promise.all([
+          supabase.from('observations')
+            .select('id, activity_name, status, teacher_feedback')
+            .eq('student_id', session.student_id)
+            .eq('is_student_record', true),
+          supabase.from('student_results')
+            .select('id, submission_group, week_number, title, status, rejection_feedback')
+            .eq('student_id', session.student_id),
+        ]);
+
+        if (!isFirstStatusPoll.current) {
+          // 관찰기록 상태 변화 감지
+          for (const obs of (obsData || [])) {
+            const key = `obs-${obs.id}`;
+            const prev = statusTrackMap.current.get(key);
+            const obsTitle = obs.activity_name || '관찰기록';
+            if (obs.status === 'rejected' && prev !== 'rejected') {
+              seenApprovalIds.current.delete(key);
+              seenRejectionIds.current.add(key);
+              statusTrackMap.current.set(key, 'rejected');
+              setRejectionNotification({ type: 'obs', title: obsTitle, feedback: obs.teacher_feedback || null });
+              fetchHistory();
+              break;
+            } else if (obs.status === 'approved' && prev !== 'approved' && prev !== undefined) {
+              seenRejectionIds.current.delete(key);
+              seenApprovalIds.current.add(key);
+              statusTrackMap.current.set(key, 'approved');
+              setApprovalNotification({ type: 'obs', title: obsTitle });
+              fetchHistory();
+              break;
+            } else {
+              statusTrackMap.current.set(key, obs.status);
+            }
+          }
+
+          // 결과물 상태 변화 감지
+          const seenGroups = new Set<string>();
+          for (const r of (resultsData || [])) {
+            const gId = r.submission_group || r.id;
+            if (seenGroups.has(gId)) continue;
+            seenGroups.add(gId);
+            const key = `result-${gId}`;
+            const prev = statusTrackMap.current.get(key);
+            const rTitle = r.title || (r.week_number ? `${r.week_number}주차 결과물` : '결과물');
+            if (r.status === 'rejected' && prev !== 'rejected') {
+              seenApprovalIds.current.delete(key);
+              seenRejectionIds.current.add(key);
+              statusTrackMap.current.set(key, 'rejected');
+              setRejectionNotification({ type: 'result', title: rTitle, feedback: r.rejection_feedback || null });
+              fetchResults();
+              break;
+            } else if (r.status === 'approved' && prev !== 'approved' && prev !== undefined) {
+              seenRejectionIds.current.delete(key);
+              seenApprovalIds.current.add(key);
+              statusTrackMap.current.set(key, 'approved');
+              setApprovalNotification({ type: 'result', title: rTitle });
+              fetchResults();
+              break;
+            } else {
+              statusTrackMap.current.set(key, r.status);
+            }
+          }
+        } else {
+          // 첫 폴링: 현재 상태 기록만 (팝업 없음)
+          (obsData || []).forEach(obs => statusTrackMap.current.set(`obs-${obs.id}`, obs.status));
+          const seenGroups = new Set<string>();
+          (resultsData || []).forEach(r => {
+            const gId = r.submission_group || r.id;
+            if (!seenGroups.has(gId)) { seenGroups.add(gId); statusTrackMap.current.set(`result-${gId}`, r.status); }
+          });
+        }
+      } catch { /* 무시 */ } finally {
+        isFirstStatusPoll.current = false;
+      }
+    };
+
+    check();
+    const interval = setInterval(check, 15000);
+    return () => clearInterval(interval);
   }, [session?.student_id]);
 
   // 수업 보드 세션 폴링 + Realtime 구독 — 선생님 공유 중지/시작 즉시 반영
@@ -547,11 +641,16 @@ const StudentLog = () => {
     if (data) setStudentNotifs(data);
   };
 
-  const markAllNotifsRead = async (studentId: string) => {
-    const unreadIds = studentNotifs.filter(n => !n.is_read).map(n => n.id);
-    if (unreadIds.length === 0) return;
-    await supabase.from('student_notifications').update({ is_read: true }).in('id', unreadIds);
+  const markAllNotifsRead = async (_studentId: string) => {
     setStudentNotifs(prev => prev.map(n => ({ ...n, is_read: true })));
+  };
+
+  // 벨 패널 닫을 때 확인된 알림 삭제 (휘발성 처리)
+  const deleteReadNotifs = async () => {
+    const readIds = studentNotifs.filter(n => n.is_read).map(n => n.id);
+    if (readIds.length === 0) return;
+    await supabase.from('student_notifications').delete().in('id', readIds);
+    setStudentNotifs(prev => prev.filter(n => !n.is_read));
   };
 
   const fetchUnreadReplyCount = async (studentId: string, classId: string) => {
@@ -1650,8 +1749,15 @@ ${guidePrompt}
           <div className="relative">
             <button
               onClick={() => {
-                setNotifOpen(v => !v);
-                if (!notifOpen && session?.student_id) markAllNotifsRead(session.student_id);
+                if (notifOpen) {
+                  // 닫을 때: 읽은 알림 삭제 (휘발성)
+                  markAllNotifsRead(session?.student_id || '');
+                  setTimeout(deleteReadNotifs, 300);
+                  setNotifOpen(false);
+                } else {
+                  setNotifOpen(true);
+                  if (session?.student_id) markAllNotifsRead(session.student_id);
+                }
               }}
               className="relative p-2.5 rounded-xl bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-all"
             >
@@ -1667,7 +1773,11 @@ ${guidePrompt}
             <AnimatePresence>
               {notifOpen && (
                 <>
-                  <div className="fixed inset-0 z-30" onClick={() => setNotifOpen(false)} />
+                  <div className="fixed inset-0 z-30" onClick={() => {
+                    markAllNotifsRead(session?.student_id || '');
+                    setTimeout(deleteReadNotifs, 300);
+                    setNotifOpen(false);
+                  }} />
                   <motion.div
                     initial={{ opacity: 0, y: -8, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}

@@ -102,9 +102,10 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
         ),
       }));
       if (studentId) {
+        const classId = fromClassId || student?.class_id;
         await supabase.from('student_notifications').insert({
           student_id: studentId,
-          class_id: student?.class_id || fromClassId,
+          class_id: classId,
           title: '관찰기록이 반려되었습니다',
           content: `"${obs?.activity_name || '관찰기록'}" — ${obsFeedback.trim()}`,
           type: 'rejection',
@@ -130,9 +131,10 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
       ),
     }));
     if (studentId) {
+      const classId = fromClassId || student?.class_id;
       await supabase.from('student_notifications').insert({
         student_id: studentId,
-        class_id: student?.class_id || fromClassId,
+        class_id: classId,
         title: '관찰기록이 승인되었습니다 ✅',
         content: `"${obs?.activity_name || '관찰기록'}"이 선생님께 승인되었습니다.`,
         type: 'approval',
