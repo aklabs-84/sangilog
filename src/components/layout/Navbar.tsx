@@ -145,7 +145,7 @@ const Navbar = () => {
         <NavLink to="/activity-log"
           className="hidden md:flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-xl font-black text-xs shadow-md shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all"
         >
-          <Plus size={15} strokeWidth={3} /> 관찰 기록
+          <Plus size={15} strokeWidth={3} /> 교사 메모
         </NavLink>
 
         <div className="hidden md:block w-px h-6 bg-on-surface/5" />
@@ -331,7 +331,7 @@ const Navbar = () => {
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2 px-4 py-3 btn-gradient rounded-xl font-black text-sm flex-1 justify-center"
               >
-                <ActivitySquare size={16} /> 관찰 기록 추가
+                <ActivitySquare size={16} /> 교사 메모 작성
               </NavLink>
               <NavLink
                 to="/settings"

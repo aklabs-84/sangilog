@@ -168,7 +168,7 @@ const ActivityLog = () => {
   };
 
   const handleDelete = async (obsId: string) => {
-    if (!confirm('이 관찰 기록을 삭제하시겠습니까?')) return;
+    if (!confirm('이 교사 메모를 삭제하시겠습니까?')) return;
     setDeletingObsId(obsId);
     try {
       const { error } = await supabase.from('observations').delete().eq('id', obsId);
@@ -189,7 +189,7 @@ const ActivityLog = () => {
     >
       <div className="px-2">
         <p className="text-primary font-bold text-xs uppercase tracking-widest mb-3">Activity Logging</p>
-        <h1 className="text-2xl md:text-4xl font-extrabold font-manrope mb-4">관찰 기록</h1>
+        <h1 className="text-2xl md:text-4xl font-extrabold font-manrope mb-4">교사 메모</h1>
         <p className="text-on-surface-variant text-base max-w-3xl leading-relaxed">
           수업 중 관찰된 학생들의 활동 내용과 성취도를 기록합니다. 기록된 내용은 AI 분석 및 생활기록부 초안 작성에 활용됩니다.
         </p>
@@ -345,7 +345,7 @@ const ActivityLog = () => {
         <div className="flex items-center justify-between px-2">
           <div>
             <p className="text-primary font-bold text-xs uppercase tracking-widest mb-1">My Records</p>
-            <h2 className="text-xl font-extrabold font-manrope">내 관찰 기록</h2>
+            <h2 className="text-xl font-extrabold font-manrope">내 교사 메모</h2>
           </div>
           <span className="text-[11px] font-black bg-surface-container text-on-surface-variant px-3 py-1.5 rounded-lg">
             총 {myObs.length}건
@@ -359,8 +359,8 @@ const ActivityLog = () => {
         ) : myObs.length === 0 ? (
           <div className="p-12 text-center border-2 border-dashed border-neutral-200 rounded-3xl">
             <BookOpen size={32} className="mx-auto mb-3 text-neutral-300" />
-            <p className="text-sm font-bold text-neutral-400">아직 작성된 관찰 기록이 없습니다.</p>
-            <p className="text-xs text-neutral-300 mt-1">위 폼을 통해 첫 번째 관찰 기록을 작성해보세요.</p>
+            <p className="text-sm font-bold text-neutral-400">아직 작성된 교사 메모가 없습니다.</p>
+            <p className="text-xs text-neutral-300 mt-1">위 폼을 통해 첫 번째 교사 메모를 작성해보세요.</p>
           </div>
         ) : (
           <div className="space-y-3">

@@ -79,7 +79,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
           `}
         >
           <Plus size={20} strokeWidth={3} />
-          {!isCollapsed && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-black text-sm tracking-tight">관찰 기록 추가하기</motion.span>}
+          {!isCollapsed && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-black text-sm tracking-tight">교사 메모 작성하기</motion.span>}
         </NavLink>
       )}
 
