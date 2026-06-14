@@ -113,6 +113,7 @@ const StudentLog = () => {
   const [guidePrompt, setGuidePrompt] = useState<string>('');
   const [minObsChars, setMinObsChars] = useState(0);
   const [blockedKeywords, setBlockedKeywords] = useState<string[]>([]);
+  const [aiReviewEnabled, setAiReviewEnabled] = useState(true);
   const [reminderModal, setReminderModal] = useState<{
     type: 'need_result' | 'need_obs';
     week: number;
@@ -698,7 +699,7 @@ const StudentLog = () => {
     try {
       const { data } = await supabase
         .from('classes')
-        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords')
+        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled')
         .eq('id', classId)
         .single();
 
@@ -707,6 +708,7 @@ const StudentLog = () => {
         setGuidePrompt(data.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요.');
         setMinObsChars(data.min_obs_chars || 0);
         setBlockedKeywords(data.blocked_keywords || []);
+        setAiReviewEnabled(data.ai_review_enabled ?? true);
         if (data.weekly_plan && Array.isArray(data.weekly_plan) && data.weekly_plan.length > 0) {
           setClassResources(data.weekly_plan);
 
@@ -1582,7 +1584,7 @@ const StudentLog = () => {
       let aiConcern = '';
       let aiFeedbackForModal: { reason: string; guide: string } | null = null;
 
-      if (guidePrompt) {
+      if (guidePrompt && aiReviewEnabled) {
         try {
           const contentLength = content.trim().length;
           const prompt = `

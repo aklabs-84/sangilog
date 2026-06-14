@@ -92,6 +92,7 @@ const Classroom = () => {
     weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true }],
     min_obs_chars: 0,
     blocked_keywords: [] as string[],
+    ai_review_enabled: true,
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -491,6 +492,7 @@ const Classroom = () => {
           teacher_report_prompt: newClassData.teacher_report_prompt || '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
           min_obs_chars: newClassData.min_obs_chars || 0,
           blocked_keywords: newClassData.blocked_keywords || [],
+          ai_review_enabled: newClassData.ai_review_enabled ?? true,
           weekly_plan: newClassData.weekly_plan.filter((item: any) => item.topic.trim()),
           entry_code: entryCode
         })
@@ -528,6 +530,7 @@ const Classroom = () => {
         weekly_plan: [{ week: 1, topic: '', url: '' }],
         min_obs_chars: 0,
         blocked_keywords: [],
+        ai_review_enabled: true,
       });
       await fetchClasses();
       if (data) setActiveClassId(data.id);
@@ -554,6 +557,7 @@ const Classroom = () => {
           weekly_plan: updateClassData.weekly_plan || [],
           min_obs_chars: updateClassData.min_obs_chars || 0,
           blocked_keywords: updateClassData.blocked_keywords || [],
+          ai_review_enabled: updateClassData.ai_review_enabled ?? true,
         })
         .eq('id', updateClassData.id);
 
@@ -1930,6 +1934,19 @@ const Classroom = () => {
                         />
                         <span className="text-[10px] font-bold text-neutral-400 ml-1">입력한 단어/문장이 포함되면 제출 즉시 차단</span>
                       </div>
+                      <div className="flex items-center justify-between px-1">
+                        <div>
+                          <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">AI 내용 품질 검토</p>
+                          <p className="text-[10px] font-bold text-neutral-400 mt-0.5">꺼두면 글자수·금지어만 차단</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setNewClassData({...newClassData, ai_review_enabled: !newClassData.ai_review_enabled})}
+                          className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${newClassData.ai_review_enabled ? 'bg-primary' : 'bg-neutral-300'}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${newClassData.ai_review_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
                     </div>
                   </details>
                 </div>
@@ -2208,6 +2225,19 @@ const Classroom = () => {
                           className="w-full h-28 px-5 py-4 bg-neutral-100 border-2 border-neutral-200 hover:border-orange-200 focus:border-orange-400 focus:bg-white rounded-2xl font-bold text-sm text-neutral-800 transition-all outline-none resize-none"
                         />
                         <span className="text-xs font-bold text-neutral-400 ml-1">입력한 단어/문장이 내용에 포함되면 AI 검토 없이 즉시 차단</span>
+                      </div>
+                      <div className="flex items-center justify-between px-1 py-2">
+                        <div>
+                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">AI 내용 품질 검토</p>
+                          <p className="text-xs font-bold text-neutral-400 mt-0.5">꺼두면 글자수·금지어만 차단</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUpdateClassData({...updateClassData, ai_review_enabled: !(updateClassData.ai_review_enabled ?? true)})}
+                          className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${(updateClassData.ai_review_enabled ?? true) ? 'bg-primary' : 'bg-neutral-300'}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${(updateClassData.ai_review_enabled ?? true) ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
                       </div>
                     </motion.div>
                   ) : null}
