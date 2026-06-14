@@ -235,7 +235,7 @@ const SubjectDashboard = ({
   const [statsLoading, setStatsLoading] = useState(false);
   const [selectedStatsWeek, setSelectedStatsWeek] = useState<number | null>(null);
   const [rawObs, setRawObs] = useState<Array<{created_at: string, student_id: string, activity_name: string, status: string}>>([]);
-  const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string, week_number: number | null, status: string}>>([]);
+  const [rawResults, setRawResults] = useState<Array<{created_at: string, student_id: string, week_number: number | null, status: string, title: string | null}>>([]);
   const [suggestionCounts, setSuggestionCounts] = useState<Record<string, number>>({});
   // 연결된 담임반의 weekly_plan (학생이 담임반 코드로 입장 시 activity_name이 담임반 주제로 저장됨)
   const [linkedWeeklyPlan, setLinkedWeeklyPlan] = useState<{week: number, topic: string}[]>([]);
@@ -291,6 +291,20 @@ const SubjectDashboard = ({
     return 'done';
   };
 
+  // 선택 주차의 활동 텍스트: obs activity_name 우선, 없으면 result title
+  const getActivityTextForWeek = (studentId: string, week: number): string | null => {
+    const topics = getTopicsForWeek(week);
+    const weekObs = rawObs
+      .filter(r => r.student_id === studentId && topics.includes(norm(r.activity_name)))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (weekObs.length > 0) return weekObs[0].activity_name;
+    const weekResults = rawResults
+      .filter(r => r.student_id === studentId && r.week_number === week)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (weekResults.length > 0) return weekResults[0].title || `${week}주차 결과 제출`;
+    return null;
+  };
+
   const obsOnWeek = getObsOnWeek(selectedStatsWeek);
   const resultsOnWeek = getResultsOnWeek(selectedStatsWeek);
 
@@ -306,7 +320,7 @@ const SubjectDashboard = ({
         //   HomeroomDashboard와 동일하게 student_id 기반 조회로 통일
         const [obsRes, resultsRes, suggRes] = await Promise.all([
           supabase.from('observations').select('created_at, student_id, activity_name, status').in('student_id', studentIds).eq('is_student_record', true),
-          supabase.from('student_results').select('created_at, student_id, week_number, status').in('student_id', studentIds),
+          supabase.from('student_results').select('created_at, student_id, week_number, status, title').in('student_id', studentIds),
           supabase.from('student_suggestions').select('student_id').eq('class_id', classInfo.id).is('teacher_reply', null),
         ]);
         setRawObs(obsRes.data || []);
@@ -922,9 +936,14 @@ const SubjectDashboard = ({
                           {colVis.activity && (
                             <td className="p-3 lg:p-6 hidden lg:table-cell">
                               <div className="max-w-[400px]">
-                                <p className="text-sm font-medium text-on-surface/80 group-hover:text-on-surface transition-colors line-clamp-1 italic">
-                                  {s.activity ? `"${s.activity}"` : <span className="text-on-surface-variant/30 not-italic">최근 기록 없음</span>}
-                                </p>
+                                {(() => {
+                                  const text = selectedStatsWeek !== null
+                                    ? getActivityTextForWeek(s.id, selectedStatsWeek)
+                                    : s.activity || null;
+                                  return text
+                                    ? <p className="text-sm font-medium text-on-surface/80 group-hover:text-on-surface transition-colors line-clamp-1 italic">"{text}"</p>
+                                    : <span className="text-sm text-on-surface-variant/30">기록 없음</span>;
+                                })()}
                               </div>
                             </td>
                           )}
@@ -1068,10 +1087,14 @@ const SubjectDashboard = ({
                       onClick={() => onNavigateAI(s.id)}
                     >
                       <p className="text-xs text-on-surface-variant/75 font-medium line-clamp-2 leading-relaxed">
-                        {s.activity && s.activity !== '기록 없음'
-                          ? <span className="italic">"{s.activity}"</span>
-                          : <span className="opacity-40">활동 기록 없음</span>
-                        }
+                        {(() => {
+                          const text = selectedStatsWeek !== null
+                            ? getActivityTextForWeek(s.id, selectedStatsWeek)
+                            : (s.activity && s.activity !== '기록 없음' ? s.activity : null);
+                          return text
+                            ? <span className="italic">"{text}"</span>
+                            : <span className="opacity-40">활동 기록 없음</span>;
+                        })()}
                       </p>
                     </div>
 
