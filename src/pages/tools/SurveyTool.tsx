@@ -807,8 +807,17 @@ export default function SurveyTool() {
   const handleResetResults = async () => {
     if (!selectedForm) return;
     if (!confirm(`"${selectedForm.title}" 설문의 모든 응답을 초기화할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
-    await supabase.from('survey_answers').delete().eq('form_id', selectedForm.id);
-    await supabase.from('survey_responses').delete().eq('form_id', selectedForm.id);
+
+    const { error: answersError } = await supabase
+      .from('survey_answers').delete().eq('form_id', selectedForm.id);
+    const { error: responsesError } = await supabase
+      .from('survey_responses').delete().eq('form_id', selectedForm.id);
+
+    if (answersError || responsesError) {
+      alert('초기화 중 오류가 발생했습니다. Supabase에 DELETE 정책이 설정되어 있는지 확인하세요.');
+      return;
+    }
+
     setAnswers([]);
     setResponderCount(0);
     setAiAnalysis({});
