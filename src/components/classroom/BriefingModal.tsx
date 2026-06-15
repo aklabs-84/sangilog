@@ -116,7 +116,6 @@ const BriefingModal = ({ classId, className, onClose }: BriefingModalProps) => {
         .limit(200);
 
       if (obsErr) console.error('BriefingModal obs error:', obsErr);
-      console.log('BriefingModal 조회 결과:', { students: studentIds.length, obs: obs?.length ?? 0 });
 
       const enriched: BriefingRecord[] = (obs || []).map((o: any) => ({
         ...o,

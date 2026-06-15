@@ -607,15 +607,12 @@ const StudentLog = () => {
         table: 'student_notifications',
         filter: `student_id=eq.${session.student_id}`,
       }, (payload: any) => {
-        console.log('[student-notifs] Realtime INSERT:', payload.new);
         setStudentNotifs(prev => [payload.new, ...prev]);
         if (payload.new?.type === 'group_assignment') {
           fetchMyGroup(session.student_id, session.class_id);
         }
       })
-      .subscribe((status) => {
-        console.log('[student-notifs] Realtime status:', status);
-      });
+      .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [session?.student_id]);
 
@@ -671,7 +668,6 @@ const StudentLog = () => {
       .eq('student_id', studentId)
       .order('created_at', { ascending: false })
       .limit(50);
-    console.log('[fetchStudentNotifs] rows:', data?.length, 'error:', error);
     if (data) setStudentNotifs(data);
   };
 
