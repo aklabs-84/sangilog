@@ -92,7 +92,9 @@ const Classroom = () => {
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups'>(
+    (searchParams.get('tab') as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups') || 'list'
+  );
   // 보드 탭 state
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
@@ -189,10 +191,27 @@ const Classroom = () => {
   // activeClassId가 바뀔 때마다 URL + localStorage에 동기화 → 페이지 재진입 시 선택 클래스 복원
   useEffect(() => {
     if (activeClassId) {
-      setSearchParams({ id: activeClassId }, { replace: true });
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('id', activeClassId);
+        return next;
+      }, { replace: true });
       localStorage.setItem('teacher_last_class_id', activeClassId);
     }
   }, [activeClassId]);
+
+  // activeTab이 바뀔 때마다 URL tab= 파라미터 동기화 → 페이지 재진입 시 탭 복원
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (activeTab === 'list') {
+        next.delete('tab');
+      } else {
+        next.set('tab', activeTab);
+      }
+      return next;
+    }, { replace: true });
+  }, [activeTab]);
 
   // 알림 바로가기: 이미 해당 클래스룸에 있는 경우 → 커스텀 이벤트로 직접 drawer 오픈
   useEffect(() => {

@@ -177,9 +177,14 @@ const tools: Tool[] = [
 
 const TeachingTools = () => {
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = useAuth();
-  const [activeTool, setActiveTool] = useState<Tool | null>(null);
+  const [activeTool, setActiveTool] = useState<Tool | null>(() => {
+    const stateToolId = (location.state as { activeToolId?: string } | null)?.activeToolId;
+    const queryToolId = searchParams.get('tool');
+    const toolId = stateToolId || queryToolId;
+    return toolId ? (tools.find(t => t.id === toolId) ?? null) : null;
+  });
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [guideTool, setGuideTool] = useState<Tool | null>(null);
 
@@ -199,16 +204,18 @@ const TeachingTools = () => {
     setActiveTool(tool);
   };
 
-  // location.state 또는 ?tool= 쿼리 파라미터로 특정 도구 자동 열기
+  // activeTool이 바뀔 때마다 URL tool= 파라미터 동기화
   useEffect(() => {
-    const stateToolId = (location.state as { activeToolId?: string } | null)?.activeToolId;
-    const queryToolId = searchParams.get('tool');
-    const toolId = stateToolId || queryToolId;
-    if (toolId) {
-      const tool = tools.find(t => t.id === toolId) ?? null;
-      if (tool) handleToolClick(tool);
-    }
-  }, []);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (activeTool) {
+        next.set('tool', activeTool.id);
+      } else {
+        next.delete('tool');
+      }
+      return next;
+    }, { replace: true });
+  }, [activeTool]);
 
   return (
     <div className="space-y-6">
