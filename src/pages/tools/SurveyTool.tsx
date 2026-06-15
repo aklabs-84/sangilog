@@ -642,13 +642,17 @@ export default function SurveyTool() {
   };
 
   const fetchAnswers = async (formId: string) => {
-    const { data } = await supabase.from('survey_answers').select('*').eq('form_id', formId);
-    if (data) setAnswers(data);
-    const { data: respData, count } = await supabase
-      .from('survey_responses').select('*', { count: 'exact' })
-      .eq('form_id', formId).order('created_at', { ascending: true });
-    if (respData) setResponses(respData);
-    setResponderCount(count ?? 0);
+    const [answersResult, responsesResult] = await Promise.all([
+      supabase.from('survey_answers').select('*').eq('form_id', formId),
+      supabase.from('survey_responses')
+        .select('id, form_id, respondent_name, created_at')
+        .eq('form_id', formId).order('created_at', { ascending: true }),
+    ]);
+    if (answersResult.data) setAnswers(answersResult.data);
+    if (responsesResult.data) {
+      setResponses(responsesResult.data);
+      setResponderCount(responsesResult.data.length);
+    }
   };
 
   // ── 클래스 선택 ────────────────────────────────────────────────────────────
