@@ -54,6 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user && !session.user.is_anonymous) {
+        setLoading(true); // fetchProfile 완료 전 ProtectedRoute가 profile=null을 삭제계정으로 오인하지 않도록
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
