@@ -20,6 +20,7 @@ import NaissWorkstation from '../components/export/NaissWorkstation';
 
 type Scope = 'all' | 'specific';
 type Format = 'csv' | 'xlsx';
+type ExportMode = 'simple' | 'structured';
 
 const EXPORT_COLUMNS = [
   { key: '학생번호', label: '학생번호' },
@@ -49,6 +50,7 @@ const Export = () => {
 
   const [selectedColumns, setSelectedColumns] = useState<string[]>(EXPORT_COLUMNS.map(c => c.key));
   const [showColumnManager, setShowColumnManager] = useState(false);
+  const [exportMode, setExportMode] = useState<ExportMode>('simple');
 
   useEffect(() => { fetchClasses(); }, []);
 
@@ -234,6 +236,123 @@ const Export = () => {
     }
   };
 
+  const handleStructuredExport = async () => {
+    if (!selectedClassId) return;
+    setExporting(true);
+    try {
+      const cls = classes.find(c => c.id === selectedClassId);
+      const targetId = cls?.linked_class_id || selectedClassId;
+
+      const { data: allStuds } = await supabase.from('students').select('id, full_name, student_number').eq('class_id', targetId);
+      if (!allStuds || allStuds.length === 0) { alert('학급에 학생이 없습니다.'); return; }
+
+      const studentIds = scope === 'specific' && selectedStudentIds.length > 0
+        ? selectedStudentIds
+        : allStuds.map(s => s.id);
+
+      const { data: obs } = await supabase
+        .from('observations')
+        .select('student_id, activity_name, content, status, created_at')
+        .in('student_id', studentIds)
+        .gte('created_at', new Date(startDate).toISOString())
+        .lte('created_at', new Date(endDate + 'T23:59:59').toISOString())
+        .order('created_at', { ascending: true });
+
+      if (!obs || obs.length === 0) { alert('해당 기간에 활동 기록이 없습니다.'); return; }
+
+      const studentMap: Record<string, { full_name: string; student_number: string }> = {};
+      allStuds.forEach(s => { studentMap[s.id] = s; });
+
+      const startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+
+      const allRows = obs.map(o => {
+        const obsDate = new Date(o.created_at);
+        const days = Math.floor((obsDate.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
+        const weekNum = Math.max(1, Math.floor(days / 7) + 1);
+        return {
+          _weekNum: weekNum,
+          _studentId: o.student_id,
+          '학생번호': studentMap[o.student_id]?.student_number || '',
+          '학생이름': studentMap[o.student_id]?.full_name || '',
+          '주차': `${weekNum}주차`,
+          '활동명': o.activity_name || '',
+          '활동내용': o.content || '',
+          '상태': o.status === 'approved' ? '승인' : o.status === 'pending' ? '대기' : (o.status || ''),
+          '기록일시': new Date(o.created_at).toLocaleString('ko-KR'),
+        };
+      });
+
+      const toRow = (r: typeof allRows[0]) => {
+        const { _weekNum, _studentId, ...rest } = r;
+        return rest;
+      };
+
+      const weeks = [...new Set(allRows.map(r => r._weekNum))].sort((a, b) => a - b);
+      const studentIdsInData = [...new Set(allRows.map(r => r._studentId))];
+
+      const className = cls?.name?.replace(/[/\\?%*:|"<>]/g, '-') || 'export';
+      const fileName = `${className}_구조화활동기록_${startDate}~${endDate}`;
+
+      if (format === 'xlsx') {
+        const wb = XLSX.utils.book_new();
+
+        const appendSheet = (rows: Record<string, string>[], name: string) => {
+          const ws = XLSX.utils.json_to_sheet(rows);
+          ws['!cols'] = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(k.length + 2, 16) }));
+          XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+        };
+
+        appendSheet(allRows.map(toRow), '전체');
+        for (const wk of weeks) {
+          appendSheet(allRows.filter(r => r._weekNum === wk).map(toRow), `${wk}주차`);
+        }
+        for (const sid of studentIdsInData) {
+          const name = studentMap[sid]?.full_name?.replace(/[/\\?%*:|"<>[\]]/g, '') || sid;
+          appendSheet(allRows.filter(r => r._studentId === sid).map(toRow), name);
+        }
+
+        XLSX.writeFile(wb, `${fileName}.xlsx`);
+      } else {
+        const JSZip = (await import('jszip')).default;
+        const zip = new JSZip();
+
+        const toCsv = (rows: Record<string, string>[]) => {
+          if (!rows.length) return '';
+          const headers = Object.keys(rows[0]);
+          return '﻿' + [
+            headers.join(','),
+            ...rows.map(r => headers.map(h => `"${String(r[h]).replace(/"/g, '""')}"`).join(','))
+          ].join('\n');
+        };
+
+        zip.file('전체.csv', toCsv(allRows.map(toRow)));
+
+        const weekFolder = zip.folder('주차별')!;
+        for (const wk of weeks) {
+          weekFolder.file(`${wk}주차.csv`, toCsv(allRows.filter(r => r._weekNum === wk).map(toRow)));
+        }
+
+        const studFolder = zip.folder('학생별')!;
+        for (const sid of studentIdsInData) {
+          const name = (studentMap[sid]?.full_name || sid).replace(/[/\\?%*:|"<>]/g, '-');
+          studFolder.file(`${name}.csv`, toCsv(allRows.filter(r => r._studentId === sid).map(toRow)));
+        }
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${fileName}.zip`; a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('내보내기 중 오류가 발생했습니다.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
@@ -381,6 +500,29 @@ const Export = () => {
                   </div>
                 </div>
 
+                {/* 내보내기 방식 */}
+                <div className="space-y-3">
+                  <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider ml-1">내보내기 방식</label>
+                  <div className="flex bg-surface-container p-1 rounded-xl">
+                    {(['simple', 'structured'] as const).map(v => (
+                      <button
+                        key={v}
+                        onClick={() => setExportMode(v)}
+                        className={`flex-1 py-3 px-4 font-bold text-[13px] rounded-lg transition-all ${exportMode === v ? 'bg-primary-container text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+                      >
+                        {v === 'simple' ? '단순 내보내기' : '주차별 + 학생별'}
+                      </button>
+                    ))}
+                  </div>
+                  {exportMode === 'structured' && (
+                    <p className="text-[11px] text-on-surface-variant/70 px-1 leading-relaxed">
+                      {format === 'xlsx'
+                        ? '전체·주차별·학생별 시트가 포함된 XLSX 파일로 저장됩니다.'
+                        : '전체/주차별/학생별 CSV가 담긴 ZIP 파일로 저장됩니다.'}
+                    </p>
+                  )}
+                </div>
+
                 {/* 기록 현황 */}
                 <div className="p-4 bg-surface-container-low rounded-2xl flex items-start gap-3 border border-surface-container">
                   <div className="w-8 h-8 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary mt-0.5 shrink-0">
@@ -398,13 +540,15 @@ const Export = () => {
 
                 {/* 내보내기 버튼 */}
                 <button
-                  onClick={handleExport}
+                  onClick={exportMode === 'structured' ? handleStructuredExport : handleExport}
                   disabled={exporting || obsCount === 0}
                   className="w-full btn-gradient py-5 rounded-2xl font-black text-base flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {exporting
                     ? <><Loader2 size={22} className="animate-spin" />내보내는 중...</>
-                    : <><Download size={22} />{format.toUpperCase()}로 내보내기<span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse ml-2" /></>
+                    : exportMode === 'structured'
+                      ? <><Download size={22} />{format === 'xlsx' ? '구조화 XLSX 다운로드' : '구조화 ZIP 다운로드'}<span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse ml-2" /></>
+                      : <><Download size={22} />{format.toUpperCase()}로 내보내기<span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse ml-2" /></>
                   }
                 </button>
                 {obsCount === 0 && (
