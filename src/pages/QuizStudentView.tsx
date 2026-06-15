@@ -6,6 +6,8 @@ import {
   Clock, Wifi, WifiOff, ArrowLeft,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import ConfettiEffect from '../components/quiz/ConfettiEffect';
+import { playVictoryFanfare, playRankFanfare, playCompleteSound } from '../lib/quizSound';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GameState = 'LOBBY' | 'QUIZ' | 'RESULT' | 'RANKING' | 'FINAL';
@@ -82,6 +84,7 @@ const QuizStudentView = () => {
   const [timer, setTimer] = useState(20);
   const [isConnected, setIsConnected] = useState(false);
 
+  const [showConfetti, setShowConfetti] = useState(false);
   const prevQuestionIndex = useRef<number>(-1);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -268,6 +271,25 @@ const QuizStudentView = () => {
     if (session.state === 'RANKING' || session.state === 'FINAL') {
       fetchParticipants(session.id);
     }
+  }, [session?.state]);
+
+  // FINAL 진입 시 순위 기반 효과음 + 폭죽
+  useEffect(() => {
+    if (session?.state !== 'FINAL' || myRank === 0) return;
+    if (myRank === 1) {
+      setShowConfetti(true);
+      playVictoryFanfare();
+      const t = setTimeout(() => setShowConfetti(false), 6000);
+      return () => clearTimeout(t);
+    } else if (myRank === 2 || myRank === 3) {
+      setShowConfetti(true);
+      playRankFanfare(myRank as 2 | 3);
+      const t = setTimeout(() => setShowConfetti(false), 4000);
+      return () => clearTimeout(t);
+    } else {
+      playCompleteSound();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.state]);
 
   // FINAL 종료 처리 — 채널 해제 후 완전히 다른 경로로 이동(컴포넌트 재마운트 보장)
@@ -779,18 +801,82 @@ const QuizStudentView = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     className="space-y-4"
                   >
-                    <div className="bg-white/15 backdrop-blur-md rounded-3xl p-8 border border-white/20 text-center space-y-5">
-                      <motion.div
-                        animate={{ rotate: [0, -10, 10, -10, 10, 0], scale: [1, 1.2, 1] }}
-                        transition={{ duration: 0.8, delay: 0.3 }}
-                        className="text-7xl"
-                      >
-                        🏆
-                      </motion.div>
+                    {showConfetti && (
+                      <ConfettiEffect
+                        intensity={myRank === 1 ? 'heavy' : 'normal'}
+                        duration={myRank === 1 ? 6000 : 4000}
+                      />
+                    )}
+
+                    {/* 순위별 메인 카드 */}
+                    <div className={`backdrop-blur-md rounded-3xl p-8 border text-center space-y-4 ${
+                      myRank === 1
+                        ? 'bg-gradient-to-b from-amber-500/30 to-yellow-600/20 border-amber-400/60 shadow-xl shadow-amber-500/20'
+                        : myRank === 2
+                        ? 'bg-gradient-to-b from-slate-400/20 to-slate-500/10 border-slate-300/50'
+                        : myRank === 3
+                        ? 'bg-gradient-to-b from-orange-400/20 to-orange-500/10 border-orange-300/50'
+                        : 'bg-white/15 border-white/20'
+                    }`}>
+                      {/* 1위 — 왕관 애니메이션 */}
+                      {myRank === 1 ? (
+                        <motion.div
+                          animate={{ y: [0, -10, 0], rotate: [0, -5, 5, 0] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                          className="text-7xl"
+                        >
+                          👑
+                        </motion.div>
+                      ) : myRank === 2 ? (
+                        <motion.div
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                          className="text-7xl"
+                        >
+                          🥈
+                        </motion.div>
+                      ) : myRank === 3 ? (
+                        <motion.div
+                          animate={{ scale: [1, 1.08, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                          className="text-7xl"
+                        >
+                          🥉
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          animate={{ rotate: [0, -10, 10, -10, 10, 0], scale: [1, 1.2, 1] }}
+                          transition={{ duration: 0.8, delay: 0.3 }}
+                          className="text-7xl"
+                        >
+                          🏆
+                        </motion.div>
+                      )}
+
                       <div>
-                        <h2 className="text-3xl font-black text-white">수고했어요!</h2>
-                        <p className="text-white/70 text-sm mt-1">{participant.student_name}님의 최종 결과</p>
+                        {myRank === 1 ? (
+                          <>
+                            <h2 className="text-3xl font-black text-white">1등이에요!</h2>
+                            <p className="text-amber-300 font-bold text-sm mt-1">🎉 최고 점수 달성!</p>
+                          </>
+                        ) : myRank === 2 ? (
+                          <>
+                            <h2 className="text-3xl font-black text-white">2등이에요!</h2>
+                            <p className="text-slate-300 font-bold text-sm mt-1">대단해요! 다음엔 1등!</p>
+                          </>
+                        ) : myRank === 3 ? (
+                          <>
+                            <h2 className="text-3xl font-black text-white">3등이에요!</h2>
+                            <p className="text-orange-300 font-bold text-sm mt-1">훌륭해요! TOP 3 달성!</p>
+                          </>
+                        ) : (
+                          <>
+                            <h2 className="text-3xl font-black text-white">수고했어요!</h2>
+                            <p className="text-white/70 text-sm mt-1">{participant.student_name}님의 최종 결과</p>
+                          </>
+                        )}
                       </div>
+
                       <div className="bg-white/20 rounded-2xl p-5 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-white/70 text-sm">최종 점수</span>
@@ -799,14 +885,19 @@ const QuizStudentView = () => {
                         {myRank > 0 && (
                           <div className="flex items-center justify-between">
                             <span className="text-white/70 text-sm">최종 순위</span>
-                            <span className="text-white font-black text-2xl">
-                              {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : `${myRank}등`}
+                            <span className={`font-black text-2xl ${
+                              myRank === 1 ? 'text-amber-300' :
+                              myRank === 2 ? 'text-slate-300' :
+                              myRank === 3 ? 'text-orange-300' : 'text-white'
+                            }`}>
+                              {myRank === 1 ? '👑 1등!' : myRank === 2 ? '🥈 2등' : myRank === 3 ? '🥉 3등' : `${myRank}등`}
                             </span>
                           </div>
                         )}
                       </div>
                     </div>
-                    {/* 최종 순위 TOP 3 */}
+
+                    {/* 최종 순위 TOP 5 */}
                     <div className="bg-white/10 rounded-2xl p-4 border border-white/15 space-y-2">
                       <h4 className="text-white/70 text-xs font-bold flex items-center gap-1.5">
                         <Trophy size={12} /> 최종 순위
@@ -814,16 +905,25 @@ const QuizStudentView = () => {
                       {allParticipants.slice(0, 5).map((p, i) => (
                         <div
                           key={p.id}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${
-                            p.id === participant?.id ? 'bg-white/25 border border-white/40' : 'bg-white/10'
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                            p.id === participant?.id
+                              ? i === 0 ? 'bg-amber-400/30 border border-amber-400/50' :
+                                i === 1 ? 'bg-slate-400/30 border border-slate-300/50' :
+                                i === 2 ? 'bg-orange-400/30 border border-orange-300/50' :
+                                'bg-white/25 border border-white/40'
+                              : 'bg-white/10'
                           }`}
                         >
-                          <span className="text-lg">{['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i]}</span>
+                          <span className="text-lg">{['👑', '🥈', '🥉', '4️⃣', '5️⃣'][i]}</span>
                           <span className="font-bold text-white flex-1 text-sm">{p.student_name}</span>
+                          {p.id === participant?.id && (
+                            <span className="text-[10px] bg-white/30 text-white px-1.5 py-0.5 rounded font-bold">나</span>
+                          )}
                           <span className="text-white/80 font-black text-sm">{p.score.toLocaleString()}</span>
                         </div>
                       ))}
                     </div>
+
                     {/* 6초 후 자동으로 처음 화면으로 이동 */}
                     <AutoRedirectButton onNavigate={handleFinalExit} />
                   </motion.div>

@@ -228,6 +228,8 @@ const StudentLog = () => {
   const [activeQuizSessions, setActiveQuizSessions] = useState<any[]>([]);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizSessionAlert, setQuizSessionAlert] = useState<{ id: string; pin_code: string; title: string } | null>(null);
+  const [quizHistory, setQuizHistory] = useState<any[]>([]);
+  const [quizHistoryLoading, setQuizHistoryLoading] = useState(false);
 
   // Survey Tab States
   const [activeSurveyForms, setActiveSurveyForms] = useState<any[]>([]);
@@ -1379,6 +1381,20 @@ const StudentLog = () => {
     }
   };
 
+  const fetchQuizHistory = async () => {
+    if (!session?.class_id || !session?.student_name) return;
+    setQuizHistoryLoading(true);
+    const { data } = await supabase
+      .from('quiz_score_history')
+      .select('id, quiz_set_title, rank, score, played_at')
+      .eq('class_id', session.class_id)
+      .eq('student_name', session.student_name)
+      .order('played_at', { ascending: false })
+      .limit(20);
+    if (data) setQuizHistory(data);
+    setQuizHistoryLoading(false);
+  };
+
   const fetchActiveSurveyForms = async () => {
     if (!session?.class_id) return;
     setSurveyLoading(true);
@@ -1530,7 +1546,7 @@ const StudentLog = () => {
     if (tab === 'results') fetchResults();
     if (tab === 'unit') fetchPendingUnits();
     if (tab === 'suggestions') fetchSuggestions();
-    if (tab === 'quiz') fetchActiveQuizSessions();
+    if (tab === 'quiz') { fetchActiveQuizSessions(); fetchQuizHistory(); }
     if (tab === 'survey') fetchActiveSurveyForms();
     if (tab === 'board') { fetchBoard(); fetchActiveBoardSessions(); }
   };
@@ -3542,6 +3558,68 @@ ${guidePrompt}
                 </div>
 
                 {/* 내용 */}
+                {/* ── 나의 퀴즈 누적 기록 ── */}
+                {(() => {
+                  const totalScore = quizHistory.reduce((s, h) => s + (h.score ?? 0), 0);
+                  const playCount = quizHistory.length;
+                  const bestRank = quizHistory.length > 0 ? Math.min(...quizHistory.map(h => h.rank)) : null;
+                  const topThreeCount = quizHistory.filter(h => h.rank <= 3).length;
+                  const rankBadge =
+                    bestRank === 1 ? { icon: '👑', label: '챔피언', color: 'from-amber-400 to-yellow-500' } :
+                    bestRank === 2 ? { icon: '🥈', label: '파이터', color: 'from-slate-400 to-slate-500' } :
+                    bestRank === 3 ? { icon: '🥉', label: '도전자', color: 'from-orange-400 to-orange-500' } :
+                    topThreeCount > 0 ? { icon: '🌟', label: '라이징스타', color: 'from-violet-400 to-purple-500' } :
+                    playCount > 0 ? { icon: '🎮', label: '참여자', color: 'from-purple-400 to-violet-500' } : null;
+
+                  if (playCount === 0 && !quizHistoryLoading) return null;
+                  return (
+                    <div className="rounded-3xl border border-purple-100 bg-gradient-to-br from-purple-50/80 to-violet-50/60 p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest">나의 퀴즈 기록</p>
+                        {rankBadge && (
+                          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r ${rankBadge.color} text-white text-xs font-black shadow-sm`}>
+                            <span>{rankBadge.icon}</span>
+                            {rankBadge.label}
+                          </div>
+                        )}
+                      </div>
+                      {quizHistoryLoading ? (
+                        <div className="flex justify-center py-4"><Loader2 size={20} className="animate-spin text-purple-400" /></div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="bg-white/70 rounded-2xl p-3 text-center">
+                              <p className="text-2xl font-black text-purple-600">{totalScore.toLocaleString()}</p>
+                              <p className="text-[10px] font-bold text-on-surface-variant mt-0.5">누적 점수</p>
+                            </div>
+                            <div className="bg-white/70 rounded-2xl p-3 text-center">
+                              <p className="text-2xl font-black text-violet-600">{playCount}</p>
+                              <p className="text-[10px] font-bold text-on-surface-variant mt-0.5">참여 횟수</p>
+                            </div>
+                            <div className="bg-white/70 rounded-2xl p-3 text-center">
+                              <p className="text-2xl font-black text-indigo-600">{bestRank ? `${bestRank}위` : '-'}</p>
+                              <p className="text-[10px] font-bold text-on-surface-variant mt-0.5">최고 순위</p>
+                            </div>
+                          </div>
+                          {quizHistory.length > 0 && (
+                            <div className="space-y-2 max-h-44 overflow-y-auto">
+                              {quizHistory.slice(0, 8).map((h) => (
+                                <div key={h.id} className="flex items-center gap-3 bg-white/60 rounded-xl px-3 py-2.5">
+                                  <span className="text-base shrink-0">
+                                    {h.rank === 1 ? '👑' : h.rank === 2 ? '🥈' : h.rank === 3 ? '🥉' : `${h.rank}위`}
+                                  </span>
+                                  <span className="font-bold text-sm text-on-surface flex-1 truncate">{h.quiz_set_title || '퀴즈'}</span>
+                                  <span className="text-xs font-black text-purple-600">{(h.score ?? 0).toLocaleString()}점</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {quizLoading ? (
                   <div className="flex items-center justify-center py-20">
                     <Loader2 size={28} className="animate-spin text-purple-500" />

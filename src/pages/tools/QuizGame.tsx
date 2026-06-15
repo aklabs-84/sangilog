@@ -10,6 +10,8 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { geminiFlash } from '../../lib/gemini';
+import ConfettiEffect from '../../components/quiz/ConfettiEffect';
+import { playVictoryFanfare } from '../../lib/quizSound';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type GameState = 'LOBBY' | 'QUIZ' | 'RESULT' | 'RANKING' | 'FINAL';
@@ -114,8 +116,10 @@ const QuizGame = () => {
   const [creatingSet, setCreatingSet] = useState(false);
   const [newSetTitle, setNewSetTitle] = useState('');
 
+  const [showConfetti, setShowConfetti] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const savedHistoryRef = useRef(false);
 
   // ── 수업 자료 AI 생성 ──────────────────────────────────────────────────────
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
@@ -410,6 +414,35 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
+
+  // 최종 결과 도달 시 폭죽 + 효과음 + 누적 점수 저장
+  useEffect(() => {
+    if (session?.state !== 'FINAL' || participants.length === 0) return;
+
+    setShowConfetti(true);
+    playVictoryFanfare();
+    const t = setTimeout(() => setShowConfetti(false), 5000);
+
+    // 누적 점수 히스토리 저장 (중복 저장 방지)
+    if (!savedHistoryRef.current) {
+      savedHistoryRef.current = true;
+      const ranked = [...participants].sort((a, b) => b.score - a.score);
+      const rows = ranked.map((p, i) => ({
+        class_id: selectedClass?.id ?? null,
+        session_id: session.id,
+        quiz_set_title: selectedQuizSet?.title ?? '',
+        student_name: p.student_name,
+        rank: i + 1,
+        score: p.score,
+      }));
+      supabase.from('quiz_score_history').insert(rows).then(({ error }) => {
+        if (error) console.warn('[QuizHistory] 저장 실패 (테이블 없음?):', error.message);
+      });
+    }
+
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.state]);
 
   // ── 게임 제어 ──────────────────────────────────────────────────────────────
   const updateSessionState = async (
@@ -1233,48 +1266,101 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
 
         {/* ── FINAL ── */}
         {session.state === 'FINAL' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="space-y-4"
-          >
-            <div className="glass rounded-3xl p-8 border border-white/40 text-center space-y-6">
-              <motion.div
-                animate={{ rotate: [0, -10, 10, -10, 10, 0] }}
-                transition={{ duration: 0.8, delay: 0.3 }}
-                className="text-7xl"
-              >
-                🏆
-              </motion.div>
-              <h3 className="text-2xl font-black gradient-text">퀴즈 완료!</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto text-left">
-                {rankedParticipants.slice(0, 3).map((p, i) => (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.15 + 0.5 }}
-                    className={`flex items-center gap-3 px-5 py-3 rounded-2xl ${
-                      i === 0 ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200' :
-                      i === 1 ? 'bg-slate-50 border border-slate-200' :
-                      'bg-orange-50 border border-orange-200'
-                    }`}
-                  >
-                    <span className="text-2xl">{['🥇', '🥈', '🥉'][i]}</span>
-                    <span className="font-black text-on-surface flex-1">{p.student_name}</span>
-                    <span className="font-black text-primary">{p.score.toLocaleString()}점</span>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={handleEndGame}
-              className="w-full py-4 rounded-2xl font-black text-base btn-vibrant flex items-center justify-center gap-3"
+          <>
+            {showConfetti && <ConfettiEffect intensity="heavy" duration={5000} />}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="space-y-4"
             >
-              <RefreshCw size={18} />
-              문제 관리로 돌아가기
-            </button>
-          </motion.div>
+              <div className="glass rounded-3xl p-6 border border-white/40 text-center space-y-5">
+                <motion.div
+                  animate={{ rotate: [0, -15, 15, -10, 10, 0], scale: [1, 1.3, 1] }}
+                  transition={{ duration: 1, delay: 0.2 }}
+                  className="text-7xl"
+                >
+                  🏆
+                </motion.div>
+                <h3 className="text-2xl font-black gradient-text">퀴즈 완료!</h3>
+                <p className="text-sm text-on-surface-variant">총 {participants.length}명 참여</p>
+
+                {/* 포디엄 TOP 3 */}
+                {rankedParticipants.length >= 1 && (
+                  <div className="flex items-end justify-center gap-3 pt-2">
+                    {/* 2위 */}
+                    {rankedParticipants[1] && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.8 }}
+                        className="flex flex-col items-center gap-1 flex-1"
+                      >
+                        <div className="text-3xl">🥈</div>
+                        <div className="w-full bg-slate-100 border-2 border-slate-300 rounded-t-2xl pt-3 pb-2 px-2 min-h-16 flex flex-col items-center justify-end">
+                          <p className="font-black text-on-surface text-sm text-center truncate w-full">{rankedParticipants[1].student_name}</p>
+                          <p className="text-xs text-slate-500 font-bold mt-0.5">{rankedParticipants[1].score.toLocaleString()}점</p>
+                        </div>
+                      </motion.div>
+                    )}
+                    {/* 1위 */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 }}
+                      className="flex flex-col items-center gap-1 flex-1"
+                    >
+                      <motion.div
+                        animate={{ y: [0, -6, 0] }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                        className="text-4xl"
+                      >
+                        👑
+                      </motion.div>
+                      <div className="w-full bg-gradient-to-b from-amber-50 to-yellow-100 border-2 border-amber-400 rounded-t-2xl pt-4 pb-2 px-2 min-h-24 flex flex-col items-center justify-end shadow-lg shadow-amber-200">
+                        <p className="font-black text-on-surface text-base text-center truncate w-full">{rankedParticipants[0].student_name}</p>
+                        <p className="text-sm font-black text-amber-600 mt-0.5">{rankedParticipants[0].score.toLocaleString()}점</p>
+                      </div>
+                    </motion.div>
+                    {/* 3위 */}
+                    {rankedParticipants[2] && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 1.0 }}
+                        className="flex flex-col items-center gap-1 flex-1"
+                      >
+                        <div className="text-3xl">🥉</div>
+                        <div className="w-full bg-orange-50 border-2 border-orange-300 rounded-t-2xl pt-3 pb-2 px-2 min-h-12 flex flex-col items-center justify-end">
+                          <p className="font-black text-on-surface text-sm text-center truncate w-full">{rankedParticipants[2].student_name}</p>
+                          <p className="text-xs text-orange-500 font-bold mt-0.5">{rankedParticipants[2].score.toLocaleString()}점</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                )}
+
+                {/* 4위 이하 */}
+                {rankedParticipants.length > 3 && (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto text-left mt-2">
+                    {rankedParticipants.slice(3).map((p, i) => (
+                      <div key={p.id} className="flex items-center gap-3 px-4 py-2 rounded-xl bg-surface-container-low/50 border border-white/30">
+                        <span className="text-xs font-black text-on-surface-variant w-5 text-center">{i + 4}</span>
+                        <span className="font-bold text-on-surface flex-1 text-sm">{p.student_name}</span>
+                        <span className="text-xs font-black text-on-surface-variant">{p.score.toLocaleString()}점</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleEndGame}
+                className="w-full py-4 rounded-2xl font-black text-base btn-vibrant flex items-center justify-center gap-3"
+              >
+                <RefreshCw size={18} />
+                문제 관리로 돌아가기
+              </button>
+            </motion.div>
+          </>
         )}
       </div>
     );
