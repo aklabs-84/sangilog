@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -7,7 +8,7 @@ import { useAuth } from '../../lib/auth';
 import {
   ChevronDown, ChevronUp, Check, RotateCw, Sparkles,
   Download, AlertCircle, Search, Save, FileSpreadsheet,
-  Settings2, RefreshCw, Undo2, Maximize2, X,
+  Settings2, RefreshCw, Undo2, Maximize2, X, ExternalLink,
 } from 'lucide-react';
 
 interface ExportColumn {
@@ -106,6 +107,7 @@ const BehaviorInsightPanel = ({ insight, studentName }: { insight: string; stude
 
 const NaissWorkstation = ({ classes }: Props) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [selectedClassId, setSelectedClassId] = useState('');
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear());
   const [rows, setRows] = useState<StudentRow[]>([]);
@@ -950,6 +952,15 @@ CREATE POLICY "teacher_own" ON student_evaluations
 
                         {/* 관찰 기록 + 교사 메모 + 결과물 평가 참고 패널 */}
                         <div className="p-4 bg-surface-container/30 border-t lg:border-t-0 lg:border-l border-surface-container space-y-3 max-h-[360px] overflow-y-auto custom-scrollbar">
+                          <div className="flex items-center justify-between pb-2 border-b border-surface-container">
+                            <p className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest">참고 자료</p>
+                            <button
+                              onClick={() => navigate(`/student-view/${row.id}`, { state: { fromClassId: selectedClassId } })}
+                              className="flex items-center gap-1 text-[10px] font-black text-primary/60 hover:text-primary transition-colors"
+                            >
+                              <ExternalLink size={11} /> 전체 자료실 보기
+                            </button>
+                          </div>
                           {row.observations.length > 0 && (
                             <div className="space-y-1.5">
                               <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">
@@ -1172,6 +1183,15 @@ CREATE POLICY "teacher_own" ON student_evaluations
 
                   {/* 활동 기록 + 교사 메모 + 결과물 평가 참고 패널 */}
                   <div className="p-4 bg-surface-container/30 border-t lg:border-t-0 lg:border-l border-surface-container flex flex-col gap-3 overflow-auto">
+                    <div className="flex items-center justify-between pb-2 border-b border-surface-container shrink-0">
+                      <p className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest">참고 자료</p>
+                      <button
+                        onClick={() => navigate(`/student-view/${fsRow.id}`, { state: { fromClassId: selectedClassId } })}
+                        className="flex items-center gap-1 text-[10px] font-black text-primary/60 hover:text-primary transition-colors"
+                      >
+                        <ExternalLink size={11} /> 전체 자료실 보기
+                      </button>
+                    </div>
                     {fsRow.observations.length > 0 && (
                       <div className="space-y-1.5 shrink-0">
                         <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">
