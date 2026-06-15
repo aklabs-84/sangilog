@@ -612,7 +612,7 @@ export default function SurveyTool() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // ── 초기 로드 ──────────────────────────────────────────────────────────────
-  useEffect(() => { if (user) fetchClasses(); }, [user]);
+  useEffect(() => { if (user) fetchClasses(); }, [user?.id]);
 
   const fetchClasses = async () => {
     const { data } = await supabase.from('classes').select('id, name, class_type')

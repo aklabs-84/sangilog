@@ -133,7 +133,7 @@ const QuizGame = () => {
   // ── 초기 로딩 ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (user) fetchClasses();
-  }, [user]);
+  }, [user?.id]);
 
   const fetchClasses = async () => {
     const { data } = await supabase

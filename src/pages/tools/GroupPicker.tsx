@@ -176,7 +176,7 @@ const GroupPicker = () => {
 
   useEffect(() => {
     if (user) fetchClasses();
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

@@ -27,6 +27,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const profileChannelRef = useRef<RealtimeChannel | null>(null);
+  // 이전 인증 사용자 ID 추적 — 동일 사용자의 토큰 갱신 시 loading 전환을 막기 위해 사용
+  const prevUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // 1. 초기 세션 체크 (10초 타임아웃 적용)
@@ -37,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearTimeout(sessionTimeout);
         setSession(session);
         setUser(session?.user ?? null);
+        prevUserIdRef.current = session?.user?.id ?? null;
         if (session?.user && !session.user.is_anonymous) {
           fetchProfile(session.user.id);
         } else {
@@ -51,16 +54,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 2. 인증 상태 변경 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const newUserId = session?.user?.id ?? null;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user && !session.user.is_anonymous) {
-        // TOKEN_REFRESHED(탭 전환 시 자동 갱신)는 setLoading(true) 생략
-        // — 이미 인증된 상태이므로 loading 전환 시 컴포넌트 재마운트가 불필요
-        if (event !== 'TOKEN_REFRESHED') {
+        // 동일 사용자의 토큰 갱신/재인증(탭 전환 후 복귀 등)은 loading을 true로 전환하지 않음
+        // — loading이 true가 되면 ProtectedRoute가 로딩 스피너를 표시하면서
+        //   전체 컴포넌트 트리가 언마운트/리마운트돼 화면 상태가 초기화되는 버그 방지
+        const isNewUserSession = newUserId !== prevUserIdRef.current;
+        if (isNewUserSession) {
           setLoading(true);
         }
+        prevUserIdRef.current = newUserId;
         fetchProfile(session.user.id);
       } else {
+        prevUserIdRef.current = null;
         setProfile(null);
         setLoading(false);
         cleanupProfileChannel();

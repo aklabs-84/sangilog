@@ -118,7 +118,7 @@ export default function WhiteboardList() {
       class_name: b.class_id ? classMap[b.class_id] : undefined,
     })));
     setLoading(false);
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => { loadBoards(); }, [loadBoards]);
 
