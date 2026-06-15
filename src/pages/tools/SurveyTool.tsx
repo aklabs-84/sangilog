@@ -5,7 +5,7 @@ import {
   Play, Users, BarChart2, Copy, CheckCheck,
   Star, ToggleLeft, List, ArrowLeft, StopCircle,
   AlignLeft, SlidersHorizontal, Maximize2, ChevronLeft, ChevronRight, Minimize2,
-  Download, Sparkles, GripVertical,
+  Download, Sparkles, GripVertical, RotateCcw,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -803,6 +803,17 @@ export default function SurveyTool() {
     setSurveyForms(prev => prev.filter(f => f.id !== formId));
   };
 
+  // ── 결과 초기화 ───────────────────────────────────────────────────────────
+  const handleResetResults = async () => {
+    if (!selectedForm) return;
+    if (!confirm(`"${selectedForm.title}" 설문의 모든 응답을 초기화할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    await supabase.from('survey_answers').delete().eq('form_id', selectedForm.id);
+    await supabase.from('survey_responses').delete().eq('form_id', selectedForm.id);
+    setAnswers([]);
+    setResponderCount(0);
+    setAiAnalysis({});
+  };
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   // ── 설문 목록 ──────────────────────────────────────────────────────────────
@@ -1009,6 +1020,11 @@ export default function SurveyTool() {
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#F0FDF4', color: '#10B981', border: '1px solid #A7F3D0', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}
         >
           <Download size={14} /> CSV
+        </button>
+        <button onClick={handleResetResults} disabled={responderCount === 0}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: responderCount > 0 ? '#FFF7ED' : '#F9FAFB', color: responderCount > 0 ? '#EA580C' : '#9CA3AF', border: `1px solid ${responderCount > 0 ? '#FED7AA' : '#E5E7EB'}`, borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: responderCount > 0 ? 'pointer' : 'default' }}
+        >
+          <RotateCcw size={14} /> 초기화
         </button>
         <button onClick={() => setPresentMode(true)} disabled={questions.length === 0}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1e1e2e', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: questions.length > 0 ? 'pointer' : 'default', opacity: questions.length > 0 ? 1 : 0.4 }}
