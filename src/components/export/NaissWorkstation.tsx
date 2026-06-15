@@ -24,6 +24,8 @@ interface StudentRow {
   student_number: string;
   obs_count: number;
   observations: { activity_name: string; content: string }[];
+  teacher_obs: { activity_name: string; content: string }[];
+  result_evals: { score: number | null; tags: string[] | null; note: string | null; title: string | null }[];
   eval_id?: string;
   achievement_level: '상' | '중' | '하' | null;
   setech_content: string;
@@ -187,13 +189,30 @@ const NaissWorkstation = ({ classes }: Props) => {
       const ids = students.map((s: any) => s.id);
 
       const { data: obs } = await supabase
-        .from('observations').select('student_id, activity_name, content')
-        .in('student_id', ids).eq('is_student_record', true)
+        .from('observations').select('student_id, activity_name, content, is_student_record')
+        .in('student_id', ids)
         .in('status', ['approved', 'pending']);
 
       const obsByStudent: Record<string, { activity_name: string; content: string }[]> = {};
-      ids.forEach((id: string) => { obsByStudent[id] = []; });
-      obs?.forEach((o: any) => { if (obsByStudent[o.student_id]) obsByStudent[o.student_id].push(o); });
+      const teacherObsByStudent: Record<string, { activity_name: string; content: string }[]> = {};
+      ids.forEach((id: string) => { obsByStudent[id] = []; teacherObsByStudent[id] = []; });
+      obs?.forEach((o: any) => {
+        if (o.is_student_record) { if (obsByStudent[o.student_id]) obsByStudent[o.student_id].push(o); }
+        else { if (teacherObsByStudent[o.student_id]) teacherObsByStudent[o.student_id].push(o); }
+      });
+
+      const { data: resultEvalsData } = await supabase
+        .from('student_results')
+        .select('student_id, teacher_eval_score, teacher_eval_tags, teacher_eval_note, title')
+        .in('student_id', ids)
+        .not('teacher_eval_note', 'is', null);
+      const resultEvalsByStudent: Record<string, { score: number | null; tags: string[] | null; note: string | null; title: string | null }[]> = {};
+      ids.forEach((id: string) => { resultEvalsByStudent[id] = []; });
+      resultEvalsData?.forEach((r: any) => {
+        if (resultEvalsByStudent[r.student_id]) resultEvalsByStudent[r.student_id].push({
+          score: r.teacher_eval_score, tags: r.teacher_eval_tags, note: r.teacher_eval_note, title: r.title,
+        });
+      });
 
       let evalMap: Record<string, any> = {};
       try {
@@ -215,6 +234,8 @@ const NaissWorkstation = ({ classes }: Props) => {
               student_number: s.student_number || '-',
               obs_count: obsByStudent[s.id].length,
               observations: obsByStudent[s.id],
+              teacher_obs: teacherObsByStudent[s.id],
+              result_evals: resultEvalsByStudent[s.id],
               eval_id: ev?.id,
               achievement_level: ev?.achievement_level || null,
               setech_content: ev?.setech_content || '',
@@ -265,14 +286,25 @@ const NaissWorkstation = ({ classes }: Props) => {
   };
 
   const generateAI = async (row: StudentRow) => {
-    if (!row.observations.length) { alert('관찰 기록이 없는 학생입니다.'); return; }
+    if (!row.observations.length && !row.teacher_obs.length) { alert('관찰 기록이 없는 학생입니다.'); return; }
     setGeneratingId(row.id);
     try {
       const cls = classes.find(c => c.id === selectedClassId);
       const docType = cls?.class_type === 'homeroom'
         ? '행동특성 및 종합의견(행특)' : '교과 세부능력 및 특기사항(세특)';
-      const obsText = row.observations.map(o => `활동명: ${o.activity_name}\n내용: ${o.content}`).join('\n---\n');
-      const prompt = `${SYSTEM_INSTRUCTIONS.BASE}\n${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}\n아래는 ${row.full_name} 학생의 관찰 기록입니다.\n이를 바탕으로 ${docType} 초안을 500자 이내로 작성하세요.\n문구만 출력하세요.\n\n${obsText}`;
+      const studentObsText = row.observations.length > 0
+        ? row.observations.map(o => `활동명: ${o.activity_name}\n내용: ${o.content}`).join('\n---\n')
+        : '';
+      const teacherObsText = row.teacher_obs.length > 0
+        ? '\n\n[교사 관찰 메모]\n' + row.teacher_obs.map(o => `활동명: ${o.activity_name}\n내용: ${o.content}`).join('\n---\n')
+        : '';
+      const resultEvalText = row.result_evals.length > 0
+        ? '\n\n[결과물 교사 평가]\n' + row.result_evals.map(r =>
+            `${r.title || '결과물'}${r.score ? ` — ${r.score}/5점` : ''}${r.tags?.length ? ` [${r.tags.join(', ')}]` : ''}${r.note ? `: ${r.note}` : ''}`
+          ).join('\n')
+        : '';
+      const obsText = (studentObsText || '제출된 학생 기록 없음') + teacherObsText + resultEvalText;
+      const prompt = `${SYSTEM_INSTRUCTIONS.BASE}\n${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}\n아래는 학생의 관찰 기록입니다.\n이를 바탕으로 ${docType} 초안을 500자 이내로 작성하세요.\n문구만 출력하세요.\n\n${obsText}`;
       const result = await geminiPro.generateContent(prompt);
       const content = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: content, status: 'draft' });
@@ -773,7 +805,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                                   <Undo2 size={11} /> 되돌리기
                                 </button>
                               )}
-                              <button onClick={() => generateAI(row)} disabled={!!generatingId || !row.obs_count}
+                              <button onClick={() => generateAI(row)} disabled={!!generatingId || (!row.obs_count && !row.teacher_obs.length)}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[10px] font-black hover:bg-primary/20 transition-all disabled:opacity-40">
                                 {isGenerating ? <RotateCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
                                 AI 생성
@@ -916,16 +948,16 @@ CREATE POLICY "teacher_own" ON student_evaluations
                           )}
                         </div>
 
-                        {/* 관찰 기록 참고 패널 */}
-                        <div className="p-4 bg-surface-container/30 border-t lg:border-t-0 lg:border-l border-surface-container space-y-2">
-                          <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">
-                            관찰 기록 ({row.obs_count}건) — 참고용
-                          </p>
-                          {row.observations.length > 0 ? (
-                            <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
+                        {/* 관찰 기록 + 교사 메모 + 결과물 평가 참고 패널 */}
+                        <div className="p-4 bg-surface-container/30 border-t lg:border-t-0 lg:border-l border-surface-container space-y-3 max-h-[360px] overflow-y-auto custom-scrollbar">
+                          {row.observations.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">
+                                학생 활동 기록 ({row.obs_count}건)
+                              </p>
                               {row.observations.map((o, i) => (
                                 <div key={i}
-                                  className="p-3 bg-white rounded-xl border border-surface-container text-xs group cursor-pointer hover:border-primary/30 hover:shadow-sm transition-all"
+                                  className="p-3 bg-white rounded-xl border border-surface-container text-xs cursor-pointer hover:border-primary/30 hover:shadow-sm transition-all"
                                   onClick={() => setSelectedObs(o)}
                                 >
                                   <p className="font-black text-on-surface mb-1 truncate">{o.activity_name}</p>
@@ -934,7 +966,47 @@ CREATE POLICY "teacher_own" ON student_evaluations
                                 </div>
                               ))}
                             </div>
-                          ) : (
+                          )}
+                          {row.teacher_obs.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                                교사 메모 ({row.teacher_obs.length}건)
+                              </p>
+                              {row.teacher_obs.map((o, i) => (
+                                <div key={i}
+                                  className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs cursor-pointer hover:border-emerald-300 transition-all"
+                                  onClick={() => setSelectedObs(o)}
+                                >
+                                  <p className="font-black text-emerald-800 mb-1 truncate">{o.activity_name}</p>
+                                  <p className="text-emerald-700/70 leading-relaxed line-clamp-3">{o.content}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {row.result_evals.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-black text-violet-600 uppercase tracking-widest">
+                                결과물 평가 ({row.result_evals.length}건)
+                              </p>
+                              {row.result_evals.map((ev, i) => (
+                                <div key={i} className="p-3 bg-violet-50 rounded-xl border border-violet-100 text-xs space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-black text-violet-800 truncate flex-1">{ev.title || '결과물'}</p>
+                                    {ev.score && <span className="text-amber-500 font-black shrink-0">{'★'.repeat(ev.score)}</span>}
+                                  </div>
+                                  {ev.tags && ev.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {ev.tags.map(tag => (
+                                        <span key={tag} className="px-1.5 py-0.5 bg-violet-100 text-violet-600 rounded text-[9px] font-black">{tag}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {ev.note && <p className="text-violet-700/80 leading-relaxed">{ev.note}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {row.observations.length === 0 && row.teacher_obs.length === 0 && row.result_evals.length === 0 && (
                             <div className="py-8 text-center text-xs text-neutral-400 italic">관찰 기록이 없습니다</div>
                           )}
                         </div>
@@ -1008,7 +1080,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                         <Undo2 size={11} /> 되돌리기
                       </button>
                     )}
-                    <button onClick={() => generateAI(fsRow)} disabled={!!generatingId || !fsRow.obs_count}
+                    <button onClick={() => generateAI(fsRow)} disabled={!!generatingId || (!fsRow.obs_count && !fsRow.teacher_obs.length)}
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary text-[10px] font-black hover:bg-primary/20 transition-all disabled:opacity-40">
                       {fsIsGenerating ? <RotateCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
                       AI 생성
@@ -1098,25 +1170,71 @@ CREATE POLICY "teacher_own" ON student_evaluations
                     </div>
                   </div>
 
-                  {/* 활동 기록 참고 패널 */}
-                  <div className="p-4 bg-surface-container/30 border-t lg:border-t-0 lg:border-l border-surface-container flex flex-col gap-2 overflow-auto">
-                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest shrink-0">
-                      활동 기록 ({fsRow.obs_count}건)
-                    </p>
-                    {fsRow.observations.length > 0 ? (
-                      <div className="space-y-2 overflow-y-auto custom-scrollbar pr-1">
-                        {fsRow.observations.map((o, i) => (
-                          <div key={i}
-                            className="p-3 bg-white rounded-xl border border-surface-container text-xs cursor-pointer hover:border-primary/30 hover:shadow-sm transition-all"
-                            onClick={() => setSelectedObs(o)}
-                          >
-                            <p className="font-black text-on-surface mb-1">{o.activity_name}</p>
-                            <p className="text-on-surface-variant/60 leading-relaxed line-clamp-4">{o.content}</p>
-                            <p className="text-[9px] text-primary/50 mt-1 font-bold">클릭하여 전체 내용 보기</p>
-                          </div>
-                        ))}
+                  {/* 활동 기록 + 교사 메모 + 결과물 평가 참고 패널 */}
+                  <div className="p-4 bg-surface-container/30 border-t lg:border-t-0 lg:border-l border-surface-container flex flex-col gap-3 overflow-auto">
+                    {fsRow.observations.length > 0 && (
+                      <div className="space-y-1.5 shrink-0">
+                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">
+                          학생 활동 기록 ({fsRow.obs_count}건)
+                        </p>
+                        <div className="space-y-2">
+                          {fsRow.observations.map((o, i) => (
+                            <div key={i}
+                              className="p-3 bg-white rounded-xl border border-surface-container text-xs cursor-pointer hover:border-primary/30 hover:shadow-sm transition-all"
+                              onClick={() => setSelectedObs(o)}
+                            >
+                              <p className="font-black text-on-surface mb-1">{o.activity_name}</p>
+                              <p className="text-on-surface-variant/60 leading-relaxed line-clamp-4">{o.content}</p>
+                              <p className="text-[9px] text-primary/50 mt-1 font-bold">클릭하여 전체 내용 보기</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ) : (
+                    )}
+                    {fsRow.teacher_obs.length > 0 && (
+                      <div className="space-y-1.5 shrink-0">
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                          교사 메모 ({fsRow.teacher_obs.length}건)
+                        </p>
+                        <div className="space-y-2">
+                          {fsRow.teacher_obs.map((o, i) => (
+                            <div key={i}
+                              className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs cursor-pointer hover:border-emerald-300 transition-all"
+                              onClick={() => setSelectedObs(o)}
+                            >
+                              <p className="font-black text-emerald-800 mb-1">{o.activity_name}</p>
+                              <p className="text-emerald-700/70 leading-relaxed line-clamp-4">{o.content}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {fsRow.result_evals.length > 0 && (
+                      <div className="space-y-1.5 shrink-0">
+                        <p className="text-[10px] font-black text-violet-600 uppercase tracking-widest">
+                          결과물 평가 ({fsRow.result_evals.length}건)
+                        </p>
+                        <div className="space-y-2">
+                          {fsRow.result_evals.map((ev, i) => (
+                            <div key={i} className="p-3 bg-violet-50 rounded-xl border border-violet-100 text-xs space-y-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-black text-violet-800 flex-1">{ev.title || '결과물'}</p>
+                                {ev.score && <span className="text-amber-500 font-black shrink-0">{'★'.repeat(ev.score)}</span>}
+                              </div>
+                              {ev.tags && ev.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {ev.tags.map(tag => (
+                                    <span key={tag} className="px-1.5 py-0.5 bg-violet-100 text-violet-600 rounded text-[9px] font-black">{tag}</span>
+                                  ))}
+                                </div>
+                              )}
+                              {ev.note && <p className="text-violet-700/80 leading-relaxed">{ev.note}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {fsRow.observations.length === 0 && fsRow.teacher_obs.length === 0 && fsRow.result_evals.length === 0 && (
                       <div className="py-8 text-center text-xs text-neutral-400 italic">관찰 기록이 없습니다</div>
                     )}
                   </div>

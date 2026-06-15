@@ -10,12 +10,15 @@ import {
   RotateCw, AlertCircle, AlertTriangle,
 } from 'lucide-react';
 import { geminiFlash } from '../lib/gemini';
+import ReactMarkdown from 'react-markdown';
+import { useAuth } from '../lib/auth';
 
 const StudentView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { state: locationState } = useLocation();
   const fromClassId: string | undefined = locationState?.fromClassId;
+  const { user } = useAuth();
   const [student, setStudent] = useState<any>(null);
   const [observations, setObservations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +93,10 @@ const StudentView = () => {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Result Evaluation States
+  const [evalForms, setEvalForms] = useState<Record<string, { score: number; tags: string[]; note: string }>>({});
+  const [savingEvalId, setSavingEvalId] = useState<string | null>(null);
+
   // Toast
   const [toasts, setToasts] = useState<{ id: string; msg: string; type: 'success' | 'error' }[]>([]);
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -106,10 +113,11 @@ const StudentView = () => {
   const fetchStudentData = async () => {
     if (!id) return;
     setLoading(true);
+    setAiInsight(null);
     try {
       const { data: studentData, error: studentError } = await supabase
         .from('students')
-        .select(`*, classes(name, subject, teacher_id, weekly_plan)`)
+        .select(`*, classes(name, subject, teacher_id, weekly_plan, class_type)`)
         .eq('id', id)
         .single();
       if (studentError) throw studentError;
@@ -154,7 +162,23 @@ const StudentView = () => {
       supabase.from('student_results').select('*').eq('student_id', id).order('created_at', { ascending: false }),
       supabase.from('student_suggestions').select('*').eq('student_id', id).order('created_at', { ascending: false })
     ]);
-    if (!resResult.error) setResults(resResult.data || []);
+    if (!resResult.error && resResult.data) {
+      setResults(resResult.data);
+      const initialEvals: Record<string, { score: number; tags: string[]; note: string }> = {};
+      resResult.data.forEach((r: any) => {
+        const gId = r.submission_group || r.id;
+        if (!initialEvals[gId] && (r.teacher_eval_score || r.teacher_eval_note || r.teacher_eval_tags?.length)) {
+          initialEvals[gId] = {
+            score: r.teacher_eval_score || 0,
+            tags: r.teacher_eval_tags || [],
+            note: r.teacher_eval_note || '',
+          };
+        }
+      });
+      setEvalForms(prev => ({ ...prev, ...initialEvals }));
+    } else if (!resResult.error) {
+      setResults([]);
+    }
     setResultsLoading(false);
     if (!sugResult.error) setStudentSuggestions(sugResult.data || []);
     setSuggestionsLoading(false);
@@ -366,6 +390,17 @@ const StudentView = () => {
     setIsSavingInsight(true);
     try {
       await supabase.from('students').update({ behavior_insight: text }).eq('id', id);
+      if (student?.classes?.class_type === 'homeroom' && user) {
+        await supabase.from('student_evaluations').upsert({
+          student_id: id,
+          class_id: student.class_id,
+          teacher_id: user.id,
+          academic_year: new Date().getFullYear(),
+          setech_content: text,
+          status: 'draft',
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'student_id,class_id,academic_year' });
+      }
       showToast('행동특성 초안이 저장되었습니다. ✅');
     } catch {
       showToast('저장 중 오류가 발생했습니다.', 'error');
@@ -379,6 +414,39 @@ const StudentView = () => {
     navigator.clipboard.writeText(aiInsight);
     setInsightCopied(true);
     setTimeout(() => setInsightCopied(false), 2000);
+  };
+
+  const getEval = (groupId: string) => evalForms[groupId] || { score: 0, tags: [], note: '' };
+
+  const toggleEvalTag = (groupId: string, tag: string) => {
+    setEvalForms(prev => {
+      const current = prev[groupId] || { score: 0, tags: [], note: '' };
+      const tags = current.tags.includes(tag)
+        ? current.tags.filter(t => t !== tag)
+        : [...current.tags, tag];
+      return { ...prev, [groupId]: { ...current, tags } };
+    });
+  };
+
+  const saveEvaluation = async (groupId: string) => {
+    const evalData = evalForms[groupId];
+    if (!evalData) return;
+    setSavingEvalId(groupId);
+    try {
+      const groupItems = results.filter((r: any) => (r.submission_group || r.id) === groupId);
+      for (const item of groupItems) {
+        await supabase.from('student_results').update({
+          teacher_eval_score: evalData.score || null,
+          teacher_eval_tags: evalData.tags.length > 0 ? evalData.tags : null,
+          teacher_eval_note: evalData.note.trim() || null,
+        }).eq('id', item.id);
+      }
+      showToast('평가가 저장되었습니다. ✅');
+    } catch {
+      showToast('저장 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSavingEvalId(null);
+    }
   };
 
   const generateAIInsight = async () => {
@@ -536,7 +604,22 @@ ${activitiesContext}
               {aiInsight ? (
                 <div className="space-y-4">
                   <div className="bg-white/70 rounded-2xl p-4 border border-primary/10">
-                    <p className="text-sm font-medium leading-relaxed text-on-surface/90 whitespace-pre-wrap">{aiInsight}</p>
+                    <div className="text-sm font-medium leading-relaxed text-on-surface/90">
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => <h1 className="text-base font-black mt-3 mb-1.5 first:mt-0">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-sm font-black mt-2.5 mb-1 first:mt-0">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-sm font-bold mt-2 mb-1 first:mt-0">{children}</h3>,
+                          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                          strong: ({ children }) => <strong className="font-black">{children}</strong>,
+                          ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-0.5">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-0.5">{children}</ol>,
+                          li: ({ children }) => <li className="text-sm">{children}</li>,
+                        }}
+                      >
+                        {aiInsight!}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     <button
@@ -940,6 +1023,11 @@ ${activitiesContext}
                             <X size={9} /> 반려됨
                           </span>
                         )}
+                        {(evalForms[groupId]?.score ?? 0) > 0 && (
+                          <span className="text-[9px] font-black text-amber-500 flex items-center gap-0.5">
+                            {'★'.repeat(evalForms[groupId].score)}<span className="text-[8px] text-amber-400/60 ml-0.5">평가됨</span>
+                          </span>
+                        )}
                       </div>
 
                       {r.text_content && (
@@ -1242,6 +1330,58 @@ ${activitiesContext}
                     </button>
                   </div>
                 )}
+                {/* 교사 평가 (세특 참고용) */}
+                {(() => {
+                  const gId = selectedResult.submission_group || selectedResult.id;
+                  const ev = getEval(gId);
+                  return (
+                    <div className="p-5 bg-violet-50/50 rounded-2xl border border-violet-100 space-y-4">
+                      <p className="text-[11px] font-black text-violet-700 uppercase tracking-widest">교사 평가 — 나이스 세특 참고용</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant/70">성취 수준</label>
+                        <div className="flex items-center gap-1">
+                          {[1,2,3,4,5].map(star => (
+                            <button key={star}
+                              onClick={() => setEvalForms(prev => ({ ...prev, [gId]: { ...ev, score: ev.score === star ? 0 : star } }))}
+                              className={`text-2xl transition-colors leading-none ${star <= ev.score ? 'text-amber-400' : 'text-neutral-200 hover:text-amber-200'}`}
+                            >★</button>
+                          ))}
+                          {ev.score > 0 && <span className="text-xs font-black text-amber-500 ml-2">{ev.score}점</span>}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant/70">역량 태그 (중복 선택)</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {['자기주도', '논리적사고', '표현력', '창의성', '협력', '성실성', '탐구력', '문제해결'].map(tag => (
+                            <button key={tag} onClick={() => toggleEvalTag(gId, tag)}
+                              className={`px-3 py-1 rounded-full text-[11px] font-black border transition-all ${
+                                ev.tags.includes(tag)
+                                  ? 'bg-violet-500 text-white border-violet-500'
+                                  : 'bg-white text-neutral-400 border-neutral-200 hover:border-violet-300 hover:text-violet-500'
+                              }`}
+                            >{tag}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant/70">평가 코멘트</label>
+                        <textarea
+                          value={ev.note}
+                          onChange={e => setEvalForms(prev => ({ ...prev, [gId]: { ...ev, note: e.target.value } }))}
+                          placeholder="이 결과물에 대한 평가 메모 (세특 작성 시 AI 참고 자료로 활용됩니다)"
+                          rows={2}
+                          className="w-full px-4 py-3 bg-white rounded-xl text-sm border border-violet-100 focus:border-violet-300 focus:outline-none resize-none transition-all"
+                        />
+                      </div>
+                      <button onClick={() => saveEvaluation(gId)} disabled={savingEvalId === gId}
+                        className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-xs font-black transition-all disabled:opacity-50">
+                        {savingEvalId === gId ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                        평가 저장
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 {/* 반려됨 피드백 표시 */}
                 {selectedResult.status === 'rejected' && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
