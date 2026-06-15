@@ -47,9 +47,8 @@ interface SurveyAnswer {
 
 interface SurveyResponse {
   id: string;
-  form_id: string;
   respondent_name: string;
-  created_at: string;
+  submitted_at: string;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -645,8 +644,8 @@ export default function SurveyTool() {
     const [answersResult, responsesResult] = await Promise.all([
       supabase.from('survey_answers').select('*').eq('form_id', formId),
       supabase.from('survey_responses')
-        .select('id, form_id, respondent_name, created_at')
-        .eq('form_id', formId).order('created_at', { ascending: true }),
+        .select('id, respondent_name, submitted_at')
+        .eq('form_id', formId).order('submitted_at', { ascending: true }),
     ]);
     if (answersResult.data) setAnswers(answersResult.data);
     if (responsesResult.data) {
@@ -796,8 +795,8 @@ export default function SurveyTool() {
   const downloadCSV = async () => {
     if (!selectedForm || questions.length === 0) return;
     const { data: responses } = await supabase
-      .from('survey_responses').select('id, respondent_name, created_at')
-      .eq('form_id', selectedForm.id).order('created_at');
+      .from('survey_responses').select('id, respondent_name, submitted_at')
+      .eq('form_id', selectedForm.id).order('submitted_at');
     if (!responses || responses.length === 0) { alert('아직 응답이 없습니다.'); return; }
 
     const headers = ['응답자', '제출시간', ...questions.map((q, i) => `Q${i + 1}: ${q.text}`)];
@@ -815,7 +814,7 @@ export default function SurveyTool() {
         if (q.type === 'ranking') return ((v.order as number[]) ?? []).map((idx: number) => q.options[idx]?.label).join(' > ');
         return '';
       });
-      return [resp.respondent_name, new Date(resp.created_at).toLocaleString('ko-KR'), ...cells];
+      return [resp.respondent_name, new Date(resp.submitted_at).toLocaleString('ko-KR'), ...cells];
     });
 
     const esc = (val: string) => (val.includes(',') || val.includes('"') || val.includes('\n')) ? `"${val.replace(/"/g, '""')}"` : val;
@@ -1231,7 +1230,7 @@ export default function SurveyTool() {
             {responses.map((resp, idx) => {
               const respAnswers = answers.filter(a => a.response_id === resp.id);
               const isExpanded = expandedResponderId === resp.id;
-              const time = new Date(resp.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const time = new Date(resp.submitted_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
               const formatAnswer = (q: SurveyQuestion, ans: SurveyAnswer | undefined): string => {
                 if (!ans) return '—';
