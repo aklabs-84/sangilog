@@ -45,6 +45,13 @@ interface SurveyAnswer {
   value: Record<string, unknown>;
 }
 
+interface SurveyResponse {
+  id: string;
+  form_id: string;
+  respondent_name: string;
+  created_at: string;
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const generatePin = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -608,6 +615,8 @@ export default function SurveyTool() {
   const [redirectUrlInput, setRedirectUrlInput] = useState('');
   const [presentMode, setPresentMode] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<Record<string, { result: string; loading: boolean }>>({});
+  const [responses, setResponses] = useState<SurveyResponse[]>([]);
+  const [expandedResponderId, setExpandedResponderId] = useState<string | null>(null);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -635,7 +644,10 @@ export default function SurveyTool() {
   const fetchAnswers = async (formId: string) => {
     const { data } = await supabase.from('survey_answers').select('*').eq('form_id', formId);
     if (data) setAnswers(data);
-    const { count } = await supabase.from('survey_responses').select('*', { count: 'exact', head: true }).eq('form_id', formId);
+    const { data: respData, count } = await supabase
+      .from('survey_responses').select('*', { count: 'exact' })
+      .eq('form_id', formId).order('created_at', { ascending: true });
+    if (respData) setResponses(respData);
     setResponderCount(count ?? 0);
   };
 
@@ -752,7 +764,10 @@ export default function SurveyTool() {
         payload => setAnswers(prev => [...prev, payload.new as SurveyAnswer])
       )
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'survey_responses', filter: `form_id=eq.${formId}` },
-        () => setResponderCount(prev => prev + 1)
+        payload => {
+          setResponderCount(prev => prev + 1);
+          setResponses(prev => [...prev, payload.new as SurveyResponse]);
+        }
       )
       .subscribe();
   }, []);
@@ -838,8 +853,10 @@ export default function SurveyTool() {
     }
 
     setAnswers([]);
+    setResponses([]);
     setResponderCount(0);
     setAiAnalysis({});
+    setExpandedResponderId(null);
   };
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -1197,6 +1214,68 @@ export default function SurveyTool() {
           );
         })}
       </div>
+
+      {/* ── 응답자 목록 (비익명 설문만) ───────────────────────────────────── */}
+      {!selectedForm?.is_anonymous && responses.length > 0 && (
+        <div style={{ marginTop: 24, background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Users size={15} color="#6B7280" />
+            <span style={{ fontSize: 14, fontWeight: 'bold', color: '#374151' }}>응답자 목록</span>
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>({responses.length}명)</span>
+          </div>
+          <div>
+            {responses.map((resp, idx) => {
+              const respAnswers = answers.filter(a => a.response_id === resp.id);
+              const isExpanded = expandedResponderId === resp.id;
+              const time = new Date(resp.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+              const formatAnswer = (q: SurveyQuestion, ans: SurveyAnswer | undefined): string => {
+                if (!ans) return '—';
+                const v = ans.value as any;
+                if (q.type === 'multiple_choice') return q.options[v.selected]?.label ?? '—';
+                if (q.type === 'yes_no') return v.value ? '예' : '아니오';
+                if (q.type === 'star_rating') return `${'★'.repeat(v.rating)}${'☆'.repeat(5 - v.rating)} (${v.rating}점)`;
+                if (q.type === 'short_text') return v.text ?? '—';
+                if (q.type === 'opinion_scale') return `${v.score}점`;
+                if (q.type === 'ranking') return ((v.order as number[]) ?? []).map((i: number) => q.options[i]?.label).filter(Boolean).join(' > ');
+                return '—';
+              };
+
+              return (
+                <div key={resp.id} style={{ borderBottom: idx < responses.length - 1 ? '1px solid #F9FAFB' : 'none' }}>
+                  <button
+                    onClick={() => setExpandedResponderId(isExpanded ? null : resp.id)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', background: isExpanded ? '#F0F9FF' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    <span style={{ width: 24, height: 24, borderRadius: '50%', background: '#E0F2FE', color: '#0369A1', fontSize: 11, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {idx + 1}
+                    </span>
+                    <span style={{ flex: 1, fontSize: 14, fontWeight: 'bold', color: '#111' }}>{resp.respondent_name}</span>
+                    <span style={{ fontSize: 12, color: '#9CA3AF' }}>{time}</span>
+                    <ChevronDown size={14} color="#9CA3AF" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                  </button>
+                  {isExpanded && (
+                    <div style={{ padding: '8px 20px 16px 56px', display: 'flex', flexDirection: 'column', gap: 10, background: '#F8FAFC' }}>
+                      {questions.map((q, qi) => {
+                        const ans = respAnswers.find(a => a.question_id === q.id);
+                        return (
+                          <div key={q.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                            <span style={{ fontSize: 11, color: '#9CA3AF', minWidth: 24, paddingTop: 2 }}>Q{qi + 1}</span>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 2 }}>{q.text}</p>
+                              <p style={{ fontSize: 13, fontWeight: 'bold', color: '#111' }}>{formatAnswer(q, ans)}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
