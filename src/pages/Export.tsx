@@ -263,19 +263,27 @@ const Export = () => {
       const studentMap: Record<string, { full_name: string; student_number: string }> = {};
       allStuds.forEach(s => { studentMap[s.id] = s; });
 
-      const startDateObj = new Date(startDate);
-      startDateObj.setHours(0, 0, 0, 0);
+      // 클래스의 weekly_plan에서 topic → week 번호 매핑
+      const { data: classInfo } = await supabase
+        .from('classes')
+        .select('weekly_plan')
+        .eq('id', targetId)
+        .single();
+      const weeklyPlan: Array<{ week: number; topic: string }> = classInfo?.weekly_plan || [];
+      const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+      const topicWeekMap: Record<string, number> = {};
+      weeklyPlan.forEach(p => {
+        if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week);
+      });
 
       const allRows = obs.map(o => {
-        const obsDate = new Date(o.created_at);
-        const days = Math.floor((obsDate.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
-        const weekNum = Math.max(1, Math.floor(days / 7) + 1);
+        const weekNum = topicWeekMap[norm(o.activity_name || '')] ?? null;
         return {
-          _weekNum: weekNum,
+          _weekNum: weekNum as number | null,
           _studentId: o.student_id,
           '학생번호': studentMap[o.student_id]?.student_number || '',
           '학생이름': studentMap[o.student_id]?.full_name || '',
-          '주차': `${weekNum}주차`,
+          '주차': weekNum != null ? `${weekNum}주차` : '미분류',
           '활동명': o.activity_name || '',
           '활동내용': o.content || '',
           '상태': o.status === 'approved' ? '승인' : o.status === 'pending' ? '대기' : (o.status || ''),
@@ -288,7 +296,10 @@ const Export = () => {
         return rest;
       };
 
-      const weeks = [...new Set(allRows.map(r => r._weekNum))].sort((a, b) => a - b);
+      const weeks = [...new Set(
+        allRows.map(r => r._weekNum).filter((w): w is number => w !== null)
+      )].sort((a, b) => a - b);
+      const hasUnclassified = allRows.some(r => r._weekNum === null);
       const studentIdsInData = [...new Set(allRows.map(r => r._studentId))];
 
       const className = cls?.name?.replace(/[/\\?%*:|"<>]/g, '-') || 'export';
@@ -306,6 +317,9 @@ const Export = () => {
         appendSheet(allRows.map(toRow), '전체');
         for (const wk of weeks) {
           appendSheet(allRows.filter(r => r._weekNum === wk).map(toRow), `${wk}주차`);
+        }
+        if (hasUnclassified) {
+          appendSheet(allRows.filter(r => r._weekNum === null).map(toRow), '미분류');
         }
         for (const sid of studentIdsInData) {
           const name = studentMap[sid]?.full_name?.replace(/[/\\?%*:|"<>[\]]/g, '') || sid;
@@ -331,6 +345,9 @@ const Export = () => {
         const weekFolder = zip.folder('주차별')!;
         for (const wk of weeks) {
           weekFolder.file(`${wk}주차.csv`, toCsv(allRows.filter(r => r._weekNum === wk).map(toRow)));
+        }
+        if (hasUnclassified) {
+          weekFolder.file('미분류.csv', toCsv(allRows.filter(r => r._weekNum === null).map(toRow)));
         }
 
         const studFolder = zip.folder('학생별')!;
