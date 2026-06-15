@@ -118,6 +118,12 @@ const NaissWorkstation = ({ classes }: Props) => {
   // 행 펼칠 때 setech_content 스냅샷 저장 (되돌리기용)
   const [undoSnapshots, setUndoSnapshots] = useState<Record<string, string>>({});
   const [fullscreenRowId, setFullscreenRowId] = useState<string | null>(null);
+  const [selectedObs, setSelectedObs] = useState<{ activity_name: string; content: string } | null>(null);
+
+  // 성취도 AI 추천
+  type AchievementSuggestion = { level: '상' | '중' | '하'; score: number; reason: string } | 'no-text';
+  const [achievementSuggestions, setAchievementSuggestions] = useState<Record<string, AchievementSuggestion>>({});
+  const [suggestingAchievementId, setSuggestingAchievementId] = useState<string | null>(null);
 
   const toggleExpand = (rowId: string, currentContent: string) => {
     if (expandedId !== rowId) {
@@ -272,6 +278,40 @@ const NaissWorkstation = ({ classes }: Props) => {
       updateRow(row.id, { setech_content: content, status: 'draft' });
     } catch { alert('AI 생성 중 오류가 발생했습니다.'); }
     finally { setGeneratingId(null); }
+  };
+
+  const suggestAchievement = async (row: StudentRow) => {
+    const textObs = row.observations.filter(o => o.content.trim().length > 10);
+    if (!textObs.length) {
+      setAchievementSuggestions(prev => ({ ...prev, [row.id]: 'no-text' }));
+      return;
+    }
+    setSuggestingAchievementId(row.id);
+    try {
+      const obsText = textObs.map(o => `활동명: ${o.activity_name}\n내용: ${o.content}`).join('\n---\n');
+      const prompt = `학생의 관찰 기록을 바탕으로 성취도를 평가하세요.
+반드시 아래 JSON 형식으로만 응답하세요 (추가 설명 없이):
+{"level":"상","score":85,"reason":"이유 50자 이내"}
+
+평가 기준:
+- 상(80-100점): 학습 목표를 충분히 달성, 심화 역량 발휘
+- 중(50-79점): 학습 목표를 대체로 달성, 보완 여지 있음
+- 하(0-49점): 학습 목표 달성에 어려움, 추가 지도 필요
+
+관찰 기록:
+${obsText}`;
+      const result = await geminiPro.generateContent(prompt);
+      const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+      const json = JSON.parse(raw);
+      setAchievementSuggestions(prev => ({
+        ...prev,
+        [row.id]: { level: json.level as '상' | '중' | '하', score: Number(json.score), reason: String(json.reason) },
+      }));
+    } catch {
+      alert('성취도 추천 중 오류가 발생했습니다.');
+    } finally {
+      setSuggestingAchievementId(null);
+    }
   };
 
   const aiCompress = async (row: StudentRow) => {
@@ -490,10 +530,23 @@ CREATE POLICY "teacher_own" ON student_evaluations
             className="overflow-hidden"
           >
             <div className="p-4 bg-primary/5 border border-primary/10 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <p className="text-xs font-black text-primary uppercase tracking-widest">나이스 엑셀 — 포함할 컬럼 선택</p>
-                <p className="text-[10px] text-on-surface-variant/50">시트1(나이스제출)에 반영 · 시트2(전체현황)는 항상 전체 포함</p>
               </div>
+
+              {/* 안내 박스 */}
+              <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <span className="text-sm shrink-0 mt-0.5">💡</span>
+                <div className="space-y-1">
+                  <p className="text-[11px] font-black text-amber-800">이 설정은 아래 학생 목록 화면에는 영향을 주지 않습니다.</p>
+                  <p className="text-[10px] text-amber-700 leading-relaxed">
+                    여기서 선택한 항목은 <strong>나이스 엑셀 다운로드</strong> 시 생성되는 파일에만 반영됩니다.<br />
+                    체크한 컬럼만 엑셀 <strong>시트1(나이스제출)</strong>에 포함되어 다운로드됩니다.
+                    시트2(전체현황)는 항상 모든 항목을 포함합니다.
+                  </p>
+                </div>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 {exportColumns.map((col, idx) => (
                   <button key={col.key}
@@ -516,7 +569,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
                 ))}
               </div>
               <p className="text-[10px] text-on-surface-variant/50">
-                나이스 헤더명: {exportColumns.filter(c => c.checked).map(c => c.naissLabel).join(' | ')}
+                다운로드 시 엑셀 헤더명: {exportColumns.filter(c => c.checked).map(c => c.naissLabel).join(' | ')}
               </p>
             </div>
           </motion.div>
@@ -725,6 +778,14 @@ CREATE POLICY "teacher_own" ON student_evaluations
                                 {isGenerating ? <RotateCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
                                 AI 생성
                               </button>
+                              <button
+                                onClick={() => suggestAchievement(row)}
+                                disabled={suggestingAchievementId === row.id}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 text-violet-600 border border-violet-200 text-[10px] font-black hover:bg-violet-100 transition-all disabled:opacity-50"
+                              >
+                                {suggestingAchievementId === row.id ? <RotateCw size={11} className="animate-spin" /> : <span className="text-[11px]">🎯</span>}
+                                성취도 추천
+                              </button>
                               <button onClick={() => { updateRow(row.id, { setech_content: sanitizeForNaiss(row.setech_content) }); }}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-container text-on-surface-variant text-[10px] font-black hover:bg-surface-container-high transition-all">
                                 특수문자 정제
@@ -735,6 +796,47 @@ CREATE POLICY "teacher_own" ON student_evaluations
                               </button>
                             </div>
                           </div>
+
+                          {/* 성취도 AI 추천 결과 카드 */}
+                          {achievementSuggestions[row.id] && (() => {
+                            const sg = achievementSuggestions[row.id];
+                            if (sg === 'no-text') return (
+                              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-500">
+                                <span>📂</span>
+                                <span className="font-bold">텍스트 관찰 기록이 없어 AI 추천이 어렵습니다.</span>
+                                <span className="text-neutral-400">성취도를 직접 선택해주세요.</span>
+                              </div>
+                            );
+                            const { level, score, reason } = sg;
+                            const scoreColor = score >= 80 ? 'text-blue-600' : score >= 50 ? 'text-amber-600' : 'text-rose-600';
+                            return (
+                              <div className={`flex items-start gap-3 px-3 py-2.5 rounded-xl border ${LEVEL_COLORS[level]} bg-opacity-30`}>
+                                <div className="shrink-0 flex flex-col items-center gap-0.5 min-w-[44px]">
+                                  <span className={`text-base font-black px-2 py-0.5 rounded-lg border ${LEVEL_COLORS[level]}`}>{level}</span>
+                                  <span className={`text-[11px] font-black ${scoreColor}`}>{score}점</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest mb-0.5">AI 추천 이유</p>
+                                  <p className="text-xs text-on-surface/80 leading-relaxed">{reason}</p>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    updateRow(row.id, { achievement_level: level });
+                                    setAchievementSuggestions(prev => { const n = { ...prev }; delete n[row.id]; return n; });
+                                  }}
+                                  className="shrink-0 px-2.5 py-1.5 rounded-lg bg-white border border-current text-[10px] font-black hover:opacity-80 transition-all"
+                                >
+                                  적용
+                                </button>
+                                <button
+                                  onClick={() => setAchievementSuggestions(prev => { const n = { ...prev }; delete n[row.id]; return n; })}
+                                  className="shrink-0 p-1 rounded-lg hover:bg-white/50 text-current/50 transition-all"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            );
+                          })()}
 
                           <textarea
                             value={row.setech_content}
@@ -822,9 +924,13 @@ CREATE POLICY "teacher_own" ON student_evaluations
                           {row.observations.length > 0 ? (
                             <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
                               {row.observations.map((o, i) => (
-                                <div key={i} className="p-3 bg-white rounded-xl border border-surface-container text-xs group">
+                                <div key={i}
+                                  className="p-3 bg-white rounded-xl border border-surface-container text-xs group cursor-pointer hover:border-primary/30 hover:shadow-sm transition-all"
+                                  onClick={() => setSelectedObs(o)}
+                                >
                                   <p className="font-black text-on-surface mb-1 truncate">{o.activity_name}</p>
                                   <p className="text-on-surface-variant/60 leading-relaxed line-clamp-3">{o.content}</p>
+                                  <p className="text-[9px] text-primary/50 mt-1 font-bold">클릭하여 전체 내용 보기</p>
                                 </div>
                               ))}
                             </div>
@@ -1000,9 +1106,13 @@ CREATE POLICY "teacher_own" ON student_evaluations
                     {fsRow.observations.length > 0 ? (
                       <div className="space-y-2 overflow-y-auto custom-scrollbar pr-1">
                         {fsRow.observations.map((o, i) => (
-                          <div key={i} className="p-3 bg-white rounded-xl border border-surface-container text-xs">
+                          <div key={i}
+                            className="p-3 bg-white rounded-xl border border-surface-container text-xs cursor-pointer hover:border-primary/30 hover:shadow-sm transition-all"
+                            onClick={() => setSelectedObs(o)}
+                          >
                             <p className="font-black text-on-surface mb-1">{o.activity_name}</p>
-                            <p className="text-on-surface-variant/60 leading-relaxed">{o.content}</p>
+                            <p className="text-on-surface-variant/60 leading-relaxed line-clamp-4">{o.content}</p>
+                            <p className="text-[9px] text-primary/50 mt-1 font-bold">클릭하여 전체 내용 보기</p>
                           </div>
                         ))}
                       </div>
@@ -1015,6 +1125,55 @@ CREATE POLICY "teacher_own" ON student_evaluations
             </motion.div>
           );
         })()}
+      </AnimatePresence>
+
+      {/* 관찰 기록 전체 내용 모달 */}
+      <AnimatePresence>
+        {selectedObs && (
+          <motion.div
+            key="obs-detail-overlay"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+            style={{ zIndex: 60 }}
+            onClick={() => setSelectedObs(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }} transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+              style={{ maxHeight: 'calc(100vh - 4rem)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* 모달 헤더 */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest shrink-0">관찰 기록</span>
+                  <span className="text-sm font-black text-on-surface truncate">{selectedObs.activity_name}</span>
+                </div>
+                <button
+                  onClick={() => setSelectedObs(null)}
+                  className="p-1.5 rounded-xl hover:bg-neutral-100 text-neutral-400 transition-all ml-3 shrink-0"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              {/* 모달 본문 */}
+              <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+                <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">{selectedObs.content}</p>
+              </div>
+              {/* 모달 하단 */}
+              <div className="px-5 py-3 border-t border-neutral-100 shrink-0 flex justify-end">
+                <button
+                  onClick={() => setSelectedObs(null)}
+                  className="px-4 py-2 rounded-xl bg-surface-container text-on-surface-variant font-black text-xs hover:bg-surface-container-high transition-all"
+                >
+                  닫기
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* 엑셀 다운로드 안내 */}
