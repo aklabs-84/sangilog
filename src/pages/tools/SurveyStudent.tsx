@@ -14,6 +14,7 @@ interface SurveyForm {
   pin_code: string;
   status: string;
   is_anonymous: boolean;
+  redirect_url: string | null;
 }
 
 interface SurveyQuestion {
@@ -306,6 +307,9 @@ export default function SurveyStudent() {
       setCurrentIdx(i => i + 1);
     } else {
       setStep('done');
+      if (form.redirect_url) {
+        setTimeout(() => window.open(form.redirect_url!, '_blank'), 1200);
+      }
     }
   };
 
@@ -431,8 +435,21 @@ export default function SurveyStudent() {
         <h1 style={{ fontSize: 24, fontWeight: 'bold', color: '#111', marginBottom: 8 }}>제출 완료!</h1>
         <p style={{ fontSize: 14, color: '#6B7280', marginBottom: 8 }}>{form?.title}</p>
         <p style={{ fontSize: 13, color: '#9CA3AF' }}>응답해주셔서 감사합니다 😊</p>
+        {form?.redirect_url && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+            <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 20, marginBottom: 8 }}>새 탭이 열리지 않았다면</p>
+            <a
+              href={form.redirect_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', padding: '10px 20px', background: '#EFF6FF', color: '#3B82F6', border: '1.5px solid #BFDBFE', borderRadius: 10, fontSize: 13, fontWeight: 'bold', textDecoration: 'none' }}
+            >
+              여기를 클릭하세요 →
+            </a>
+          </motion.div>
+        )}
         <button onClick={() => navigate('/student-log')}
-          style={{ marginTop: 28, padding: '12px 24px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}
+          style={{ marginTop: 20, padding: '12px 24px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 'bold', cursor: 'pointer' }}
         >
           학생 페이지로 돌아가기
         </button>

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import {
   Plus, Trash2, Edit3, X, ChevronDown,
   Play, Users, BarChart2, Copy, CheckCheck,
   Star, ToggleLeft, List, ArrowLeft, StopCircle,
   AlignLeft, SlidersHorizontal, Maximize2, ChevronLeft, ChevronRight, Minimize2,
-  Download, Sparkles, GripVertical, RotateCcw,
+  Download, Sparkles, GripVertical, RotateCcw, Link2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -24,6 +24,7 @@ interface SurveyForm {
   pin_code: string;
   status: FormStatus;
   is_anonymous: boolean;
+  redirect_url: string | null;
   created_at: string;
 }
 
@@ -604,6 +605,7 @@ export default function SurveyTool() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formTitle, setFormTitle] = useState('새 설문');
+  const [redirectUrlInput, setRedirectUrlInput] = useState('');
   const [presentMode, setPresentMode] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<Record<string, { result: string; loading: boolean }>>({});
 
@@ -661,6 +663,7 @@ export default function SurveyTool() {
   const openBuilder = async (form: SurveyForm) => {
     setSelectedForm(form);
     setFormTitle(form.title);
+    setRedirectUrlInput(form.redirect_url ?? '');
     await fetchQuestions(form.id);
     setView('builder');
   };
@@ -670,6 +673,22 @@ export default function SurveyTool() {
     await supabase.from('survey_forms').update({ title: formTitle }).eq('id', selectedForm.id);
     setSelectedForm(prev => prev ? { ...prev, title: formTitle } : null);
     setSurveyForms(prev => prev.map(f => f.id === selectedForm.id ? { ...f, title: formTitle } : f));
+  };
+
+  const handleSaveRedirectUrl = async () => {
+    if (!selectedForm) return;
+    const url = redirectUrlInput.trim() || null;
+    await supabase.from('survey_forms').update({ redirect_url: url }).eq('id', selectedForm.id);
+    setSelectedForm(prev => prev ? { ...prev, redirect_url: url } : null);
+  };
+
+  const handleReorderQuestions = (newOrder: SurveyQuestion[]) => {
+    setQuestions(newOrder);
+    newOrder.forEach((q, i) => {
+      if (q.order_index !== i) {
+        supabase.from('survey_questions').update({ order_index: i }).eq('id', q.id);
+      }
+    });
   };
 
   const handleSaveQuestion = async (q: Partial<SurveyQuestion>) => {
@@ -955,45 +974,94 @@ export default function SurveyTool() {
         </button>
       </div>
 
-      {/* 질문 목록 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-        <AnimatePresence>
-          {questions.map((q, i) => (
-            <motion.div key={q.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}
-            >
-              <span style={{ fontSize: 12, color: '#9CA3AF', minWidth: 24, paddingTop: 2 }}>Q{i + 1}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 'bold', color: TYPE_META[q.type].color, background: `${TYPE_META[q.type].color}15`, padding: '2px 7px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    {TYPE_META[q.type].icon} {TYPE_META[q.type].label}
-                  </span>
+      {/* 질문 목록 — 드래그로 순서 변경 */}
+      <Reorder.Group
+        axis="y"
+        values={questions}
+        onReorder={handleReorderQuestions}
+        style={{ listStyle: 'none', padding: 0, margin: '0 0 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}
+      >
+        {questions.map((q, i) => (
+          <Reorder.Item
+            key={q.id}
+            value={q}
+            style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'default', touchAction: 'none' }}
+            whileDrag={{ scale: 1.01, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 10, borderColor: '#93C5FD' }}
+          >
+            <GripVertical size={16} color="#D1D5DB" style={{ marginTop: 3, cursor: 'grab', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: '#9CA3AF', minWidth: 20, paddingTop: 2 }}>Q{i + 1}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 'bold', color: TYPE_META[q.type].color, background: `${TYPE_META[q.type].color}15`, padding: '2px 7px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 3 }}>
+                  {TYPE_META[q.type].icon} {TYPE_META[q.type].label}
+                </span>
+              </div>
+              <p style={{ fontSize: 14, color: '#374151' }}>{q.text}</p>
+              {q.type === 'multiple_choice' && q.options.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                  {q.options.map((opt, j) => (
+                    <span key={j} style={{ fontSize: 11, color: '#6B7280', background: '#F3F4F6', padding: '2px 8px', borderRadius: 6 }}>
+                      {String.fromCharCode(65 + j)}. {opt.label}
+                    </span>
+                  ))}
                 </div>
-                <p style={{ fontSize: 14, color: '#374151' }}>{q.text}</p>
-                {q.type === 'multiple_choice' && q.options.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                    {q.options.map((opt, j) => (
-                      <span key={j} style={{ fontSize: 11, color: '#6B7280', background: '#F3F4F6', padding: '2px 8px', borderRadius: 6 }}>
-                        {String.fromCharCode(65 + j)}. {opt.label}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                <button onClick={() => setEditingQuestion(q)} style={{ padding: 6, background: '#F3F4F6', border: 'none', borderRadius: 6, cursor: 'pointer', color: '#374151' }}><Edit3 size={13} /></button>
-                <button onClick={() => handleDeleteQuestion(q.id)} style={{ padding: 6, background: '#FEF2F2', border: 'none', borderRadius: 6, cursor: 'pointer', color: '#EF4444' }}><Trash2 size={13} /></button>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+              <button onClick={() => setEditingQuestion(q)} style={{ padding: 6, background: '#F3F4F6', border: 'none', borderRadius: 6, cursor: 'pointer', color: '#374151' }}><Edit3 size={13} /></button>
+              <button onClick={() => handleDeleteQuestion(q.id)} style={{ padding: 6, background: '#FEF2F2', border: 'none', borderRadius: 6, cursor: 'pointer', color: '#EF4444' }}><Trash2 size={13} /></button>
+            </div>
+          </Reorder.Item>
+        ))}
+      </Reorder.Group>
 
       <button onClick={() => setEditingQuestion({ form_id: selectedForm?.id, type: 'multiple_choice', text: '', options: [{ label: '' }, { label: '' }] })}
         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', background: '#EFF6FF', color: '#3B82F6', border: '1.5px dashed #93C5FD', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', width: '100%', justifyContent: 'center' }}
       >
         <Plus size={15} /> 질문 추가
       </button>
+
+      {/* 설문 완료 후 이동 URL */}
+      <div style={{ marginTop: 20, padding: '16px 18px', background: '#F9FAFB', border: '1.5px solid #E5E7EB', borderRadius: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+          <Link2 size={14} color="#6B7280" />
+          <p style={{ fontSize: 13, fontWeight: 'bold', color: '#374151' }}>설문 완료 후 이동할 URL <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 'normal' }}>(선택)</span></p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={redirectUrlInput}
+            onChange={e => setRedirectUrlInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSaveRedirectUrl()}
+            placeholder="https://example.com"
+            style={{ flex: 1, border: '1.5px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
+            onFocus={e => (e.target.style.borderColor = '#3B82F6')}
+            onBlur={e => (e.target.style.borderColor = '#E5E7EB')}
+          />
+          <button
+            onClick={handleSaveRedirectUrl}
+            style={{ padding: '8px 14px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            저장
+          </button>
+          {redirectUrlInput && (
+            <button
+              onClick={() => { setRedirectUrlInput(''); handleSaveRedirectUrl(); }}
+              title="URL 제거"
+              style={{ padding: '8px', background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: 8, cursor: 'pointer' }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        {selectedForm?.redirect_url && (
+          <p style={{ fontSize: 11, color: '#10B981', marginTop: 6 }}>
+            ✓ 저장됨: {selectedForm.redirect_url}
+          </p>
+        )}
+        <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
+          학생이 모든 질문에 응답하면 이 URL이 새 탭에서 열립니다.
+        </p>
+      </div>
 
       {editingQuestion && (
         <QuestionEditor
