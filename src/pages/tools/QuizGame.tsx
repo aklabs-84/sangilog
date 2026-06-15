@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { geminiFlash } from '../../lib/gemini';
+import { quizGeneratorAI } from '../../lib/gemini';
 import ConfettiEffect from '../../components/quiz/ConfettiEffect';
 import { playVictoryFanfare } from '../../lib/quizSound';
 
@@ -219,7 +219,7 @@ ${selectedMaterial.content || '(내용 없음 — 주제: ' + selectedMaterial.t
 }
 correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
 
-      const result = await geminiFlash.generateContent(prompt);
+      const result = await quizGeneratorAI.generateContent(prompt);
       const raw = result.response.text();
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('AI 응답 파싱 실패');

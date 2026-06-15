@@ -29,26 +29,26 @@ const FORM_ITEMS = [
   {
     key: 'self_eval' as keyof FormConfig,
     label: '자기평가서',
-    desc: '이번 단원에서 본인의 수행을 돌아보는 서술형 평가',
-    defaultGuide: '이번 단원에서 본인이 가장 잘 수행한 부분과 부족했던 점을 솔직하게 작성하고, 다음에 개선하고 싶은 점을 구체적으로 서술하세요.'
+    desc: '내가 이번 단원에서 잘한 점, 아쉬운 점, 앞으로 개선할 점을 솔직하게 씁니다',
+    defaultGuide: '이번 단원에서 본인이 가장 잘 수행한 부분과 부족했던 점을 솔직하게 작성하고, 다음에 개선하고 싶은 점을 구체적으로 서술하세요. (50자 이상)'
   },
   {
     key: 'inquiry_reflection' as keyof FormConfig,
     label: '탐구소감문',
-    desc: '탐구·실험·프로젝트 활동 후 배운 점과 소감',
-    defaultGuide: '탐구 과정에서 발견한 점, 어려움과 해결 과정, 새롭게 알게 된 내용을 구체적인 근거와 함께 300자 이내로 작성하세요.'
+    desc: '탐구·실험을 하면서 발견한 것, 어려웠던 것, 새롭게 알게 된 것을 씁니다 (300자)',
+    defaultGuide: '탐구 과정에서 발견한 점, 어려움과 해결 과정, 새롭게 알게 된 내용을 구체적인 근거와 함께 100자 이상 300자 이내로 작성하세요.'
   },
   {
     key: 'performance_record' as keyof FormConfig,
     label: '수행평가 활동 기술',
-    desc: 'NEIS 세특 제출을 위한 활동 상세 기술 (500자 기준)',
-    defaultGuide: '수행평가 활동에서 본인이 담당한 역할, 활동 과정, 결과물의 특징을 구체적으로 기술하세요. (NEIS 세특 작성 기준에 맞춰 500자 이내로 작성)'
+    desc: '내가 맡은 역할과 활동 과정을 구체적으로 씁니다. 선생님의 생활기록부 작성에 활용됩니다 (500자)',
+    defaultGuide: '수행평가 활동에서 본인이 담당한 역할, 활동 과정, 결과물의 특징을 구체적으로 기술하세요. 선생님이 생활기록부(세특) 작성 시 활용합니다. (150자 이상 500자 이내)'
   },
   {
     key: 'reading_record' as keyof FormConfig,
     label: '독서기록',
-    desc: '단원과 연계한 관련 도서 독후감 및 심화 탐구',
-    defaultGuide: '이번 단원과 연계하여 읽은 책의 제목, 저자, 가장 인상 깊은 내용과 이를 통해 확장한 탐구 방향을 작성하세요.'
+    desc: '이번 단원과 관련해 읽은 책의 제목·저자·느낀 점을 씁니다',
+    defaultGuide: '이번 단원과 연계하여 읽은 책의 제목, 저자, 가장 인상 깊은 내용과 이를 통해 확장한 탐구 방향을 50자 이상 작성하세요.'
   }
 ];
 
@@ -57,8 +57,8 @@ const UnitCreateModal = ({ classId, teacherId, onClose, onCreated, editUnit }: P
   const [description, setDescription] = useState(editUnit?.description || '');
   const [formConfig, setFormConfig] = useState<FormConfig>(
     editUnit?.form_config || {
-      self_eval: true,
-      inquiry_reflection: true,
+      self_eval: false,
+      inquiry_reflection: false,
       performance_record: true,
       reading_record: false
     }

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { geminiFlash } from '../../lib/gemini';
+import { transcriptionAI } from '../../lib/gemini';
 import {
   Mic, Square, Loader2, ChevronDown, ChevronUp,
   Check, Users, BarChart3, MessageSquare, AlertCircle,
@@ -846,7 +846,7 @@ ${transcriptText}
   }
 }`;
 
-      const response = await geminiFlash.generateContent(prompt);
+      const response = await transcriptionAI.generateContent(prompt);
       const raw      = response.response.text().trim();
       const jsonStr  = raw
         .replace(/^```json\s*/m, '')

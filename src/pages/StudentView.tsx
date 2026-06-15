@@ -9,7 +9,7 @@ import {
   Upload, ExternalLink, Megaphone, MessageSquare, Reply, Send,
   RotateCw, AlertCircle, AlertTriangle,
 } from 'lucide-react';
-import { geminiFlash } from '../lib/gemini';
+import { studentAnalysisAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../lib/auth';
 
@@ -472,7 +472,7 @@ ${activitiesContext}
 학생의 인성, 학습 태도, 성장 가능성을 포함하며 전문적이고 긍정적인 어조로 작성하세요.
 (HTML 없이 순수 텍스트, 나이스 시스템에 바로 붙여넣기 가능한 형태)`;
 
-      const result = await geminiFlash.generateContent(prompt);
+      const result = await studentAnalysisAI.generateContent(prompt);
       const text = result.response.text();
       setAiInsight(text);
       await saveInsight(text);

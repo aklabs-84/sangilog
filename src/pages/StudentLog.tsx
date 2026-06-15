@@ -49,7 +49,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { geminiFlash } from '../lib/gemini';
+import { observationReviewAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import CodeBlock from '../components/CodeBlock';
@@ -1196,6 +1196,37 @@ const StudentLog = () => {
 
   const handleUnitSubmit = async (unitId: string) => {
     if (!session?.student_id) return;
+
+    const unit = pendingUnits.find(u => u.id === unitId);
+    const cfg = unit?.form_config || {};
+
+    const MIN_CHARS: Record<string, number> = {
+      self_eval: 50,
+      inquiry_reflection: 100,
+      performance_record: 150,
+    };
+    const LABELS: Record<string, string> = {
+      self_eval: '자기평가서',
+      inquiry_reflection: '탐구소감문',
+      performance_record: '수행평가 활동 기술',
+    };
+    for (const key of ['self_eval', 'inquiry_reflection', 'performance_record'] as const) {
+      if (!cfg[key]) continue;
+      const val = (unitForm[`${unitId}_${key}`] || '').trim();
+      const min = MIN_CHARS[key];
+      if (val.length < min) {
+        showToast(`${LABELS[key]}을(를) 최소 ${min}자 이상 작성해주세요. (현재 ${val.length}자)`, 'error');
+        return;
+      }
+    }
+    if (cfg.reading_record) {
+      const reflection = (unitForm[`${unitId}_reading_reflection`] || '').trim();
+      if (reflection.length < 50) {
+        showToast(`독서기록 소감을 최소 50자 이상 작성해주세요. (현재 ${reflection.length}자)`, 'error');
+        return;
+      }
+    }
+
     setUnitSubmitting(true);
     try {
       const { error } = await supabase
@@ -1631,7 +1662,7 @@ ${guidePrompt}
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
 {"status":"good","reason":"","guide":""}
 `;
-          const aiResult = await geminiFlash.generateContent(prompt);
+          const aiResult = await observationReviewAI.generateContent(prompt);
           const aiResponseText = aiResult.response.text();
 
           const jsonMatch = aiResponseText.match(/\{[\s\S]*?\}/);
@@ -3222,10 +3253,10 @@ ${guidePrompt}
                         const cfg = unit.form_config || {};
                         const guides = unit.form_guides || {};
                         const defaultGuides: Record<string, string> = {
-                          self_eval: '이번 단원에서 본인이 가장 잘 수행한 부분과 부족했던 점을 솔직하게 작성하고, 다음에 개선하고 싶은 점을 구체적으로 서술하세요.',
-                          inquiry_reflection: '탐구 과정에서 발견한 점, 어려움과 해결 과정, 새롭게 알게 된 내용을 구체적인 근거와 함께 300자 이내로 작성하세요.',
-                          performance_record: '수행평가 활동에서 본인이 담당한 역할, 활동 과정, 결과물의 특징을 구체적으로 기술하세요. (500자 이내)',
-                          reading_record: '이번 단원과 연계하여 읽은 책의 제목, 저자, 인상 깊은 내용과 탐구 방향을 작성하세요.'
+                          self_eval: '이번 단원에서 본인이 가장 잘 수행한 부분과 부족했던 점을 솔직하게 작성하고, 다음에 개선하고 싶은 점을 구체적으로 서술하세요. (50자 이상)',
+                          inquiry_reflection: '탐구 과정에서 발견한 점, 어려움과 해결 과정, 새롭게 알게 된 내용을 구체적인 근거와 함께 100자 이상 300자 이내로 작성하세요.',
+                          performance_record: '수행평가 활동에서 본인이 담당한 역할, 활동 과정, 결과물의 특징을 구체적으로 기술하세요. 선생님이 생활기록부(세특) 작성 시 활용합니다. (150자 이상 500자 이내)',
+                          reading_record: '이번 단원과 연계하여 읽은 책의 제목, 저자, 인상 깊은 내용과 탐구 방향을 50자 이상 작성하세요.'
                         };
 
                         return (
@@ -3250,13 +3281,23 @@ ${guidePrompt}
                                     {guides.self_eval || defaultGuides.self_eval}
                                   </p>
                                 </div>
-                                <textarea
-                                  value={unitForm[`${unit.id}_self_eval`] || ''}
-                                  onChange={e => setUnitForm(prev => ({ ...prev, [`${unit.id}_self_eval`]: e.target.value }))}
-                                  placeholder="이번 단원에서 본인의 수행을 평가해 주세요..."
-                                  rows={5}
-                                  className="w-full p-6 bg-neutral-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all leading-relaxed"
-                                />
+                                <div className="relative">
+                                  <textarea
+                                    value={unitForm[`${unit.id}_self_eval`] || ''}
+                                    onChange={e => setUnitForm(prev => ({ ...prev, [`${unit.id}_self_eval`]: e.target.value }))}
+                                    placeholder="이번 단원에서 본인의 수행을 평가해 주세요... (50자 이상)"
+                                    rows={5}
+                                    maxLength={300}
+                                    className="w-full p-6 bg-neutral-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all leading-relaxed"
+                                  />
+                                  <span className={`absolute bottom-4 right-4 text-[10px] font-black ${
+                                    (unitForm[`${unit.id}_self_eval`] || '').length < 50
+                                      ? 'text-error'
+                                      : 'text-on-surface-variant/40'
+                                  }`}>
+                                    {(unitForm[`${unit.id}_self_eval`] || '').length}/300
+                                  </span>
+                                </div>
                               </div>
                             )}
 
@@ -3277,12 +3318,16 @@ ${guidePrompt}
                                   <textarea
                                     value={unitForm[`${unit.id}_inquiry_reflection`] || ''}
                                     onChange={e => setUnitForm(prev => ({ ...prev, [`${unit.id}_inquiry_reflection`]: e.target.value }))}
-                                    placeholder="탐구 활동에서 배운 점과 소감을 작성하세요..."
+                                    placeholder="탐구 활동에서 배운 점과 소감을 작성하세요... (100자 이상)"
                                     rows={5}
                                     maxLength={300}
                                     className="w-full p-6 bg-neutral-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-secondary/10 border-2 border-transparent focus:border-secondary/20 resize-none transition-all leading-relaxed"
                                   />
-                                  <span className="absolute bottom-4 right-4 text-[10px] font-black text-on-surface-variant/40">
+                                  <span className={`absolute bottom-4 right-4 text-[10px] font-black ${
+                                    (unitForm[`${unit.id}_inquiry_reflection`] || '').length < 100
+                                      ? 'text-error'
+                                      : 'text-on-surface-variant/40'
+                                  }`}>
                                     {(unitForm[`${unit.id}_inquiry_reflection`] || '').length}/300
                                   </span>
                                 </div>
@@ -3307,15 +3352,17 @@ ${guidePrompt}
                                   <textarea
                                     value={unitForm[`${unit.id}_performance_record`] || ''}
                                     onChange={e => setUnitForm(prev => ({ ...prev, [`${unit.id}_performance_record`]: e.target.value }))}
-                                    placeholder="수행평가 활동 내용을 구체적으로 기술하세요..."
+                                    placeholder="수행평가 활동 내용을 구체적으로 기술하세요... (150자 이상, 생활기록부 작성에 활용됩니다)"
                                     rows={6}
                                     maxLength={500}
                                     className="w-full p-6 bg-neutral-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-4 focus:ring-amber-200 border-2 border-transparent focus:border-amber-200 resize-none transition-all leading-relaxed"
                                   />
                                   <span className={`absolute bottom-4 right-4 text-[10px] font-black ${
-                                    (unitForm[`${unit.id}_performance_record`] || '').length > 450
+                                    (unitForm[`${unit.id}_performance_record`] || '').length < 150
                                       ? 'text-error'
-                                      : 'text-on-surface-variant/40'
+                                      : (unitForm[`${unit.id}_performance_record`] || '').length > 450
+                                        ? 'text-amber-500'
+                                        : 'text-on-surface-variant/40'
                                   }`}>
                                     {(unitForm[`${unit.id}_performance_record`] || '').length}/500
                                   </span>

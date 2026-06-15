@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
-import { geminiPro, SYSTEM_INSTRUCTIONS } from '../../lib/gemini';
+import { seatukDraftAI, seatukCompressAI, achievementSuggestAI, SYSTEM_INSTRUCTIONS } from '../../lib/gemini';
 import { useAuth } from '../../lib/auth';
 import {
   ChevronDown, ChevronUp, Check, RotateCw, Sparkles,
@@ -33,6 +33,7 @@ interface StudentRow {
   status: 'empty' | 'draft' | 'final';
   isDirty: boolean;
   behavior_insight: string;
+  unit_submissions: { unit_title: string; performance_record: string | null; inquiry_reflection: string | null; self_eval: string | null }[];
 }
 
 const STATUS_LABELS = { empty: '미작성', draft: '초안', final: '완료' };
@@ -225,6 +226,26 @@ const NaissWorkstation = ({ classes }: Props) => {
         evals?.forEach((e: any) => { evalMap[e.student_id] = e; });
       } catch { setDbError(true); }
 
+      // 단원 마무리 제출 데이터 fetch (세특 AI 생성 시 참고용)
+      const unitSubsByStudent: Record<string, { unit_title: string; performance_record: string | null; inquiry_reflection: string | null; self_eval: string | null }[]> = {};
+      ids.forEach((id: string) => { unitSubsByStudent[id] = []; });
+      try {
+        const { data: unitSubs } = await supabase
+          .from('unit_submissions')
+          .select('student_id, performance_record, inquiry_reflection, self_eval, units(title)')
+          .in('student_id', ids);
+        unitSubs?.forEach((sub: any) => {
+          if (unitSubsByStudent[sub.student_id]) {
+            unitSubsByStudent[sub.student_id].push({
+              unit_title: sub.units?.title || '단원',
+              performance_record: sub.performance_record,
+              inquiry_reflection: sub.inquiry_reflection,
+              self_eval: sub.self_eval,
+            });
+          }
+        });
+      } catch { /* unit_submissions 실패 시 무시 */ }
+
       setRows(
         students
           .sort((a: any, b: any) => (parseInt(a.student_number) || 999) - (parseInt(b.student_number) || 999))
@@ -244,6 +265,7 @@ const NaissWorkstation = ({ classes }: Props) => {
               status: ev?.status || 'empty',
               isDirty: false,
               behavior_insight: s.behavior_insight || '',
+              unit_submissions: unitSubsByStudent[s.id] || [],
             };
           })
       );
@@ -288,7 +310,10 @@ const NaissWorkstation = ({ classes }: Props) => {
   };
 
   const generateAI = async (row: StudentRow) => {
-    if (!row.observations.length && !row.teacher_obs.length) { alert('관찰 기록이 없는 학생입니다.'); return; }
+    if (!row.observations.length && !row.teacher_obs.length && !row.unit_submissions.length) {
+      alert('활동 기록 또는 단원 마무리 제출 내용이 없는 학생입니다.');
+      return;
+    }
     setGeneratingId(row.id);
     try {
       const cls = classes.find(c => c.id === selectedClassId);
@@ -305,9 +330,18 @@ const NaissWorkstation = ({ classes }: Props) => {
             `${r.title || '결과물'}${r.score ? ` — ${r.score}/5점` : ''}${r.tags?.length ? ` [${r.tags.join(', ')}]` : ''}${r.note ? `: ${r.note}` : ''}`
           ).join('\n')
         : '';
-      const obsText = (studentObsText || '제출된 학생 기록 없음') + teacherObsText + resultEvalText;
-      const prompt = `${SYSTEM_INSTRUCTIONS.BASE}\n${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}\n아래는 학생의 관찰 기록입니다.\n이를 바탕으로 ${docType} 초안을 500자 이내로 작성하세요.\n문구만 출력하세요.\n\n${obsText}`;
-      const result = await geminiPro.generateContent(prompt);
+      const unitSubText = row.unit_submissions.length > 0
+        ? '\n\n[학생 제출 단원 마무리 서식]\n' + row.unit_submissions.map(u => {
+            const parts: string[] = [`단원: ${u.unit_title}`];
+            if (u.performance_record) parts.push(`수행평가 활동 기술: ${u.performance_record}`);
+            if (u.inquiry_reflection) parts.push(`탐구소감문: ${u.inquiry_reflection}`);
+            if (u.self_eval) parts.push(`자기평가: ${u.self_eval}`);
+            return parts.join('\n');
+          }).join('\n===\n')
+        : '';
+      const obsText = (studentObsText || '제출된 학생 기록 없음') + teacherObsText + resultEvalText + unitSubText;
+      const prompt = `${SYSTEM_INSTRUCTIONS.BASE}\n${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}\n아래는 학생의 관찰 기록과 단원 마무리 서식입니다.\n이를 바탕으로 ${docType} 초안을 500자 이내로 작성하세요.\n특히 학생이 직접 작성한 단원 마무리 서식의 내용을 적극 반영하세요.\n문구만 출력하세요.\n\n${obsText}`;
+      const result = await seatukDraftAI.generateContent(prompt);
       const content = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: content, status: 'draft' });
     } catch { alert('AI 생성 중 오류가 발생했습니다.'); }
@@ -334,7 +368,7 @@ const NaissWorkstation = ({ classes }: Props) => {
 
 관찰 기록:
 ${obsText}`;
-      const result = await geminiPro.generateContent(prompt);
+      const result = await achievementSuggestAI.generateContent(prompt);
       const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
       const json = JSON.parse(raw);
       setAchievementSuggestions(prev => ({
@@ -358,7 +392,7 @@ ${obsText}`;
 
 원본:
 ${row.setech_content}`;
-      const result = await geminiPro.generateContent(prompt);
+      const result = await seatukCompressAI.generateContent(prompt);
       const compressed = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: compressed, isDirty: true });
     } catch { alert('AI 압축 중 오류가 발생했습니다.'); }

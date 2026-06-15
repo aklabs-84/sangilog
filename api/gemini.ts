@@ -3,6 +3,27 @@ import { createClient } from '@supabase/supabase-js';
 
 const FREE_AI_DAILY_LIMIT = 10;
 
+// 2026-06 Gemini 단가 (USD per 1M tokens)
+const PRICING: Record<string, { input: number; output: number; thinking: number }> = {
+  'gemini-2.5-flash': { input: 0.30, output: 2.50, thinking: 3.50 },
+  'gemini-2.5-pro':   { input: 1.25, output: 10.00, thinking: 3.50 },
+};
+
+function calcCostUsd(
+  modelId: string,
+  inputTokens: number,
+  outputTokens: number,
+  thinkingTokens: number
+): number {
+  const p = PRICING[modelId];
+  if (!p) return 0;
+  return (
+    (inputTokens   * p.input    / 1_000_000) +
+    (outputTokens  * p.output   / 1_000_000) +
+    (thinkingTokens * p.thinking / 1_000_000)
+  );
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -13,59 +34,58 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'GEMINI_API_KEY not configured on server' });
   }
 
-  const { mode, model = 'flash', prompt, systemInstruction, history, message, files } = req.body;
+  const {
+    mode, model = 'flash', prompt, systemInstruction, history, message, files,
+    feature = 'unknown',
+  } = req.body;
 
   if (!mode) {
     return res.status(400).json({ error: 'mode is required' });
   }
 
-  // ── 플랜 체크 (Authorization 헤더가 있을 때만) ──────────────────────────────
+  // ── 플랜 체크 ──────────────────────────────────────────────────────────────
+  let userId: string | null = null;
   const authHeader = req.headers['authorization'];
-  if (authHeader) {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (supabaseUrl && serviceKey) {
-      try {
-        const supabase = createClient(supabaseUrl, serviceKey);
+  if (authHeader && supabaseUrl && serviceKey) {
+    try {
+      const supabase = createClient(supabaseUrl, serviceKey);
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-        // JWT에서 유저 ID 추출
-        const token = authHeader.replace('Bearer ', '');
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (!authError && user) {
+        userId = user.id;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('plan, ai_daily_count, ai_daily_date')
+          .eq('id', user.id)
+          .single();
 
-        if (!authError && user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('plan, ai_daily_count, ai_daily_date')
-            .eq('id', user.id)
-            .single();
+        if (profile && profile.plan === 'free') {
+          const today = new Date().toISOString().split('T')[0];
+          const isNewDay = profile.ai_daily_date !== today;
+          const currentCount = isNewDay ? 0 : (profile.ai_daily_count ?? 0);
 
-          if (profile && profile.plan === 'free') {
-            const today = new Date().toISOString().split('T')[0];
-            const isNewDay = profile.ai_daily_date !== today;
-            const currentCount = isNewDay ? 0 : (profile.ai_daily_count ?? 0);
-
-            if (currentCount >= FREE_AI_DAILY_LIMIT) {
-              return res.status(402).json({
-                error: 'AI_LIMIT_EXCEEDED',
-                message: `무료 플랜은 AI를 하루 ${FREE_AI_DAILY_LIMIT}회까지 사용할 수 있습니다. 자정 이후 초기화됩니다.`,
-                used: currentCount,
-                limit: FREE_AI_DAILY_LIMIT,
-              });
-            }
-
-            // AI 호출 후 카운트 증가 (비동기 - 응답 블로킹 안 함)
-            const newCount = currentCount + 1;
-            supabase.from('profiles').update({
-              ai_daily_count: newCount,
-              ai_daily_date: today,
-            }).eq('id', user.id).then(() => {});
+          if (currentCount >= FREE_AI_DAILY_LIMIT) {
+            return res.status(402).json({
+              error: 'AI_LIMIT_EXCEEDED',
+              message: `무료 플랜은 AI를 하루 ${FREE_AI_DAILY_LIMIT}회까지 사용할 수 있습니다. 자정 이후 초기화됩니다.`,
+              used: currentCount,
+              limit: FREE_AI_DAILY_LIMIT,
+            });
           }
+
+          const newCount = currentCount + 1;
+          supabase.from('profiles').update({
+            ai_daily_count: newCount,
+            ai_daily_date: today,
+          }).eq('id', user.id).then(() => {});
         }
-      } catch (planCheckError) {
-        // 플랜 체크 실패해도 AI 호출은 허용 (서비스 안정성 우선)
-        console.warn('[api/gemini] plan check failed:', planCheckError);
       }
+    } catch (planCheckError) {
+      console.warn('[api/gemini] plan check failed:', planCheckError);
     }
   }
 
@@ -81,6 +101,7 @@ export default async function handler(req: any, res: any) {
     });
 
     let result: string;
+    let usageMeta: any = null;
 
     if (mode === 'generate') {
       const parts: any[] = [{ text: prompt ?? '' }];
@@ -88,6 +109,7 @@ export default async function handler(req: any, res: any) {
       const contentParts = systemInstruction ? [{ text: systemInstruction }, ...parts] : parts;
       const { response } = await generativeModel.generateContent(contentParts);
       result = response.text();
+      usageMeta = response.usageMetadata ?? null;
 
     } else if (mode === 'chat') {
       const chat = generativeModel.startChat({
@@ -101,9 +123,31 @@ export default async function handler(req: any, res: any) {
       if (files && files.length > 0) promptParts.push(...files);
       const { response } = await chat.sendMessage(promptParts);
       result = response.text();
+      usageMeta = response.usageMetadata ?? null;
 
     } else {
       return res.status(400).json({ error: `Unknown mode: ${mode}` });
+    }
+
+    // ── 비용 계산 & 로깅 (비동기, 응답 블로킹 없음) ──────────────────────────
+    if (usageMeta && supabaseUrl && serviceKey) {
+      const inputTokens    = usageMeta.promptTokenCount       ?? 0;
+      const outputTokens   = usageMeta.candidatesTokenCount   ?? 0;
+      const thinkingTokens = usageMeta.thoughtsTokenCount     ?? 0;
+      const costUsd = calcCostUsd(modelId, inputTokens, outputTokens, thinkingTokens);
+
+      const supabase = createClient(supabaseUrl, serviceKey);
+      supabase.from('ai_usage_logs').insert({
+        user_id:         userId,
+        feature_name:    feature,
+        model_name:      modelId,
+        input_tokens:    inputTokens,
+        output_tokens:   outputTokens,
+        thinking_tokens: thinkingTokens,
+        cost_usd:        costUsd,
+      }).then(({ error }) => {
+        if (error) console.warn('[api/gemini] usage log insert failed:', error.message);
+      });
     }
 
     return res.status(200).json({ result });

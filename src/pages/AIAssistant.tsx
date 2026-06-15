@@ -17,7 +17,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { useAuth, checkIsPro, getAiDailyLimit } from '../lib/auth';
-import { geminiPro, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
+import { seatukDraftAI, seatukRefineAI, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 
 
@@ -219,7 +219,7 @@ ${teacherPrompt ? `[선생님 추가 지침]\n${teacherPrompt}\n` : ''}
 [학생 관찰 기록]
 ${obsText}
 `;
-    const result = await geminiPro.generateContent(prompt);
+    const result = await seatukDraftAI.generateContent(prompt);
     return result.response.text().trim();
   };
 
@@ -356,7 +356,7 @@ ${obsText}
     setIsGenerating(true);
     try {
       const prompt = `다음 학생 기록 초안을 "${refineType}" 해주세요. 결과물 텍스트만 출력하세요.\n\n원본:\n${draft.content}`;
-      const result = await geminiPro.generateContent(prompt);
+      const result = await seatukRefineAI.generateContent(prompt);
       const updated = [...draftResults];
       updated[index] = { ...draft, content: result.response.text().trim() };
       setDraftResults(updated);

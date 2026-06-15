@@ -9,14 +9,35 @@ import {
   Trash2, BookOpen, GraduationCap, ClipboardList, AlertTriangle,
   BarChart3, FileCheck, Megaphone, Bell, Download, Plus, Send,
   TrendingUp, Zap, Bug, Ticket, Calendar, ToggleLeft, ToggleRight,
-  Shuffle,
+  Shuffle, DollarSign, Cpu, Layers,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActiveTab =
   | 'dashboard' | 'requests' | 'users' | 'classes'
-  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons';
+  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'ai_cost';
+
+type AiCostView = 'daily' | 'weekly' | 'monthly';
+
+interface AiCostRow {
+  period: string;
+  cost_usd: number;
+  call_count: number;
+}
+interface AiFeatureRow {
+  feature_name: string;
+  cost_usd: number;
+  call_count: number;
+}
+interface AiModelRow {
+  model_name: string;
+  cost_usd: number;
+  call_count: number;
+  input_tokens: number;
+  output_tokens: number;
+  thinking_tokens: number;
+}
 
 type ReqFilter = 'all' | 'pending' | 'approved' | 'rejected';
 type ObsFilter = 'all' | 'pending' | 'approved' | 'rejected';
@@ -108,6 +129,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'announcements', label: '공지사항',   icon: Bell },
   { id: 'bugs',          label: '버그신고',   icon: Bug },
   { id: 'coupons',       label: '쿠폰',       icon: Ticket },
+  { id: 'ai_cost',       label: 'AI 비용',    icon: DollarSign },
 ];
 
 // ── CSV Helper ─────────────────────────────────────────────────────────────────
@@ -232,6 +254,14 @@ const Admin = () => {
   const [couponSending, setCouponSending] = useState(false);
   const [couponSendMsg, setCouponSendMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
+  // ── AI 비용 ─────────────────────────────────────────────────────────────────
+  const [aiCostView, setAiCostView]         = useState<AiCostView>('daily');
+  const [aiCostRows, setAiCostRows]         = useState<AiCostRow[]>([]);
+  const [aiFeatureRows, setAiFeatureRows]   = useState<AiFeatureRow[]>([]);
+  const [aiModelRows, setAiModelRows]       = useState<AiModelRow[]>([]);
+  const [aiCostLoading, setAiCostLoading]   = useState(false);
+  const [aiTotalUsd, setAiTotalUsd]         = useState(0);
+
   // ── 공통 삭제 ──────────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting]         = useState(false);
@@ -256,6 +286,7 @@ const Admin = () => {
     if (activeTab === 'announcements') fetchAnnouncements();
     if (activeTab === 'bugs')          fetchBugs();
     if (activeTab === 'coupons')       fetchCoupons();
+    if (activeTab === 'ai_cost')       fetchAiCost('daily');
   }, [activeTab]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -543,6 +574,129 @@ const Admin = () => {
     setBugs(prev => prev.map(b => b.id === id ? { ...b, status } : b));
   };
 
+  const fetchAiCost = async (view: AiCostView = aiCostView) => {
+    setAiCostLoading(true);
+    try {
+      const now = new Date();
+
+      // 기간 시작일 계산
+      let since: Date;
+      if (view === 'daily') {
+        since = new Date(now);
+        since.setDate(since.getDate() - 6);
+        since.setHours(0, 0, 0, 0);
+      } else if (view === 'weekly') {
+        since = new Date(now);
+        since.setDate(since.getDate() - 7 * 7);
+        since.setHours(0, 0, 0, 0);
+      } else {
+        since = new Date(now);
+        since.setMonth(since.getMonth() - 5);
+        since.setDate(1);
+        since.setHours(0, 0, 0, 0);
+      }
+
+      const { data: raw } = await supabase
+        .from('ai_usage_logs')
+        .select('feature_name, model_name, input_tokens, output_tokens, thinking_tokens, cost_usd, created_at')
+        .gte('created_at', since.toISOString())
+        .order('created_at', { ascending: true });
+
+      if (!raw) return;
+
+      // 기간별 집계
+      const periodMap: Record<string, { cost_usd: number; call_count: number }> = {};
+
+      if (view === 'daily') {
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          const key = d.toISOString().split('T')[0];
+          periodMap[key] = { cost_usd: 0, call_count: 0 };
+        }
+        raw.forEach(r => {
+          const key = r.created_at.split('T')[0];
+          if (periodMap[key]) {
+            periodMap[key].cost_usd  += r.cost_usd ?? 0;
+            periodMap[key].call_count += 1;
+          }
+        });
+      } else if (view === 'weekly') {
+        for (let i = 7; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i * 7);
+          const monday = new Date(d);
+          monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+          const key = monday.toISOString().split('T')[0];
+          periodMap[key] = periodMap[key] ?? { cost_usd: 0, call_count: 0 };
+        }
+        raw.forEach(r => {
+          const d = new Date(r.created_at);
+          const monday = new Date(d);
+          monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+          const key = monday.toISOString().split('T')[0];
+          if (periodMap[key]) {
+            periodMap[key].cost_usd  += r.cost_usd ?? 0;
+            periodMap[key].call_count += 1;
+          }
+        });
+      } else {
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          periodMap[key] = { cost_usd: 0, call_count: 0 };
+        }
+        raw.forEach(r => {
+          const d = new Date(r.created_at);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (periodMap[key]) {
+            periodMap[key].cost_usd  += r.cost_usd ?? 0;
+            periodMap[key].call_count += 1;
+          }
+        });
+      }
+
+      const costRows: AiCostRow[] = Object.entries(periodMap).map(([period, v]) => ({
+        period, cost_usd: v.cost_usd, call_count: v.call_count,
+      }));
+      setAiCostRows(costRows);
+      setAiTotalUsd(costRows.reduce((s, r) => s + r.cost_usd, 0));
+
+      // 기능별 집계
+      const featureMap: Record<string, { cost_usd: number; call_count: number }> = {};
+      raw.forEach(r => {
+        const k = r.feature_name ?? 'unknown';
+        featureMap[k] = featureMap[k] ?? { cost_usd: 0, call_count: 0 };
+        featureMap[k].cost_usd  += r.cost_usd ?? 0;
+        featureMap[k].call_count += 1;
+      });
+      setAiFeatureRows(
+        Object.entries(featureMap)
+          .map(([feature_name, v]) => ({ feature_name, ...v }))
+          .sort((a, b) => b.cost_usd - a.cost_usd)
+      );
+
+      // 모델별 집계
+      const modelMap: Record<string, { cost_usd: number; call_count: number; input_tokens: number; output_tokens: number; thinking_tokens: number }> = {};
+      raw.forEach(r => {
+        const k = r.model_name ?? 'unknown';
+        modelMap[k] = modelMap[k] ?? { cost_usd: 0, call_count: 0, input_tokens: 0, output_tokens: 0, thinking_tokens: 0 };
+        modelMap[k].cost_usd      += r.cost_usd ?? 0;
+        modelMap[k].call_count    += 1;
+        modelMap[k].input_tokens  += r.input_tokens ?? 0;
+        modelMap[k].output_tokens += r.output_tokens ?? 0;
+        modelMap[k].thinking_tokens += r.thinking_tokens ?? 0;
+      });
+      setAiModelRows(
+        Object.entries(modelMap)
+          .map(([model_name, v]) => ({ model_name, ...v }))
+          .sort((a, b) => b.cost_usd - a.cost_usd)
+      );
+    } finally {
+      setAiCostLoading(false);
+    }
+  };
+
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const refresh = () => {
@@ -555,6 +709,7 @@ const Admin = () => {
     if (activeTab === 'results')       fetchResults();
     if (activeTab === 'suggestions')   fetchSuggestions();
     if (activeTab === 'announcements') fetchAnnouncements();
+    if (activeTab === 'ai_cost')       fetchAiCost();
   };
 
   const deleteRequest = async (id: string) => {
@@ -1680,6 +1835,198 @@ const Admin = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── AI 비용 ────────────────────────────────────────────────────────── */}
+        {activeTab === 'ai_cost' && (
+          <div className="space-y-6">
+            {/* 뷰 전환 */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                {(['daily', 'weekly', 'monthly'] as AiCostView[]).map(v => (
+                  <button key={v}
+                    onClick={() => { setAiCostView(v); fetchAiCost(v); }}
+                    className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
+                      aiCostView === v
+                        ? 'bg-emerald-500 text-white shadow-md'
+                        : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+                    }`}
+                  >
+                    {v === 'daily' ? '일별 (7일)' : v === 'weekly' ? '주별 (8주)' : '월별 (6개월)'}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => fetchAiCost(aiCostView)}
+                className="p-2 rounded-xl text-emerald-600 hover:bg-emerald-50 transition-colors"
+              >
+                <RefreshCw size={16} />
+              </button>
+            </div>
+
+            {aiCostLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="animate-spin text-emerald-400" size={32} />
+              </div>
+            ) : (
+              <>
+                {/* 요약 카드 */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <div className="rounded-2xl p-5 bg-emerald-50 border border-emerald-100 col-span-2 sm:col-span-1">
+                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">기간 합계</p>
+                    <p className="text-3xl font-black text-emerald-900">
+                      ${aiTotalUsd.toFixed(4)}
+                    </p>
+                    <p className="text-xs text-emerald-500 mt-1">
+                      ≈ ₩{Math.round(aiTotalUsd * 1380).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl p-5 bg-blue-50 border border-blue-100">
+                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">총 호출 수</p>
+                    <p className="text-3xl font-black text-blue-900">
+                      {aiCostRows.reduce((s, r) => s + r.call_count, 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-blue-400 mt-1">API calls</p>
+                  </div>
+                  <div className="rounded-2xl p-5 bg-violet-50 border border-violet-100">
+                    <p className="text-xs font-bold text-violet-600 uppercase tracking-wider mb-1">평균 단가</p>
+                    <p className="text-3xl font-black text-violet-900">
+                      ${aiCostRows.reduce((s, r) => s + r.call_count, 0) > 0
+                        ? (aiTotalUsd / aiCostRows.reduce((s, r) => s + r.call_count, 0)).toFixed(5)
+                        : '0.00000'}
+                    </p>
+                    <p className="text-xs text-violet-400 mt-1">per call</p>
+                  </div>
+                </div>
+
+                {/* 기간별 막대 차트 */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                  <h3 className="text-sm font-black text-gray-700 flex items-center gap-2 mb-5">
+                    <TrendingUp size={16} className="text-emerald-500" />
+                    {aiCostView === 'daily' ? '일별' : aiCostView === 'weekly' ? '주별' : '월별'} 비용 추이
+                  </h3>
+                  {aiCostRows.length === 0 || aiTotalUsd === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-8">아직 수집된 데이터가 없습니다.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {(() => {
+                        const maxCost = Math.max(...aiCostRows.map(r => r.cost_usd), 0.000001);
+                        return aiCostRows.map(r => {
+                          const pct = (r.cost_usd / maxCost) * 100;
+                          const label = aiCostView === 'daily'
+                            ? r.period.slice(5)
+                            : aiCostView === 'weekly'
+                            ? `${r.period.slice(5)} ~`
+                            : r.period;
+                          return (
+                            <div key={r.period} className="flex items-center gap-3">
+                              <span className="text-xs font-mono text-gray-500 w-16 shrink-0 text-right">{label}</span>
+                              <div className="flex-1 h-6 bg-gray-50 rounded-lg overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-lg transition-all duration-500 flex items-center"
+                                  style={{ width: `${Math.max(pct, r.cost_usd > 0 ? 2 : 0)}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-black text-emerald-700 w-24 shrink-0 text-right">
+                                ${r.cost_usd.toFixed(4)}
+                              </span>
+                              <span className="text-xs text-gray-400 w-14 shrink-0 text-right">{r.call_count}회</span>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* 기능별 분석 */}
+                  <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                    <h3 className="text-sm font-black text-gray-700 flex items-center gap-2 mb-4">
+                      <Layers size={16} className="text-amber-500" />
+                      기능별 비용
+                    </h3>
+                    {aiFeatureRows.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-6">데이터 없음</p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {(() => {
+                          const maxCost = Math.max(...aiFeatureRows.map(r => r.cost_usd), 0.000001);
+                          const FEATURE_LABELS: Record<string, string> = {
+                            seatuk_draft:         '세특 초안',
+                            seatuk_refine:        '세특 다듬기',
+                            seatuk_compress:      '세특 압축',
+                            achievement_suggest:  '성취도 추천',
+                            class_insight:        '학급 인사이트',
+                            detailed_report:      '심층 보고서',
+                            ai_chat:              'AI 채팅',
+                            file_extract:         '파일 추출',
+                            transcription_analysis: '수업 전사 분석',
+                            quiz_generator:       '퀴즈 생성',
+                            survey_analysis:      '설문 분석',
+                            observation_review:   '활동기록 검토',
+                            student_analysis:     '학생 분석',
+                          };
+                          return aiFeatureRows.map(r => (
+                            <div key={r.feature_name}>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="font-bold text-gray-700">
+                                  {FEATURE_LABELS[r.feature_name] ?? r.feature_name}
+                                </span>
+                                <span className="font-black text-amber-700">
+                                  ${r.cost_usd.toFixed(4)} <span className="text-gray-400 font-normal">({r.call_count}회)</span>
+                                </span>
+                              </div>
+                              <div className="h-2 bg-amber-50 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-amber-400 rounded-full"
+                                  style={{ width: `${(r.cost_usd / maxCost) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 모델별 분석 */}
+                  <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                    <h3 className="text-sm font-black text-gray-700 flex items-center gap-2 mb-4">
+                      <Cpu size={16} className="text-violet-500" />
+                      모델별 사용량
+                    </h3>
+                    {aiModelRows.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-6">데이터 없음</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {aiModelRows.map(r => (
+                          <div key={r.model_name} className="rounded-xl bg-gray-50 p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-black text-gray-800">{r.model_name}</span>
+                              <span className="text-sm font-black text-violet-700">${r.cost_usd.toFixed(4)}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500">
+                              <span>호출 횟수</span>
+                              <span className="font-bold text-right text-gray-700">{r.call_count.toLocaleString()}회</span>
+                              <span>입력 토큰</span>
+                              <span className="font-bold text-right text-blue-600">{r.input_tokens.toLocaleString()}</span>
+                              <span>출력 토큰</span>
+                              <span className="font-bold text-right text-emerald-600">{r.output_tokens.toLocaleString()}</span>
+                              <span>추론 토큰</span>
+                              <span className="font-bold text-right text-violet-600">{r.thinking_tokens.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        ))}
+                        <p className="text-xs text-gray-400 text-center pt-1">
+                          단가: Flash $0.30/$2.50/$3.50 · Pro $1.25/$10/$3.50 (per 1M tokens)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
