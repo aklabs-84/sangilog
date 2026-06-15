@@ -50,7 +50,7 @@ const Export = () => {
 
   const [selectedColumns, setSelectedColumns] = useState<string[]>(EXPORT_COLUMNS.map(c => c.key));
   const [showColumnManager, setShowColumnManager] = useState(false);
-  const [exportMode, setExportMode] = useState<ExportMode>('simple');
+  const [exportMode, setExportMode] = useState<ExportMode>('structured');
 
   useEffect(() => { fetchClasses(); }, []);
 
