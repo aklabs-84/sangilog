@@ -50,11 +50,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
     // 2. 인증 상태 변경 감지
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user && !session.user.is_anonymous) {
-        setLoading(true); // fetchProfile 완료 전 ProtectedRoute가 profile=null을 삭제계정으로 오인하지 않도록
+        // TOKEN_REFRESHED(탭 전환 시 자동 갱신)는 setLoading(true) 생략
+        // — 이미 인증된 상태이므로 loading 전환 시 컴포넌트 재마운트가 불필요
+        if (event !== 'TOKEN_REFRESHED') {
+          setLoading(true);
+        }
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
