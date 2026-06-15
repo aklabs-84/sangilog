@@ -294,6 +294,7 @@ const StudentLog = () => {
         fetchUnreadReplyCount(parsed.student_id, parsed.class_id);
         fetchMyGroup(parsed.student_id, parsed.class_id);
         fetchStudentNotifs(parsed.student_id);
+        fetchQuizHistory(parsed.class_id, parsed.student_name);
 
         // 가이드 모달 표시 여부 확인 (학생별, 당일 기준)
         const today = new Date().toISOString().slice(0, 10);
@@ -1381,14 +1382,16 @@ const StudentLog = () => {
     }
   };
 
-  const fetchQuizHistory = async () => {
-    if (!session?.class_id || !session?.student_name) return;
+  const fetchQuizHistory = async (classId?: string, studentName?: string) => {
+    const cId = classId ?? session?.class_id;
+    const sName = studentName ?? session?.student_name;
+    if (!cId || !sName) return;
     setQuizHistoryLoading(true);
     const { data } = await supabase
       .from('quiz_score_history')
       .select('id, quiz_set_title, rank, score, played_at')
-      .eq('class_id', session.class_id)
-      .eq('student_name', session.student_name)
+      .eq('class_id', cId)
+      .eq('student_name', sName)
       .order('played_at', { ascending: false })
       .limit(20);
     if (data) setQuizHistory(data);
@@ -2004,6 +2007,40 @@ ${guidePrompt}
                     <p className="text-sm font-bold text-on-surface-variant/60">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} · {session?.class_name}</p>
                     <h2 className="text-2xl font-black mt-0.5">안녕하세요, {session?.student_name}님! 👋</h2>
                   </div>
+
+                  {/* 퀴즈 배지 카드 (기록이 있을 때만 표시) */}
+                  {quizHistory.length > 0 && (() => {
+                    const totalScore = quizHistory.reduce((s, h) => s + (h.score ?? 0), 0);
+                    const bestRank = Math.min(...quizHistory.map(h => h.rank));
+                    const topThreeCount = quizHistory.filter(h => h.rank <= 3).length;
+                    const badge =
+                      bestRank === 1 ? { icon: '👑', label: '챔피언', from: 'from-amber-400', to: 'to-yellow-500', glow: 'shadow-amber-200' } :
+                      bestRank === 2 ? { icon: '🥈', label: '파이터', from: 'from-slate-400', to: 'to-slate-500', glow: 'shadow-slate-200' } :
+                      bestRank === 3 ? { icon: '🥉', label: '도전자', from: 'from-orange-400', to: 'to-orange-500', glow: 'shadow-orange-200' } :
+                      topThreeCount > 0 ? { icon: '🌟', label: '라이징스타', from: 'from-violet-400', to: 'to-purple-500', glow: 'shadow-violet-200' } :
+                      { icon: '🎮', label: '퀴즈 참여자', from: 'from-indigo-400', to: 'to-blue-500', glow: 'shadow-indigo-200' };
+                    return (
+                      <button
+                        onClick={() => handleTabChange('quiz')}
+                        className={`w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r ${badge.from} ${badge.to} shadow-lg ${badge.glow} active:scale-98 transition-all text-left`}
+                      >
+                        <div className="w-14 h-14 rounded-2xl bg-white/25 flex items-center justify-center text-3xl shrink-0 shadow-inner">
+                          {badge.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-white font-black text-base">{badge.label}</span>
+                            <span className="text-white/70 text-xs font-bold">· {quizHistory.length}회 참여</span>
+                          </div>
+                          <p className="text-white/80 text-sm font-bold mt-0.5">
+                            누적 <span className="text-white font-black">{totalScore.toLocaleString()}점</span>
+                            {bestRank <= 3 && <span className="ml-2">· 최고 {bestRank}위 달성!</span>}
+                          </p>
+                        </div>
+                        <span className="text-white/60 text-xs font-bold shrink-0">기록 보기 →</span>
+                      </button>
+                    );
+                  })()}
 
                   {/* 주차 선택 */}
                   {weeklyPlan.length > 0 && (
