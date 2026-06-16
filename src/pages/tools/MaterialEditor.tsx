@@ -228,7 +228,7 @@ const ImportFromClassModal = ({
 }: {
   currentClassId: string;
   userId: string;
-  onImport: (title: string, content: string) => void;
+  onImport: (title: string, content: string, weekNumber: number) => void;
   onClose: () => void;
 }) => {
   const [step, setStep] = useState<'class' | 'material'>('class');
@@ -253,9 +253,9 @@ const ImportFromClassModal = ({
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
-      .select('id, title, content, is_published, created_at')
+      .select('id, title, content, is_published, week_number, created_at')
       .eq('class_id', cls.id)
-      .order('created_at', { ascending: false });
+      .order('week_number', { ascending: true });
     if (error) console.error('[ImportModal] class_materials fetch error:', error);
     setMaterials((data || []) as Material[]);
     setLoading(false);
@@ -264,7 +264,7 @@ const ImportFromClassModal = ({
 
   const handleSelectMaterial = (material: Material) => {
     if (!window.confirm(`"${material.title}" 내용을 현재 에디터에 복사하시겠습니까?\n현재 작성 중인 내용이 있다면 덮어씁니다.`)) return;
-    onImport(material.title, material.content ?? '');
+    onImport(material.title, material.content ?? '', material.week_number ?? 1);
     onClose();
   };
 
@@ -507,6 +507,7 @@ const MaterialEditor = () => {
 
   // 폼 필드
   const [title, setTitle] = useState('');
+  const [weekNumber, setWeekNumber] = useState(1);
   const [content, setContent] = useState('');
   const [isPublished, setIsPublished] = useState(false);
 
@@ -565,7 +566,7 @@ const MaterialEditor = () => {
   };
 
   const resetForm = () => {
-    setTitle(''); setContent(''); setIsPublished(false);
+    setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
     setEditingMaterial(null); setViewMode('edit');
   };
 
@@ -577,6 +578,7 @@ const MaterialEditor = () => {
   const handleEdit = (material: Material) => {
     setEditingMaterial(material);
     setTitle(material.title || '');
+    setWeekNumber(material.week_number ?? 1);
     setContent(material.content || '');
     setIsPublished(material.is_published || false);
     setViewMode('edit');
@@ -615,6 +617,7 @@ const MaterialEditor = () => {
     try {
       const payload = {
         class_id: selectedClass.id,
+        week_number: weekNumber,
         title: title.trim(),
         content: (content ?? '').trim(),
         is_published: isPublished,
@@ -649,8 +652,9 @@ const MaterialEditor = () => {
     if (!confirm(`"${material.title}"을(를) 복사하시겠습니까?`)) return;
     const { error } = await supabase.from('class_materials').insert({
       class_id: selectedClass.id,
+      week_number: material.week_number,
       title: `${material.title} (복사)`,
-      content: material.content,
+      content: material.content ?? '',
       is_published: false,
     });
     if (!error) await fetchMaterials(selectedClass.id);
@@ -675,8 +679,9 @@ const MaterialEditor = () => {
       <ImportFromClassModal
         currentClassId={selectedClass.id}
         userId={user.id}
-        onImport={(importedTitle, importedContent) => {
+        onImport={(importedTitle, importedContent, importedWeek) => {
           setTitle(importedTitle ?? '');
+          setWeekNumber(importedWeek ?? 1);
           setContent(importedContent ?? '');
         }}
         onClose={() => setShowImportModal(false)}
@@ -769,6 +774,16 @@ const MaterialEditor = () => {
 
           {/* 메타 정보 입력 */}
           <div className="flex flex-wrap gap-2.5 px-5 py-3 border-b border-surface-container bg-surface-container-low/50">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs font-black text-on-surface-variant whitespace-nowrap">주차</span>
+              <input
+                type="number"
+                min={1}
+                value={weekNumber}
+                onChange={e => setWeekNumber(Math.max(1, Number(e.target.value) || 1))}
+                className="w-16 px-2 py-2 bg-white rounded-xl border border-surface-container font-black text-sm text-center focus:outline-none focus:border-primary/40"
+              />
+            </div>
             <input
               type="text"
               value={title}
