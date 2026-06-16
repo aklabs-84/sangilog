@@ -1087,8 +1087,9 @@ const Admin = () => {
                               onChange={e => setPlanSelects(prev => ({ ...prev, [req.id]: e.target.value }))}
                               className="w-full px-3 py-2 text-xs border border-amber-200 rounded-xl focus:outline-none focus:border-amber-400 bg-amber-50 font-bold text-amber-800 cursor-pointer"
                             >
-                              <option value="free">Free — 일반 선생님</option>
-                              <option value="pro">Pro — 프리미엄</option>
+                              <option value="free">Free — AI 월 20회</option>
+                              <option value="basic">Basic — AI 월 100회</option>
+                              <option value="pro">Pro — AI 월 500회</option>
                               <option value="school">School — 열람 전용</option>
                             </select>
                             <div className="flex gap-2">
@@ -1174,14 +1175,10 @@ const Admin = () => {
                        u.plan === 'school' ? <GraduationCap size={14} className="text-violet-500 shrink-0" /> :
                        u.plan === 'basic'  ? <Crown size={14} className="text-blue-400 shrink-0" /> :
                                             <User size={14} className="text-gray-400 shrink-0" />}
-                      {u.plan === 'school' ? (
-                        <span className="text-xs font-bold px-3 py-2 rounded-xl bg-violet-100 text-violet-600">School (레거시)</span>
-                      ) : (
                         <select value={u.plan ?? 'free'} onChange={e => updateUserPlan(u.id, e.target.value)} disabled={planUpdating === u.id}
                           className="text-sm font-bold border border-amber-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-50">
-                          {PLAN_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                          {PLAN_OPTIONS_ALL.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                         </select>
-                      )}
                       {planUpdating === u.id && <Loader2 size={14} className="animate-spin text-amber-400" />}
                       {/* 베타 부여/철수 버튼 */}
                       <button
