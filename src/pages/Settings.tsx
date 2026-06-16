@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth, checkIsPro, getBetaDaysLeft, checkIsBasicOrAbove, getAiDailyLimit } from '../lib/auth';
+import { useAuth, checkIsPro, getBetaDaysLeft, checkIsBasicOrAbove, getAiDailyLimit, checkCanUseAi } from '../lib/auth';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeMode } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -403,11 +403,11 @@ const Settings = () => {
                 </p>
               ) : plan === 'basic' ? (
                 <p className="text-xs text-blue-600 mt-0.5">
-                  클래스 최대 5개 · AI 세특 하루 30회 · 화이트보드 최대 3개
+                  클래스 최대 3개 · AI 세특 하루 10회 · 화이트보드 최대 3개
                 </p>
               ) : plan === 'free' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  클래스 최대 2개 · AI 세특 하루 10회
+                  클래스 최대 1개 · 학생 최대 20명 · AI 사용 불가
                 </p>
               ) : null}
             </div>
@@ -422,7 +422,7 @@ const Settings = () => {
           )}
         </div>
 
-        {!isEffectivelyPro && (
+        {checkCanUseAi(profile) ? (
           <div className="mt-4 pt-4 border-t border-amber-200 grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-bold text-amber-600 mb-1">오늘 AI 사용</p>
@@ -439,18 +439,31 @@ const Settings = () => {
               </div>
               <p className="text-[10px] text-amber-500 mt-1">자정에 자동 초기화</p>
             </div>
-            <div>
-              <p className="text-xs font-bold text-amber-600 mb-2">{isBasicOnly ? 'Pro 플랜에서 더 가능한 것' : 'Basic / Pro 플랜에서 가능한 것'}</p>
-              <div className="space-y-1">
-                {(isBasicOnly
-                  ? ['AI 세특 무제한', '클래스 무제한', '화이트보드 무제한', '일괄 AI 생성']
-                  : ['AI 세특 하루 30회 (Basic)', 'AI 세특 무제한 (Pro)', '클래스 최대 5개 (Basic)', '수업 도구 전체 7가지']
-                ).map(item => (
-                  <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
-                    <Sparkles size={10} className="text-amber-400" /> {item}
-                  </div>
-                ))}
+            {!isEffectivelyPro && (
+              <div>
+                <p className="text-xs font-bold text-amber-600 mb-2">{isBasicOnly ? 'Pro 플랜에서 더 가능한 것' : 'Basic / Pro 플랜에서 가능한 것'}</p>
+                <div className="space-y-1">
+                  {(isBasicOnly
+                    ? ['AI 세특 하루 30회 (Pro)', '클래스 무제한 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', '학교 프로젝트 생성 (Pro)']
+                    : ['AI 세특 하루 10회 (Basic)', 'AI 세특 하루 30회 (Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)']
+                  ).map(item => (
+                    <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
+                      <Sparkles size={10} className="text-amber-400" /> {item}
+                    </div>
+                  ))}
+                </div>
               </div>
+            )}
+          </div>
+        ) : (
+          <div className="mt-4 pt-4 border-t border-amber-200">
+            <p className="text-xs font-bold text-amber-600 mb-2">Basic / Pro 플랜에서 가능한 것</p>
+            <div className="space-y-1">
+              {['AI 세특 하루 10회 (Basic)', 'AI 세특 하루 30회 (Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)'].map(item => (
+                <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
+                  <Sparkles size={10} className="text-amber-400" /> {item}
+                </div>
+              ))}
             </div>
           </div>
         )}

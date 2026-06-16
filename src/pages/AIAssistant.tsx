@@ -16,7 +16,7 @@ import {
   BookOpen,
   ChevronUp,
 } from 'lucide-react';
-import { useAuth, checkIsPro, getAiDailyLimit } from '../lib/auth';
+import { useAuth, checkIsPro, getAiDailyLimit, checkCanUseAi } from '../lib/auth';
 import { seatukDraftAI, seatukRefineAI, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 
@@ -45,7 +45,7 @@ const AIAssistant = () => {
   const [obsCount, setObsCount] = useState(0);
   const [recentObsTime, setRecentObsTime] = useState<string | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const [upgradeReason, setUpgradeReason] = useState<'ai_bulk' | 'ai_limit'>('ai_bulk');
+  const [upgradeReason, setUpgradeReason] = useState<'ai_bulk' | 'ai_limit' | 'ai_free_block'>('ai_bulk');
   const [todayAiCount, setTodayAiCount] = useState(0);
   const [reportMode, setReportMode] = useState<'school' | 'academy'>('school');
   const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
@@ -226,16 +226,23 @@ ${obsText}
   const handleGenerate = async () => {
     if (!selectedClassId) return;
 
+    // Free 유저 — AI 완전 차단
+    if (!checkCanUseAi(profile)) {
+      setUpgradeReason('ai_free_block');
+      setUpgradeOpen(true);
+      return;
+    }
+
     const isNotPro = !checkIsPro(profile);
 
     if (isNotPro) {
-      // Pro 미만 — 다중 학생 일괄 생성 차단 (Basic도 마찬가지)
+      // Pro 미만 — 다중 학생 일괄 생성 차단
       if (selectedStudentIds.length > 1) {
         setUpgradeReason('ai_bulk');
         setUpgradeOpen(true);
         return;
       }
-      // 플랜별 일일 한도 체크 (free=10, basic=30)
+      // 플랜별 일일 한도 체크 (basic=10, pro=30)
       const dailyLimit = getAiDailyLimit(profile);
       if (todayAiCount >= dailyLimit) {
         setUpgradeReason('ai_limit');

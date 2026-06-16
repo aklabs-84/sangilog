@@ -36,6 +36,7 @@ import QuizStudentView from './pages/QuizStudentView';
 import ClassBoard from './pages/ClassBoard';
 import ShareClassView from './pages/ShareClassView';
 import SchoolShareView from './pages/SchoolShareView';
+import SchoolProjectShareView from './pages/SchoolProjectShareView';
 import SetPassword from './pages/SetPassword';
 import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
@@ -174,6 +175,7 @@ function App() {
               <Route path="/wb-join" element={<StudentJoin />} />
               <Route path="/share/:classId" element={<ShareClassView />} />
               <Route path="/school-share/:schoolId" element={<SchoolShareView />} />
+              <Route path="/school-project/:shareToken" element={<SchoolProjectShareView />} />
 
               {/* 관리자 라우트 */}
               <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />

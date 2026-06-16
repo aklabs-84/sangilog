@@ -167,15 +167,25 @@ export function checkIsBasicOrAbove(profile: any): boolean {
 }
 
 export function getAiDailyLimit(profile: any): number {
-  if (checkIsPro(profile)) return Infinity;
-  if (checkIsBasicOrAbove(profile)) return 30;
-  return 10;
+  if (checkIsPro(profile)) return 30;
+  if (checkIsBasicOrAbove(profile)) return 10;
+  return 0; // Free: AI 사용 불가
+}
+
+export function checkCanUseAi(profile: any): boolean {
+  return getAiDailyLimit(profile) > 0;
 }
 
 export function getClassLimit(profile: any): number {
   if (checkIsPro(profile)) return Infinity;
-  if (checkIsBasicOrAbove(profile)) return 5;
-  return 2;
+  if (checkIsBasicOrAbove(profile)) return 3;
+  return 1;
+}
+
+export function getStudentLimit(profile: any): number {
+  if (checkIsPro(profile)) return Infinity;
+  if (checkIsBasicOrAbove(profile)) return 40;
+  return 20;
 }
 
 export function getBetaDaysLeft(profile: any): number | null {

@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, GraduationCap, Zap, Crown } from 'lucide-react';
 
-type Reason = 'class_limit' | 'ai_limit' | 'ai_bulk' | 'teacher_invite' | 'naiss_export' | 'school_block';
+type Reason = 'class_limit' | 'ai_limit' | 'ai_free_block' | 'ai_bulk' | 'teacher_invite' | 'naiss_export' | 'school_block';
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -20,16 +20,23 @@ const REASON_CONFIG: Record<Reason, {
   class_limit: {
     emoji: '🏫',
     title: '클래스 생성 한도 초과',
-    desc: '현재 플랜의 클래스 생성 한도에 도달했습니다.\n무료: 2개 · Basic: 5개 · Pro: 무제한',
-    freeLimit: '무료 2개 / Basic 5개',
+    desc: '현재 플랜의 클래스 생성 한도에 도달했습니다.\n무료: 1개 · Basic: 3개 · Pro: 무제한',
+    freeLimit: '무료 1개 / Basic 3개',
     proGain: '클래스 무제한 생성',
   },
   ai_limit: {
     emoji: '✨',
     title: 'AI 사용 한도 초과',
-    desc: '오늘의 AI 세특 생성 한도에 도달했습니다.\n무료: 하루 10회 · Basic: 하루 30회 · Pro: 무제한\n자정이 지나면 자동으로 초기화됩니다.',
-    freeLimit: '무료 10회 / Basic 30회',
-    proGain: 'AI 세특 무제한',
+    desc: '오늘의 AI 세특 생성 한도에 도달했습니다.\nBasic: 하루 10회 · Pro: 하루 30회\n자정이 지나면 자동으로 초기화됩니다.',
+    freeLimit: 'Basic 10회 / Pro 30회',
+    proGain: 'AI 세특 하루 30회',
+  },
+  ai_free_block: {
+    emoji: '🤖',
+    title: 'AI 기능은 Basic 이상부터',
+    desc: 'AI 세특 자동 생성은 Basic 플랜부터 사용할 수 있습니다.\nBasic: 하루 10회 · Pro: 하루 30회 + 일괄 생성',
+    freeLimit: 'AI 사용 불가',
+    proGain: 'AI 세특 하루 30회 + 일괄 생성',
   },
   ai_bulk: {
     emoji: '⚡',
@@ -50,7 +57,7 @@ const REASON_CONFIG: Record<Reason, {
     title: 'Pro 기능 — NAISS 내보내기',
     desc: 'NAISS 워크스테이션 및 나이스 포맷 내보내기는 Pro 플랜 전용 기능입니다.',
     freeLimit: '기본 CSV 내보내기만 가능',
-    proGain: 'NAISS 포맷 내보내기 무제한',
+    proGain: 'NAISS 포맷 내보내기',
   },
   school_block: {
     emoji: '🏫',
@@ -126,10 +133,11 @@ const UpgradeModal = ({ isOpen, onClose, reason, currentPlan }: UpgradeModalProp
                 <div className="space-y-2">
                   {[
                     '클래스 무제한 생성',
-                    'AI 세특 초안 무제한',
+                    'AI 세특 하루 30회',
                     '학급 전체 일괄 AI 생성',
                     '교과 교사 연동 초대',
                     'NAISS 포맷 내보내기',
+                    '학교 프로젝트 생성',
                   ].map((item) => (
                     <div key={item} className="flex items-center gap-2 text-sm text-gray-700">
                       <Sparkles size={13} className="text-amber-400 flex-shrink-0" />

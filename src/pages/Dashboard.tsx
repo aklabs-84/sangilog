@@ -12,10 +12,15 @@ import {
   Check,
   X,
   BookOpen,
-  TrendingUp
+  TrendingUp,
+  School,
+  Plus,
+  ExternalLink,
+  Lock
 } from 'lucide-react';
-import { useAuth } from '../lib/auth';
+import { useAuth, checkIsPro } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
+import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
@@ -28,13 +33,31 @@ const Dashboard = () => {
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [subjectInputs, setSubjectInputs] = useState<Record<string, string>>({});
   const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null);
+  const [myProjects, setMyProjects] = useState<any[]>([]);
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<any>(null);
   const [showActivityChart, setShowActivityChart] = useState(false);
   const [chartData, setChartData] = useState<{ daily: { label: string; count: number }[]; byClass: { name: string; count: number }[]; totalCount: number; uniqueStudents: number }>({ daily: [], byClass: [], totalCount: 0, uniqueStudents: 0 });
 
   useEffect(() => {
     fetchDashboardData();
     fetchPendingInvitations();
+    fetchMyProjects();
   }, []);
+
+  const fetchMyProjects = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('school_projects')
+      .select(`
+        id, name, school_name, status, end_date, share_token, created_at,
+        school_project_classes(class_id, teacher_id, classes(name, subject))
+      `)
+      .eq('admin_id', user.id)
+      .neq('status', 'archived')
+      .order('created_at', { ascending: false });
+    setMyProjects(data || []);
+  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -457,6 +480,100 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* 학교 프로젝트 섹션 */}
+        <div className="col-span-12 space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-2">
+              <School size={20} className="text-violet-500" />
+              <h2 className="text-xl font-bold font-manrope">학교 프로젝트</h2>
+              <span className="text-[10px] font-black bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full uppercase tracking-wide">PRO</span>
+            </div>
+            {checkIsPro(profile) && (
+              <button
+                onClick={() => { setEditingProject(null); setProjectModalOpen(true); }}
+                className="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-xl transition-all"
+              >
+                <Plus size={14} /> 새 프로젝트
+              </button>
+            )}
+          </div>
+
+          {!checkIsPro(profile) ? (
+            <div className="surface-card p-6 border border-violet-100 bg-gradient-to-r from-violet-50 to-purple-50 flex items-center gap-4">
+              <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center text-violet-400 shrink-0">
+                <Lock size={22} />
+              </div>
+              <div>
+                <p className="font-black text-sm text-violet-900">Pro 전용 기능</p>
+                <p className="text-xs text-violet-500 mt-0.5">여러 선생님이 하나의 학교 수업을 함께 관리하고, 학교 담당자에게 통합 결과를 공유할 수 있습니다.</p>
+              </div>
+            </div>
+          ) : myProjects.length === 0 ? (
+            <button
+              onClick={() => { setEditingProject(null); setProjectModalOpen(true); }}
+              className="w-full surface-card p-8 border-2 border-dashed border-violet-200 hover:border-violet-400 text-center text-violet-400 hover:text-violet-600 transition-all group"
+            >
+              <School size={32} className="mx-auto mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-sm font-bold">학교 프로젝트 만들기</p>
+              <p className="text-xs mt-1 opacity-70">여러 반을 여러 선생님과 함께 관리하세요</p>
+            </button>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myProjects.map(proj => {
+                const classCount = (proj.school_project_classes || []).length;
+                const isActive = proj.status === 'active';
+                const isClosed = proj.status === 'closed';
+                return (
+                  <div
+                    key={proj.id}
+                    className="surface-card p-6 hover:scale-[1.02] transition-all cursor-pointer group border border-violet-100"
+                    onClick={() => { setEditingProject(proj); setProjectModalOpen(true); }}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center text-violet-600">
+                        <School size={20} />
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        isActive ? 'bg-green-100 text-green-600' :
+                        isClosed ? 'bg-orange-100 text-orange-600' :
+                        'bg-gray-100 text-gray-500'
+                      }`}>
+                        {isActive ? '진행 중' : isClosed ? '수업 종료' : '보관됨'}
+                      </span>
+                    </div>
+                    <h3 className="font-black text-base mb-1 truncate">{proj.name}</h3>
+                    {proj.school_name && <p className="text-xs text-gray-400 mb-3">{proj.school_name}</p>}
+                    <div className="flex items-center justify-between mt-auto">
+                      <p className="text-xs text-gray-500">{classCount}개 클래스</p>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          window.open(`/school-project/${proj.share_token}`, '_blank');
+                        }}
+                        className="flex items-center gap-1 text-[10px] font-bold text-violet-500 hover:text-violet-700 transition-all"
+                      >
+                        <ExternalLink size={11} /> 공유 URL
+                      </button>
+                    </div>
+                    {proj.end_date && (
+                      <p className="text-[10px] text-gray-400 mt-2">
+                        종료일: {new Date(proj.end_date).toLocaleDateString('ko-KR')}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+              <button
+                onClick={() => { setEditingProject(null); setProjectModalOpen(true); }}
+                className="surface-card p-6 border-2 border-dashed border-violet-200 hover:border-violet-400 text-center text-violet-400 hover:text-violet-600 transition-all flex flex-col items-center justify-center gap-2 min-h-[140px]"
+              >
+                <Plus size={24} />
+                <span className="text-xs font-bold">새 프로젝트</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Activity Section */}
         <div className="col-span-12 lg:col-span-5 space-y-6">
           <div className="flex items-center justify-between px-2">
@@ -608,6 +725,14 @@ const Dashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 학교 프로젝트 모달 */}
+      <SchoolProjectModal
+        isOpen={projectModalOpen}
+        onClose={() => { setProjectModalOpen(false); setEditingProject(null); }}
+        onSaved={() => fetchMyProjects()}
+        editProject={editingProject}
+      />
     </motion.div>
   );
 };
