@@ -251,19 +251,20 @@ const ImportFromClassModal = ({
   const handleSelectClass = async (cls: any) => {
     setSelectedClass(cls);
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('class_materials')
-      .select('id, title, content, week_number, is_published')
+      .select('id, title, content, is_published, created_at')
       .eq('class_id', cls.id)
-      .order('week_number', { ascending: true });
-    setMaterials(data || []);
+      .order('created_at', { ascending: false });
+    if (error) console.error('[ImportModal] class_materials fetch error:', error);
+    setMaterials((data || []) as Material[]);
     setLoading(false);
     setStep('material');
   };
 
   const handleSelectMaterial = (material: Material) => {
     if (!window.confirm(`"${material.title}" 내용을 현재 에디터에 복사하시겠습니까?\n현재 작성 중인 내용이 있다면 덮어씁니다.`)) return;
-    onImport(material.title, material.content);
+    onImport(material.title, material.content ?? '');
     onClose();
   };
 
@@ -615,7 +616,7 @@ const MaterialEditor = () => {
       const payload = {
         class_id: selectedClass.id,
         title: title.trim(),
-        content: content.trim(),
+        content: (content ?? '').trim(),
         is_published: isPublished,
         updated_at: new Date().toISOString(),
       };
@@ -629,7 +630,10 @@ const MaterialEditor = () => {
       await fetchMaterials(selectedClass.id);
       setIsEditorOpen(false);
       resetForm();
-    } catch { alert('저장 중 오류가 발생했습니다.'); }
+    } catch (err: any) {
+      console.error('[MaterialEditor] save error:', err);
+      alert(`저장 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
+    }
     finally { setSaving(false); }
   };
 
@@ -672,8 +676,8 @@ const MaterialEditor = () => {
         currentClassId={selectedClass.id}
         userId={user.id}
         onImport={(importedTitle, importedContent) => {
-          setTitle(importedTitle);
-          setContent(importedContent);
+          setTitle(importedTitle ?? '');
+          setContent(importedContent ?? '');
         }}
         onClose={() => setShowImportModal(false)}
       />
