@@ -21,7 +21,6 @@ const Dashboard = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [classes, setClasses] = useState<any[]>([]);
-  const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [totalActivitiesCount, setTotalActivitiesCount] = useState(0);
   const [stats, setStats] = useState({ total: 0, inProgress: 0, completed: 0 });
@@ -108,27 +107,6 @@ const Dashboard = () => {
             color: c.color_hex || 'bg-surface-container-high'
           };
         }));
-      }
-
-      // 1.5 Fetch School Hub Classes (All homeroom classes in the same school)
-      const currentSchoolCode = profile?.school_code;
-      if (currentSchoolCode) {
-        const { data: hubData } = await supabase
-          .from('classes')
-          .select('*, profiles(full_name)')
-          .eq('school_code', currentSchoolCode)
-          .eq('class_type', 'homeroom')
-          .neq('teacher_id', user?.id) // 본인 반 제외
-          .eq('is_archived', false);
-
-        if (hubData) {
-          setSchoolClasses(hubData.map(c => ({
-            id: c.id,
-            name: c.name,
-            teacher: c.profiles?.full_name || '선생님',
-            entry_code: c.entry_code
-          })));
-        }
       }
 
       // 2. Fetch Recent Activities — 학생 제출 기록만 표시
@@ -475,63 +453,7 @@ const Dashboard = () => {
 
         {/* Activity Section */}
         <div className="col-span-12 lg:col-span-5 space-y-6">
-          {/* School Hub - Added here for better layout */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between px-2">
-              <h2 className="text-xl font-bold font-manrope text-primary flex items-center gap-2">
-                <Sparkles size={18} className="animate-pulse" />
-                우리 학교 학급 허브
-              </h2>
-              <span className="text-[9px] font-black bg-primary/10 text-primary px-2 py-1 rounded-full uppercase tracking-tighter">School Live</span>
-            </div>
-            <div className="surface-zone p-6 border-2 border-primary/5 space-y-4 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-[0.03] pointer-events-none">
-                <GraduationCap size={120} />
-              </div>
-              <p className="text-[11px] font-bold text-on-surface-variant leading-relaxed relative z-10">
-                담임 선생님들이 개설한 반을 가져와 <br />자신의 교과 수업을 <span className="text-primary underline underline-offset-2 decoration-2 px-0.5">단 1초 만에</span> 시작하세요.
-              </p>
-              <div className="space-y-3 relative z-10">
-                {schoolClasses.length > 0 ? schoolClasses.map((sc, idx) => (
-                  <motion.div 
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    key={sc.id} 
-                    className="bg-white/70 backdrop-blur-sm p-4 rounded-2xl shadow-sm border border-neutral-100 flex items-center justify-between group hover:border-primary/30 hover:shadow-md hover:shadow-primary/5 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                        <Users size={18} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-black text-neutral-900 group-hover:text-primary transition-colors">{sc.name}</h4>
-                        <p className="text-[10px] text-neutral-400 font-bold flex items-center gap-1">
-                          <span className="w-1 h-1 bg-neutral-300 rounded-full" />
-                          {sc.teacher} 선생님
-                        </p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => navigate(`/classroom?importId=${sc.id}&name=${encodeURIComponent(sc.name)}`)}
-                      className="px-4 py-2 bg-primary text-white text-[10px] font-black rounded-xl opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all shadow-lg shadow-primary/20"
-                    >
-                      수업 개설
-                    </button>
-                  </motion.div>
-                )) : (
-                  <div className="py-10 text-center space-y-3 bg-neutral-50/50 rounded-2xl border border-dashed border-neutral-200">
-                    <div className="w-10 h-10 bg-neutral-100 rounded-full flex items-center justify-center mx-auto text-neutral-300">
-                      <Clock size={20} />
-                    </div>
-                    <p className="text-[11px] text-neutral-400 font-bold">아직 등록된 다른 학급이 없습니다.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between px-2 pt-4">
+          <div className="flex items-center justify-between px-2">
             <h2 className="text-2xl font-bold font-manrope">최근 학생 활동</h2>
             <button
               onClick={() => { fetchActivityChartData(); setShowActivityChart(true); }}
