@@ -25,7 +25,14 @@ export default async function handler(req: any, res: any) {
   const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
   const email = userData?.user?.email;
 
-  // 2. auth.users 삭제 → profiles(ON DELETE CASCADE) 자동 삭제
+  // 2. auth.users FK 참조 테이블 정리 (ON DELETE 미설정 컬럼)
+  await supabaseAdmin.from('whiteboard_participants').delete().eq('user_id', userId);
+  await supabaseAdmin.from('whiteboard_pointers').delete().eq('user_id', userId);
+  await supabaseAdmin.from('whiteboards').update({ created_by: null }).eq('created_by', userId);
+  await supabaseAdmin.from('whiteboard_elements').update({ created_by: null }).eq('created_by', userId);
+  await supabaseAdmin.from('class_board_sessions').update({ created_by: null }).eq('created_by', userId);
+
+  // 3. auth.users 삭제 → profiles(ON DELETE CASCADE) 자동 삭제
   const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
   if (error) {
