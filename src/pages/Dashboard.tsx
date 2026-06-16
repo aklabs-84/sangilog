@@ -16,7 +16,9 @@ import {
   School,
   Plus,
   ExternalLink,
-  Lock
+  Lock,
+  Map,
+  BookMarked
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
@@ -572,6 +574,40 @@ const Dashboard = () => {
               </button>
             </div>
           )}
+        </div>
+
+        {/* 가이드 & 카탈로그 링크 */}
+        <div className="col-span-12 grid grid-cols-2 gap-3">
+          <a
+            href="/catalog.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-5 py-3.5 surface-card hover:bg-surface-container-high border border-surface-container-high transition-all group"
+          >
+            <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0 group-hover:scale-110 transition-transform">
+              <BookMarked size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-bold leading-tight">제품 소개</p>
+              <p className="text-[11px] text-on-surface-variant">플랜 및 기능 안내</p>
+            </div>
+            <ArrowRight size={14} className="ml-auto text-on-surface-variant/40 group-hover:text-primary transition-colors" />
+          </a>
+          <a
+            href="/guide.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-5 py-3.5 surface-card hover:bg-surface-container-high border border-surface-container-high transition-all group"
+          >
+            <div className="w-8 h-8 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary shrink-0 group-hover:scale-110 transition-transform">
+              <Map size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-bold leading-tight">사용 가이드</p>
+              <p className="text-[11px] text-on-surface-variant">처음 시작하는 분께</p>
+            </div>
+            <ArrowRight size={14} className="ml-auto text-on-surface-variant/40 group-hover:text-secondary transition-colors" />
+          </a>
         </div>
 
         {/* Activity Section */}
