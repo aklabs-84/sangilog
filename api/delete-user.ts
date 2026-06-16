@@ -25,12 +25,17 @@ export default async function handler(req: any, res: any) {
   const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
   const email = userData?.user?.email;
 
-  // 2. auth.users FK 참조 테이블 정리 (ON DELETE 미설정 컬럼)
-  await supabaseAdmin.from('whiteboard_participants').delete().eq('user_id', userId);
-  await supabaseAdmin.from('whiteboard_pointers').delete().eq('user_id', userId);
-  await supabaseAdmin.from('whiteboards').update({ created_by: null }).eq('created_by', userId);
-  await supabaseAdmin.from('whiteboard_elements').update({ created_by: null }).eq('created_by', userId);
-  await supabaseAdmin.from('class_board_sessions').update({ created_by: null }).eq('created_by', userId);
+  // 2. auth.users / profiles FK 참조 테이블 정리 (ON DELETE 미설정 컬럼)
+  await Promise.all([
+    // auth.users 직접 참조 (whiteboard 관련)
+    supabaseAdmin.from('whiteboard_members').delete().eq('user_id', userId),
+    supabaseAdmin.from('whiteboard_sessions').delete().eq('user_id', userId),
+    supabaseAdmin.from('whiteboards').update({ created_by: null }).eq('created_by', userId),
+    supabaseAdmin.from('board_objects').update({ created_by: null }).eq('created_by', userId),
+    supabaseAdmin.from('class_board_sessions').update({ created_by: null }).eq('created_by', userId),
+    // profiles.id 참조 (profiles 삭제 전에 정리)
+    supabaseAdmin.from('beta_coupons').update({ created_by: null }).eq('created_by', userId),
+  ]);
 
   // 3. auth.users 삭제 → profiles(ON DELETE CASCADE) 자동 삭제
   const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
