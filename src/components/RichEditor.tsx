@@ -284,7 +284,7 @@ const ResizableImage = ImageExtension.extend({
 // ── Details (Toggle) NodeView ─────────────────────────────────────────────────
 const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeViewProps) => {
   const [summary, setSummary] = useState<string>(node.attrs.summary || '토글 제목');
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setSummary(node.attrs.summary || '토글 제목');
