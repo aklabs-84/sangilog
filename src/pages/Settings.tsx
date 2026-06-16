@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth, checkIsPro, getBetaDaysLeft, checkIsBasicOrAbove, getAiDailyLimit, checkCanUseAi } from '../lib/auth';
+import { useAuth, checkIsPro, getBetaDaysLeft, checkIsBasicOrAbove, getAiMonthlyLimit, checkCanUseAi } from '../lib/auth';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeMode } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -336,14 +336,14 @@ const Settings = () => {
   const betaDaysLeft = getBetaDaysLeft(profile);
   const isBetaActive = betaDaysLeft !== null;
   const isEffectivelyPro = checkIsPro(profile);
-  const aiUsedToday = (() => {
-    if (!profile?.ai_daily_date) return 0;
-    const today = new Date().toISOString().split('T')[0];
-    return profile.ai_daily_date === today ? (profile.ai_daily_count ?? 0) : 0;
+  const aiUsedThisMonth = (() => {
+    if (!profile?.ai_monthly_reset) return 0;
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    return profile.ai_monthly_reset === thisMonth ? (profile.ai_monthly_count ?? 0) : 0;
   })();
 
   const isBasicOnly = checkIsBasicOrAbove(profile) && !checkIsPro(profile);
-  const aiDailyLimit = getAiDailyLimit(profile);
+  const aiMonthlyLimit = getAiMonthlyLimit(profile);
 
   const PLAN_LABEL: Record<string, string> = {
     free: '무료 플랜',
@@ -403,11 +403,11 @@ const Settings = () => {
                 </p>
               ) : plan === 'basic' ? (
                 <p className="text-xs text-blue-600 mt-0.5">
-                  클래스 최대 3개 · AI 세특 하루 10회 · 화이트보드 최대 3개
+                  클래스 최대 3개 · AI 세특 월 100회 · 화이트보드 최대 3개
                 </p>
               ) : plan === 'free' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  클래스 최대 1개 · 학생 최대 20명 · AI 사용 불가
+                  클래스 최대 1개 · 학생 최대 20명 · AI 세특 월 20회 체험
                 </p>
               ) : null}
             </div>
@@ -425,27 +425,27 @@ const Settings = () => {
         {checkCanUseAi(profile) ? (
           <div className="mt-4 pt-4 border-t border-amber-200 grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-bold text-amber-600 mb-1">오늘 AI 사용</p>
+              <p className="text-xs font-bold text-amber-600 mb-1">이번 달 AI 사용</p>
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-2 bg-amber-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-amber-400 rounded-full transition-all"
-                    style={{ width: `${Math.min((aiUsedToday / aiDailyLimit) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((aiUsedThisMonth / aiMonthlyLimit) * 100, 100)}%` }}
                   />
                 </div>
                 <span className="text-sm font-black text-amber-800 whitespace-nowrap">
-                  {aiUsedToday} / {aiDailyLimit}
+                  {aiUsedThisMonth} / {aiMonthlyLimit}
                 </span>
               </div>
-              <p className="text-[10px] text-amber-500 mt-1">자정에 자동 초기화</p>
+              <p className="text-[10px] text-amber-500 mt-1">매월 1일 자동 초기화</p>
             </div>
             {!isEffectivelyPro && (
               <div>
                 <p className="text-xs font-bold text-amber-600 mb-2">{isBasicOnly ? 'Pro 플랜에서 더 가능한 것' : 'Basic / Pro 플랜에서 가능한 것'}</p>
                 <div className="space-y-1">
                   {(isBasicOnly
-                    ? ['AI 세특 하루 30회 (Pro)', '클래스 무제한 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', '학교 프로젝트 생성 (Pro)']
-                    : ['AI 세특 하루 10회 (Basic)', 'AI 세특 하루 30회 (Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)']
+                    ? ['AI 세특 월 500회 (Pro)', '클래스 무제한 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', '학교 프로젝트 생성 (Pro)']
+                    : ['AI 세특 월 100회 (Basic)', 'AI 세특 월 500회 (Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)']
                   ).map(item => (
                     <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                       <Sparkles size={10} className="text-amber-400" /> {item}
@@ -459,7 +459,7 @@ const Settings = () => {
           <div className="mt-4 pt-4 border-t border-amber-200">
             <p className="text-xs font-bold text-amber-600 mb-2">Basic / Pro 플랜에서 가능한 것</p>
             <div className="space-y-1">
-              {['AI 세특 하루 10회 (Basic)', 'AI 세특 하루 30회 (Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)'].map(item => (
+              {['AI 세특 월 100회 (Basic)', 'AI 세특 월 500회 (Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)'].map(item => (
                 <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                   <Sparkles size={10} className="text-amber-400" /> {item}
                 </div>

@@ -91,7 +91,7 @@ interface DashboardStats {
   users: number; classes: number; students: number;
   observations: number; results: number; pendingSuggestions: number;
   pendingRequests: number;
-  aiRanking: { full_name: string | null; email: string | null; ai_daily_count: number }[];
+  aiRanking: { full_name: string | null; email: string | null; ai_monthly_count: number }[];
 }
 type DeleteTarget = { table: string; id: string; label: string } | null;
 
@@ -304,8 +304,8 @@ const Admin = () => {
     ]);
     const { data: aiRanking } = await supabase
       .from('profiles')
-      .select('full_name, email, ai_daily_count')
-      .order('ai_daily_count', { ascending: false })
+      .select('full_name, email, ai_monthly_count')
+      .order('ai_monthly_count', { ascending: false })
       .limit(10);
 
     setDashStats({
@@ -316,7 +316,7 @@ const Admin = () => {
       results:          re.count ?? 0,
       pendingSuggestions: sg.count ?? 0,
       pendingRequests:  rq.count ?? 0,
-      aiRanking:        (aiRanking || []).filter(r => (r.ai_daily_count ?? 0) > 0),
+      aiRanking:        (aiRanking || []).filter(r => (r.ai_monthly_count ?? 0) > 0),
     });
     setDashLoading(false);
   };
@@ -332,7 +332,7 @@ const Admin = () => {
     setUsersLoading(true);
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, plan, school_name, is_admin, ai_daily_count, ai_daily_date, beta_expires_at')
+      .select('id, full_name, email, plan, school_name, is_admin, ai_monthly_count, ai_monthly_reset, beta_expires_at')
       .order('full_name', { ascending: true });
     if (error) console.error('[fetchUsers]', error.message);
     if (data) setUsers(data);
@@ -1018,9 +1018,9 @@ const Admin = () => {
                           </div>
                           <div className="flex items-center gap-1.5">
                             <div className="w-24 h-2 bg-amber-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min((u.ai_daily_count / (dashStats.aiRanking[0]?.ai_daily_count || 1)) * 100, 100)}%` }} />
+                              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min((u.ai_monthly_count / (dashStats.aiRanking[0]?.ai_monthly_count || 1)) * 100, 100)}%` }} />
                             </div>
-                            <span className="text-xs font-black text-amber-700 w-8 text-right">{u.ai_daily_count}</span>
+                            <span className="text-xs font-black text-amber-700 w-8 text-right">{u.ai_monthly_count}</span>
                             <Zap size={11} className="text-amber-400" />
                           </div>
                         </div>
@@ -1142,8 +1142,8 @@ const Admin = () => {
           usersLoading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
           : <div className="space-y-3">
             {users.map(u => {
-              const today = new Date().toISOString().split('T')[0];
-              const aiToday = u.ai_daily_date === today ? (u.ai_daily_count ?? 0) : 0;
+              const thisMonth = new Date().toISOString().slice(0, 7);
+              const aiToday = u.ai_monthly_reset === thisMonth ? (u.ai_monthly_count ?? 0) : 0;
               const planInfo = PLAN_OPTIONS_ALL.find(p => p.value === u.plan) ?? PLAN_OPTIONS_ALL[0];
               const betaActive = u.beta_expires_at && new Date(u.beta_expires_at) > new Date();
               const betaDaysLeft = betaActive

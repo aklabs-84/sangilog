@@ -16,7 +16,7 @@ import {
   BookOpen,
   ChevronUp,
 } from 'lucide-react';
-import { useAuth, checkIsPro, getAiDailyLimit, checkCanUseAi } from '../lib/auth';
+import { useAuth, checkIsPro, getAiMonthlyLimit } from '../lib/auth';
 import { seatukDraftAI, seatukRefineAI, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
 
@@ -46,21 +46,21 @@ const AIAssistant = () => {
   const [recentObsTime, setRecentObsTime] = useState<string | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState<'ai_bulk' | 'ai_limit' | 'ai_free_block'>('ai_bulk');
-  const [todayAiCount, setTodayAiCount] = useState(0);
+  const [monthAiCount, setMonthAiCount] = useState(0);
   const [reportMode, setReportMode] = useState<'school' | 'academy'>('school');
   const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isHomeroom = selectedClass?.class_type === 'homeroom';
-  const aiDailyLimit = getAiDailyLimit(profile);
+  const aiMonthlyLimit = getAiMonthlyLimit(profile);
 
   useEffect(() => { fetchInitialData(); }, []);
   useEffect(() => { if (selectedClassId) fetchObsStats(selectedClassId); }, [selectedClassId]);
   useEffect(() => {
-    if (!profile?.ai_daily_date) { setTodayAiCount(0); return; }
-    const today = new Date().toISOString().split('T')[0];
-    setTodayAiCount(profile.ai_daily_date === today ? (profile.ai_daily_count ?? 0) : 0);
+    if (!profile?.ai_monthly_reset) { setMonthAiCount(0); return; }
+    const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    setMonthAiCount(profile.ai_monthly_reset === thisMonth ? (profile.ai_monthly_count ?? 0) : 0);
   }, [profile]);
 
   const fetchInitialData = async () => {
@@ -226,13 +226,6 @@ ${obsText}
   const handleGenerate = async () => {
     if (!selectedClassId) return;
 
-    // Free 유저 — AI 완전 차단
-    if (!checkCanUseAi(profile)) {
-      setUpgradeReason('ai_free_block');
-      setUpgradeOpen(true);
-      return;
-    }
-
     const isNotPro = !checkIsPro(profile);
 
     if (isNotPro) {
@@ -242,9 +235,9 @@ ${obsText}
         setUpgradeOpen(true);
         return;
       }
-      // 플랜별 일일 한도 체크 (basic=10, pro=30)
-      const dailyLimit = getAiDailyLimit(profile);
-      if (todayAiCount >= dailyLimit) {
+      // 플랜별 월별 한도 체크 (free=20, basic=100, pro=500)
+      const monthlyLimit = getAiMonthlyLimit(profile);
+      if (monthAiCount >= monthlyLimit) {
         setUpgradeReason('ai_limit');
         setUpgradeOpen(true);
         return;
@@ -256,7 +249,7 @@ ${obsText}
     setDraftResults([]);
     setProgress({ current: 0, total: 0 });
 
-    let localAiCount = todayAiCount;
+    let localAiCount = monthAiCount;
 
     try {
       const docType = isHomeroom ? '행동특성 및 종합의견(행특)' : '교과 세부능력 및 특기사항(세특)';
@@ -340,11 +333,11 @@ ${obsText}
         // Pro 미만 플랜 — 학생 1명 생성마다 카운트 증가
         if (isNotPro) {
           localAiCount += 1;
-          const today = new Date().toISOString().split('T')[0];
-          setTodayAiCount(localAiCount);
+          const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+          setMonthAiCount(localAiCount);
           supabase.from('profiles').update({
-            ai_daily_count: localAiCount,
-            ai_daily_date: today,
+            ai_monthly_count: localAiCount,
+            ai_monthly_reset: thisMonth,
           }).eq('id', user?.id).then(() => refreshProfile());
         }
       }
@@ -636,39 +629,40 @@ ${obsText}
                 </p>
               </div>
 
-              {/* 무료 플랜 일일 사용량 표시 */}
+              {/* 이번 달 AI 사용량 표시 */}
               {!checkIsPro(profile) && (
-                <div className={`flex items-center justify-between px-4 py-3 rounded-2xl border ${
-                  todayAiCount >= aiDailyLimit
+                <div className={`px-4 py-3 rounded-2xl border ${
+                  monthAiCount >= aiMonthlyLimit
                     ? 'bg-red-50 border-red-200'
-                    : todayAiCount >= aiDailyLimit * 0.7
+                    : monthAiCount >= aiMonthlyLimit * 0.8
                     ? 'bg-amber-50 border-amber-200'
                     : 'bg-surface-container-low border-surface-container-high'
                 }`}>
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={13} className={
-                      todayAiCount >= aiDailyLimit ? 'text-red-400' :
-                      todayAiCount >= aiDailyLimit * 0.7 ? 'text-amber-400' : 'text-primary/50'
-                    } />
-                    <span className="text-[11px] font-bold text-on-surface-variant">오늘 AI 사용량</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-0.5">
-                      {Array.from({ length: aiDailyLimit }).map((_, i) => (
-                        <div key={i} className={`w-2 h-2 rounded-full ${
-                          i < todayAiCount
-                            ? todayAiCount >= aiDailyLimit ? 'bg-red-400' : 'bg-primary'
-                            : 'bg-surface-container-high'
-                        }`} />
-                      ))}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={13} className={
+                        monthAiCount >= aiMonthlyLimit ? 'text-red-400' :
+                        monthAiCount >= aiMonthlyLimit * 0.8 ? 'text-amber-400' : 'text-primary/50'
+                      } />
+                      <span className="text-[11px] font-bold text-on-surface-variant">이번 달 AI 사용량</span>
                     </div>
                     <span className={`text-[11px] font-black ${
-                      todayAiCount >= aiDailyLimit ? 'text-red-500' :
-                      todayAiCount >= aiDailyLimit * 0.7 ? 'text-amber-500' : 'text-on-surface-variant'
+                      monthAiCount >= aiMonthlyLimit ? 'text-red-500' :
+                      monthAiCount >= aiMonthlyLimit * 0.8 ? 'text-amber-500' : 'text-on-surface-variant'
                     }`}>
-                      {todayAiCount}/{aiDailyLimit}
+                      {monthAiCount}/{aiMonthlyLimit}
                     </span>
                   </div>
+                  <div className="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        monthAiCount >= aiMonthlyLimit ? 'bg-red-400' :
+                        monthAiCount >= aiMonthlyLimit * 0.8 ? 'bg-amber-400' : 'bg-primary'
+                      }`}
+                      style={{ width: `${Math.min((monthAiCount / aiMonthlyLimit) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-on-surface-variant/60 mt-1">매월 1일 자동 초기화</p>
                 </div>
               )}
             </div>

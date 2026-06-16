@@ -166,14 +166,21 @@ export function checkIsBasicOrAbove(profile: any): boolean {
   return false;
 }
 
+export function getAiMonthlyLimit(profile: any): number {
+  if (!profile) return 0;
+  if (profile.plan === 'admin') return Infinity;
+  if (checkIsPro(profile)) return 500;
+  if (checkIsBasicOrAbove(profile)) return 100;
+  return 20; // Free: 월 20회 체험
+}
+
+/** @deprecated getAiMonthlyLimit 으로 대체됨 */
 export function getAiDailyLimit(profile: any): number {
-  if (checkIsPro(profile)) return 30;
-  if (checkIsBasicOrAbove(profile)) return 10;
-  return 0; // Free: AI 사용 불가
+  return getAiMonthlyLimit(profile);
 }
 
 export function checkCanUseAi(profile: any): boolean {
-  return getAiDailyLimit(profile) > 0;
+  return getAiMonthlyLimit(profile) > 0;
 }
 
 export function getClassLimit(profile: any): number {
