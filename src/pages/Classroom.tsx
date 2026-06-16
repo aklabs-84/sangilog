@@ -118,6 +118,10 @@ const Classroom = () => {
   const [schoolCreating, setSchoolCreating] = useState(false);
   const [schoolCopiedId, setSchoolCopiedId] = useState<string | null>(null);
   const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
+  const [editingSchoolId, setEditingSchoolId] = useState<string | null>(null);
+  const [editingSchoolName, setEditingSchoolName] = useState('');
+  const [schoolUpdating, setSchoolUpdating] = useState(false);
+  const [deletingSchoolId, setDeletingSchoolId] = useState<string | null>(null);
   
   
   // 정렬 상태
@@ -776,6 +780,41 @@ const Classroom = () => {
     setSchoolCopiedId(schoolId);
     setTimeout(() => setSchoolCopiedId(null), 2000);
     showToast('🏫 학교 전체 공유 링크가 복사되었습니다.');
+  };
+
+  const handleUpdateSchool = async (schoolId: string) => {
+    if (!editingSchoolName.trim()) return;
+    setSchoolUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('schools')
+        .update({ name: editingSchoolName.trim() })
+        .eq('id', schoolId);
+      if (error) throw error;
+      setSchools(prev => prev.map(s => s.id === schoolId ? { ...s, name: editingSchoolName.trim() } : s));
+      setEditingSchoolId(null);
+      showToast('✅ 학교 이름이 수정되었습니다.');
+    } catch {
+      showToast('수정 중 오류가 발생했습니다.');
+    } finally {
+      setSchoolUpdating(false);
+    }
+  };
+
+  const handleDeleteSchool = async (schoolId: string, schoolName: string) => {
+    if (!window.confirm(`"${schoolName}" 학교 그룹을 삭제할까요?\n배정된 학급은 그룹에서 해제되지만 삭제되지는 않습니다.`)) return;
+    setDeletingSchoolId(schoolId);
+    try {
+      const { error } = await supabase.from('schools').delete().eq('id', schoolId);
+      if (error) throw error;
+      setSchools(prev => prev.filter(s => s.id !== schoolId));
+      setClasses(prev => prev.map(c => c.school_id === schoolId ? { ...c, school_id: null } : c));
+      showToast('🗑️ 학교 그룹이 삭제되었습니다.');
+    } catch {
+      showToast('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingSchoolId(null);
+    }
   };
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -2659,27 +2698,78 @@ const Classroom = () => {
                       {schools.map(school => {
                         const assignedClasses = classes.filter(c => c.school_id === school.id);
                         const isCopied = schoolCopiedId === school.id;
+                        const isEditing = editingSchoolId === school.id;
+                        const isDeleting = deletingSchoolId === school.id;
                         return (
                           <div key={school.id} className="bg-gray-50 rounded-2xl border border-gray-100 p-4 space-y-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="font-black text-gray-900 text-sm truncate">{school.name}</p>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                {/* 학교 이름 — 인라인 편집 */}
+                                {isEditing ? (
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      autoFocus
+                                      type="text"
+                                      value={editingSchoolName}
+                                      onChange={e => setEditingSchoolName(e.target.value)}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') handleUpdateSchool(school.id);
+                                        if (e.key === 'Escape') setEditingSchoolId(null);
+                                      }}
+                                      className="flex-1 px-3 py-1.5 bg-white border-2 border-violet-400 rounded-lg text-sm font-black text-gray-900 outline-none"
+                                    />
+                                    <button
+                                      onClick={() => handleUpdateSchool(school.id)}
+                                      disabled={schoolUpdating}
+                                      className="px-3 py-1.5 bg-violet-600 text-white text-xs font-black rounded-lg hover:bg-violet-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                      {schoolUpdating ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                                      저장
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingSchoolId(null)}
+                                      className="px-3 py-1.5 bg-gray-200 text-gray-600 text-xs font-black rounded-lg hover:bg-gray-300"
+                                    >
+                                      취소
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="font-black text-gray-900 text-sm truncate">{school.name}</p>
+                                )}
                                 <p className="text-[10px] font-bold text-gray-400 mt-0.5">
                                   입장 코드: <span className="text-violet-600 font-black tracking-widest">{school.entry_code}</span>
                                   {' · '}배정된 학급: {assignedClasses.length}개
                                 </p>
                               </div>
-                              <button
-                                onClick={() => handleCopySchoolLink(school.id)}
-                                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${
-                                  isCopied
-                                    ? 'bg-green-500 text-white'
-                                    : 'bg-violet-100 hover:bg-violet-200 text-violet-700'
-                                }`}
-                              >
-                                <Link2 size={12} />
-                                {isCopied ? '복사됨!' : '학교 링크 복사'}
-                              </button>
+                              {/* 링크복사 / 수정 / 삭제 버튼 */}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  onClick={() => handleCopySchoolLink(school.id)}
+                                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${
+                                    isCopied ? 'bg-green-500 text-white' : 'bg-violet-100 hover:bg-violet-200 text-violet-700'
+                                  }`}
+                                >
+                                  <Link2 size={12} />
+                                  {isCopied ? '복사됨!' : '링크 복사'}
+                                </button>
+                                {!isEditing && (
+                                  <button
+                                    onClick={() => { setEditingSchoolId(school.id); setEditingSchoolName(school.name); }}
+                                    className="w-8 h-8 rounded-xl bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-all"
+                                    title="이름 수정"
+                                  >
+                                    <RefreshCw size={13} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleDeleteSchool(school.id, school.name)}
+                                  disabled={isDeleting}
+                                  className="w-8 h-8 rounded-xl bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-400 hover:text-red-600 transition-all disabled:opacity-50"
+                                  title="삭제"
+                                >
+                                  {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                                </button>
+                              </div>
                             </div>
 
                             {/* 클래스 배정 */}
