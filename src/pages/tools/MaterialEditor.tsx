@@ -31,7 +31,7 @@ import {
   Loader2, ChevronDown, Globe, Lock,
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
-  Maximize2,
+  Maximize2, Download,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -219,6 +219,158 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
   );
 };
 
+// ── 다른 클래스에서 가져오기 모달 ─────────────────────────────────────────────
+const ImportFromClassModal = ({
+  currentClassId,
+  userId,
+  onImport,
+  onClose,
+}: {
+  currentClassId: string;
+  userId: string;
+  onImport: (title: string, content: string) => void;
+  onClose: () => void;
+}) => {
+  const [step, setStep] = useState<'class' | 'material'>('class');
+  const [classes, setClasses] = useState<any[]>([]);
+  const [selectedClass, setSelectedClass] = useState<any>(null);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from('classes')
+      .select('id, name')
+      .eq('teacher_id', userId)
+      .eq('is_archived', false)
+      .neq('id', currentClassId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setClasses(data || []); setLoading(false); });
+  }, []);
+
+  const handleSelectClass = async (cls: any) => {
+    setSelectedClass(cls);
+    setLoading(true);
+    const { data } = await supabase
+      .from('class_materials')
+      .select('id, title, content, week_number, is_published')
+      .eq('class_id', cls.id)
+      .order('week_number', { ascending: true });
+    setMaterials(data || []);
+    setLoading(false);
+    setStep('material');
+  };
+
+  const handleSelectMaterial = (material: Material) => {
+    if (!window.confirm(`"${material.title}" 내용을 현재 에디터에 복사하시겠습니까?\n현재 작성 중인 내용이 있다면 덮어씁니다.`)) return;
+    onImport(material.title, material.content);
+    onClose();
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
+          {step === 'material' && (
+            <button
+              onClick={() => { setStep('class'); setSelectedClass(null); setMaterials([]); }}
+              className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant"
+            >
+              <ArrowLeft size={16} />
+            </button>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-on-surface">
+              {step === 'class' ? '다른 클래스에서 가져오기' : selectedClass?.name}
+            </p>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              {step === 'class' ? '가져올 자료가 있는 클래스를 선택하세요' : '가져올 자료를 선택하세요'}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
+          >
+            <XIcon size={16} />
+          </button>
+        </div>
+
+        {/* 본문 */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-primary" />
+            </div>
+          ) : step === 'class' ? (
+            classes.length === 0 ? (
+              <div className="flex flex-col items-center py-12 gap-3 opacity-40">
+                <BookOpen size={36} />
+                <p className="font-black text-sm">다른 클래스가 없습니다</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {classes.map(cls => (
+                  <button
+                    key={cls.id}
+                    onClick={() => handleSelectClass(cls)}
+                    className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl hover:bg-surface-container-low transition-colors group"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <BookOpen size={15} />
+                    </div>
+                    <span className="font-bold text-sm flex-1 text-on-surface">{cls.name}</span>
+                    <ChevronRight size={14} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+                  </button>
+                ))}
+              </div>
+            )
+          ) : (
+            materials.length === 0 ? (
+              <div className="flex flex-col items-center py-12 gap-3 opacity-40">
+                <BookOpen size={36} />
+                <p className="font-black text-sm">이 클래스에 자료가 없습니다</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {materials.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => handleSelectMaterial(m)}
+                    className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl hover:bg-primary/5 border border-transparent hover:border-primary/20 transition-all group"
+                  >
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                      m.is_published ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-container text-on-surface-variant'
+                    }`}>
+                      <BookOpen size={15} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-on-surface truncate">{m.title}</p>
+                      {m.content && (
+                        <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-1 opacity-60">
+                          {m.content.slice(0, 60)}…
+                        </p>
+                      )}
+                    </div>
+                    <Download size={14} className="text-on-surface-variant group-hover:text-primary transition-colors shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // ── 미리보기 전체화면 모달 ────────────────────────────────────────────────────
 const PreviewFullscreenModal = ({
   title,
@@ -365,6 +517,7 @@ const MaterialEditor = () => {
 
   const [presentingMaterial, setPresentingMaterial] = useState<Material | null>(null);
   const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string } | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   useEffect(() => {
     if (user) fetchClasses();
@@ -514,6 +667,17 @@ const MaterialEditor = () => {
     {presentingMaterial && (
       <PresentationModal material={presentingMaterial} onClose={() => setPresentingMaterial(null)} />
     )}
+    {showImportModal && selectedClass && user && (
+      <ImportFromClassModal
+        currentClassId={selectedClass.id}
+        userId={user.id}
+        onImport={(importedTitle, importedContent) => {
+          setTitle(importedTitle);
+          setContent(importedContent);
+        }}
+        onClose={() => setShowImportModal(false)}
+      />
+    )}
     {fullscreenPreview && (
       <PreviewFullscreenModal
         title={fullscreenPreview.title}
@@ -572,6 +736,14 @@ const MaterialEditor = () => {
               <ArrowLeft size={16} />
             </button>
             <span className="font-black text-sm flex-1">{editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성'}</span>
+            {/* 다른 클래스에서 가져오기 */}
+            <button
+              onClick={() => setShowImportModal(true)}
+              title="다른 클래스 자료 가져오기"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary/15 font-black text-xs transition-colors border border-primary/15"
+            >
+              <Download size={12} /> 가져오기
+            </button>
             {/* 뷰 모드 토글 */}
             <div className="flex items-center gap-0.5 bg-surface-container rounded-xl p-1">
               {(['edit', 'preview'] as const).map(mode => (

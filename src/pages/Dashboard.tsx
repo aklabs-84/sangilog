@@ -96,17 +96,33 @@ const Dashboard = () => {
           const classStudents = studentMap[targetId] || [];
           const observedCount = classProgressMap[targetId] || 0;
           const progressPercent = classStudents.length > 0 ? Math.round((observedCount / classStudents.length) * 100) : 0;
-          
+
           return {
             id: c.id,
             name: c.name,
             subject: c.subject,
             students: classStudents.length,
             avatars: classStudents.slice(0, 3).map((s: any) => s.avatar),
-            progress: progressPercent, 
+            progress: progressPercent,
             color: c.color_hex || 'bg-surface-container-high'
           };
         }));
+
+        // 3. Fetch Stats — AI 초안 생성 완료 학생 수 기준
+        const totalStudents = studentData?.length || 0;
+        const { count: completedCount } = await supabase
+          .from('student_evaluations')
+          .select('*', { count: 'exact', head: true })
+          .eq('teacher_id', user?.id)
+          .eq('academic_year', new Date().getFullYear())
+          .neq('setech_content', '')
+          .neq('status', 'empty');
+
+        setStats({
+          total: totalStudents,
+          inProgress: totalStudents - (completedCount || 0),
+          completed: completedCount || 0
+        });
       }
 
       // 2. Fetch Recent Activities — 학생 제출 기록만 표시
@@ -129,16 +145,6 @@ const Dashboard = () => {
           icon: Clock
         })));
       }
-
-      // 3. Fetch Stats
-      const { count: total } = await supabase.from('reports').select('*', { count: 'exact', head: true }).eq('teacher_id', user?.id);
-      const { count: completed } = await supabase.from('reports').select('*', { count: 'exact', head: true }).eq('teacher_id', user?.id).eq('is_published', true);
-      
-      setStats({
-        total: total || 0,
-        inProgress: (total || 0) - (completed || 0),
-        completed: completed || 0
-      });
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -345,8 +351,8 @@ const Dashboard = () => {
               학생 맞춤형 생기부 초안
             </h1>
             <p className="text-on-surface-variant text-sm md:text-base mb-6 md:mb-8 leading-relaxed hidden sm:block">
-              학급 내 관찰 기록을 바탕으로 세밀하게 튜닝된 AI가
-              학기말 리포트 초안을 정성스럽게 작성해 드립니다.
+              학급 내 관찰 기록을 바탕으로 세밀하게 튜닝된 AI가 학기말 리포트 초안을<br />
+              정성스럽게 작성해 드립니다.
             </p>
             <button
               onClick={() => navigate('/ai-assistant')}
