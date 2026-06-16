@@ -37,6 +37,7 @@ import {
   Eye,
   Upload,
   FileText,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAuth, checkIsPro, getClassLimit } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -108,6 +109,15 @@ const Classroom = () => {
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [archivedClasses, setArchivedClasses] = useState<any[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
+
+  // 학교 그룹 관련 상태
+  const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
+  const [schools, setSchools] = useState<any[]>([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+  const [newSchoolName, setNewSchoolName] = useState('');
+  const [schoolCreating, setSchoolCreating] = useState(false);
+  const [schoolCopiedId, setSchoolCopiedId] = useState<string | null>(null);
+  const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
   
   
   // 정렬 상태
@@ -707,6 +717,67 @@ const Classroom = () => {
     showToast('📋 학교 선생님 공유 링크가 복사되었습니다.');
   };
 
+  const fetchSchools = async () => {
+    if (!user) return;
+    setSchoolsLoading(true);
+    try {
+      const { data } = await supabase
+        .from('schools')
+        .select('id, name, entry_code, share_enabled, created_at')
+        .eq('teacher_id', user.id)
+        .order('created_at', { ascending: false });
+      setSchools(data || []);
+    } finally {
+      setSchoolsLoading(false);
+    }
+  };
+
+  const handleCreateSchool = async () => {
+    if (!newSchoolName.trim() || !user) return;
+    setSchoolCreating(true);
+    try {
+      const entryCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const { data, error } = await supabase
+        .from('schools')
+        .insert({ name: newSchoolName.trim(), teacher_id: user.id, entry_code: entryCode })
+        .select()
+        .single();
+      if (error) throw error;
+      setNewSchoolName('');
+      setSchools(prev => [data, ...prev]);
+      showToast(`🏫 "${data.name}" 학교 그룹이 생성되었습니다.`);
+    } catch (err: any) {
+      showToast('학교 그룹 생성 중 오류가 발생했습니다.');
+    } finally {
+      setSchoolCreating(false);
+    }
+  };
+
+  const handleAssignClassToSchool = async (classId: string, schoolId: string | null) => {
+    setAssigningClassId(classId);
+    try {
+      const { error } = await supabase
+        .from('classes')
+        .update({ school_id: schoolId })
+        .eq('id', classId);
+      if (error) throw error;
+      setClasses(prev => prev.map(c => c.id === classId ? { ...c, school_id: schoolId } : c));
+      showToast(schoolId ? '✅ 학급이 학교 그룹에 배정되었습니다.' : '✅ 학교 그룹 배정이 해제되었습니다.');
+    } catch (err) {
+      showToast('배정 중 오류가 발생했습니다.');
+    } finally {
+      setAssigningClassId(null);
+    }
+  };
+
+  const handleCopySchoolLink = (schoolId: string) => {
+    const url = `${window.location.origin}/school-share/${schoolId}`;
+    navigator.clipboard.writeText(url);
+    setSchoolCopiedId(schoolId);
+    setTimeout(() => setSchoolCopiedId(null), 2000);
+    showToast('🏫 학교 전체 공유 링크가 복사되었습니다.');
+  };
+
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeClassId || !newStudentData.name) return;
@@ -1181,16 +1252,27 @@ const Classroom = () => {
                 <span className="hidden sm:inline text-[11px] font-bold text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded-md">⌘K</span>
               </button>
             )}
-            {/* 이동 중 브리핑 버튼 */}
-            {activeClassId ? (
+            {/* 우측 버튼 그룹 */}
+            <div className="ml-auto flex items-center gap-2">
+              {/* 학교 그룹 관리 버튼 */}
               <button
-                onClick={() => setIsBriefingOpen(true)}
-                className="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-600 font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
+                onClick={() => { fetchSchools(); setIsSchoolModalOpen(true); }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-600 font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
               >
-                <Headphones size={14} />
-                이동 중 브리핑
+                <GraduationCap size={14} />
+                <span className="hidden sm:inline">학교 그룹</span>
               </button>
-            ) : <div />}
+              {/* 이동 중 브리핑 버튼 */}
+              {activeClassId && (
+                <button
+                  onClick={() => setIsBriefingOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-600 font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
+                >
+                  <Headphones size={14} />
+                  <span className="hidden sm:inline">이동 중 브리핑</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 2.1 Cohesive Segmented Control */}
@@ -2499,6 +2581,168 @@ const Classroom = () => {
         onClose={() => setUpgradeModalReason(null)}
         reason={upgradeModalReason ?? 'class_limit'}
       />
+
+      {/* ── 학교 그룹 관리 모달 ── */}
+      <AnimatePresence>
+        {isSchoolModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+            onClick={() => setIsSchoolModalOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* 헤더 */}
+              <div className="bg-gradient-to-r from-violet-600 to-indigo-600 px-8 py-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
+                    <GraduationCap size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-white font-black text-base">학교 그룹 관리</h2>
+                    <p className="text-violet-200 text-[11px] font-semibold">같은 학교 학급을 묶어 하나의 링크로 공유</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsSchoolModalOpen(false)}
+                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                {/* 새 학교 그룹 만들기 */}
+                <div className="space-y-3">
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest">새 학교 그룹 만들기</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newSchoolName}
+                      onChange={e => setNewSchoolName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleCreateSchool()}
+                      placeholder="예: ○○고등학교"
+                      className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-200 focus:border-violet-400 focus:bg-white rounded-xl font-bold text-gray-900 outline-none transition-all text-sm placeholder:text-gray-400"
+                    />
+                    <button
+                      onClick={handleCreateSchool}
+                      disabled={!newSchoolName.trim() || schoolCreating}
+                      className="px-5 py-3 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-black rounded-xl text-sm flex items-center gap-2 transition-all"
+                    >
+                      {schoolCreating ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+                      만들기
+                    </button>
+                  </div>
+                </div>
+
+                {/* 학교 목록 */}
+                <div className="space-y-3">
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest">내 학교 그룹</p>
+                  {schoolsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 size={24} className="animate-spin text-violet-400" />
+                    </div>
+                  ) : schools.length === 0 ? (
+                    <div className="py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                      <GraduationCap size={28} className="text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm font-bold text-gray-400">아직 학교 그룹이 없습니다</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {schools.map(school => {
+                        const assignedClasses = classes.filter(c => c.school_id === school.id);
+                        const isCopied = schoolCopiedId === school.id;
+                        return (
+                          <div key={school.id} className="bg-gray-50 rounded-2xl border border-gray-100 p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-black text-gray-900 text-sm truncate">{school.name}</p>
+                                <p className="text-[10px] font-bold text-gray-400 mt-0.5">
+                                  입장 코드: <span className="text-violet-600 font-black tracking-widest">{school.entry_code}</span>
+                                  {' · '}배정된 학급: {assignedClasses.length}개
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleCopySchoolLink(school.id)}
+                                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${
+                                  isCopied
+                                    ? 'bg-green-500 text-white'
+                                    : 'bg-violet-100 hover:bg-violet-200 text-violet-700'
+                                }`}
+                              >
+                                <Link2 size={12} />
+                                {isCopied ? '복사됨!' : '학교 링크 복사'}
+                              </button>
+                            </div>
+
+                            {/* 클래스 배정 */}
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">학급 배정</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {classes.map(cls => {
+                                  const isAssigned = cls.school_id === school.id;
+                                  const isAssigning = assigningClassId === cls.id;
+                                  return (
+                                    <button
+                                      key={cls.id}
+                                      onClick={() => handleAssignClassToSchool(cls.id, isAssigned ? null : school.id)}
+                                      disabled={isAssigning || (cls.school_id !== null && cls.school_id !== school.id)}
+                                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40 ${
+                                        isAssigned
+                                          ? 'bg-violet-600 text-white shadow-sm'
+                                          : cls.school_id !== null && cls.school_id !== school.id
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : 'bg-white border border-gray-200 text-gray-600 hover:border-violet-300 hover:text-violet-600'
+                                      }`}
+                                      title={
+                                        cls.school_id !== null && cls.school_id !== school.id
+                                          ? '다른 학교 그룹에 이미 배정됨'
+                                          : isAssigned ? '클릭하여 배정 해제' : '클릭하여 배정'
+                                      }
+                                    >
+                                      {isAssigning
+                                        ? <Loader2 size={10} className="animate-spin" />
+                                        : isAssigned ? <CheckCircle2 size={10} /> : null
+                                      }
+                                      {cls.name}
+                                      {cls.subject && cls.subject !== '담임' && (
+                                        <span className="opacity-60">· {cls.subject}</span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {assignedClasses.length > 0 && (
+                                <p className="text-[10px] text-violet-600 font-semibold pt-1">
+                                  배정됨: {assignedClasses.map(c => c.name).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 pb-1">
+                  <p className="text-[11px] text-gray-400 leading-relaxed text-center">
+                    학교 링크를 복사하여 관리자·부장 선생님께 공유하세요.<br />
+                    입장 코드를 알면 학교 전체 반의 결과를 탭으로 볼 수 있습니다.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
     </>
   );
