@@ -924,17 +924,20 @@ const MaterialEditor = () => {
                     >
                       {expandedId === material.id ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
-                    {/* 공개/비공개 */}
+                    {/* 공개/비공개 토글 */}
                     <button
                       onClick={() => handleTogglePublish(material)}
                       title={material.is_published ? '비공개로 전환' : '학생에게 공개'}
-                      className={`p-2 rounded-xl transition-colors ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
                         material.is_published
-                          ? 'text-emerald-600 hover:bg-emerald-50'
-                          : 'text-on-surface-variant hover:bg-surface-container'
+                          ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                          : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
                       }`}
                     >
-                      {material.is_published ? <Globe size={15} /> : <Lock size={15} />}
+                      {material.is_published
+                        ? <><Globe size={13} /> 공개 중</>
+                        : <><Lock size={13} /> 비공개</>
+                      }
                     </button>
                     {/* 복사 */}
                     <button
