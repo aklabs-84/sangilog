@@ -1238,7 +1238,7 @@ const Admin = () => {
                         <div className="pt-3 border-t border-blue-100">
                           <p className="text-xs font-bold text-blue-700 mb-2">베타 Pro 액세스 설정</p>
                           <div className="flex items-center gap-2 flex-wrap">
-                            {[7, 14, 30, 90].map(d => (
+                            {[1, 7, 14, 30, 90].map(d => (
                               <button
                                 key={d}
                                 onClick={() => setBetaSetting({ userId: u.id, days: d })}
