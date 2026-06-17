@@ -175,7 +175,7 @@ export default async function handler(req: any, res: any) {
       const costUsd = calcCostUsd(modelId, inputTokens, outputTokens, thinkingTokens);
 
       const supabase = createClient(supabaseUrl, serviceKey);
-      supabase.from('ai_usage_logs').insert({
+      const { error: logError } = await supabase.from('ai_usage_logs').insert({
         user_id:         userId,
         feature_name:    feature,
         model_name:      modelId,
@@ -183,9 +183,8 @@ export default async function handler(req: any, res: any) {
         output_tokens:   outputTokens,
         thinking_tokens: thinkingTokens,
         cost_usd:        costUsd,
-      }).then(({ error }) => {
-        if (error) console.warn('[api/gemini] usage log insert failed:', error.message);
       });
+      if (logError) console.error('[api/gemini] ai_usage_logs insert FAILED:', JSON.stringify(logError));
     }
 
     return res.status(200).json({ result });
