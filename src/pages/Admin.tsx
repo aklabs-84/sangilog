@@ -596,12 +596,13 @@ const Admin = () => {
         since.setHours(0, 0, 0, 0);
       }
 
-      const { data: raw } = await supabase
+      const { data: raw, error: aiError } = await supabase
         .from('ai_usage_logs')
         .select('feature_name, model_name, input_tokens, output_tokens, thinking_tokens, cost_usd, created_at')
         .gte('created_at', since.toISOString())
         .order('created_at', { ascending: true });
 
+      if (aiError) { console.error('[Admin] ai_usage_logs fetch error:', aiError); return; }
       if (!raw) return;
 
       // 기간별 집계
