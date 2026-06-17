@@ -200,5 +200,6 @@ export function getBetaDaysLeft(profile: any): number | null {
   if (!profile?.beta_expires_at) return null;
   const diff = new Date(profile.beta_expires_at).getTime() - Date.now();
   if (diff <= 0) return null;
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  // 서버-브라우저 시계 오차(수 ms~수 초)로 Math.ceil이 실제보다 1 크게 나오는 현상 방지
+  return Math.ceil((diff - 60_000) / (1000 * 60 * 60 * 24)) || 1;
 }
