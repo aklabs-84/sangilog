@@ -468,14 +468,8 @@ const TeachingTools = () => {
                       <Crown size={9} /> BASIC
                     </span>
                   )}
-                  {/* 무료 제한 배지 */}
-                  {isLimited && (
-                    <span className="absolute top-4 right-4 text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">
-                      무료 5문항
-                    </span>
-                  )}
                   {/* 기존 NEW / 준비중 배지 (잠금 아닐 때만) */}
-                  {tool.badge && !isLocked && !isLimited && (
+                  {tool.badge && !isLocked && (
                     <span className={`absolute top-4 right-4 text-[10px] font-black px-2 py-0.5 rounded-full ${
                       tool.badge === 'NEW'
                         ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white'
