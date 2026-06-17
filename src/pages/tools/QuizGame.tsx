@@ -748,14 +748,27 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
             >
               세트 변경
             </button>
-            {/* AI 문제 생성 버튼 (수업 자료가 있을 때) */}
-            {classMaterials.length > 0 && (
+            {/* AI 문제 생성 버튼 */}
+            {classMaterials.length > 0 ? (
               <button
                 onClick={() => { setAiModalOpen(true); setAiError(''); setSelectedMaterial(null); }}
                 className="flex items-center gap-1.5 px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-xs font-black transition-all"
               >
                 ✨ AI 문제 생성
               </button>
+            ) : (
+              <div className="group relative">
+                <button
+                  disabled
+                  className="flex items-center gap-1.5 px-3 py-2 bg-surface-container text-on-surface-variant/40 rounded-xl text-xs font-black cursor-not-allowed"
+                >
+                  ✨ AI 문제 생성
+                </button>
+                <div className="absolute right-0 top-full mt-2 w-56 bg-gray-900 text-white text-[11px] leading-relaxed rounded-xl p-3 shadow-xl z-50 hidden group-hover:block">
+                  <p className="font-black mb-1">📚 수업 자료가 필요합니다</p>
+                  <p className="text-white/70">수업 자료 에디터에서 이 클래스의 자료를 작성하고 <span className="text-violet-300 font-bold">공개</span>로 설정하면 AI 문제 생성이 활성화됩니다.</p>
+                </div>
+              </div>
             )}
             <button
               onClick={() => {
