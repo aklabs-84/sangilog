@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle } from 'lucide-react';
-import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../lib/auth';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap } from 'lucide-react';
+import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
 import QuizGame from './tools/QuizGame';
@@ -10,6 +10,13 @@ import MaterialEditor from './tools/MaterialEditor';
 import ClassTranscription from './tools/ClassTranscription';
 import WhiteboardList from '../components/whiteboard/WhiteboardList';
 import SurveyTool from './tools/SurveyTool';
+
+interface ToolLimits {
+  freeDesc?: string;   // undefined = 무료 사용 불가
+  basicDesc?: string;  // undefined = basic도 불가 or proDesc와 동일
+  proDesc: string;
+  usesAi?: boolean;    // AI 월 쿼터 소모 여부
+}
 
 interface QuickGuideStep {
   title: string;
@@ -29,6 +36,7 @@ interface Tool {
   badge?: string;
   available: boolean;
   planRequired: 'free' | 'limited' | 'basic' | 'pro';
+  limits?: ToolLimits;
   component?: React.ReactNode;
   quickGuide?: QuickGuide;
 }
@@ -41,6 +49,7 @@ const tools: Tool[] = [
     description: '학생들을 랜덤으로 조를 나누고 애니메이션과 함께 발표합니다',
     available: true,
     planRequired: 'free',
+    limits: { freeDesc: '무제한', proDesc: '무제한' },
     component: <GroupPicker />,
     quickGuide: {
       steps: [
@@ -59,6 +68,7 @@ const tools: Tool[] = [
     description: '발표 시간 제한, 쉬는 시간 등 다양한 타이머를 설정합니다',
     available: true,
     planRequired: 'free',
+    limits: { freeDesc: '무제한', proDesc: '무제한' },
     component: <ClassTimer />,
     quickGuide: {
       steps: [
@@ -77,6 +87,12 @@ const tools: Tool[] = [
     badge: 'NEW',
     available: true,
     planRequired: 'limited',
+    limits: {
+      freeDesc: '세트당 최대 5문항',
+      basicDesc: '문항 수 무제한',
+      proDesc: '무제한 + AI 문항 자동 생성',
+      usesAi: true,
+    },
     component: <QuizGame />,
     quickGuide: {
       steps: [
@@ -96,6 +112,7 @@ const tools: Tool[] = [
     badge: 'NEW',
     available: true,
     planRequired: 'basic',
+    limits: { basicDesc: '자료 수 무제한', proDesc: '자료 수 무제한' },
     component: <MaterialEditor />,
     quickGuide: {
       steps: [
@@ -115,6 +132,11 @@ const tools: Tool[] = [
     badge: 'NEW',
     available: true,
     planRequired: 'basic',
+    limits: {
+      basicDesc: 'AI 분석 가능',
+      proDesc: 'AI 분석 가능',
+      usesAi: true,
+    },
     component: <ClassTranscription />,
     quickGuide: {
       steps: [
@@ -134,6 +156,7 @@ const tools: Tool[] = [
     badge: 'NEW',
     available: true,
     planRequired: 'basic',
+    limits: { basicDesc: '클래스당 보드 3개', proDesc: '보드 수 무제한' },
     component: <WhiteboardList />,
     quickGuide: {
       steps: [
@@ -153,6 +176,11 @@ const tools: Tool[] = [
     badge: 'NEW',
     available: true,
     planRequired: 'basic',
+    limits: {
+      basicDesc: '설문 수 무제한',
+      proDesc: '무제한 + AI 결과 분석',
+      usesAi: true,
+    },
     component: <SurveyTool />,
     quickGuide: {
       steps: [
@@ -190,6 +218,21 @@ const TeachingTools = () => {
 
   const isPro = checkIsPro(profile);
   const isBasicOrAbove = checkIsBasicOrAbove(profile);
+
+  const aiLimit = getAiMonthlyLimit(profile);
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const aiUsed = profile?.ai_monthly_reset === thisMonth ? (profile?.ai_monthly_count ?? 0) : 0;
+  const aiRemaining = aiLimit === Infinity ? null : Math.max(0, aiLimit - aiUsed);
+
+  const getMyLimitDesc = (tool: Tool): string => {
+    if (!tool.limits) return '';
+    if (isPro) return tool.limits.proDesc;
+    if (isBasicOrAbove) return tool.limits.basicDesc ?? tool.limits.proDesc;
+    return tool.limits.freeDesc ?? '';
+  };
+
+  const planLabel = profile?.plan === 'admin' ? 'Admin'
+    : isPro ? 'Pro' : isBasicOrAbove ? 'Basic' : 'Free';
 
   const handleToolClick = (tool: Tool) => {
     if (!tool.available) return;
@@ -365,6 +408,24 @@ const TeachingTools = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
           >
+            {/* 도구 화면 상단 한도 배너 */}
+            {activeTool.limits && (
+              <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-2xl bg-surface-container border border-white/30 text-xs">
+                <span className="font-black text-primary/80">{planLabel} 플랜</span>
+                <span className="text-on-surface-variant/50">|</span>
+                <span className="text-on-surface-variant font-medium">{getMyLimitDesc(activeTool)}</span>
+                {activeTool.limits.usesAi && (
+                  <div className={`ml-auto flex items-center gap-1.5 font-black ${
+                    aiRemaining !== null && aiRemaining <= 5 ? 'text-red-500' : 'text-primary'
+                  }`}>
+                    <Zap size={12} />
+                    {aiRemaining !== null
+                      ? <>AI 잔여 <strong>{aiRemaining}</strong> / {aiLimit}회</>
+                      : 'AI 무제한'}
+                  </div>
+                )}
+              </div>
+            )}
             {activeTool.component}
           </motion.div>
         ) : (
@@ -440,6 +501,36 @@ const TeachingTools = () => {
                     <h3 className="font-black text-on-surface text-base">{tool.label}</h3>
                     <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">{tool.description}</p>
                   </div>
+
+                  {/* 플랜별 한도 */}
+                  {tool.limits && tool.available && (
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold ${
+                      isLocked
+                        ? 'bg-amber-50 text-amber-600'
+                        : 'bg-surface-container/60 text-on-surface-variant'
+                    }`}>
+                      {isLocked ? (
+                        <>
+                          <Lock size={10} />
+                          <span>{isBasicLocked ? 'Basic' : 'Pro'} 플랜부터 사용 가능</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="opacity-60">{planLabel}</span>
+                          <span className="opacity-40">·</span>
+                          <span>{getMyLimitDesc(tool)}</span>
+                          {tool.limits.usesAi && aiRemaining !== null && (
+                            <span className={`ml-auto font-black ${aiRemaining <= 5 ? 'text-red-500' : 'text-primary'}`}>
+                              AI 잔여 {aiRemaining}회
+                            </span>
+                          )}
+                          {tool.limits.usesAi && aiRemaining === null && (
+                            <span className="ml-auto font-black text-primary">AI 무제한</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   {tool.available && (
                     <div className="flex items-center justify-between">
