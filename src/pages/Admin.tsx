@@ -38,6 +38,13 @@ interface AiModelRow {
   output_tokens: number;
   thinking_tokens: number;
 }
+interface AiUserRow {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  cost_usd: number;
+  call_count: number;
+}
 
 type ReqFilter = 'all' | 'pending' | 'approved' | 'rejected';
 type ObsFilter = 'all' | 'pending' | 'approved' | 'rejected';
@@ -259,6 +266,7 @@ const Admin = () => {
   const [aiCostRows, setAiCostRows]         = useState<AiCostRow[]>([]);
   const [aiFeatureRows, setAiFeatureRows]   = useState<AiFeatureRow[]>([]);
   const [aiModelRows, setAiModelRows]       = useState<AiModelRow[]>([]);
+  const [aiUserRows, setAiUserRows]         = useState<AiUserRow[]>([]);
   const [aiCostLoading, setAiCostLoading]   = useState(false);
   const [aiTotalUsd, setAiTotalUsd]         = useState(0);
 
@@ -598,7 +606,7 @@ const Admin = () => {
 
       const { data: raw, error: aiError } = await supabase
         .from('ai_usage_logs')
-        .select('feature_name, model_name, input_tokens, output_tokens, thinking_tokens, cost_usd, created_at')
+        .select('user_id, feature_name, model_name, input_tokens, output_tokens, thinking_tokens, cost_usd, created_at')
         .gte('created_at', since.toISOString())
         .order('created_at', { ascending: true });
 
@@ -691,6 +699,36 @@ const Admin = () => {
       setAiModelRows(
         Object.entries(modelMap)
           .map(([model_name, v]) => ({ model_name, ...v }))
+          .sort((a, b) => b.cost_usd - a.cost_usd)
+      );
+
+      // 유저별 집계
+      const userMap: Record<string, { cost_usd: number; call_count: number }> = {};
+      raw.forEach(r => {
+        const k = r.user_id ?? 'unknown';
+        userMap[k] = userMap[k] ?? { cost_usd: 0, call_count: 0 };
+        userMap[k].cost_usd  += r.cost_usd ?? 0;
+        userMap[k].call_count += 1;
+      });
+
+      const userIds = Object.keys(userMap).filter(id => id !== 'unknown');
+      let profileMap: Record<string, { full_name: string | null; email: string | null }> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+        profileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p]));
+      }
+
+      setAiUserRows(
+        Object.entries(userMap)
+          .map(([user_id, v]) => ({
+            user_id,
+            full_name: profileMap[user_id]?.full_name ?? null,
+            email:     profileMap[user_id]?.email ?? null,
+            ...v,
+          }))
           .sort((a, b) => b.cost_usd - a.cost_usd)
       );
     } finally {
@@ -1943,6 +1981,83 @@ const Admin = () => {
                           );
                         });
                       })()}
+                    </div>
+                  )}
+                </div>
+
+                {/* 유저별 비용 */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                  <h3 className="text-sm font-black text-gray-700 flex items-center gap-2 mb-4">
+                    <Users size={16} className="text-blue-500" />
+                    유저별 AI 비용
+                  </h3>
+                  {aiUserRows.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">데이터 없음</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-100">
+                            <th className="text-left py-2 pr-4 font-bold text-gray-500 w-6">#</th>
+                            <th className="text-left py-2 pr-4 font-bold text-gray-500">이름</th>
+                            <th className="text-left py-2 pr-4 font-bold text-gray-500">이메일</th>
+                            <th className="text-right py-2 pr-4 font-bold text-gray-500">호출 수</th>
+                            <th className="text-right py-2 font-bold text-gray-500">비용 (USD)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {aiUserRows.map((r, i) => {
+                            const maxCost = aiUserRows[0]?.cost_usd ?? 0.000001;
+                            const pct = (r.cost_usd / maxCost) * 100;
+                            return (
+                              <tr key={r.user_id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                                <td className="py-2.5 pr-4">
+                                  <span className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] ${
+                                    i === 0 ? 'bg-amber-400 text-white' :
+                                    i === 1 ? 'bg-gray-300 text-white' :
+                                    i === 2 ? 'bg-amber-700 text-white' :
+                                    'bg-gray-100 text-gray-500'
+                                  }`}>{i + 1}</span>
+                                </td>
+                                <td className="py-2.5 pr-4 font-bold text-gray-800">
+                                  {r.full_name || '이름 없음'}
+                                </td>
+                                <td className="py-2.5 pr-4 font-mono text-gray-500 text-[10px]">
+                                  {r.email || r.user_id.slice(0, 8) + '…'}
+                                </td>
+                                <td className="py-2.5 pr-4 text-right text-gray-600 font-bold">
+                                  {r.call_count.toLocaleString()}회
+                                </td>
+                                <td className="py-2.5 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <div className="w-20 h-1.5 bg-blue-50 rounded-full overflow-hidden">
+                                      <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
+                                    </div>
+                                    <span className="font-black text-blue-700 w-20 text-right">
+                                      ${r.cost_usd.toFixed(4)}
+                                    </span>
+                                    <span className="text-gray-400 w-16 text-right">
+                                      ≈ ₩{Math.round(r.cost_usd * 1380).toLocaleString()}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-200">
+                            <td colSpan={3} className="pt-3 text-xs font-black text-gray-600">합계</td>
+                            <td className="pt-3 text-right font-black text-gray-700">
+                              {aiUserRows.reduce((s, r) => s + r.call_count, 0).toLocaleString()}회
+                            </td>
+                            <td className="pt-3 text-right">
+                              <span className="font-black text-blue-700">${aiTotalUsd.toFixed(4)}</span>
+                              <span className="text-gray-400 ml-2">≈ ₩{Math.round(aiTotalUsd * 1380).toLocaleString()}</span>
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
                   )}
                 </div>
