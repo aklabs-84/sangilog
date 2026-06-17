@@ -401,13 +401,17 @@ const Settings = () => {
                 <p className="text-xs text-blue-600 mt-0.5">
                   베타 체험 기간 동안 Pro 기능을 모두 사용하실 수 있습니다
                 </p>
+              ) : plan === 'pro' ? (
+                <p className="text-xs text-amber-600 mt-0.5">
+                  클래스 최대 10개 · 학생 최대 35명/반 · AI 세특 월 500회
+                </p>
               ) : plan === 'basic' ? (
                 <p className="text-xs text-blue-600 mt-0.5">
-                  클래스 최대 3개 · AI 세특 월 100회 · 화이트보드 최대 3개
+                  클래스 최대 5개 · 학생 최대 35명/반 · AI 세특 월 100회
                 </p>
               ) : plan === 'free' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
-                  클래스 최대 1개 · 학생 최대 20명 · AI 세특 월 20회 체험
+                  클래스 최대 1개 · 학생 최대 20명/반 · AI 세특 월 20회 체험
                 </p>
               ) : null}
             </div>
@@ -444,8 +448,8 @@ const Settings = () => {
                 <p className="text-xs font-bold text-amber-600 mb-2">{isBasicOnly ? 'Pro 플랜에서 더 가능한 것' : 'Basic / Pro 플랜에서 가능한 것'}</p>
                 <div className="space-y-1">
                   {(isBasicOnly
-                    ? ['AI 세특 월 500회 (Pro)', '클래스 무제한 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', '학교 프로젝트 생성 (Pro)']
-                    : ['AI 세특 월 100회 (Basic)', 'AI 세특 월 500회 (Pro)', '클래스 최대 3개 (Basic)', '수업 도구 전체 (Basic 이상)']
+                    ? ['AI 세특 월 500회 (Pro)', '클래스 최대 10개 (Pro)', '화이트보드 무제한 (Pro)', '일괄 AI 생성 (Pro)', 'NAISS 내보내기 (Pro)', '학교 프로젝트 생성 (Pro)']
+                    : ['AI 세특 월 100회 (Basic)', 'AI 세특 월 500회 (Pro)', '클래스 최대 5개 (Basic)', '클래스 최대 10개 (Pro)', '수업 도구 전체 (Basic 이상)']
                   ).map(item => (
                     <div key={item} className="flex items-center gap-1.5 text-xs text-amber-700">
                       <Sparkles size={10} className="text-amber-400" /> {item}

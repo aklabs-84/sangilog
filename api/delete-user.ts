@@ -21,6 +21,14 @@ export default async function handler(req: any, res: any) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // 호출자 관리자 인증 검증
+  const token = (req.headers['authorization'] ?? '').replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !caller) return res.status(401).json({ error: 'Unauthorized' });
+  const { data: callerProfile } = await supabaseAdmin.from('profiles').select('is_admin').eq('id', caller.id).single();
+  if (!callerProfile?.is_admin) return res.status(403).json({ error: 'Forbidden: admin only' });
+
   // 1. 이메일 조회 (access_requests 삭제에 필요)
   const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
   const email = userData?.user?.email;

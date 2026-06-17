@@ -330,16 +330,9 @@ ${obsText}
           } catch { /* 조용히 실패 */ }
         }
 
-        // Pro 미만 플랜 — 학생 1명 생성마다 카운트 증가
-        if (isNotPro) {
-          localAiCount += 1;
-          const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-          setMonthAiCount(localAiCount);
-          supabase.from('profiles').update({
-            ai_monthly_count: localAiCount,
-            ai_monthly_reset: thisMonth,
-          }).eq('id', user?.id).then(() => refreshProfile());
-        }
+        // 카운트는 서버(api/gemini.ts)가 처리 — 클라이언트는 로컬 표시만 업데이트
+        localAiCount += 1;
+        setMonthAiCount(localAiCount);
       }
     } catch (err) {
       console.error(err);

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import {
   ShieldCheck, Clock, CheckCircle2, XCircle, Mail, School, User,
   MessageSquare, Loader2, RefreshCw, Copy, Check, Crown, Users,
@@ -266,15 +266,11 @@ const Admin = () => {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting]         = useState(false);
 
-  // ── Auth Guard ─────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!authLoading && (!profile || !profile.is_admin)) navigate('/dashboard');
-  }, [authLoading, profile, navigate]);
-
   // ── 탭 전환 시 로드 ────────────────────────────────────────────────────────
+  // authLoading 또는 비관리자 상태에서는 fetch를 실행하지 않음
 
   useEffect(() => {
+    if (authLoading || !profile?.is_admin) return;
     if (activeTab === 'dashboard')     fetchDashboard();
     if (activeTab === 'requests')      fetchRequests();
     if (activeTab === 'users')         fetchUsers();
@@ -287,7 +283,7 @@ const Admin = () => {
     if (activeTab === 'bugs')          fetchBugs();
     if (activeTab === 'coupons')       fetchCoupons();
     if (activeTab === 'ai_cost')       fetchAiCost('daily');
-  }, [activeTab]);
+  }, [activeTab, authLoading, profile]);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -550,9 +546,13 @@ const Admin = () => {
   const deleteUser = async (userId: string) => {
     setUserDeleting(userId);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/delete-user', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ userId }),
       });
       if (!res.ok) {
@@ -744,9 +744,13 @@ const Admin = () => {
       if (status === 'approved' && req) {
         setApprovalProgress({ step: 'email', name: req.name, email: req.email });
         try {
+          const { data: { session: adminSession } } = await supabase.auth.getSession();
           const res = await fetch('/api/invite-user', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(adminSession?.access_token ? { 'Authorization': `Bearer ${adminSession.access_token}` } : {}),
+            },
             body: JSON.stringify({ email: req.email, name: req.name, plan: plan || 'free' }),
           });
           const resData = await res.json();
@@ -903,6 +907,11 @@ const Admin = () => {
 
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>;
+  }
+
+  // 렌더 시점에서 관리자 권한 확인 — useEffect보다 먼저 실행되어 UI 노출 없음
+  if (!profile?.is_admin) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1166,8 +1175,9 @@ const Admin = () => {
                       </div>
                       <p className="text-xs text-amber-600/70 font-mono">{u.email}</p>
                       {u.school_name && <p className="text-xs text-amber-500 mt-0.5">{u.school_name}</p>}
-                      {u.plan === 'free'  && <p className="text-xs text-gray-400 mt-1">오늘 AI 사용: {aiToday} / 10회</p>}
-                      {u.plan === 'basic' && <p className="text-xs text-blue-400 mt-1">오늘 AI 사용: {aiToday} / 30회</p>}
+                      {u.plan === 'free'  && <p className="text-xs text-gray-400 mt-1">이번 달 AI 사용: {aiToday} / 20회</p>}
+                      {u.plan === 'basic' && <p className="text-xs text-blue-400 mt-1">이번 달 AI 사용: {aiToday} / 100회</p>}
+                      {u.plan === 'pro'   && <p className="text-xs text-amber-400 mt-1">이번 달 AI 사용: {aiToday} / 500회</p>}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
                       {u.plan === 'admin'  ? <ShieldCheck size={14} className="text-emerald-500 shrink-0" /> :

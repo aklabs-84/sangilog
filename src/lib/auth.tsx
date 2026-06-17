@@ -154,14 +154,14 @@ export const useAuth = () => {
 
 export function checkIsPro(profile: any): boolean {
   if (!profile) return false;
-  if (['pro', 'admin'].includes(profile.plan ?? 'free')) return true;
+  if (['pro', 'school', 'admin'].includes(profile.plan ?? 'free')) return true;
   if (profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date()) return true;
   return false;
 }
 
 export function checkIsBasicOrAbove(profile: any): boolean {
   if (!profile) return false;
-  if (['basic', 'pro', 'admin'].includes(profile.plan ?? 'free')) return true;
+  if (['basic', 'pro', 'school', 'admin'].includes(profile.plan ?? 'free')) return true;
   if (profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date()) return true;
   return false;
 }
@@ -169,7 +169,7 @@ export function checkIsBasicOrAbove(profile: any): boolean {
 export function getAiMonthlyLimit(profile: any): number {
   if (!profile) return 0;
   if (profile.plan === 'admin') return Infinity;
-  if (checkIsPro(profile)) return 500;
+  if (checkIsPro(profile)) return 500;  // pro, school, beta 모두 500회
   if (checkIsBasicOrAbove(profile)) return 100;
   return 20; // Free: 월 20회 체험
 }
@@ -184,14 +184,15 @@ export function checkCanUseAi(profile: any): boolean {
 }
 
 export function getClassLimit(profile: any): number {
-  if (checkIsPro(profile)) return Infinity;
-  if (checkIsBasicOrAbove(profile)) return 3;
+  if (profile?.plan === 'admin') return Infinity;
+  if (checkIsPro(profile)) return 10;
+  if (checkIsBasicOrAbove(profile)) return 5;
   return 1;
 }
 
 export function getStudentLimit(profile: any): number {
-  if (checkIsPro(profile)) return Infinity;
-  if (checkIsBasicOrAbove(profile)) return 40;
+  if (profile?.plan === 'admin') return Infinity;
+  if (checkIsBasicOrAbove(profile)) return 35;
   return 20;
 }
 

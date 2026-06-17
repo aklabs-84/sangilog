@@ -1,7 +1,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
 
-const FREE_AI_DAILY_LIMIT = 10;
+const PLAN_MONTHLY_LIMIT: Record<string, number> = {
+  free:   20,
+  basic:  100,
+  pro:    500,
+  school: 500,
+};
 
 // 2026-06 Gemini 단가 (USD per 1M tokens)
 const PRICING: Record<string, { input: number; output: number; thinking: number }> = {
@@ -49,39 +54,65 @@ export default async function handler(req: any, res: any) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  // 인증 없는 익명 AI 호출 차단
+  if (!authHeader || !supabaseUrl || !serviceKey) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   if (authHeader && supabaseUrl && serviceKey) {
     try {
       const supabase = createClient(supabaseUrl, serviceKey);
       const token = authHeader.replace('Bearer ', '');
       const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       if (!authError && user) {
         userId = user.id;
         const { data: profile } = await supabase
           .from('profiles')
-          .select('plan, ai_daily_count, ai_daily_date')
+          .select('plan, beta_expires_at, ai_daily_count, ai_daily_date, ai_monthly_count, ai_monthly_reset')
           .eq('id', user.id)
           .single();
 
-        if (profile && profile.plan === 'free') {
-          const today = new Date().toISOString().split('T')[0];
-          const isNewDay = profile.ai_daily_date !== today;
-          const currentCount = isNewDay ? 0 : (profile.ai_daily_count ?? 0);
+        if (profile) {
+          const plan = profile.plan ?? 'free';
+          const isBetaActive = profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date();
+          const isAdmin = plan === 'admin';
 
-          if (currentCount >= FREE_AI_DAILY_LIMIT) {
-            return res.status(402).json({
-              error: 'AI_LIMIT_EXCEEDED',
-              message: `무료 플랜은 AI를 하루 ${FREE_AI_DAILY_LIMIT}회까지 사용할 수 있습니다. 자정 이후 초기화됩니다.`,
-              used: currentCount,
-              limit: FREE_AI_DAILY_LIMIT,
-            });
+          // admin과 유효한 beta는 한도 체크 제외
+          if (!isAdmin && !isBetaActive) {
+            const thisMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+            const isNewMonth = profile.ai_monthly_reset !== thisMonth;
+            const monthlyUsed = isNewMonth ? 0 : (profile.ai_monthly_count ?? 0);
+            const monthlyLimit = PLAN_MONTHLY_LIMIT[plan] ?? 20;
+
+            if (monthlyUsed >= monthlyLimit) {
+              return res.status(402).json({
+                error: 'AI_LIMIT_EXCEEDED',
+                message: `이번 달 AI 사용 한도(${monthlyLimit}회)에 도달했습니다. 다음 달 1일에 자동으로 초기화됩니다.`,
+                used: monthlyUsed,
+                limit: monthlyLimit,
+              });
+            }
+
+            // 사용량 카운트 업데이트 (비동기, 응답 블로킹 없음)
+            supabase.from('profiles').update({
+              ai_monthly_count: monthlyUsed + 1,
+              ai_monthly_reset: thisMonth,
+              // free 플랜은 일별 카운트도 병행 유지
+              ...(plan === 'free' ? {
+                ai_daily_count: (() => {
+                  const today = new Date().toISOString().split('T')[0];
+                  const isNewDay = profile.ai_daily_date !== today;
+                  return isNewDay ? 1 : (profile.ai_daily_count ?? 0) + 1;
+                })(),
+                ai_daily_date: new Date().toISOString().split('T')[0],
+              } : {}),
+            }).eq('id', user.id).then(() => {});
           }
-
-          const newCount = currentCount + 1;
-          supabase.from('profiles').update({
-            ai_daily_count: newCount,
-            ai_daily_date: today,
-          }).eq('id', user.id).then(() => {});
         }
       }
     } catch (planCheckError) {

@@ -39,7 +39,7 @@ import {
   FileText,
   CheckCircle2,
 } from 'lucide-react';
-import { useAuth, checkIsPro, getClassLimit } from '../lib/auth';
+import { useAuth, checkIsPro, getClassLimit, getStudentLimit } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
 import CodeBlock from '../components/CodeBlock';
@@ -418,8 +418,8 @@ const Classroom = () => {
       return;
     }
 
-    // 플랜별 클래스 수 제한 (Pro/Admin은 무제한)
-    if (!checkIsPro(profile)) {
+    // 플랜별 클래스 수 제한 (admin만 무제한)
+    if (profile?.plan !== 'admin') {
       const classLimit = getClassLimit(profile);
       const { count } = await supabase
         .from('classes')
@@ -821,6 +821,13 @@ const Classroom = () => {
     e.preventDefault();
     if (!activeClassId || !newStudentData.name) return;
 
+    // 플랜별 학생 수 제한 체크
+    const studentLimit = getStudentLimit(profile);
+    if (students.length >= studentLimit) {
+      alert(`현재 플랜에서는 한 클래스에 최대 ${studentLimit}명까지 등록할 수 있습니다.\n플랜을 업그레이드하면 더 많은 학생을 추가할 수 있습니다.`);
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('students')
@@ -861,6 +868,14 @@ const Classroom = () => {
       .filter(n => n.length > 0);
 
     if (names.length === 0) return;
+
+    // 플랜별 학생 수 제한 체크 (일괄 등록 포함)
+    const studentLimit = getStudentLimit(profile);
+    if (students.length + names.length > studentLimit) {
+      const remaining = Math.max(0, studentLimit - students.length);
+      alert(`현재 플랜에서는 한 클래스에 최대 ${studentLimit}명까지 등록할 수 있습니다.\n현재 ${students.length}명 등록 중 — ${remaining}명만 추가 가능합니다.\n플랜을 업그레이드하면 더 많은 학생을 추가할 수 있습니다.`);
+      return;
+    }
 
     try {
       const newStudents = names.map(rawText => {

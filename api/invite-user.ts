@@ -16,11 +16,19 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
+  // 호출자 관리자 인증 검증
+  const token = (req.headers['authorization'] ?? '').replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !caller) return res.status(401).json({ error: 'Unauthorized' });
+  const { data: callerProfile } = await supabaseAdmin.from('profiles').select('is_admin').eq('id', caller.id).single();
+  if (!callerProfile?.is_admin) return res.status(403).json({ error: 'Forbidden: admin only' });
+
   const { email, name, plan } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
-  const assignedPlan = ['free', 'pro', 'school', 'admin'].includes(plan) ? plan : 'free';
+  const assignedPlan = ['free', 'basic', 'pro', 'school', 'admin'].includes(plan) ? plan : 'free';
 
   const host     = req.headers['x-forwarded-host'] || req.headers.host || 'sangilog.vercel.app';
   const protocol = host.includes('localhost') ? 'http' : 'https';

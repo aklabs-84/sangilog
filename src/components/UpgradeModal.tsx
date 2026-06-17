@@ -20,9 +20,9 @@ const REASON_CONFIG: Record<Reason, {
   class_limit: {
     emoji: '🏫',
     title: '클래스 생성 한도 초과',
-    desc: '현재 플랜의 클래스 생성 한도에 도달했습니다.\n무료: 1개 · Basic: 3개 · Pro: 무제한',
-    freeLimit: '무료 1개 / Basic 3개',
-    proGain: '클래스 무제한 생성',
+    desc: '현재 플랜의 클래스 생성 한도에 도달했습니다.\n무료: 1개 · Basic: 5개 · Pro: 10개',
+    freeLimit: '무료 1개 / Basic 5개',
+    proGain: '클래스 최대 10개 생성',
   },
   ai_limit: {
     emoji: '✨',

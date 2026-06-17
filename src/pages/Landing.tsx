@@ -492,6 +492,7 @@ const Landing = () => {
                 borderColor: 'border-gray-200',
                 emoji: '🌱',
                 desc: '처음 시작하는 선생님',
+                price: null,
                 features: [
                   { text: '클래스 최대 1개', ok: true },
                   { text: '학생 최대 20명/클래스', ok: true },
@@ -511,11 +512,11 @@ const Landing = () => {
                 headerColor: 'bg-gradient-to-br from-blue-50 to-indigo-50',
                 borderColor: 'border-blue-300',
                 emoji: '🚀',
-                desc: '베타 테스터 · 시범 운영',
-                betaBadge: true,
+                desc: '꾸준히 활용하는 선생님',
+                price: '9,900',
                 features: [
-                  { text: '클래스 최대 3개', ok: true },
-                  { text: '학생 최대 40명/클래스', ok: true },
+                  { text: '클래스 최대 5개', ok: true },
+                  { text: '학생 최대 35명/클래스', ok: true },
                   { text: '학생 관찰 기록 · 교사 메모', ok: true },
                   { text: 'AI 세특 월 100회', ok: true },
                   { text: '수업 자료 에디터', ok: true },
@@ -534,10 +535,11 @@ const Landing = () => {
                 borderColor: 'border-amber-300',
                 emoji: '⚡',
                 desc: '적극적으로 활용하는 선생님',
+                price: '19,900',
                 highlight: true,
                 features: [
-                  { text: '클래스 무제한', ok: true },
-                  { text: '학생 무제한', ok: true },
+                  { text: '클래스 최대 10개', ok: true },
+                  { text: '학생 최대 35명/클래스', ok: true },
                   { text: '학생 관찰 기록 · 교사 메모', ok: true },
                   { text: 'AI 세특 월 500회', ok: true },
                   { text: '수업 자료 에디터', ok: true },
@@ -548,6 +550,25 @@ const Landing = () => {
                   { text: '학교 프로젝트 생성 · 관리', ok: true },
                 ],
               },
+              {
+                name: 'School',
+                badge: 'SCHOOL',
+                badgeColor: 'bg-violet-500 text-white',
+                headerColor: 'bg-gradient-to-br from-violet-50 to-purple-50',
+                borderColor: 'border-violet-300',
+                emoji: '🏫',
+                desc: '학교 단위 기관 도입',
+                price: '문의',
+                schoolBadge: true,
+                features: [
+                  { text: 'Pro 기능 전체 포함', ok: true },
+                  { text: '교사 계정 통합 관리', ok: true },
+                  { text: '학교 관리자(Admin) 제공', ok: true },
+                  { text: '교사 수에 따라 요금 조정', ok: true },
+                  { text: '단일 청구서 발행', ok: true },
+                  { text: 'S(5명) · M(15명) · L(35명) 티어', ok: true },
+                ],
+              },
             ].map((plan, i) => (
               <motion.div
                 key={plan.name}
@@ -555,21 +576,31 @@ const Landing = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.08 }}
-                className={`rounded-2xl border-2 ${plan.borderColor} overflow-hidden shadow-sm ${plan.highlight ? 'shadow-amber-100 scale-[1.02]' : ''}`}
+                className={`rounded-2xl border-2 ${plan.borderColor} overflow-hidden shadow-sm ${(plan as any).highlight ? 'shadow-amber-100 scale-[1.02]' : ''}`}
               >
                 <div className={`${plan.headerColor} px-5 py-5 relative`}>
-                  {plan.highlight && (
+                  {(plan as any).highlight && (
                     <div className="absolute top-3 right-3 bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">추천</div>
                   )}
-                  {(plan as any).betaBadge && (
-                    <div className="absolute top-3 right-3 bg-blue-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">베타전용</div>
+                  {(plan as any).schoolBadge && (
+                    <div className="absolute top-3 right-3 bg-violet-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full">기관전용</div>
                   )}
                   <div className="text-2xl mb-2">{plan.emoji}</div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg font-black text-gray-900">{plan.name}</span>
                     <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${plan.badgeColor}`}>{plan.badge}</span>
                   </div>
-                  <p className="text-xs text-gray-500">{plan.desc}</p>
+                  <p className="text-xs text-gray-500 mb-2">{plan.desc}</p>
+                  {plan.price === null ? (
+                    <p className="text-sm font-black text-gray-400">무료</p>
+                  ) : plan.price === '문의' ? (
+                    <p className="text-sm font-black text-violet-600">요금 문의</p>
+                  ) : (
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-xl font-black text-gray-900">{plan.price}원</span>
+                      <span className="text-xs text-gray-400">/월</span>
+                    </div>
+                  )}
                 </div>
                 <div className="bg-white px-5 py-4 space-y-2.5">
                   {plan.features.map((f) => (
@@ -580,6 +611,14 @@ const Landing = () => {
                       <span className={`text-xs ${f.ok ? 'text-gray-700 font-medium' : 'text-gray-300'}`}>{f.text}</span>
                     </div>
                   ))}
+                  {(plan as any).schoolBadge && (
+                    <a
+                      href="mailto:aklabs84@naver.com?subject=생기로그 School 플랜 도입 문의"
+                      className="mt-3 block w-full py-2 bg-violet-500 hover:bg-violet-600 text-white text-xs font-black rounded-xl text-center transition-colors"
+                    >
+                      도입 문의하기
+                    </a>
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -589,7 +628,7 @@ const Landing = () => {
             initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
             className="text-center text-xs text-amber-600/60 mt-8"
           >
-            플랜 변경 및 문의: aklabs84@naver.com · 관리자가 직접 플랜을 지정합니다.
+            플랜 변경 및 문의: aklabs84@naver.com · 연 결제 시 2개월 무료
           </motion.p>
         </div>
       </section>
