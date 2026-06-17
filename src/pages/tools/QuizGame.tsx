@@ -278,6 +278,18 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
     setCreatingSet(false);
   };
 
+  // 퀴즈 세트 삭제
+  const handleDeleteQuizSet = async (id: string, title: string) => {
+    if (!window.confirm(`"${title}" 퀴즈 세트를 삭제할까요?\n포함된 모든 문제도 함께 삭제됩니다.`)) return;
+    await supabase.from('quiz_questions').delete().eq('quiz_set_id', id);
+    await supabase.from('quiz_sets').delete().eq('id', id);
+    setQuizSets(prev => prev.filter(qs => qs.id !== id));
+    if (selectedQuizSet?.id === id) {
+      setSelectedQuizSet(null);
+      setQuestions([]);
+    }
+  };
+
   // ── 문제 저장 ──────────────────────────────────────────────────────────────
   const handleSaveQuestion = async () => {
     if (!editingQuestion || !selectedQuizSet) return;
@@ -659,20 +671,31 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
                       const isOtherClass = showAllClasses && qs.class_id !== selectedClass?.id;
                       const otherClassName = isOtherClass ? classes.find(c => c.id === qs.class_id)?.name : null;
                       return (
-                        <button
+                        <div
                           key={qs.id}
-                          onClick={() => handleSelectQuizSet(qs)}
-                          className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-white/40 bg-surface-container-low/50 hover:border-primary/30 hover:bg-primary/5 transition-all text-left group"
+                          className="flex items-center rounded-xl border border-white/40 bg-surface-container-low/50 hover:border-primary/30 hover:bg-primary/5 transition-all group"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <BookOpen size={15} className="text-primary/60 group-hover:text-primary transition-colors shrink-0" />
-                            <span className="text-sm font-bold text-on-surface truncate">{qs.title}</span>
-                            {otherClassName && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-bold shrink-0">{otherClassName}</span>
-                            )}
-                          </div>
-                          <ChevronRight size={15} className="text-on-surface-variant/50 group-hover:text-primary transition-colors shrink-0" />
-                        </button>
+                          <button
+                            onClick={() => handleSelectQuizSet(qs)}
+                            className="flex-1 flex items-center justify-between px-4 py-3 text-left min-w-0"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <BookOpen size={15} className="text-primary/60 group-hover:text-primary transition-colors shrink-0" />
+                              <span className="text-sm font-bold text-on-surface truncate">{qs.title}</span>
+                              {otherClassName && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-bold shrink-0">{otherClassName}</span>
+                              )}
+                            </div>
+                            <ChevronRight size={15} className="text-on-surface-variant/50 group-hover:text-primary transition-colors shrink-0" />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleDeleteQuizSet(qs.id, qs.title); }}
+                            className="p-2.5 mr-1 text-on-surface-variant/30 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                            title="퀴즈 세트 삭제"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
