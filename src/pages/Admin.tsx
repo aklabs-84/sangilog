@@ -9,7 +9,7 @@ import {
   Trash2, BookOpen, GraduationCap, ClipboardList, AlertTriangle,
   BarChart3, FileCheck, Megaphone, Bell, Download, Plus, Send,
   TrendingUp, Zap, Bug, Ticket, Calendar, ToggleLeft, ToggleRight,
-  Shuffle, DollarSign, Cpu, Layers,
+  Shuffle, DollarSign, Cpu, Layers, X, ChevronRight,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -44,6 +44,23 @@ interface AiUserRow {
   email: string | null;
   cost_usd: number;
   call_count: number;
+}
+interface AiDetailLog {
+  created_at: string;
+  model_name: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  thinking_tokens: number | null;
+  cost_usd: number | null;
+  feature_name: string | null;
+  user_id?: string | null;
+  _user_name?: string | null;
+}
+interface AiDetailModal {
+  user_id?: string;
+  user_name?: string;
+  feature_name?: string;
+  feature_label?: string;
 }
 
 type ReqFilter = 'all' | 'pending' | 'approved' | 'rejected';
@@ -138,6 +155,24 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'coupons',       label: '쿠폰',       icon: Ticket },
   { id: 'ai_cost',       label: 'AI 비용',    icon: DollarSign },
 ];
+
+// ── AI Feature Labels ──────────────────────────────────────────────────────────
+
+const FEATURE_LABELS: Record<string, string> = {
+  seatuk_draft:           '세특 초안',
+  seatuk_refine:          '세특 다듬기',
+  seatuk_compress:        '세특 압축',
+  achievement_suggest:    '성취도 추천',
+  class_insight:          '학급 인사이트',
+  detailed_report:        '심층 보고서',
+  ai_chat:                'AI 채팅',
+  file_extract:           '파일 추출',
+  transcription_analysis: '수업 전사 분석',
+  quiz_generator:         '퀴즈 생성',
+  survey_analysis:        '설문 분석',
+  observation_review:     '활동기록 검토',
+  student_analysis:       '학생 분석',
+};
 
 // ── CSV Helper ─────────────────────────────────────────────────────────────────
 
@@ -269,6 +304,9 @@ const Admin = () => {
   const [aiUserRows, setAiUserRows]         = useState<AiUserRow[]>([]);
   const [aiCostLoading, setAiCostLoading]   = useState(false);
   const [aiTotalUsd, setAiTotalUsd]         = useState(0);
+  const [aiDetailModal, setAiDetailModal]   = useState<AiDetailModal | null>(null);
+  const [aiDetailLogs, setAiDetailLogs]     = useState<AiDetailLog[]>([]);
+  const [aiDetailLoading, setAiDetailLoading] = useState(false);
 
   // ── 공통 삭제 ──────────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
@@ -734,6 +772,51 @@ const Admin = () => {
     } finally {
       setAiCostLoading(false);
     }
+  };
+
+  const openAiDetail = async (modal: AiDetailModal) => {
+    setAiDetailModal(modal);
+    setAiDetailLoading(true);
+    setAiDetailLogs([]);
+
+    const now = new Date();
+    let since: Date;
+    if (aiCostView === 'daily') {
+      since = new Date(now); since.setDate(since.getDate() - 6); since.setHours(0, 0, 0, 0);
+    } else if (aiCostView === 'weekly') {
+      since = new Date(now); since.setDate(since.getDate() - 49); since.setHours(0, 0, 0, 0);
+    } else {
+      since = new Date(now); since.setMonth(since.getMonth() - 5); since.setDate(1); since.setHours(0, 0, 0, 0);
+    }
+
+    let query = supabase
+      .from('ai_usage_logs')
+      .select('created_at, model_name, input_tokens, output_tokens, thinking_tokens, cost_usd, feature_name, user_id')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (modal.user_id)     query = query.eq('user_id', modal.user_id);
+    if (modal.feature_name) query = query.eq('feature_name', modal.feature_name);
+
+    const { data } = await query;
+    if (!data) { setAiDetailLoading(false); return; }
+
+    if (modal.feature_name && !modal.user_id) {
+      const userIds = [...new Set(data.map(d => d.user_id).filter(Boolean))] as string[];
+      let nameMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles').select('id, full_name, email').in('id', userIds);
+        nameMap = Object.fromEntries(
+          (profiles ?? []).map(p => [p.id, p.full_name || p.email || p.id.slice(0, 8)])
+        );
+      }
+      setAiDetailLogs(data.map(d => ({ ...d, _user_name: nameMap[d.user_id ?? ''] ?? null })));
+    } else {
+      setAiDetailLogs(data);
+    }
+    setAiDetailLoading(false);
   };
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -2010,7 +2093,11 @@ const Admin = () => {
                             const maxCost = aiUserRows[0]?.cost_usd ?? 0.000001;
                             const pct = (r.cost_usd / maxCost) * 100;
                             return (
-                              <tr key={r.user_id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                              <tr
+                                key={r.user_id}
+                                className="border-b border-gray-50 hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                                onClick={() => openAiDetail({ user_id: r.user_id, user_name: r.full_name || r.email || r.user_id.slice(0, 8) })}
+                              >
                                 <td className="py-2.5 pr-4">
                                   <span className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] ${
                                     i === 0 ? 'bg-amber-400 text-white' :
@@ -2020,7 +2107,10 @@ const Admin = () => {
                                   }`}>{i + 1}</span>
                                 </td>
                                 <td className="py-2.5 pr-4 font-bold text-gray-800">
-                                  {r.full_name || '이름 없음'}
+                                  <span className="group-hover:text-blue-700 transition-colors flex items-center gap-1">
+                                    {r.full_name || '이름 없음'}
+                                    <ChevronRight size={12} className="text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </span>
                                 </td>
                                 <td className="py-2.5 pr-4 font-mono text-gray-500 text-[10px]">
                                   {r.email || r.user_id.slice(0, 8) + '…'}
@@ -2075,26 +2165,19 @@ const Admin = () => {
                       <div className="space-y-2.5">
                         {(() => {
                           const maxCost = Math.max(...aiFeatureRows.map(r => r.cost_usd), 0.000001);
-                          const FEATURE_LABELS: Record<string, string> = {
-                            seatuk_draft:         '세특 초안',
-                            seatuk_refine:        '세특 다듬기',
-                            seatuk_compress:      '세특 압축',
-                            achievement_suggest:  '성취도 추천',
-                            class_insight:        '학급 인사이트',
-                            detailed_report:      '심층 보고서',
-                            ai_chat:              'AI 채팅',
-                            file_extract:         '파일 추출',
-                            transcription_analysis: '수업 전사 분석',
-                            quiz_generator:       '퀴즈 생성',
-                            survey_analysis:      '설문 분석',
-                            observation_review:   '활동기록 검토',
-                            student_analysis:     '학생 분석',
-                          };
                           return aiFeatureRows.map(r => (
-                            <div key={r.feature_name}>
+                            <div
+                              key={r.feature_name}
+                              className="cursor-pointer group rounded-xl p-2 -mx-2 hover:bg-amber-50 transition-colors"
+                              onClick={() => openAiDetail({
+                                feature_name: r.feature_name,
+                                feature_label: FEATURE_LABELS[r.feature_name] ?? r.feature_name,
+                              })}
+                            >
                               <div className="flex justify-between text-xs mb-1">
-                                <span className="font-bold text-gray-700">
+                                <span className="font-bold text-gray-700 group-hover:text-amber-800 flex items-center gap-1 transition-colors">
                                   {FEATURE_LABELS[r.feature_name] ?? r.feature_name}
+                                  <ChevronRight size={12} className="text-amber-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </span>
                                 <span className="font-black text-amber-700">
                                   ${r.cost_usd.toFixed(4)} <span className="text-gray-400 font-normal">({r.call_count}회)</span>
@@ -2155,6 +2238,148 @@ const Admin = () => {
 
       </div>
     </div>
+
+    {/* AI 상세 사용 내역 모달 */}
+    <AnimatePresence>
+      {aiDetailModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setAiDetailModal(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 모달 헤더 */}
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="text-base font-black text-gray-900 flex items-center gap-2">
+                  {aiDetailModal.user_name && (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-black">
+                      {aiDetailModal.user_name}
+                    </span>
+                  )}
+                  {aiDetailModal.feature_label && (
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-black">
+                      {aiDetailModal.feature_label}
+                    </span>
+                  )}
+                  <span className="text-gray-600 font-bold">상세 AI 사용 내역</span>
+                </h2>
+                {!aiDetailLoading && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    총 {aiDetailLogs.length}건 ·{' '}
+                    ${aiDetailLogs.reduce((s, r) => s + (r.cost_usd ?? 0), 0).toFixed(4)} USD
+                    {' '}≈ ₩{Math.round(aiDetailLogs.reduce((s, r) => s + (r.cost_usd ?? 0), 0) * 1380).toLocaleString()}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setAiDetailModal(null)}
+                className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* 모달 바디 */}
+            <div className="flex-1 overflow-y-auto">
+              {aiDetailLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="animate-spin text-blue-400" size={28} />
+                </div>
+              ) : aiDetailLogs.length === 0 ? (
+                <div className="text-center py-16 text-gray-400">
+                  <DollarSign size={36} className="mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">선택한 기간에 사용 내역이 없습니다.</p>
+                </div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-white border-b border-gray-100 z-10">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-bold text-gray-500 whitespace-nowrap">일시</th>
+                      {aiDetailModal.user_id && !aiDetailModal.feature_name && (
+                        <th className="text-left px-4 py-3 font-bold text-gray-500 whitespace-nowrap">기능</th>
+                      )}
+                      {aiDetailModal.feature_name && !aiDetailModal.user_id && (
+                        <th className="text-left px-4 py-3 font-bold text-gray-500 whitespace-nowrap">사용자</th>
+                      )}
+                      <th className="text-left px-4 py-3 font-bold text-gray-500 whitespace-nowrap">모델</th>
+                      <th className="text-right px-4 py-3 font-bold text-gray-500 whitespace-nowrap">입력</th>
+                      <th className="text-right px-4 py-3 font-bold text-gray-500 whitespace-nowrap">출력</th>
+                      <th className="text-right px-4 py-3 font-bold text-gray-500 whitespace-nowrap">추론</th>
+                      <th className="text-right px-4 py-3 font-bold text-gray-500 whitespace-nowrap">비용</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiDetailLogs.map((log, i) => (
+                      <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap font-mono text-[10px]">
+                          {new Date(log.created_at).toLocaleString('ko-KR', {
+                            month: '2-digit', day: '2-digit',
+                            hour: '2-digit', minute: '2-digit',
+                          })}
+                        </td>
+                        {aiDetailModal.user_id && !aiDetailModal.feature_name && (
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md font-bold text-[10px]">
+                              {FEATURE_LABELS[log.feature_name ?? ''] ?? log.feature_name ?? '-'}
+                            </span>
+                          </td>
+                        )}
+                        {aiDetailModal.feature_name && !aiDetailModal.user_id && (
+                          <td className="px-4 py-3 font-bold text-gray-700">
+                            {log._user_name ?? '-'}
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-gray-500 font-mono text-[10px] max-w-[140px] truncate">
+                          {log.model_name ?? '-'}
+                        </td>
+                        <td className="px-4 py-3 text-right text-blue-600 font-bold">
+                          {(log.input_tokens ?? 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right text-emerald-600 font-bold">
+                          {(log.output_tokens ?? 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-right text-violet-500 font-bold">
+                          {(log.thinking_tokens ?? 0) > 0 ? (log.thinking_tokens ?? 0).toLocaleString() : <span className="text-gray-300">-</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right font-black text-gray-800 whitespace-nowrap">
+                          ${(log.cost_usd ?? 0).toFixed(5)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="sticky bottom-0 bg-white border-t-2 border-gray-200">
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-3 font-black text-gray-700 text-xs"
+                      >
+                        합계 ({aiDetailLogs.length}건)
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-gray-800 whitespace-nowrap">
+                        ${aiDetailLogs.reduce((s, r) => s + (r.cost_usd ?? 0), 0).toFixed(5)}
+                        <span className="text-gray-400 font-normal ml-1 text-[10px]">
+                          ≈ ₩{Math.round(aiDetailLogs.reduce((s, r) => s + (r.cost_usd ?? 0), 0) * 1380).toLocaleString()}
+                        </span>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
     {/* 승인 진행 오버레이 */}
 
