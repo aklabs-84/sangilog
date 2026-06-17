@@ -42,6 +42,7 @@ export default async function handler(req: any, res: any) {
   const {
     mode, model = 'flash', prompt, systemInstruction, history, message, files,
     feature = 'unknown',
+    jsonMode = false,
   } = req.body;
 
   if (!mode) {
@@ -126,9 +127,15 @@ export default async function handler(req: any, res: any) {
     const modelId = model === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
     const generativeModel = genAI.getGenerativeModel({
       model: modelId,
-      generationConfig: model === 'pro'
-        ? { temperature: 0.7, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
-        : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 8192 },
+      generationConfig: {
+        ...(model === 'pro'
+          ? { temperature: 0.7, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
+          : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 8192 }),
+        ...(jsonMode && {
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingBudget: 0 },
+        }),
+      },
     });
 
     let result: string;

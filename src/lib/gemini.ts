@@ -103,7 +103,7 @@ async function callProxy(body: object): Promise<string> {
 }
 
 // Compatible wrappers matching the @google/generative-ai interface used in the codebase
-function makeModelWrapper(model: 'pro' | 'flash', feature = 'unknown') {
+function makeModelWrapper(model: 'pro' | 'flash', feature = 'unknown', jsonMode = false) {
   return {
     generateContent: async (input: string | any[]) => {
       const parts = typeof input === 'string' ? [{ text: input }] : input;
@@ -115,6 +115,7 @@ function makeModelWrapper(model: 'pro' | 'flash', feature = 'unknown') {
         model,
         feature,
         prompt,
+        ...(jsonMode && { jsonMode: true }),
         ...(fileParts.length > 0 && { files: fileParts }),
       });
       return { response: { text: () => result } };
@@ -131,7 +132,7 @@ export const seatukRefineAI       = makeModelWrapper('pro',   'seatuk_refine');
 export const seatukCompressAI     = makeModelWrapper('pro',   'seatuk_compress');
 export const achievementSuggestAI = makeModelWrapper('pro',   'achievement_suggest');
 export const transcriptionAI      = makeModelWrapper('flash', 'transcription_analysis');
-export const quizGeneratorAI      = makeModelWrapper('flash', 'quiz_generator');
+export const quizGeneratorAI      = makeModelWrapper('flash', 'quiz_generator', true);
 export const surveyAnalysisAI     = makeModelWrapper('flash', 'survey_analysis');
 export const observationReviewAI  = makeModelWrapper('flash', 'observation_review');
 export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis');
