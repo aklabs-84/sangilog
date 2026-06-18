@@ -69,6 +69,7 @@ interface SubjectDashboardProps {
   onBulkApprove: () => void;
   onResetPin: (id: string) => void;
   groupMap?: Record<string, { name: string; color: string }>;
+  statsRefreshKey?: number;
 }
 
 const SubjectDashboard = ({
@@ -97,6 +98,7 @@ const SubjectDashboard = ({
   onBulkApprove,
   onResetPin,
   groupMap = {},
+  statsRefreshKey = 0,
 }: SubjectDashboardProps) => {
   const navigate = useNavigate();
   const SUBJECT_COL_DEFAULTS = { number: true, group: true, activity: true, approval: true };
@@ -353,7 +355,7 @@ const SubjectDashboard = ({
       }
     };
     fetchStats();
-  }, [classInfo?.id, students.length]);
+  }, [classInfo?.id, students.length, statsRefreshKey]);
 
   const pendingCount = students.reduce((acc, s) => acc + (s.pending_obs_ids?.length || 0), 0);
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;

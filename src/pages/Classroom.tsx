@@ -130,6 +130,7 @@ const Classroom = () => {
 
   // 실시간 모니터링 상태
   const [realtimeToasts, setRealtimeToasts] = useState<{id: string; msg: string}[]>([]);
+  const [statsRefreshKey, setStatsRefreshKey] = useState(0);
   
   // QR 코드 모달 상태
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -345,7 +346,6 @@ const Classroom = () => {
         schema: 'public',
         table: 'observations'
       }, async (payload: any) => {
-        // 1. 학생 정보 조회
         const { data: studentData } = await supabase
           .from('students')
           .select('full_name, class_id')
@@ -353,11 +353,25 @@ const Classroom = () => {
           .single();
 
         const studentName = studentData?.full_name || '학생';
-        
-        // 현재 내가 담임이거나, 이 수업의 담당자일 때만 알림
-        // (필터 자체를 채널에서 더 정교하게 할 수도 있음)
         showToast(`📝 ${studentName}이(가) "${payload.new.activity_name}" 활동을 제출했습니다!`);
         fetchStudents(activeClassId);
+        setStatsRefreshKey(k => k + 1);
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'student_results'
+      }, async (payload: any) => {
+        const { data: studentData } = await supabase
+          .from('students')
+          .select('full_name')
+          .eq('id', payload.new.student_id)
+          .single();
+
+        const studentName = studentData?.full_name || '학생';
+        const title = payload.new.title || `${payload.new.week_number}주차 결과물`;
+        showToast(`📎 ${studentName}이(가) "${title}"을(를) 제출했습니다!`);
+        setStatsRefreshKey(k => k + 1);
       })
       .subscribe();
 
@@ -1619,6 +1633,7 @@ const Classroom = () => {
                   onBulkApprove={handleBulkApprove}
                   onResetPin={handleResetPin}
                   groupMap={groupMap}
+                  statsRefreshKey={statsRefreshKey}
                 />
               )}
             </>
