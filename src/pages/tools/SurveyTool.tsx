@@ -5,7 +5,7 @@ import {
   Play, Users, BarChart2, Copy, CheckCheck,
   Star, ToggleLeft, List, ArrowLeft, StopCircle,
   AlignLeft, SlidersHorizontal, Maximize2, ChevronLeft, ChevronRight, Minimize2,
-  Download, Sparkles, GripVertical, RotateCcw, Link2,
+  Download, Sparkles, GripVertical, RotateCcw, Link2, CopyPlus,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -610,6 +610,9 @@ export default function SurveyTool() {
   const [editingQuestion, setEditingQuestion] = useState<Partial<SurveyQuestion> | null>(null);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [copyingForm, setCopyingForm] = useState<SurveyForm | null>(null);
+  const [copyTargetClassId, setCopyTargetClassId] = useState<string>('');
+  const [isCopying, setIsCopying] = useState(false);
   const [formTitle, setFormTitle] = useState('새 설문');
   const [redirectUrlInput, setRedirectUrlInput] = useState('');
   const [presentMode, setPresentMode] = useState(false);
@@ -840,6 +843,45 @@ export default function SurveyTool() {
     setSurveyForms(prev => prev.filter(f => f.id !== formId));
   };
 
+  // ── 설문 복사 ─────────────────────────────────────────────────────────────
+  const handleConfirmCopy = async () => {
+    if (!copyingForm || !copyTargetClassId || !user) return;
+    setIsCopying(true);
+    const pin = generatePin();
+    const { data: newForm, error } = await supabase.from('survey_forms').insert({
+      teacher_id: user.id,
+      class_id: copyTargetClassId,
+      title: `${copyingForm.title} (복사)`,
+      pin_code: pin,
+      status: 'draft',
+      is_anonymous: copyingForm.is_anonymous,
+      redirect_url: copyingForm.redirect_url,
+    }).select().single();
+    if (error || !newForm) { setIsCopying(false); alert('복사 중 오류가 발생했습니다.'); return; }
+
+    const { data: srcQuestions } = await supabase.from('survey_questions')
+      .select('*').eq('form_id', copyingForm.id).order('order_index');
+    if (srcQuestions && srcQuestions.length > 0) {
+      await supabase.from('survey_questions').insert(
+        srcQuestions.map(q => ({
+          form_id: newForm.id,
+          order_index: q.order_index,
+          type: q.type,
+          text: q.text,
+          options: q.options,
+        }))
+      );
+    }
+
+    if (copyTargetClassId === selectedClass?.id) {
+      setSurveyForms(prev => [newForm, ...prev]);
+    }
+    setIsCopying(false);
+    setCopyingForm(null);
+    setCopyTargetClassId('');
+    alert(`"${newForm.title}" 설문이 복사되었습니다.`);
+  };
+
   // ── 결과 초기화 ───────────────────────────────────────────────────────────
   const handleResetResults = async () => {
     if (!selectedForm) return;
@@ -958,6 +1000,11 @@ export default function SurveyTool() {
                 >
                   <Edit3 size={14} /> 편집
                 </button>
+                <button onClick={() => { setCopyingForm(form); setCopyTargetClassId(''); }} title="다른 클래스로 복사"
+                  style={{ padding: '6px 10px', background: '#F0FDF4', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#065F46' }}
+                >
+                  <CopyPlus size={14} /> 복사
+                </button>
                 <button onClick={() => handleDeleteForm(form.id)} title="삭제"
                   style={{ padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444' }}
                 >
@@ -966,6 +1013,41 @@ export default function SurveyTool() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── 다른 클래스로 복사 모달 ─────────────────────────────────────────── */}
+      {copyingForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}>
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 'bold', color: '#111' }}>다른 클래스로 복사</h3>
+              <button onClick={() => setCopyingForm(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}><X size={20} /></button>
+            </div>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
+              <span style={{ fontWeight: 'bold', color: '#111' }}>"{copyingForm.title}"</span> 설문의 질문 구성을 복사할 클래스를 선택하세요.
+              <br /><span style={{ fontSize: 12, color: '#9CA3AF' }}>응답 데이터는 복사되지 않으며, 새 PIN이 발급됩니다.</span>
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {classes.filter(cls => cls.id !== copyingForm.class_id).map(cls => (
+                <button key={cls.id} onClick={() => setCopyTargetClassId(cls.id)}
+                  style={{ padding: '12px 16px', borderRadius: 10, border: `2px solid ${copyTargetClassId === cls.id ? '#3B82F6' : '#E5E7EB'}`, background: copyTargetClassId === cls.id ? '#EFF6FF' : '#fff', color: '#374151', fontSize: 14, fontWeight: copyTargetClassId === cls.id ? 'bold' : 'normal', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  {cls.name}
+                </button>
+              ))}
+              {classes.filter(cls => cls.id !== copyingForm.class_id).length === 0 && (
+                <p style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center', padding: '16px 0' }}>복사할 수 있는 다른 클래스가 없습니다.</p>
+              )}
+            </div>
+            <button onClick={handleConfirmCopy} disabled={!copyTargetClassId || isCopying}
+              style={{ width: '100%', padding: '12px', background: copyTargetClassId && !isCopying ? '#3B82F6' : '#E5E7EB', color: copyTargetClassId && !isCopying ? '#fff' : '#9CA3AF', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 'bold', cursor: copyTargetClassId && !isCopying ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            >
+              <CopyPlus size={15} /> {isCopying ? '복사 중...' : '복사하기'}
+            </button>
+          </motion.div>
         </div>
       )}
     </div>
