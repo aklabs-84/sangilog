@@ -9,12 +9,12 @@ import {
   Check, Users, BarChart3, MessageSquare, AlertCircle,
   Plus, Sparkles, RefreshCw, Zap,
   History, Trash2, Clock, WifiOff, Save, X, KeyRound, Settings,
-  GraduationCap, Target,
+  GraduationCap, Target, Pause, Play,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type RecordingStatus = 'idle' | 'recording' | 'transcribed' | 'processing' | 'complete' | 'error';
+type RecordingStatus = 'idle' | 'recording' | 'paused' | 'transcribed' | 'processing' | 'complete' | 'error';
 type ResultTab = 'students' | 'evaluation' | 'selfeval';
 type MainTab = 'record' | 'history';
 
@@ -386,6 +386,7 @@ const ClassTranscription = () => {
   const [pastSessions, setPastSessions]         = useState<PastSessionRow[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [historyActiveTab, setHistoryActiveTab] = useState<ResultTab>('students');
 
   // ── Refs ───────────────────────────────────────────────────────────────────
   const isRecordingRef   = useRef(false);
@@ -401,6 +402,7 @@ const ClassTranscription = () => {
   const streamRef         = useRef<MediaStream | null>(null);
   const chunkTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopRequestedRef   = useRef(false);
+  const pauseRequestedRef  = useRef(false);
   const chunkBlobsRef      = useRef<Blob[]>([]);
   const savedSessionIdRef  = useRef<string | null>(null);
 
@@ -608,6 +610,10 @@ const ClassTranscription = () => {
       if (stopRequestedRef.current) {
         stopRequestedRef.current = false;
         await finalize();
+      } else if (pauseRequestedRef.current) {
+        pauseRequestedRef.current = false;
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        setInterimText('');
       } else if (isRecordingRef.current) {
         startNextChunk(stream);
       }
@@ -691,6 +697,28 @@ const ClassTranscription = () => {
 
   const resumeRecording = () => {
     setBackgroundInterrupted(false);
+    requestWakeLock();
+    startGroqRecording(true);
+  };
+
+  const pauseRecording = () => {
+    isRecordingRef.current = false;
+    if (chunkTimerRef.current) { clearTimeout(chunkTimerRef.current); chunkTimerRef.current = null; }
+    stopTimer();
+    releaseWakeLock();
+    setStatus('paused');
+    setInterimText('마지막 구간 변환 중...');
+
+    if (mediaRecorderRef.current?.state === 'recording') {
+      pauseRequestedRef.current = true;
+      mediaRecorderRef.current.stop();
+    } else {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      setInterimText('');
+    }
+  };
+
+  const resumeFromPause = () => {
     requestWakeLock();
     startGroqRecording(true);
   };
@@ -946,9 +974,11 @@ ${transcriptText}
     setSessionSaved(false);
     setBackgroundInterrupted(false);
     setActiveTab('students');
-    transcriptRef.current    = '';
-    elapsedRef.current       = 0;
+    transcriptRef.current     = '';
+    elapsedRef.current        = 0;
     savedSessionIdRef.current = null;
+    stopRequestedRef.current  = false;
+    pauseRequestedRef.current = false;
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1189,13 +1219,22 @@ ${transcriptText}
                       </span>
                     )}
                   </div>
-                  <button
-                    onClick={stopRecording}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-black text-sm shadow-md active:scale-95 transition-all"
-                  >
-                    <Square size={15} />
-                    수업 종료
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={pauseRecording}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-black text-sm active:scale-95 transition-all"
+                    >
+                      <Pause size={15} />
+                      일시정지
+                    </button>
+                    <button
+                      onClick={stopRecording}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-black text-sm shadow-md active:scale-95 transition-all"
+                    >
+                      <Square size={15} />
+                      수업 종료
+                    </button>
+                  </div>
                 </div>
 
                 <div className="bg-surface-container-low rounded-2xl p-4 border border-surface-container min-h-52 max-h-80 overflow-y-auto text-sm leading-loose font-medium">
@@ -1215,6 +1254,58 @@ ${transcriptText}
                 <p className="text-[11px] text-on-surface-variant/50 text-center">
                   수업이 끝나면 "수업 종료"를 눌러주세요. AI가 학생별 관찰 기록, 수업 평가, 자기평가 리포트를 자동 생성합니다.
                 </p>
+              </div>
+            )}
+
+            {status === 'paused' && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-3">
+                    <span className="relative flex h-3 w-3">
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400" />
+                    </span>
+                    <span className="text-sm font-black text-amber-500">일시정지됨</span>
+                    <span className="font-mono text-sm font-black text-on-surface-variant tabular-nums">
+                      {formatTime(elapsedSeconds)}
+                    </span>
+                    {interimText && (
+                      <span className="flex items-center gap-1 text-[11px] text-violet-600 font-bold">
+                        <Loader2 size={11} className="animate-spin" />
+                        AI 변환 중
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-surface-container-low rounded-2xl p-4 border border-amber-100 min-h-32 max-h-80 overflow-y-auto text-sm leading-loose font-medium">
+                  {transcript ? (
+                    <span className="text-on-surface">{transcript}</span>
+                  ) : (
+                    <span className="text-on-surface-variant/40 italic">아직 전사된 내용이 없습니다...</span>
+                  )}
+                  <div ref={transcriptEndRef} />
+                </div>
+
+                <p className="text-[11px] text-on-surface-variant/50 text-center">
+                  잠시 멈췄습니다. 수업을 이어가려면 "녹음 재개"를 눌러주세요.
+                </p>
+
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    onClick={finalizeCurrent}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-surface-container hover:bg-surface-container-high rounded-xl text-sm font-bold text-on-surface-variant transition-all active:scale-95"
+                  >
+                    <Square size={14} />
+                    여기서 종료하기
+                  </button>
+                  <button
+                    onClick={resumeFromPause}
+                    className="btn-gradient flex items-center gap-2 px-8 py-3 rounded-2xl font-black text-base shadow-xl active:scale-95 transition-all"
+                  >
+                    <Play size={18} />
+                    녹음 재개
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1643,7 +1734,14 @@ ${transcriptText}
                           <Trash2 size={15} />
                         </button>
                         <button
-                          onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
+                          onClick={() => {
+                            if (isExpanded) {
+                              setExpandedSessionId(null);
+                            } else {
+                              setExpandedSessionId(session.id);
+                              setHistoryActiveTab('students');
+                            }
+                          }}
                           className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all"
                         >
                           {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -1678,87 +1776,157 @@ ${transcriptText}
                         transition={{ duration: 0.25 }}
                         className="overflow-hidden border-t border-surface-container"
                       >
-                        <div className="p-5 space-y-5">
-                          {analysis ? (
-                            <>
-                              {/* 학생별 관찰 */}
-                              <div>
-                                <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-3">학생별 관찰</p>
-                                <div className="space-y-2">
-                                  {analysis.studentObservations.map(obs => (
-                                    <div key={obs.name} className="flex items-start gap-2.5 p-3 bg-surface-container-low rounded-xl">
-                                      <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full mt-0.5 ${PARTICIPATION_STYLE[obs.participation]}`}>
-                                        {obs.participation}
-                                      </span>
-                                      <div className="min-w-0">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className="text-sm font-black">{obs.name}</span>
-                                          {obs.needsAttention && (
-                                            <span className="text-[10px] font-black text-red-500">추가 지도 필요</span>
-                                          )}
-                                        </div>
-                                        <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">{obs.summary}</p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
+                        {/* 탭 바 */}
+                        {analysis && (
+                          <div className="flex p-1.5 bg-surface-container-low gap-1 flex-wrap border-b border-surface-container">
+                            <button
+                              onClick={() => setHistoryActiveTab('students')}
+                              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-black transition-all ${
+                                historyActiveTab === 'students'
+                                  ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                                  : 'text-on-surface-variant hover:text-on-surface'
+                              }`}
+                            >
+                              <Users size={12} />
+                              학생별 관찰
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                                historyActiveTab === 'students' ? 'bg-white/25' : 'bg-primary/10 text-primary'
+                              }`}>
+                                {analysis.studentObservations.length}명
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => setHistoryActiveTab('evaluation')}
+                              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-black transition-all ${
+                                historyActiveTab === 'evaluation'
+                                  ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                                  : 'text-on-surface-variant hover:text-on-surface'
+                              }`}
+                            >
+                              <BarChart3 size={12} />
+                              수업 품질
+                            </button>
+                            {selfEval && (
+                              <button
+                                onClick={() => setHistoryActiveTab('selfeval')}
+                                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-black transition-all ${
+                                  historyActiveTab === 'selfeval'
+                                    ? 'bg-violet-600 text-white shadow-sm shadow-violet-600/20'
+                                    : 'text-on-surface-variant hover:text-on-surface'
+                                }`}
+                              >
+                                <GraduationCap size={12} />
+                                자기평가
+                              </button>
+                            )}
+                          </div>
+                        )}
 
-                              {/* 수업 평가 점수 */}
-                              <div>
-                                <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-3">수업 품질 평가</p>
-                                <div className="space-y-2">
-                                  {EVAL_ITEMS.map(({ key, label }) => (
-                                    <ScoreBar key={key} label={label} score={analysis.classEvaluation[key as keyof ClassEvaluation] as number} />
-                                  ))}
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                                  <div className="p-3 bg-green-50 rounded-xl border border-green-100">
-                                    <p className="text-[10px] font-black text-green-600 uppercase mb-1">잘된 점</p>
-                                    <p className="text-xs text-green-800 leading-relaxed">{analysis.classEvaluation.strengths}</p>
-                                  </div>
-                                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
-                                    <p className="text-[10px] font-black text-amber-600 uppercase mb-1">개선할 점</p>
-                                    <p className="text-xs text-amber-800 leading-relaxed">{analysis.classEvaluation.improvements}</p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* 자기평가 요약 (기록 보기) */}
-                              {selfEval && (
-                                <div>
-                                  <p className="text-[11px] font-black text-violet-600 uppercase tracking-wider mb-3">선생님 자기평가</p>
-                                  {analysis.lessonGoal && (
-                                    <div className="p-3 bg-violet-50 rounded-xl border border-violet-100 mb-3">
-                                      <p className="text-[10px] font-black text-violet-500 mb-1">수업 목표</p>
-                                      <p className="text-xs text-violet-800">{analysis.lessonGoal}</p>
-                                    </div>
-                                  )}
-                                  <div className="grid grid-cols-3 gap-2 mb-3">
-                                    {[
-                                      { label: '목표 달성', value: selfEval.goalAchievement },
-                                      { label: '개념 전달', value: selfEval.coreConceptCoverage },
-                                      { label: '질문 기술', value: selfEval.questioningSkills },
-                                    ].map(({ label, value }) => (
-                                      <div key={label} className="p-2.5 bg-surface-container-low rounded-xl text-center">
-                                        <p className="text-[10px] font-bold text-on-surface-variant mb-1">{label}</p>
-                                        <p className={`text-lg font-black ${value >= 4 ? 'text-green-600' : value >= 3 ? 'text-amber-500' : 'text-red-500'}`}>{value}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="p-3 bg-violet-50 rounded-xl border border-violet-100">
-                                    <p className="text-[10px] font-black text-violet-600 uppercase mb-1">다음 수업 실행 과제</p>
-                                    <p className="text-xs text-violet-800 leading-relaxed">{selfEval.nextActionItem}</p>
-                                  </div>
-                                </div>
-                              )}
-                            </>
-                          ) : (
+                        <div className="p-5 space-y-4">
+                          {!analysis ? (
                             <div className="flex items-center gap-2 px-3 py-2 bg-surface-container rounded-xl w-fit">
                               <MessageSquare size={13} className="text-on-surface-variant/50" />
                               <span className="text-[11px] text-on-surface-variant/60 font-bold">AI 분석 없음 — 전사 원문만 저장됨</span>
                             </div>
-                          )}
+                          ) : historyActiveTab === 'students' ? (
+                            <div className="space-y-3">
+                              {analysis.studentObservations.map((obs, oi) => (
+                                <motion.div
+                                  key={obs.name}
+                                  initial={{ opacity: 0, y: 8 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: oi * 0.04 }}
+                                  className="surface-card p-5 shadow-ambient"
+                                >
+                                  <div className="flex-1 space-y-2 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-black text-base">{obs.name}</span>
+                                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${PARTICIPATION_STYLE[obs.participation]}`}>
+                                        {obs.participation}
+                                      </span>
+                                      {obs.needsAttention && (
+                                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                                          추가 지도 필요
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-on-surface-variant leading-relaxed">{obs.summary}</p>
+                                    {obs.mentions.length > 0 && (
+                                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                        {obs.mentions.map((m, j) => (
+                                          <span key={j} className="text-[11px] px-2 py-1 bg-surface-container rounded-lg text-on-surface-variant">
+                                            {m}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              ))}
+                              {analysis.notMentioned.length > 0 && (
+                                <div className="p-4 bg-surface-container-low rounded-2xl border border-surface-container">
+                                  <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider mb-2">
+                                    오늘 수업에서 언급되지 않은 학생
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {analysis.notMentioned.map(name => (
+                                      <span key={name} className="text-xs px-3 py-1 bg-surface-container rounded-lg text-on-surface-variant/60 font-bold">
+                                        {name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : historyActiveTab === 'evaluation' ? (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="surface-card p-6 shadow-ambient space-y-6"
+                            >
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <h3 className="text-base font-black flex items-center gap-2">
+                                    <BarChart3 size={18} className="text-primary" />
+                                    항목별 평가
+                                  </h3>
+                                  <div className="text-right">
+                                    <p className="text-[10px] text-on-surface-variant uppercase font-bold">종합 점수</p>
+                                    <p className="text-2xl font-black text-primary leading-none">
+                                      {avgScoreVal}
+                                      <span className="text-sm font-bold text-on-surface-variant"> / 5.0</span>
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="space-y-3 pt-1">
+                                  {EVAL_ITEMS.map(({ key, label }) => (
+                                    <ScoreBar key={key} label={label} score={analysis.classEvaluation[key as keyof ClassEvaluation] as number} />
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="space-y-3 pt-2 border-t border-surface-container">
+                                <div className="p-4 bg-green-50 rounded-2xl border border-green-100">
+                                  <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1.5">잘된 점</p>
+                                  <p className="text-sm text-green-800 leading-relaxed">{analysis.classEvaluation.strengths}</p>
+                                </div>
+                                <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1.5">개선할 점</p>
+                                  <p className="text-sm text-amber-800 leading-relaxed">{analysis.classEvaluation.improvements}</p>
+                                </div>
+                                <div className="p-4 bg-primary/5 rounded-2xl border border-primary/15">
+                                  <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1.5">다음 수업 제안</p>
+                                  <p className="text-sm text-on-surface leading-relaxed">{analysis.classEvaluation.nextClassTip}</p>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ) : historyActiveTab === 'selfeval' && selfEval ? (
+                            <SelfEvalTab
+                              selfEval={selfEval}
+                              classEval={analysis.classEvaluation}
+                              lessonGoal={analysis.lessonGoal}
+                              lessonKeywords={analysis.lessonKeywords}
+                            />
+                          ) : null}
 
                           {/* 전사 원문 */}
                           <div>
