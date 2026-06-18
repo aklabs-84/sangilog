@@ -20,7 +20,11 @@ import {
   Map,
   BookMarked,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
@@ -46,12 +50,56 @@ const Dashboard = () => {
   const [showActivityChart, setShowActivityChart] = useState(false);
   const [chartData, setChartData] = useState<{ daily: { label: string; count: number }[]; byClass: { name: string; count: number }[]; totalCount: number; uniqueStudents: number }>({ daily: [], byClass: [], totalCount: 0, uniqueStudents: 0 });
 
+  // 폴더 관련 상태
+  const [folders, setFolders] = useState<{ id: string; name: string; color_hex: string }[]>([]);
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null); // null = 전체
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [movingClassId, setMovingClassId] = useState<string | null>(null); // 드롭다운 열린 클래스 ID
+
   useEffect(() => {
     fetchDashboardData();
     fetchPendingInvitations();
     fetchMyProjects();
     fetchAssignedClasses();
+    fetchFolders();
   }, []);
+
+  const fetchFolders = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('class_folders')
+      .select('id, name, color_hex')
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: true });
+    setFolders(data || []);
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim() || !user) return;
+    const { data, error } = await supabase
+      .from('class_folders')
+      .insert({ teacher_id: user.id, name: newFolderName.trim(), color_hex: '#6366f1' })
+      .select('id, name, color_hex')
+      .single();
+    if (!error && data) {
+      setFolders(prev => [...prev, data]);
+      setNewFolderName('');
+      setShowCreateFolder(false);
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    await supabase.from('class_folders').delete().eq('id', folderId);
+    setFolders(prev => prev.filter(f => f.id !== folderId));
+    if (activeFolderId === folderId) setActiveFolderId(null);
+  };
+
+  const handleMoveClassToFolder = async (classId: string, folderId: string | null) => {
+    await supabase.from('classes').update({ folder_id: folderId }).eq('id', classId);
+    setClasses(prev => prev.map(c => c.id === classId ? { ...c, folder_id: folderId } : c));
+    setMovingClassId(null);
+  };
 
   const fetchMyProjects = async () => {
     if (!user) return;
@@ -177,7 +225,8 @@ const Dashboard = () => {
             students: classStudents.length,
             avatars: classStudents.slice(0, 3).map((s: any) => s.avatar),
             progress: progressPercent,
-            color: c.color_hex || 'bg-surface-container-high'
+            color: c.color_hex || 'bg-surface-container-high',
+            folder_id: c.folder_id || null
           };
         }));
 
@@ -479,54 +528,182 @@ const Dashboard = () => {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
         {/* Classes Section */}
-        <div className="col-span-12 lg:col-span-7 space-y-6">
+        <div className="col-span-12 lg:col-span-7 space-y-4">
+          {/* 헤더 */}
           <div className="flex items-center justify-between px-2">
             <h2 className="text-xl md:text-2xl font-bold font-manrope">나의 학급</h2>
-            <button 
+            <button
               onClick={() => navigate('/classroom')}
               className="text-xs font-bold text-primary flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
             >
               전체 보기 <ArrowRight size={14} />
             </button>
           </div>
+
+          {/* 폴더 탭 */}
+          <div className="flex items-center gap-2 flex-wrap px-1">
+            {/* 전체 탭 */}
+            <button
+              onClick={() => setActiveFolderId(null)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                activeFolderId === null
+                  ? 'bg-primary text-white shadow-sm shadow-primary/30'
+                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+              }`}
+            >
+              <Folder size={13} />
+              전체
+            </button>
+
+            {/* 폴더 탭 목록 */}
+            {folders.map(folder => (
+              <div key={folder.id} className="relative group/folder flex items-center">
+                <button
+                  onClick={() => setActiveFolderId(folder.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all pr-7 ${
+                    activeFolderId === folder.id
+                      ? 'bg-primary text-white shadow-sm shadow-primary/30'
+                      : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                  }`}
+                >
+                  {activeFolderId === folder.id
+                    ? <FolderOpen size={13} />
+                    : <Folder size={13} />
+                  }
+                  {folder.name}
+                </button>
+                {/* 폴더 삭제 버튼 */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center text-white/60 hover:text-white opacity-0 group-hover/folder:opacity-100 transition-all"
+                  title="폴더 삭제"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
+
+            {/* 폴더 만들기 버튼 */}
+            {!showCreateFolder ? (
+              <button
+                onClick={() => setShowCreateFolder(true)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-on-surface-variant/60 hover:text-primary hover:bg-primary/8 border border-dashed border-surface-container-high transition-all"
+              >
+                <FolderPlus size={13} />
+                폴더 만들기
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  type="text"
+                  value={newFolderName}
+                  onChange={e => setNewFolderName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setShowCreateFolder(false); setNewFolderName(''); } }}
+                  placeholder="폴더 이름"
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-surface-container border border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/20 w-28"
+                />
+                <button onClick={handleCreateFolder} className="px-3 py-1.5 rounded-xl text-xs font-bold bg-primary text-white hover:bg-primary/80 transition-all">
+                  <Check size={12} />
+                </button>
+                <button onClick={() => { setShowCreateFolder(false); setNewFolderName(''); }} className="px-2 py-1.5 rounded-xl text-xs text-on-surface-variant hover:bg-surface-container-high transition-all">
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 클래스 그리드 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
             {loading ? (
               [1, 2].map(i => <div key={i} className="h-[160px] md:h-[200px] surface-card animate-pulse" />)
-            ) : classes.length > 0 ? (
-              classes.map((cls) => (
-                <div
-                  key={cls.id}
-                  onClick={() => navigate(`/classroom?id=${cls.id}`)}
-                  className="surface-card p-5 md:p-8 shadow-ambient hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group"
-                >
-                  <div className={`w-12 h-12 ${cls.color} rounded-2xl flex items-center justify-center mb-6 group-hover:rotate-12 transition-transform`}>
-                    <Users size={24} className="text-on-surface" />
+            ) : (() => {
+              const filteredClasses = activeFolderId === null
+                ? classes
+                : classes.filter(c => c.folder_id === activeFolderId);
+
+              if (filteredClasses.length === 0) {
+                return (
+                  <div className="col-span-2 surface-zone p-10 text-center text-on-surface-variant">
+                    {activeFolderId ? '이 폴더에 학급이 없습니다. 학급 카드의 폴더 버튼으로 이동하세요.' : '등록된 학급이 없습니다. 학급을 먼저 추가해주세요.'}
                   </div>
-                  <h3 className="text-xl font-bold mb-2">{cls.name}</h3>
-                  <p className="text-sm text-on-surface-variant mb-6">{cls.students}명 학생 • {cls.subject}</p>
-                  <div className="flex items-center justify-between mt-auto">
-                    <div className="flex -space-x-2">
-                      {cls.avatars && cls.avatars.map((avatar: string, i: number) => (
-                        <div key={i} className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high overflow-hidden shadow-sm">
-                          <img src={avatar} alt="student" className="w-full h-full object-cover" />
+                );
+              }
+
+              return filteredClasses.map((cls) => {
+                const folderOfClass = folders.find(f => f.id === cls.folder_id);
+                return (
+                  <div
+                    key={cls.id}
+                    className="surface-card p-5 md:p-8 shadow-ambient hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group relative"
+                    onClick={() => navigate(`/classroom?id=${cls.id}`)}
+                  >
+                    {/* 폴더 이동 버튼 */}
+                    <div className="absolute top-3 right-3 z-10" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => setMovingClassId(movingClassId === cls.id ? null : cls.id)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-on-surface-variant/50 hover:text-primary hover:bg-primary/8 opacity-0 group-hover:opacity-100 transition-all"
+                        title="폴더 이동"
+                      >
+                        <Folder size={11} />
+                        {folderOfClass ? folderOfClass.name : '폴더 없음'}
+                        <ChevronDown size={10} />
+                      </button>
+
+                      {/* 폴더 선택 드롭다운 */}
+                      <AnimatePresence>
+                        {movingClassId === cls.id && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            className="absolute top-full right-0 mt-1 bg-white border border-surface-container-high rounded-2xl shadow-xl p-2 min-w-[140px] z-20"
+                          >
+                            <button
+                              onClick={() => handleMoveClassToFolder(cls.id, null)}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold hover:bg-surface-container transition-all ${!cls.folder_id ? 'text-primary' : 'text-on-surface-variant'}`}
+                            >
+                              <Folder size={12} /> 폴더 없음
+                            </button>
+                            {folders.map(f => (
+                              <button
+                                key={f.id}
+                                onClick={() => handleMoveClassToFolder(cls.id, f.id)}
+                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold hover:bg-surface-container transition-all ${cls.folder_id === f.id ? 'text-primary' : 'text-on-surface-variant'}`}
+                              >
+                                <FolderOpen size={12} /> {f.name}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    <div className={`w-12 h-12 ${cls.color} rounded-2xl flex items-center justify-center mb-6 group-hover:rotate-12 transition-transform`}>
+                      <Users size={24} className="text-on-surface" />
+                    </div>
+                    <h3 className="text-xl font-bold mb-2">{cls.name}</h3>
+                    <p className="text-sm text-on-surface-variant mb-6">{cls.students}명 학생 • {cls.subject}</p>
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex -space-x-2">
+                        {cls.avatars && cls.avatars.map((avatar: string, i: number) => (
+                          <div key={i} className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high overflow-hidden shadow-sm">
+                            <img src={avatar} alt="student" className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                        <div className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-highest flex items-center justify-center text-[10px] font-bold shadow-sm">
+                          +{cls.students > 3 ? cls.students - 3 : 0}
                         </div>
-                      ))}
-                      <div className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-highest flex items-center justify-center text-[10px] font-bold shadow-sm">
-                        +{cls.students > 3 ? cls.students - 3 : 0}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">진척도</p>
+                        <p className="text-sm font-black text-primary">{cls.progress}%</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-tighter">진척도</p>
-                      <p className="text-sm font-black text-primary">{cls.progress}%</p>
-                    </div>
                   </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-2 surface-zone p-10 text-center text-on-surface-variant">
-                등록된 학급이 없습니다. 학급을 먼저 추가해주세요.
-              </div>
-            )}
+                );
+              });
+            })()}
           </div>
         </div>
 
