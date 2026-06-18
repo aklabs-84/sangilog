@@ -211,7 +211,10 @@ const StudentView = () => {
         await supabase.storage.from('student-attachments').remove(storagePaths);
       }
       if (groupItems[0]?.submission_group) {
-        await supabase.from('student_results').delete().eq('submission_group', groupId);
+        // student_id 필터 필수 — 같은 submission_group을 가진 다른 조원의 행을 삭제하지 않음
+        await supabase.from('student_results').delete()
+          .eq('submission_group', groupId)
+          .eq('student_id', id!);
       } else {
         await supabase.from('student_results').delete().eq('id', groupId);
       }

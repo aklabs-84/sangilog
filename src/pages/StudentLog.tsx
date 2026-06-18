@@ -971,11 +971,12 @@ const StudentLog = () => {
           await supabase.from('student_results').update({ title: base.title }).eq('id', existingFile.id);
         }
 
-        // 반려 상태였으면 제출 상태로 초기화
+        // 반려 상태였으면 제출 상태로 초기화 — student_id 필터로 본인 행만 처리
         if (editingResult.submission_group) {
           await supabase.from('student_results')
             .update({ status: 'submitted', rejection_feedback: null })
-            .eq('submission_group', editingResult.submission_group);
+            .eq('submission_group', editingResult.submission_group)
+            .eq('student_id', session!.student_id);
         }
 
         resetResultForm();
@@ -1122,14 +1123,31 @@ const StudentLog = () => {
   };
 
   const handleDeleteResult = async (result: any) => {
-    if (!confirm('이 결과물을 삭제하시겠습니까?')) return;
+    // 그룹 카드에서 삭제 시 그룹 전체 삭제
+    const groupRows: any[] = result._group && result._group.length > 1
+      ? result._group
+      : [result];
+    const confirmMsg = groupRows.length > 1
+      ? `이 결과 제출(${groupRows.length}개 항목)을 모두 삭제하시겠습니까?`
+      : '이 결과물을 삭제하시겠습니까?';
+    if (!confirm(confirmMsg)) return;
     try {
-      if (result.storage_path) {
-        await supabase.storage.from('student-attachments').remove([result.storage_path]);
+      const storagePaths = groupRows.filter(r => r.storage_path).map(r => r.storage_path);
+      if (storagePaths.length > 0) {
+        await supabase.storage.from('student-attachments').remove(storagePaths);
       }
-      const { error } = await supabase.from('student_results').delete().eq('id', result.id);
-      if (error) throw error;
-      setResults(prev => prev.filter(r => r.id !== result.id));
+      if (result.submission_group && groupRows.length > 1) {
+        // student_id 필터 필수 — 같은 submission_group을 가진 다른 조원의 행을 삭제하지 않음
+        const { error } = await supabase.from('student_results').delete()
+          .eq('submission_group', result.submission_group)
+          .eq('student_id', session!.student_id);
+        if (error) throw error;
+        setResults(prev => prev.filter(r => r.submission_group !== result.submission_group));
+      } else {
+        const { error } = await supabase.from('student_results').delete().eq('id', result.id);
+        if (error) throw error;
+        setResults(prev => prev.filter(r => r.id !== result.id));
+      }
       showToast('삭제되었습니다.');
     } catch (err: any) {
       showToast('삭제 중 오류가 발생했습니다.', 'error');
@@ -2326,7 +2344,30 @@ ${guidePrompt}
             {activeTab === 'history' && (() => {
               // 관찰 기록 + 결과 제출 통합 타임라인
               const obsItems = historyLogs.map(l => ({ ...l, _kind: 'obs' as const }));
-              const resItems = results.map(r => ({ ...r, _kind: 'result' as const }));
+
+              // submission_group 기준으로 결과 제출 그룹핑
+              const groupedResultMap: Record<string, any[]> = {};
+              results.forEach(r => {
+                const gKey = r.submission_group || r.id;
+                if (!groupedResultMap[gKey]) groupedResultMap[gKey] = [];
+                groupedResultMap[gKey].push(r);
+              });
+              const resItems = Object.values(groupedResultMap).map(group => {
+                const rep = group[0];
+                const types = [...new Set(group.map((r: any) => r.result_type))] as string[];
+                const hasRejected = group.some((r: any) => r.status === 'rejected');
+                const allApproved = group.every((r: any) => r.status === 'approved');
+                return {
+                  ...rep,
+                  _kind: 'result' as const,
+                  _group: group,
+                  _types: types,
+                  _isGroupSubmission: group.some((r: any) => r.is_group_submission),
+                  _groupStatus: hasRejected ? 'rejected' : allApproved ? 'approved' : 'pending',
+                  _rejectionFeedback: group.find((r: any) => r.rejection_feedback)?.rejection_feedback,
+                };
+              }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
               const allItems = [...obsItems, ...resItems].sort(
                 (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
               );
@@ -2527,18 +2568,23 @@ ${guidePrompt}
                           );
                         }
 
-                        // 결과 제출 카드
+                        // 결과 제출 그룹 카드
                         const r = item;
-                        const tc = resultTypeConfig[r.submission_type] ?? resultTypeConfig['text'];
                         const weekLabel = r.week_number
                           ? `${r.week_number}주차${classResources.find((c: any) => c.week === r.week_number)?.topic ? ` · ${classResources.find((c: any) => c.week === r.week_number).topic}` : ''}`
                           : null;
+                        const groupKey = r.submission_group || r.id;
+                        // 그룹 내 텍스트 프리뷰 (첫 번째 텍스트 row)
+                        const textRow = r._group?.find((gr: any) => gr.result_type === 'text');
+                        const linkRow = r._group?.find((gr: any) => gr.result_type === 'link');
+                        const imageRow = r._group?.find((gr: any) => gr.result_type === 'image');
+                        const fileRow = r._group?.find((gr: any) => gr.result_type === 'file');
                         return (
                           <motion.div
-                            key={`result-${r.id}`}
+                            key={`result-${groupKey}`}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
-                            onClick={() => setDetailItem(r)}
+                            onClick={() => setDetailItem({ ...r, _isGroupCard: true })}
                             className="p-6 bg-surface-container-low border border-surface-container hover:border-emerald-200 rounded-3xl transition-all group cursor-pointer"
                           >
                             <div className="flex items-start gap-4">
@@ -2548,8 +2594,23 @@ ${guidePrompt}
                               <div className="flex-1 min-w-0 space-y-1.5">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">📁 결과 제출</span>
-                                  <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md ${tc.color}`}>{tc.icon}{tc.label}</span>
-                                  {r.status === 'rejected' && (
+                                  {/* 포함된 타입 뱃지 */}
+                                  {(r._types as string[])?.map((t: string) => {
+                                    const tc = resultTypeConfig[t];
+                                    if (!tc) return null;
+                                    return (
+                                      <span key={t} className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md ${tc.color}`}>
+                                        {tc.icon}{tc.label}
+                                      </span>
+                                    );
+                                  })}
+                                  {/* 조별 제출 뱃지 */}
+                                  {r._isGroupSubmission && (
+                                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                      👥 조별 제출
+                                    </span>
+                                  )}
+                                  {r._groupStatus === 'rejected' && (
                                     <span className="text-[10px] font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1">
                                       <X size={9} /> 반려됨
                                     </span>
@@ -2557,27 +2618,32 @@ ${guidePrompt}
                                   {weekLabel && <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md">{weekLabel}</span>}
                                 </div>
                                 {r.title && <p className="font-black text-base group-hover:text-primary transition-colors">{r.title}</p>}
-                                {r.submission_type === 'text' && r.text_content && (
-                                  <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{r.text_content}</p>
-                                )}
-                                {r.submission_type === 'link' && r.link_url && (
-                                  <a href={r.link_url} target="_blank" rel="noopener noreferrer"
-                                    className="text-sm text-blue-500 font-bold underline underline-offset-2 hover:text-blue-700 line-clamp-1 break-all">{r.link_url}</a>
-                                )}
-                                {(r.submission_type === 'image' || r.submission_type === 'file') && r.display_name && (
-                                  <p className="text-sm text-on-surface-variant font-medium">{r.display_name}</p>
-                                )}
+                                {/* 그룹 내 콘텐츠 프리뷰 */}
+                                <div className="space-y-1">
+                                  {textRow?.text_content && (
+                                    <p className="text-sm text-on-surface-variant font-medium leading-relaxed line-clamp-2">{textRow.text_content}</p>
+                                  )}
+                                  {linkRow?.link_url && (
+                                    <p className="text-sm text-blue-500 font-bold line-clamp-1 break-all">{linkRow.link_url}</p>
+                                  )}
+                                  {imageRow?.display_name && (
+                                    <p className="text-sm text-on-surface-variant font-medium flex items-center gap-1"><ImageIcon size={12} className="text-emerald-500" />{imageRow.display_name}</p>
+                                  )}
+                                  {fileRow?.display_name && (
+                                    <p className="text-sm text-on-surface-variant font-medium flex items-center gap-1"><File size={12} className="text-amber-500" />{fileRow.display_name}</p>
+                                  )}
+                                </div>
                               </div>
                               <p className="text-[11px] text-on-surface-variant font-bold flex items-center gap-1 shrink-0">
                                 <Clock size={10} />{formatRelativeTime(r.created_at)}
                               </p>
                             </div>
                             {/* 반려 피드백 */}
-                            {r.status === 'rejected' && (
+                            {r._groupStatus === 'rejected' && (
                               <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-2xl">
                                 <p className="text-[10px] font-black text-red-500 mb-1">선생님 피드백</p>
-                                {r.rejection_feedback && (
-                                  <p className="text-xs font-bold text-red-700 leading-relaxed mb-2">{r.rejection_feedback}</p>
+                                {r._rejectionFeedback && (
+                                  <p className="text-xs font-bold text-red-700 leading-relaxed mb-2">{r._rejectionFeedback}</p>
                                 )}
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleEditResult(r); handleTabChange('results'); }}
@@ -4618,59 +4684,144 @@ ${guidePrompt}
                     </>
                   ) : (
                     <>
-                      {(detailItem.result_type === 'text' || detailItem.submission_type === 'text') && detailItem.text_content && (
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
-                          <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap bg-surface-container rounded-2xl px-5 py-4">{detailItem.text_content}</p>
-                        </div>
-                      )}
-                      {(detailItem.result_type === 'link' || detailItem.submission_type === 'link') && detailItem.link_url && (
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">링크</p>
-                          <a
-                            href={detailItem.link_url.startsWith('http') ? detailItem.link_url : `https://${detailItem.link_url}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 border border-blue-200 px-5 py-4 rounded-2xl hover:bg-blue-100 transition-all break-all"
-                          >
-                            <ExternalLink size={14} className="shrink-0" />
-                            {detailItem.link_url}
-                          </a>
-                        </div>
-                      )}
-                      {(detailItem.result_type === 'image' || detailItem.submission_type === 'image') && (
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
-                          {imagePublicUrl ? (
-                            <img
-                              src={imagePublicUrl}
-                              alt={detailItem.display_name || '제출 이미지'}
-                              className="w-full rounded-2xl object-contain max-h-[50vh] border border-surface-container bg-surface-container"
-                            />
-                          ) : (
-                            <p className="text-sm text-on-surface-variant">{detailItem.display_name}</p>
+                      {/* 그룹 카드: _group 배열 내 모든 타입 순서대로 표시 */}
+                      {detailItem._isGroupCard && detailItem._group ? (
+                        (() => {
+                          const groupRows: any[] = detailItem._group;
+                          return (
+                            <div className="space-y-4">
+                              {/* 조별 제출 안내 */}
+                              {detailItem._isGroupSubmission && (
+                                <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-2xl">
+                                  <span className="text-sm">👥</span>
+                                  <p className="text-xs font-black text-indigo-600">조별 제출 결과물입니다</p>
+                                </div>
+                              )}
+                              {groupRows.find((r: any) => r.result_type === 'text')?.text_content && (
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
+                                  <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap bg-surface-container rounded-2xl px-5 py-4">
+                                    {groupRows.find((r: any) => r.result_type === 'text').text_content}
+                                  </p>
+                                </div>
+                              )}
+                              {groupRows.find((r: any) => r.result_type === 'link')?.link_url && (
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">링크</p>
+                                  <a
+                                    href={groupRows.find((r: any) => r.result_type === 'link').link_url.startsWith('http') ? groupRows.find((r: any) => r.result_type === 'link').link_url : `https://${groupRows.find((r: any) => r.result_type === 'link').link_url}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 border border-blue-200 px-5 py-4 rounded-2xl hover:bg-blue-100 transition-all break-all"
+                                  >
+                                    <ExternalLink size={14} className="shrink-0" />
+                                    {groupRows.find((r: any) => r.result_type === 'link').link_url}
+                                  </a>
+                                </div>
+                              )}
+                              {groupRows.find((r: any) => r.result_type === 'image') && (() => {
+                                const imgRow = groupRows.find((r: any) => r.result_type === 'image');
+                                const imgUrl = imgRow.storage_path
+                                  ? supabase.storage.from('student-attachments').getPublicUrl(imgRow.storage_path).data.publicUrl
+                                  : null;
+                                return (
+                                  <div className="space-y-2">
+                                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
+                                    {imgUrl ? (
+                                      <img
+                                        src={imgUrl}
+                                        alt={imgRow.display_name || '제출 이미지'}
+                                        className="w-full rounded-2xl object-contain max-h-[50vh] border border-surface-container bg-surface-container"
+                                      />
+                                    ) : (
+                                      <p className="text-sm text-on-surface-variant">{imgRow.display_name}</p>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                              {groupRows.find((r: any) => r.result_type === 'file')?.display_name && (() => {
+                                const fileRow = groupRows.find((r: any) => r.result_type === 'file');
+                                return (
+                                  <div className="space-y-2">
+                                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">파일</p>
+                                    <div className="flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 px-5 py-4 rounded-2xl">
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        <File size={18} className="text-amber-600 shrink-0" />
+                                        <div className="min-w-0">
+                                          <p className="text-sm font-black truncate">{fileRow.display_name}</p>
+                                          {fileRow.file_size && <p className="text-xs text-on-surface-variant font-bold">{(fileRow.file_size / 1024).toFixed(1)} KB</p>}
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={() => handleDownloadResult(fileRow)}
+                                        className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black hover:bg-amber-600 transition-all shrink-0"
+                                      >
+                                        <ExternalLink size={12} /> 다운로드
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <>
+                          {(detailItem.result_type === 'text' || detailItem.submission_type === 'text') && detailItem.text_content && (
+                            <div className="space-y-1">
+                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">텍스트 내용</p>
+                              <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap bg-surface-container rounded-2xl px-5 py-4">{detailItem.text_content}</p>
+                            </div>
                           )}
-                        </div>
-                      )}
-                      {(detailItem.result_type === 'file' || detailItem.submission_type === 'file') && detailItem.display_name && (
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">파일</p>
-                          <div className="flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 px-5 py-4 rounded-2xl">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <File size={18} className="text-amber-600 shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-sm font-black truncate">{detailItem.display_name}</p>
-                                {detailItem.file_size && <p className="text-xs text-on-surface-variant font-bold">{(detailItem.file_size / 1024).toFixed(1)} KB</p>}
+                          {(detailItem.result_type === 'link' || detailItem.submission_type === 'link') && detailItem.link_url && (
+                            <div className="space-y-1">
+                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">링크</p>
+                              <a
+                                href={detailItem.link_url.startsWith('http') ? detailItem.link_url : `https://${detailItem.link_url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 border border-blue-200 px-5 py-4 rounded-2xl hover:bg-blue-100 transition-all break-all"
+                              >
+                                <ExternalLink size={14} className="shrink-0" />
+                                {detailItem.link_url}
+                              </a>
+                            </div>
+                          )}
+                          {(detailItem.result_type === 'image' || detailItem.submission_type === 'image') && (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
+                              {imagePublicUrl ? (
+                                <img
+                                  src={imagePublicUrl}
+                                  alt={detailItem.display_name || '제출 이미지'}
+                                  className="w-full rounded-2xl object-contain max-h-[50vh] border border-surface-container bg-surface-container"
+                                />
+                              ) : (
+                                <p className="text-sm text-on-surface-variant">{detailItem.display_name}</p>
+                              )}
+                            </div>
+                          )}
+                          {(detailItem.result_type === 'file' || detailItem.submission_type === 'file') && detailItem.display_name && (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">파일</p>
+                              <div className="flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 px-5 py-4 rounded-2xl">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <File size={18} className="text-amber-600 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-black truncate">{detailItem.display_name}</p>
+                                    {detailItem.file_size && <p className="text-xs text-on-surface-variant font-bold">{(detailItem.file_size / 1024).toFixed(1)} KB</p>}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleDownloadResult(detailItem)}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black hover:bg-amber-600 transition-all shrink-0"
+                                >
+                                  <ExternalLink size={12} /> 다운로드
+                                </button>
                               </div>
                             </div>
-                            <button
-                              onClick={() => handleDownloadResult(detailItem)}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-black hover:bg-amber-600 transition-all shrink-0"
-                            >
-                              <ExternalLink size={12} /> 다운로드
-                            </button>
-                          </div>
-                        </div>
+                          )}
+                        </>
                       )}
                     </>
                   )}
