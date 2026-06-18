@@ -242,7 +242,7 @@ const Classroom = () => {
         if (!studentId) return;
         setDetailedStudentId(studentId);
         setIsDrawerOpen(true);
-      } catch {
+      } catch (_e) {
         sessionStorage.removeItem('notif_open_student');
       }
     };
@@ -267,7 +267,7 @@ const Classroom = () => {
       }
       setDetailedStudentId(studentId);
       setIsDrawerOpen(true);
-    } catch {
+    } catch (_e) {
       sessionStorage.removeItem('notif_open_student');
     }
   }, [location.key]);
@@ -398,7 +398,7 @@ const Classroom = () => {
         const { data: ad } = await supabase
           .from('classes').select('*').eq('assigned_teacher_id', user?.id).eq('is_archived', false).order('created_at', { ascending: false });
         assignedData = ad || [];
-      } catch { /* 컬럼 미존재 시 무시 */ }
+      } catch (_e) { /* 컬럼 미존재 시 무시 */ }
 
       const seen = new Set<string>();
       const combined = [...(ownData || []), ...assignedData].filter(c => {
@@ -552,7 +552,7 @@ const Classroom = () => {
       if (error) throw error;
       await fetchClasses();
       showToast(newState ? '수업이 종료되었습니다.' : '수업이 재개되었습니다.');
-    } catch {
+    } catch (_e) {
       showToast('상태 변경 중 오류가 발생했습니다.');
     }
   };
@@ -842,7 +842,7 @@ const Classroom = () => {
       setSchools(prev => prev.map(s => s.id === schoolId ? { ...s, name: editingSchoolName.trim() } : s));
       setEditingSchoolId(null);
       showToast('✅ 학교 이름이 수정되었습니다.');
-    } catch {
+    } catch (_e) {
       showToast('수정 중 오류가 발생했습니다.');
     } finally {
       setSchoolUpdating(false);
@@ -858,7 +858,7 @@ const Classroom = () => {
       setSchools(prev => prev.filter(s => s.id !== schoolId));
       setClasses(prev => prev.map(c => c.school_id === schoolId ? { ...c, school_id: null } : c));
       showToast('🗑️ 학교 그룹이 삭제되었습니다.');
-    } catch {
+    } catch (_e) {
       showToast('삭제 중 오류가 발생했습니다.');
     } finally {
       setDeletingSchoolId(null);

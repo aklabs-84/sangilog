@@ -160,7 +160,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
             .select('id')
             .single();
           if (pClass) pClassId = pClass.id;
-        } catch {
+        } catch (_e) {
           const { data: pClass } = await supabase
             .from('classes')
             .insert(parentClassPayload)
