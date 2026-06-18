@@ -121,14 +121,21 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
       let pClassId = parentClassId;
 
       if (projectId) {
+        // 편집: 기본 정보 업데이트 + share_token 재조회
         await supabase.from('school_projects').update({
           name: projectName.trim(),
           school_name: schoolName.trim() || null,
           start_date: startDate || null,
           end_date: endDate || null,
         }).eq('id', projectId);
+        const { data: projData } = await supabase
+          .from('school_projects')
+          .select('share_token')
+          .eq('id', projectId)
+          .single();
+        if (projData) setShareToken(projData.share_token);
       } else {
-        // 프로젝트 생성
+        // 신규 프로젝트 생성
         const { data: proj } = await supabase
           .from('school_projects')
           .insert({
@@ -145,14 +152,13 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
         projectId = proj.id;
         setShareToken(proj.share_token);
 
-        // 부모(학교) 클래스 자동 생성 — SQL 실행 후엔 school_project_id 사용
+        // 부모(학교) 클래스 자동 생성
         const parentClassPayload: any = {
           name: `${schoolName.trim() || projectName.trim()} (전체)`,
           subject: projectName.trim(),
           teacher_id: user.id,
           entry_code: generateEntryCode(),
         };
-        // school_project_id 컬럼이 있으면 연결 (SQL 실행 후)
         try {
           const { data: pClass } = await supabase
             .from('classes')
@@ -168,14 +174,6 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
             .single();
           if (pClass) pClassId = pClass.id;
         }
-      } else {
-        // 편집 시: share_token 재조회
-        const { data: proj } = await supabase
-          .from('school_projects')
-          .select('share_token')
-          .eq('id', projectId!)
-          .single();
-        if (proj) setShareToken(proj.share_token);
       }
 
       setSavedProjectId(projectId);
