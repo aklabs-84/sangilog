@@ -965,7 +965,10 @@ ${activitiesContext}
             결과 제출 목록
           </h2>
           <span className="px-3 py-1.5 bg-neutral-100 rounded-lg text-xs font-bold text-neutral-500">
-            총 {results.length}건
+            총 {(() => {
+              const keys = new Set(results.map((r: any) => r.submission_group || r.id));
+              return keys.size;
+            })()}건
           </span>
         </div>
 
@@ -976,147 +979,173 @@ ${activitiesContext}
             <FolderOpen size={48} />
             <p className="font-black">제출된 결과물이 없습니다.</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {results.map(r => {
-              const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
-                text:  { icon: <AlignLeft size={16} />,  color: 'text-primary bg-primary/10',       label: '텍스트' },
-                link:  { icon: <Link2 size={16} />,      color: 'text-blue-500 bg-blue-50',         label: '링크' },
-                image: { icon: <ImageIcon size={16} />,  color: 'text-emerald-500 bg-emerald-50',   label: '이미지' },
-                file:  { icon: <File size={16} />,       color: 'text-amber-500 bg-amber-50',       label: '파일' }
-              };
-              const cfg = typeConfig[r.result_type] || typeConfig.file;
-              const publicUrl = r.storage_path
-                ? supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data.publicUrl
-                : null;
+        ) : (() => {
+          const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+            text:  { icon: <AlignLeft size={16} />,  color: 'text-primary bg-primary/10',       label: '텍스트' },
+            link:  { icon: <Link2 size={16} />,      color: 'text-blue-500 bg-blue-50',         label: '링크' },
+            image: { icon: <ImageIcon size={16} />,  color: 'text-emerald-500 bg-emerald-50',   label: '이미지' },
+            file:  { icon: <File size={16} />,       color: 'text-amber-500 bg-amber-50',       label: '파일' }
+          };
 
-              const isRejected = r.status === 'rejected';
-              const groupId = r.submission_group || r.id;
-              const isProcessing = processingGroupId === groupId;
-              return (
-                <div
-                  key={r.id}
-                  onClick={() => setSelectedResult({ ...r, publicUrl, cfg })}
-                  className={`p-5 rounded-2xl border-2 bg-surface-container-low hover:shadow-md transition-all group cursor-pointer ${
-                    isRejected
-                      ? 'border-red-200 bg-red-50/30 hover:border-red-300'
-                      : 'border-surface-container hover:border-primary/30'
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cfg.color}`}>
-                      {cfg.icon}
-                    </div>
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {r.title && <p className="font-black text-sm group-hover:text-primary transition-colors">{r.title}</p>}
-                        <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>
-                          {cfg.label}
+          // submission_group 기준으로 그룹핑
+          const groups: Record<string, any[]> = {};
+          results.forEach((r: any) => {
+            const key = r.submission_group || r.id;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(r);
+          });
+          const groupedEntries = Object.entries(groups).sort(([, a], [, b]) =>
+            new Date(b[0].created_at).getTime() - new Date(a[0].created_at).getTime()
+          );
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {groupedEntries.map(([groupId, groupItems]) => {
+                const firstItem = groupItems[0];
+                const isRejected = firstItem.status === 'rejected';
+                const isProcessing = processingGroupId === groupId;
+                const weekNumber = groupItems.find((r: any) => r.week_number)?.week_number;
+                const title = groupItems.find((r: any) => r.title)?.title;
+                const isGroupSubmission = groupItems.some((r: any) => r.is_group_submission);
+                const types = [...new Set(groupItems.map((r: any) => r.result_type as string))];
+                const textItem = groupItems.find((r: any) => r.result_type === 'text');
+                const linkItem = groupItems.find((r: any) => r.result_type === 'link');
+                const imageItem = groupItems.find((r: any) => r.result_type === 'image');
+                const fileItem = groupItems.find((r: any) => r.result_type === 'file');
+                const imageUrl = imageItem?.storage_path
+                  ? supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path).data.publicUrl
+                  : null;
+
+                return (
+                  <div
+                    key={groupId}
+                    onClick={() => setSelectedResult({ ...firstItem, groupItems, groupId })}
+                    className={`p-5 rounded-2xl border-2 bg-surface-container-low hover:shadow-md transition-all group cursor-pointer ${
+                      isRejected
+                        ? 'border-red-200 bg-red-50/30 hover:border-red-300'
+                        : 'border-surface-container hover:border-primary/30'
+                    }`}
+                  >
+                    {/* 헤더: 타입 뱃지들 + 주차 + 반려 */}
+                    <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                      {title && <p className="font-black text-sm group-hover:text-primary transition-colors w-full">{title}</p>}
+                      {isGroupSubmission && (
+                        <span className="flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md bg-violet-100 text-violet-600 border border-violet-200">
+                          👥 조별 제출
                         </span>
-                        {r.week_number && (
-                          <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                            {r.week_number}주차
+                      )}
+                      {types.map(type => {
+                        const cfg = typeConfig[type] || typeConfig.file;
+                        return (
+                          <span key={type} className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>
+                            {cfg.icon && <span className="scale-75">{cfg.icon}</span>}{cfg.label}
                           </span>
-                        )}
-                        {isRejected && (
-                          <span className="text-[9px] font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <X size={9} /> 반려됨
-                          </span>
-                        )}
-                        {(evalForms[groupId]?.score ?? 0) > 0 && (
-                          <span className="text-[9px] font-black text-amber-500 flex items-center gap-0.5">
-                            {'★'.repeat(evalForms[groupId].score)}<span className="text-[8px] text-amber-400/60 ml-0.5">평가됨</span>
-                          </span>
-                        )}
-                      </div>
-
-                      {r.text_content && (
-                        <p className="text-xs font-medium text-on-surface/80 leading-relaxed line-clamp-2 whitespace-pre-wrap">
-                          {r.text_content}
-                        </p>
+                        );
+                      })}
+                      {weekNumber && (
+                        <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                          {weekNumber}주차
+                        </span>
                       )}
-
-                      {r.link_url && (
-                        <p className="text-xs font-bold text-blue-500 flex items-center gap-1 truncate">
-                          <ExternalLink size={11} />{r.link_url}
-                        </p>
+                      {isRejected && (
+                        <span className="text-[9px] font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <X size={9} /> 반려됨
+                        </span>
                       )}
-
-                      {r.result_type === 'image' && publicUrl && (
-                        <img
-                          src={publicUrl}
-                          alt={r.title || '이미지'}
-                          className="max-h-24 rounded-xl object-cover mt-1"
-                        />
+                      {(evalForms[groupId]?.score ?? 0) > 0 && (
+                        <span className="text-[9px] font-black text-amber-500 flex items-center gap-0.5">
+                          {'★'.repeat(evalForms[groupId].score)}<span className="text-[8px] text-amber-400/60 ml-0.5">평가됨</span>
+                        </span>
                       )}
-
-                      {r.result_type === 'file' && (
-                        <p className="text-xs font-bold text-amber-600 flex items-center gap-1">
-                          <File size={11} />{r.display_name}
-                          {r.file_size ? ` (${formatFileSize(r.file_size)})` : ''}
-                        </p>
-                      )}
-
-                      <p className="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1">
-                        <Clock size={10} />{formatRelativeTime(r.created_at)}
-                      </p>
                     </div>
-                    <div className="w-6 h-6 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant/40 group-hover:text-primary group-hover:bg-primary/10 transition-all shrink-0 mt-1">
-                      <ExternalLink size={12} />
+
+                    {/* 내용 미리보기 */}
+                    <div className="space-y-2">
+                      {textItem?.text_content && (
+                        <div className="flex items-start gap-2">
+                          <AlignLeft size={12} className="text-primary shrink-0 mt-0.5" />
+                          <p className="text-xs font-medium text-on-surface/80 leading-relaxed line-clamp-2 whitespace-pre-wrap">
+                            {textItem.text_content}
+                          </p>
+                        </div>
+                      )}
+                      {linkItem?.link_url && (
+                        <div className="flex items-center gap-2">
+                          <Link2 size={12} className="text-blue-500 shrink-0" />
+                          <p className="text-xs font-bold text-blue-500 truncate">{linkItem.link_url}</p>
+                        </div>
+                      )}
+                      {imageItem && imageUrl && (
+                        <div className="flex items-center gap-2">
+                          <ImageIcon size={12} className="text-emerald-500 shrink-0" />
+                          <img src={imageUrl} alt={title || '이미지'} className="max-h-16 rounded-lg object-cover" />
+                        </div>
+                      )}
+                      {fileItem && (
+                        <div className="flex items-center gap-2">
+                          <File size={12} className="text-amber-500 shrink-0" />
+                          <p className="text-xs font-bold text-amber-600 truncate">
+                            {fileItem.display_name}{fileItem.file_size ? ` (${formatFileSize(fileItem.file_size)})` : ''}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  {/* 삭제/반려 버튼 (hover) */}
-                  <div className="flex gap-2 pt-3 mt-2 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!isRejected && (
+
+                    <p className="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1 mt-3">
+                      <Clock size={10} />{formatRelativeTime(firstItem.created_at)}
+                    </p>
+
+                    {/* 삭제/반려 버튼 (hover) */}
+                    <div className="flex gap-2 pt-3 mt-2 border-t border-surface-container opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!isRejected && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRejectModal({ groupId });
+                            setRejectFeedback('');
+                          }}
+                          disabled={isProcessing}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 rounded-xl font-black text-xs transition-all"
+                        >
+                          <RotateCw size={11} /> 반려
+                        </button>
+                      )}
+                      {isRejected && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setResults((prev: any[]) => prev.map((item: any) =>
+                              (item.submission_group || item.id) === groupId
+                                ? { ...item, status: 'submitted', rejection_feedback: null }
+                                : item
+                            ));
+                            await supabase.from('student_results')
+                              .update({ status: 'submitted', rejection_feedback: null })
+                              .eq(firstItem.submission_group ? 'submission_group' : 'id', groupId);
+                          }}
+                          disabled={isProcessing}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-xl font-black text-xs transition-all"
+                        >
+                          <Check size={11} /> 반려 취소
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setRejectModal({ groupId });
-                          setRejectFeedback('');
+                          handleDeleteGroup(groupId);
                         }}
                         disabled={isProcessing}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 rounded-xl font-black text-xs transition-all"
+                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-xl font-black text-xs transition-all"
                       >
-                        <RotateCw size={11} /> 반려
+                        {isProcessing ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />} 삭제
                       </button>
-                    )}
-                    {isRejected && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRejectGroup('');
-                          // 반려 취소: status를 submitted로 되돌리기
-                          setResults((prev: any[]) => prev.map((item: any) =>
-                            (item.submission_group || item.id) === groupId
-                              ? { ...item, status: 'submitted', rejection_feedback: null }
-                              : item
-                          ));
-                          supabase.from('student_results')
-                            .update({ status: 'submitted', rejection_feedback: null })
-                            .eq(r.submission_group ? 'submission_group' : 'id', groupId);
-                        }}
-                        disabled={isProcessing}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-xl font-black text-xs transition-all"
-                      >
-                        <Check size={11} /> 반려 취소
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteGroup(groupId);
-                      }}
-                      disabled={isProcessing}
-                      className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-xl font-black text-xs transition-all"
-                    >
-                      {isProcessing ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />} 삭제
-                    </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ─── 건의사항 ─── */}
@@ -1242,17 +1271,42 @@ ${activitiesContext}
               <div className="flex items-start justify-between p-8 pb-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {selectedResult.title && (
-                      <h3 className="text-xl font-black tracking-tight">{selectedResult.title}</h3>
-                    )}
-                    <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${selectedResult.cfg.color}`}>
-                      {selectedResult.cfg.label}
-                    </span>
-                    {selectedResult.week_number && (
-                      <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                        {selectedResult.week_number}주차
-                      </span>
-                    )}
+                    {(() => {
+                      const modalItems = selectedResult.groupItems || [selectedResult];
+                      const modalTitle = modalItems.find((r: any) => r.title)?.title;
+                      const modalWeek = modalItems.find((r: any) => r.week_number)?.week_number;
+                      const modalIsGroup = modalItems.some((r: any) => r.is_group_submission);
+                      const typeConfig: Record<string, { color: string; label: string }> = {
+                        text:  { color: 'text-primary bg-primary/10',     label: '텍스트' },
+                        link:  { color: 'text-blue-500 bg-blue-50',       label: '링크' },
+                        image: { color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
+                        file:  { color: 'text-amber-500 bg-amber-50',     label: '파일' }
+                      };
+                      const types = [...new Set(modalItems.map((r: any) => r.result_type as string))];
+                      return (
+                        <>
+                          {modalTitle && <h3 className="text-xl font-black tracking-tight w-full">{modalTitle}</h3>}
+                          {modalIsGroup && (
+                            <span className="flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md bg-violet-100 text-violet-600 border border-violet-200">
+                              👥 조별 제출
+                            </span>
+                          )}
+                          {types.map(type => {
+                            const cfg = typeConfig[type] || { color: 'text-neutral-500 bg-neutral-100', label: type };
+                            return (
+                              <span key={type} className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>
+                                {cfg.label}
+                              </span>
+                            );
+                          })}
+                          {modalWeek && (
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                              {modalWeek}주차
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                   <p className="text-[11px] font-bold text-on-surface-variant/50 flex items-center gap-1">
                     <Clock size={11} />{new Date(selectedResult.created_at).toLocaleString('ko-KR')}
@@ -1268,71 +1322,88 @@ ${activitiesContext}
 
               {/* 모달 내용 */}
               <div className="px-8 pb-8 space-y-4 max-h-[65vh] overflow-y-auto">
-                {selectedResult.text_content && (
-                  <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-100">
-                    <p className="text-sm font-medium text-on-surface leading-relaxed whitespace-pre-wrap">
-                      {selectedResult.text_content}
-                    </p>
-                  </div>
-                )}
+                {(() => {
+                  const items: any[] = selectedResult.groupItems || [selectedResult];
+                  const textItem = items.find((r: any) => r.result_type === 'text');
+                  const linkItem = items.find((r: any) => r.result_type === 'link');
+                  const imageItem = items.find((r: any) => r.result_type === 'image');
+                  const fileItem = items.find((r: any) => r.result_type === 'file');
+                  const imageUrl = imageItem?.storage_path
+                    ? supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path).data.publicUrl
+                    : selectedResult.publicUrl;
 
-                {selectedResult.link_url && (
-                  <a
-                    href={selectedResult.link_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100 hover:border-blue-300 transition-colors group"
-                  >
-                    <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-500 shrink-0">
-                      <Link2 size={18} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-0.5">링크</p>
-                      <p className="text-sm font-bold text-blue-500 group-hover:underline truncate">{selectedResult.link_url}</p>
-                    </div>
-                    <ExternalLink size={16} className="text-blue-400 shrink-0" />
-                  </a>
-                )}
-
-                {selectedResult.result_type === 'image' && selectedResult.publicUrl && (
-                  <div className="space-y-3">
-                    <img
-                      src={selectedResult.publicUrl}
-                      alt={selectedResult.title || '이미지'}
-                      className="w-full rounded-2xl object-contain border border-neutral-100 cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => window.open(selectedResult.publicUrl, '_blank')}
-                    />
-                    <button
-                      onClick={() => handleDownloadResult(selectedResult)}
-                      className="w-full py-3 flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-black text-sm rounded-xl border border-emerald-200 transition-all"
-                    >
-                      <Upload size={16} className="rotate-180" /> 이미지 다운로드
-                    </button>
-                  </div>
-                )}
-
-                {selectedResult.result_type === 'file' && (
-                  <div className="flex items-center gap-4 p-5 bg-amber-50 rounded-2xl border border-amber-100">
-                    <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-500 shrink-0">
-                      <File size={22} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-sm text-on-surface">{selectedResult.display_name}</p>
-                      {selectedResult.file_size && (
-                        <p className="text-xs font-bold text-amber-500 mt-0.5">{formatFileSize(selectedResult.file_size)}</p>
+                  return (
+                    <>
+                      {textItem?.text_content && (
+                        <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-100">
+                          <p className="text-[10px] font-black text-primary/60 uppercase tracking-widest mb-2">텍스트</p>
+                          <p className="text-sm font-medium text-on-surface leading-relaxed whitespace-pre-wrap">
+                            {textItem.text_content}
+                          </p>
+                        </div>
                       )}
-                    </div>
-                    <button
-                      onClick={() => handleDownloadResult(selectedResult)}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl transition-all shadow-sm"
-                    >
-                      <Upload size={14} className="rotate-180" /> 다운로드
-                    </button>
-                  </div>
-                )}
+
+                      {linkItem?.link_url && (
+                        <a
+                          href={linkItem.link_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100 hover:border-blue-300 transition-colors group"
+                        >
+                          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-500 shrink-0">
+                            <Link2 size={18} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-0.5">링크</p>
+                            <p className="text-sm font-bold text-blue-500 group-hover:underline truncate">{linkItem.link_url}</p>
+                          </div>
+                          <ExternalLink size={16} className="text-blue-400 shrink-0" />
+                        </a>
+                      )}
+
+                      {imageItem && imageUrl && (
+                        <div className="space-y-3">
+                          <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">이미지</p>
+                          <img
+                            src={imageUrl}
+                            alt={selectedResult.title || '이미지'}
+                            className="w-full rounded-2xl object-contain border border-neutral-100 cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => window.open(imageUrl, '_blank')}
+                          />
+                          <button
+                            onClick={() => handleDownloadResult(imageItem)}
+                            className="w-full py-3 flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-black text-sm rounded-xl border border-emerald-200 transition-all"
+                          >
+                            <Upload size={16} className="rotate-180" /> 이미지 다운로드
+                          </button>
+                        </div>
+                      )}
+
+                      {fileItem && (
+                        <div className="flex items-center gap-4 p-5 bg-amber-50 rounded-2xl border border-amber-100">
+                          <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-500 shrink-0">
+                            <File size={22} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-sm text-on-surface">{fileItem.display_name}</p>
+                            {fileItem.file_size && (
+                              <p className="text-xs font-bold text-amber-500 mt-0.5">{formatFileSize(fileItem.file_size)}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleDownloadResult(fileItem)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl transition-all shadow-sm"
+                          >
+                            <Upload size={14} className="rotate-180" /> 다운로드
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 {/* 교사 평가 (세특 참고용) */}
                 {(() => {
-                  const gId = selectedResult.submission_group || selectedResult.id;
+                  const gId = selectedResult.groupId || selectedResult.submission_group || selectedResult.id;
                   const ev = getEval(gId);
                   return (
                     <div className="p-5 bg-violet-50/50 rounded-2xl border border-violet-100 space-y-4">
@@ -1400,7 +1471,7 @@ ${activitiesContext}
                 {selectedResult.status !== 'rejected' ? (
                   <button
                     onClick={() => {
-                      setRejectModal({ groupId: selectedResult.submission_group || selectedResult.id });
+                      setRejectModal({ groupId: selectedResult.groupId || selectedResult.submission_group || selectedResult.id });
                       setRejectFeedback('');
                     }}
                     disabled={!!processingGroupId}
@@ -1411,7 +1482,7 @@ ${activitiesContext}
                 ) : (
                   <button
                     onClick={async () => {
-                      const gId = selectedResult.submission_group || selectedResult.id;
+                      const gId = selectedResult.groupId || selectedResult.submission_group || selectedResult.id;
                       await supabase.from('student_results')
                         .update({ status: 'submitted', rejection_feedback: null })
                         .eq(selectedResult.submission_group ? 'submission_group' : 'id', gId);
@@ -1429,7 +1500,7 @@ ${activitiesContext}
                   </button>
                 )}
                 <button
-                  onClick={() => handleDeleteGroup(selectedResult.submission_group || selectedResult.id)}
+                  onClick={() => handleDeleteGroup(selectedResult.groupId || selectedResult.submission_group || selectedResult.id)}
                   disabled={!!processingGroupId}
                   className="flex items-center justify-center gap-2 px-6 py-3 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-2xl font-black text-sm transition-all"
                 >
