@@ -42,13 +42,13 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal }: Pr
         const [{ count }, profileRes] = await Promise.all([
           supabase.from('students').select('*', { count: 'exact', head: true }).eq('class_id', sub.id),
           sub.assigned_teacher_id
-            ? supabase.from('profiles').select('name').eq('id', sub.assigned_teacher_id).single()
+            ? supabase.from('profiles').select('full_name').eq('id', sub.assigned_teacher_id).single()
             : Promise.resolve({ data: null }),
         ]);
         return {
           ...sub,
           studentCount: count ?? 0,
-          teacherName: (profileRes as any)?.data?.name ?? '미지정',
+          teacherName: (profileRes as any)?.data?.full_name ?? '미지정',
         };
       })
     );

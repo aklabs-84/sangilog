@@ -152,6 +152,8 @@ const Classroom = () => {
   // 수업 자료 관리 상태
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
+  // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
+  const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string } | null>(null);
   // 학급정보 수정 팝업에서 에디터 자료 선택용
   const [editingClassMaterials, setEditingClassMaterials] = useState<any[]>([]);
@@ -307,13 +309,28 @@ const Classroom = () => {
     }
   }, [searchParams]);
 
+  // 서브클래스의 부모 weekly_plan 로드 (수업 자료실 모달용)
+  const loadParentWeeklyPlan = async (parentClassId: string) => {
+    try {
+      const { data } = await supabase.from('classes').select('weekly_plan').eq('id', parentClassId).single();
+      setParentWeeklyPlan(data?.weekly_plan || []);
+    } catch (_e) {
+      setParentWeeklyPlan([]);
+    }
+  };
+
   useEffect(() => {
     const handleClassActivation = async () => {
       if (!activeClassId) return;
-      
+
       const currentLocalClass = classes.find(c => c.id === activeClassId);
       if (currentLocalClass) {
         setClassInfo(currentLocalClass);
+        if (currentLocalClass.parent_class_id) {
+          loadParentWeeklyPlan(currentLocalClass.parent_class_id);
+        } else {
+          setParentWeeklyPlan([]);
+        }
         fetchStudents(activeClassId);
         loadGroupMap(activeClassId);
       } else {
@@ -328,6 +345,11 @@ const Classroom = () => {
           if (error) throw error;
           if (data) {
             setClassInfo(data);
+            if (data.parent_class_id) {
+              loadParentWeeklyPlan(data.parent_class_id);
+            } else {
+              setParentWeeklyPlan([]);
+            }
             fetchStudents(activeClassId);
           }
         } catch (err) {
@@ -1136,9 +1158,11 @@ const Classroom = () => {
 
   const fetchResources = async (classId: string) => {
     try {
+      // 서브클래스인 경우 부모 클래스의 자료를 사용
+      const sourceId = classInfo?.parent_class_id || classId;
       const [matsRes, generalRes] = await Promise.all([
-        supabase.from('class_materials').select('id, title, content, week_number, is_published').eq('class_id', classId).order('week_number', { ascending: true }),
-        supabase.from('class_general_materials').select('*').eq('class_id', classId).order('created_at', { ascending: false }),
+        supabase.from('class_materials').select('id, title, content, week_number, is_published').eq('class_id', sourceId).order('week_number', { ascending: true }),
+        supabase.from('class_general_materials').select('*').eq('class_id', sourceId).order('created_at', { ascending: false }),
       ]);
       setClassMaterials(matsRes.data || []);
       setGeneralMaterials(generalRes.data || []);
@@ -2602,8 +2626,12 @@ const Classroom = () => {
 
               {/* 목록 */}
               {(() => {
+                // 서브클래스면 부모 weekly_plan, 아니면 본인 weekly_plan 사용
+                const effectivePlan = classInfo?.parent_class_id
+                  ? parentWeeklyPlan
+                  : (classInfo?.weekly_plan || []);
                 // weekly_plan 에서 url 또는 material_id 가 있는 항목만 추출
-                const planItems: any[] = (classInfo?.weekly_plan || []).filter(
+                const planItems: any[] = effectivePlan.filter(
                   (p: any) => p.url?.trim() || p.material_id
                 );
                 const hasAnything = planItems.length > 0;
