@@ -656,7 +656,9 @@ const SchoolShareView = () => {
                                   <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
                                 </div>
                                 {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
-                                {r.text_content && <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>}
+                                {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
+                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
+                                )}
                                 {r.image_url && (
                                   <div
                                     className="mt-2 relative group cursor-pointer"
@@ -669,13 +671,13 @@ const SchoolShareView = () => {
                                   </div>
                                 )}
                                 {r.link_url && (
-                                  <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
-                                    <ExternalLink size={12} /> 링크 열기
+                                  <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                                    <ExternalLink size={14} /> 링크 열기
                                   </a>
                                 )}
                                 {r.file_url && (
-                                  <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
-                                    <Download size={12} /> 파일 다운로드
+                                  <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                                    <Download size={14} /> 파일 다운로드
                                   </a>
                                 )}
                               </div>
