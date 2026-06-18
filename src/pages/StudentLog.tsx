@@ -1015,33 +1015,25 @@ const StudentLog = () => {
         rows.push({ ...base, result_type: 'file', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
       }
 
-      const { error } = await supabase.from('student_results').insert(rows);
+      // 조별 제출 시 제출자 row에도 group 표시 추가
+      const finalRows = (isGroupSubmission && myClassGroup)
+        ? rows.map((r: any) => ({ ...r, group_id: myClassGroup!.id, is_group_submission: true }))
+        : rows;
+
+      const { error } = await supabase.from('student_results').insert(finalRows);
       if (error) throw error;
 
-      // 조별 제출: 같은 조 다른 멤버들에게도 동일 레코드 복사
+      // 조별 제출: SECURITY DEFINER RPC로 다른 조원에게 동일 결과 복사 (RLS 우회)
       if (isGroupSubmission && myClassGroup) {
-        const { data: otherMembers } = await supabase
-          .from('class_group_members')
-          .select('student_id')
-          .eq('group_id', myClassGroup.id)
-          .neq('student_id', session.student_id);
-
-        if (otherMembers && otherMembers.length > 0) {
-          const groupRows: any[] = [];
-          otherMembers.forEach((m: any) => {
-            rows.forEach((r: any) => {
-              groupRows.push({
-                ...r,
-                student_id: m.student_id,
-                group_id: myClassGroup.id,
-                is_group_submission: true,
-                submission_group: groupId,
-              });
-            });
-          });
-          if (groupRows.length > 0) {
-            await supabase.from('student_results').insert(groupRows);
-          }
+        const { data: rpcData, error: rpcError } = await supabase.rpc('submit_group_results', {
+          p_group_id: myClassGroup.id,
+          p_submitter_id: session.student_id,
+          p_rows: finalRows,
+        });
+        if (rpcError) {
+          console.error('조별 제출 RPC 오류:', rpcError);
+        } else if (rpcData?.success === false) {
+          console.warn('조별 제출 RPC 경고:', rpcData.error);
         }
       }
 
