@@ -821,6 +821,12 @@ const Dashboard = () => {
                     <span className="font-bold text-gray-800">"{deletingProjectName}"</span>을(를)<br />
                     삭제하면 복구할 수 없습니다.
                   </p>
+                  <div className="mt-3 p-3 bg-orange-50 rounded-xl text-left space-y-1">
+                    <p className="text-xs text-orange-700 font-bold">삭제 시 함께 사라지는 것:</p>
+                    <p className="text-xs text-orange-600">• 학교 담당자 공유 URL 접근 불가</p>
+                    <p className="text-xs text-orange-600">• 초대된 선생님의 Pro 혜택 만료</p>
+                    <p className="text-xs text-gray-500 mt-1">※ 각 반 클래스와 학생 데이터는 유지됩니다</p>
+                  </div>
                 </div>
                 <div className="flex gap-3 w-full mt-2">
                   <button

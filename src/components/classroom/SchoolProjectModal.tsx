@@ -5,7 +5,7 @@ import { useAuth } from '../../lib/auth';
 import {
   X, School, Plus, Trash2, UserPlus, Copy, Check,
   CalendarDays, Users, ChevronRight, AlertCircle,
-  Crown, Sparkles, GraduationCap, Search
+  Crown, Sparkles, GraduationCap, Search, Link as LinkIcon
 } from 'lucide-react';
 
 interface SubClass {
@@ -34,7 +34,9 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
   const [endDate, setEndDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
   const [parentClassId, setParentClassId] = useState<string | null>(null);
+  const [copiedShareUrl, setCopiedShareUrl] = useState(false);
 
   const [subClasses, setSubClasses] = useState<SubClass[]>([]);
   const [newSubClassName, setNewSubClassName] = useState('');
@@ -54,6 +56,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
         setStartDate(editProject.start_date || '');
         setEndDate(editProject.end_date || '');
         setSavedProjectId(editProject.id);
+        setShareToken(editProject.share_token || null);
         setParentClassId(editProject.parent_class_id || null);
         setStep('subclasses');
         fetchSubClasses(editProject.id);
@@ -64,8 +67,10 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
         setStartDate(new Date().toISOString().split('T')[0]);
         setEndDate('');
         setSavedProjectId(null);
+        setShareToken(null);
         setParentClassId(null);
         setSubClasses([]);
+        setCopiedShareUrl(false);
       }
     }
   }, [isOpen, editProject]);
@@ -133,31 +138,44 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
             start_date: startDate || null,
             end_date: endDate || null,
           })
-          .select('id')
+          .select('id, share_token')
           .single();
 
         if (!proj) return;
         projectId = proj.id;
+        setShareToken(proj.share_token);
 
-        // 부모(학교) 클래스 자동 생성
-        const { data: pClass } = await supabase
-          .from('classes')
-          .insert({
-            name: `${schoolName.trim() || projectName.trim()} (전체)`,
-            subject: projectName.trim(),
-            teacher_id: user.id,
-            entry_code: generateEntryCode(),
-            school_project_id: projectId,
-          })
-          .select('id')
+        // 부모(학교) 클래스 자동 생성 — SQL 실행 후엔 school_project_id 사용
+        const parentClassPayload: any = {
+          name: `${schoolName.trim() || projectName.trim()} (전체)`,
+          subject: projectName.trim(),
+          teacher_id: user.id,
+          entry_code: generateEntryCode(),
+        };
+        // school_project_id 컬럼이 있으면 연결 (SQL 실행 후)
+        try {
+          const { data: pClass } = await supabase
+            .from('classes')
+            .insert({ ...parentClassPayload, school_project_id: projectId })
+            .select('id')
+            .single();
+          if (pClass) pClassId = pClass.id;
+        } catch {
+          const { data: pClass } = await supabase
+            .from('classes')
+            .insert(parentClassPayload)
+            .select('id')
+            .single();
+          if (pClass) pClassId = pClass.id;
+        }
+      } else {
+        // 편집 시: share_token 재조회
+        const { data: proj } = await supabase
+          .from('school_projects')
+          .select('share_token')
+          .eq('id', projectId!)
           .single();
-
-        if (pClass) pClassId = pClass.id;
-
-        // 프로젝트에 parent_class_id 업데이트 (프로젝트 테이블에 없으면 클래스로만 추적)
-        await supabase.from('school_projects').update({
-          // share_token은 자동 생성됨
-        }).eq('id', projectId);
+        if (proj) setShareToken(proj.share_token);
       }
 
       setSavedProjectId(projectId);
@@ -590,6 +608,35 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
                       <p className="text-xs text-green-700">
                         <span className="font-black">{proGrantedCount}명의 선생님</span>에게 수업 기간 동안 Pro 혜택이 자동으로 부여됩니다.
                       </p>
+                    </div>
+                  )}
+
+                  {/* 학교 담당자 공유 URL */}
+                  {shareToken && (
+                    <div className="p-5 bg-gray-50 rounded-2xl border border-gray-200 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <LinkIcon size={14} className="text-gray-500" />
+                        <p className="text-xs font-black text-gray-600 uppercase tracking-widest">학교 담당자 공유 URL</p>
+                      </div>
+                      <p className="text-[11px] text-gray-400">
+                        이 링크를 학교 담당 선생님께 전달하면 모든 반의 결과를 한 번에 열람할 수 있습니다.
+                        <br /><span className="text-orange-400 font-bold">⚠ 프로젝트 삭제 시 이 링크로 접근 불가</span>
+                      </p>
+                      <div className="flex gap-2">
+                        <div className="flex-1 px-3 py-2 bg-white rounded-xl text-[10px] font-mono text-gray-500 border border-gray-200 truncate">
+                          {window.location.origin}/school-project/{shareToken}
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/school-project/${shareToken}`);
+                            setCopiedShareUrl(true);
+                            setTimeout(() => setCopiedShareUrl(false), 2000);
+                          }}
+                          className="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+                        >
+                          {copiedShareUrl ? <><Check size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}
+                        </button>
+                      </div>
                     </div>
                   )}
 
