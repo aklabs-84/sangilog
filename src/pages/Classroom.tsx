@@ -38,6 +38,9 @@ import {
   Upload,
   FileText,
   CheckCircle2,
+  Lock,
+  Unlock,
+  CalendarDays,
 } from 'lucide-react';
 import { useAuth, checkIsPro, getClassLimit, getStudentLimit } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -86,7 +89,7 @@ const Classroom = () => {
     class_type: 'subject',
     student_guide_prompt: '',
     teacher_report_prompt: '',
-    weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true }],
+    weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true, requires_activity: true }],
     min_obs_chars: 0,
     blocked_keywords: [] as string[],
     ai_review_enabled: true,
@@ -507,6 +510,9 @@ const Classroom = () => {
           min_obs_chars: updateClassData.min_obs_chars || 0,
           blocked_keywords: updateClassData.blocked_keywords || [],
           ai_review_enabled: updateClassData.ai_review_enabled ?? true,
+          start_date: updateClassData.start_date || null,
+          end_date: updateClassData.end_date || null,
+          is_closed: updateClassData.is_closed ?? false,
         })
         .eq('id', updateClassData.id);
 
@@ -520,6 +526,22 @@ const Classroom = () => {
     } catch (error) {
       console.error('Error updating class:', error);
       showToast("학급 수정 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleToggleClassClosed = async (classId: string, currentIsClosed: boolean) => {
+    const newState = !currentIsClosed;
+    const msg = newState
+      ? '수업을 종료하면 학생들은 활동기록 작성과 결과 제출을 할 수 없습니다. 수업을 종료하시겠습니까?'
+      : '수업을 다시 진행 중으로 변경하시겠습니까?';
+    if (!confirm(msg)) return;
+    try {
+      const { error } = await supabase.from('classes').update({ is_closed: newState }).eq('id', classId);
+      if (error) throw error;
+      await fetchClasses();
+      showToast(newState ? '수업이 종료되었습니다.' : '수업이 재개되었습니다.');
+    } catch {
+      showToast('상태 변경 중 오류가 발생했습니다.');
     }
   };
 
@@ -1600,6 +1622,38 @@ const Classroom = () => {
                 </div>
               )}
 
+              {activeTab === 'list' && classInfo && (() => {
+                const today = new Date().toISOString().slice(0, 10);
+                const autoClosedByDate = classInfo.end_date && classInfo.end_date < today;
+                const isClosed = classInfo.is_closed || autoClosedByDate;
+                return isClosed ? (
+                  <div className="mb-6 flex items-center justify-between gap-4 px-6 py-4 bg-rose-50 border border-rose-200 rounded-2xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                        <Lock size={16} className="text-rose-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-rose-700">수업이 종료된 학급입니다</p>
+                        <p className="text-xs font-bold text-rose-400 mt-0.5">
+                          {autoClosedByDate && !classInfo.is_closed
+                            ? `종료일(${classInfo.end_date}) 경과로 자동 종료`
+                            : '선생님이 수업 종료를 선언했습니다'}
+                          · 학생의 활동기록·결과 제출이 차단됩니다.
+                        </p>
+                      </div>
+                    </div>
+                    {!autoClosedByDate && (
+                      <button
+                        onClick={() => handleToggleClassClosed(classInfo.id, true)}
+                        className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-white border border-rose-200 text-rose-600 rounded-xl text-xs font-black hover:bg-rose-100 transition-all"
+                      >
+                        <Unlock size={13} /> 수업 재개
+                      </button>
+                    )}
+                  </div>
+                ) : null;
+              })()}
+
               {activeTab === 'list' && (
                 <SubjectDashboard
                   classInfo={classInfo}
@@ -1770,21 +1824,31 @@ const Classroom = () => {
                                    plan[idx].url = e.target.value;
                                    setNewClassData({ ...newClassData, weekly_plan: plan });
                                  }} placeholder="자료 링크 (URL)" className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg text-xs font-bold outline-none focus:border-secondary/40" />
-                                 <label onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 cursor-pointer mt-1">
-                                   <input type="checkbox" checked={item.requires_result !== false} onChange={(e) => {
-                                     const plan = [...newClassData.weekly_plan];
-                                     plan[idx].requires_result = e.target.checked;
-                                     setNewClassData({ ...newClassData, weekly_plan: plan });
-                                   }} className="w-3.5 h-3.5 rounded accent-secondary" />
-                                   <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
-                                 </label>
+                                 <div className="flex items-center gap-4 mt-1">
+                                   <label onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 cursor-pointer">
+                                     <input type="checkbox" checked={item.requires_result !== false} onChange={(e) => {
+                                       const plan = [...newClassData.weekly_plan];
+                                       plan[idx].requires_result = e.target.checked;
+                                       setNewClassData({ ...newClassData, weekly_plan: plan });
+                                     }} className="w-3.5 h-3.5 rounded accent-secondary" />
+                                     <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
+                                   </label>
+                                   <label onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 cursor-pointer">
+                                     <input type="checkbox" checked={item.requires_activity !== false} onChange={(e) => {
+                                       const plan = [...newClassData.weekly_plan];
+                                       plan[idx].requires_activity = e.target.checked;
+                                       setNewClassData({ ...newClassData, weekly_plan: plan });
+                                     }} className="w-3.5 h-3.5 rounded accent-secondary" />
+                                     <span className="text-xs font-black text-neutral-600">활동기록 필요</span>
+                                   </label>
+                                 </div>
                                </div>
                             </div>
                           </div>
                         ))}
                         <button type="button" onClick={() => {
                           const plan = newClassData.weekly_plan;
-                          setNewClassData({ ...newClassData, weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true }] });
+                          setNewClassData({ ...newClassData, weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true, requires_activity: true }] });
                         }} className="w-full py-2 border-2 border-dashed border-neutral-300 rounded-xl text-xs font-black text-neutral-500 hover:border-secondary/40 hover:text-secondary transition-all">+ 주차 추가</button>
                       </div>
                     </div>
@@ -1910,6 +1974,55 @@ const Classroom = () => {
                           <input type="text" placeholder="담당 과목" value={updateClassData.subject} onChange={e => setUpdateClassData({...updateClassData, subject: e.target.value})} className="w-full px-5 py-3.5 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-neutral-900 transition-all outline-none" required />
                         </div>
                       )}
+
+                      {/* 수업 기간 */}
+                      <div className="space-y-2 pt-1">
+                        <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
+                          <CalendarDays size={13} /> 수업 기간 (선택)
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 space-y-1">
+                            <p className="text-[10px] font-black text-neutral-400 ml-1">시작일</p>
+                            <input
+                              type="date"
+                              value={updateClassData.start_date || ''}
+                              onChange={e => setUpdateClassData({...updateClassData, start_date: e.target.value || null})}
+                              className="w-full px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                            />
+                          </div>
+                          <span className="text-neutral-400 font-black text-sm mt-5">~</span>
+                          <div className="flex-1 space-y-1">
+                            <p className="text-[10px] font-black text-neutral-400 ml-1">종료일</p>
+                            <input
+                              type="date"
+                              value={updateClassData.end_date || ''}
+                              onChange={e => setUpdateClassData({...updateClassData, end_date: e.target.value || null})}
+                              className="w-full px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-neutral-400 font-bold ml-1">종료일이 지나면 학생의 활동기록·결과 제출이 자동으로 차단됩니다.</p>
+                      </div>
+
+                      {/* 수업 종료 선언 */}
+                      <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${updateClassData.is_closed ? 'bg-rose-50 border-rose-200' : 'bg-neutral-50 border-neutral-200'}`}>
+                        <div className="flex items-center gap-3">
+                          {updateClassData.is_closed ? <Lock size={18} className="text-rose-500 shrink-0" /> : <Unlock size={18} className="text-neutral-400 shrink-0" />}
+                          <div>
+                            <p className={`text-sm font-black ${updateClassData.is_closed ? 'text-rose-700' : 'text-neutral-700'}`}>수업 종료 선언</p>
+                            <p className="text-[11px] font-bold text-neutral-400 mt-0.5">
+                              {updateClassData.is_closed ? '현재 수업이 종료된 상태입니다.' : '수업을 종료하면 학생의 기록·제출이 차단됩니다.'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUpdateClassData({...updateClassData, is_closed: !updateClassData.is_closed})}
+                          className={`relative w-12 h-6 rounded-full transition-all duration-300 ${updateClassData.is_closed ? 'bg-rose-500' : 'bg-neutral-300'}`}
+                        >
+                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${updateClassData.is_closed ? 'left-6' : 'left-0.5'}`} />
+                        </button>
+                      </div>
                     </motion.div>
                   ) : editModalTab === 'syllabus' ? (
                     <motion.div 
@@ -1928,7 +2041,7 @@ const Classroom = () => {
                               const plan = updateClassData.weekly_plan || [];
                               setUpdateClassData({
                                 ...updateClassData,
-                                weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true }]
+                                weekly_plan: [...plan, { week: plan.length + 1, topic: '', url: '', requires_result: true, requires_activity: true }]
                               });
                             }}
                             className="text-xs font-black px-3 py-1 bg-primary/10 rounded-lg hover:bg-primary hover:text-white transition-all"
@@ -1985,14 +2098,24 @@ const Classroom = () => {
                                           : 'bg-white border-neutral-200'
                                       }`}
                                     />
-                                    <label className="flex items-center gap-2 cursor-pointer mt-1">
-                                      <input type="checkbox" checked={item.requires_result !== false} onChange={(e) => {
-                                        const plan = [...updateClassData.weekly_plan];
-                                        plan[idx].requires_result = e.target.checked;
-                                        setUpdateClassData({ ...updateClassData, weekly_plan: plan });
-                                      }} className="w-3.5 h-3.5 rounded accent-primary" />
-                                      <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
-                                    </label>
+                                    <div className="flex items-center gap-4 mt-1">
+                                      <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={item.requires_result !== false} onChange={(e) => {
+                                          const plan = [...updateClassData.weekly_plan];
+                                          plan[idx].requires_result = e.target.checked;
+                                          setUpdateClassData({ ...updateClassData, weekly_plan: plan });
+                                        }} className="w-3.5 h-3.5 rounded accent-primary" />
+                                        <span className="text-xs font-black text-neutral-600">결과제출 필요</span>
+                                      </label>
+                                      <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={item.requires_activity !== false} onChange={(e) => {
+                                          const plan = [...updateClassData.weekly_plan];
+                                          plan[idx].requires_activity = e.target.checked;
+                                          setUpdateClassData({ ...updateClassData, weekly_plan: plan });
+                                        }} className="w-3.5 h-3.5 rounded accent-primary" />
+                                        <span className="text-xs font-black text-neutral-600">활동기록 필요</span>
+                                      </label>
+                                    </div>
                                   </div>
 
                                   {/* ── 에디터 자료 연결 ── */}

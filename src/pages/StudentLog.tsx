@@ -114,6 +114,7 @@ const StudentLog = () => {
   const [minObsChars, setMinObsChars] = useState(0);
   const [blockedKeywords, setBlockedKeywords] = useState<string[]>([]);
   const [aiReviewEnabled, setAiReviewEnabled] = useState(true);
+  const [isClassClosed, setIsClassClosed] = useState(false);
   const [reminderModal, setReminderModal] = useState<{
     type: 'need_result' | 'need_obs';
     week: number;
@@ -698,7 +699,7 @@ const StudentLog = () => {
     try {
       const { data } = await supabase
         .from('classes')
-        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled')
+        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled, start_date, end_date, is_closed')
         .eq('id', classId)
         .single();
 
@@ -708,6 +709,9 @@ const StudentLog = () => {
         setMinObsChars(data.min_obs_chars || 0);
         setBlockedKeywords(data.blocked_keywords || []);
         setAiReviewEnabled(data.ai_review_enabled ?? true);
+        const today = new Date().toISOString().slice(0, 10);
+        const autoClosedByDate = data.end_date && data.end_date < today;
+        setIsClassClosed(!!(data.is_closed || autoClosedByDate));
         if (data.weekly_plan && Array.isArray(data.weekly_plan) && data.weekly_plan.length > 0) {
           setClassResources(data.weekly_plan);
 
@@ -1070,7 +1074,7 @@ const StudentLog = () => {
         const norm2 = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
         const weekPlan = (classResources as any[]).find(r => r.week === selectedWeek);
         const weekTopic = weekPlan?.topic || '';
-        if (weekTopic) {
+        if (weekTopic && weekPlan?.requires_activity !== false) {
           const hasObs = historyLogs.some((l: any) => norm2(l.activity_name || '') === norm2(weekTopic));
           if (!hasObs) {
             setTimeout(() => setReminderModal({
@@ -2154,6 +2158,11 @@ ${guidePrompt}
                           {/* 버튼 */}
                           {s.done ? (
                             <span className="text-[11px] font-black text-emerald-600 shrink-0">완료 ✓</span>
+                          ) : isClassClosed ? (
+                            <span className="flex items-center gap-1 text-[11px] font-black text-slate-400 shrink-0">
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                              종료됨
+                            </span>
                           ) : (
                             <button
                               onClick={() => {
@@ -2207,7 +2216,21 @@ ${guidePrompt}
                 exit={{ opacity: 0 }}
                 className="p-12 space-y-12"
               >
+                {/* 수업 종료 안내 */}
+                {isClassClosed && (
+                  <div className="flex items-center gap-4 px-6 py-5 rounded-2xl bg-slate-800 border border-slate-700">
+                    <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center shrink-0">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">수업이 종료되었습니다</p>
+                      <p className="text-xs font-bold text-slate-400 mt-0.5">활동 기록 작성은 더 이상 이용할 수 없습니다. 나의 기록에서 이전 기록을 확인할 수 있습니다.</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Step 1 배너 */}
+                {!isClassClosed && (
                 <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-violet-50 border border-violet-200">
                   <div className="w-8 h-8 rounded-xl bg-violet-500 text-white flex items-center justify-center font-black text-sm shrink-0">1</div>
                   <div>
@@ -2216,8 +2239,9 @@ ${guidePrompt}
                   </div>
                   <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-violet-400 hover:text-violet-600 shrink-0">홈으로 →</button>
                 </div>
+                )}
 
-                {classResources && classResources.length > 0 && classResources[0]?.topic ? (
+                {!isClassClosed && classResources && classResources.length > 0 && classResources[0]?.topic ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between ml-2">
                       <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">
@@ -2261,7 +2285,7 @@ ${guidePrompt}
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                {!isClassClosed && (<><div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   <div className="space-y-4">
                     <label className="text-[11px] font-black text-primary uppercase tracking-[0.2em] ml-2">주요 활동 내용</label>
                     <textarea
@@ -2348,6 +2372,7 @@ ${guidePrompt}
                     )}
                   </button>
                 </div>
+                </>)}
               </motion.div>
             )}
 
@@ -2875,29 +2900,47 @@ ${guidePrompt}
                 exit={{ opacity: 0 }}
                 className="p-12 space-y-10 min-h-[400px]"
               >
+                {/* 수업 종료 안내 */}
+                {isClassClosed && (
+                  <div className="flex items-center gap-4 px-6 py-5 rounded-2xl bg-slate-800 border border-slate-700">
+                    <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center shrink-0">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-white">수업이 종료되었습니다</p>
+                      <p className="text-xs font-bold text-slate-400 mt-0.5">결과 제출은 더 이상 이용할 수 없습니다. 나의 기록에서 제출한 결과물을 확인할 수 있습니다.</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Step 2 배너 */}
-                <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shrink-0">2</div>
-                  <div>
-                    <p className="text-xs font-black text-emerald-700">Step 2 · 결과물 제출</p>
-                    <p className="text-[11px] font-bold text-emerald-500/80">활동 기록 작성 후 결과물을 업로드하세요.</p>
+                {!isClassClosed && (
+                  <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black text-sm shrink-0">2</div>
+                    <div>
+                      <p className="text-xs font-black text-emerald-700">Step 2 · 결과물 제출</p>
+                      <p className="text-[11px] font-bold text-emerald-500/80">활동 기록 작성 후 결과물을 업로드하세요.</p>
+                    </div>
+                    <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-emerald-400 hover:text-emerald-600 shrink-0">홈으로 →</button>
                   </div>
-                  <button onClick={() => handleTabChange('home')} className="ml-auto text-[11px] font-black text-emerald-400 hover:text-emerald-600 shrink-0">홈으로 →</button>
-                </div>
+                )}
 
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-                    <FolderOpen size={24} />
+                {!isClassClosed && (
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                      <FolderOpen size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black font-manrope">결과 제출</h3>
+                      <p className="text-on-surface-variant text-sm font-bold mt-1">
+                        주차를 선택하고 텍스트·링크·이미지·파일을 한 번에 제출하세요.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-2xl font-black font-manrope">결과 제출</h3>
-                    <p className="text-on-surface-variant text-sm font-bold mt-1">
-                      주차를 선택하고 텍스트·링크·이미지·파일을 한 번에 제출하세요.
-                    </p>
-                  </div>
-                </div>
+                )}
 
-                {/* ── 주차 선택 ── */}
+                {/* ── 주차 선택 + 제출 폼 (수업 종료 시 비표시) ── */}
+                {!isClassClosed && (<>
                 <div ref={resultFormRef} className="space-y-3">
                   <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">
                     주차 선택 {editingResult ? '' : '*'}
@@ -3258,6 +3301,7 @@ ${guidePrompt}
                     );
                   })()}
                 </div>}
+                </>)}
               </motion.div>
             )}
 
@@ -4229,18 +4273,30 @@ ${guidePrompt}
             { key: 'board' as const,   icon: Users2,          label: '보드', activeColor: 'text-indigo-400',  activeBg: 'bg-indigo-400/15' },
           ].map((tab) => {
             const isActive = activeTab === tab.key && !isMoreSheetOpen;
+            const isLocked = isClassClosed && (tab.key === 'record' || tab.key === 'results');
             return (
               <button
                 key={tab.key}
-                onClick={() => handleTabChange(tab.key)}
+                onClick={() => {
+                  if (isLocked) {
+                    showToast('수업이 종료되어 이용할 수 없습니다.', 'error');
+                    return;
+                  }
+                  handleTabChange(tab.key);
+                }}
                 className="flex-1 flex flex-col items-center gap-1.5 py-3.5 transition-all"
               >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all relative ${
                   isActive ? `${tab.activeBg} scale-105` : 'hover:bg-white/5'
-                }`}>
+                } ${isLocked ? 'opacity-40' : ''}`}>
                   <tab.icon size={26} className={isActive ? tab.activeColor : 'text-white/75'} strokeWidth={isActive ? 2.5 : 2} />
+                  {isLocked && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-slate-600 rounded-full flex items-center justify-center">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="white"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    </span>
+                  )}
                 </div>
-                <span className={`text-[11px] font-black tracking-tight transition-colors ${isActive ? tab.activeColor : 'text-white/60'}`}>
+                <span className={`text-[11px] font-black tracking-tight transition-colors ${isActive ? tab.activeColor : 'text-white/60'} ${isLocked ? 'opacity-40' : ''}`}>
                   {tab.label}
                 </span>
               </button>
