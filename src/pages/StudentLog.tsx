@@ -699,7 +699,7 @@ const StudentLog = () => {
     try {
       const { data } = await supabase
         .from('classes')
-        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled, start_date, end_date, is_closed')
+        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled, start_date, end_date, is_closed, parent_class_id')
         .eq('id', classId)
         .single();
 
@@ -712,11 +712,19 @@ const StudentLog = () => {
         const today = new Date().toISOString().slice(0, 10);
         const autoClosedByDate = data.end_date && data.end_date < today;
         setIsClassClosed(!!(data.is_closed || autoClosedByDate));
-        if (data.weekly_plan && Array.isArray(data.weekly_plan) && data.weekly_plan.length > 0) {
-          setClassResources(data.weekly_plan);
+
+        // 하위 클래스인 경우 부모 클래스의 weekly_plan 사용
+        let resolvedWeeklyPlan = data.weekly_plan;
+        if (data.parent_class_id && (!resolvedWeeklyPlan || resolvedWeeklyPlan.length === 0)) {
+          const { data: parentData } = await supabase.from('classes').select('weekly_plan').eq('id', data.parent_class_id).single();
+          if (parentData?.weekly_plan?.length > 0) resolvedWeeklyPlan = parentData.weekly_plan;
+        }
+
+        if (resolvedWeeklyPlan && Array.isArray(resolvedWeeklyPlan) && resolvedWeeklyPlan.length > 0) {
+          setClassResources(resolvedWeeklyPlan);
 
           // weekly_plan 중 material_id가 있는 항목의 자료 미리 로드
-          const materialIds = data.weekly_plan
+          const materialIds = resolvedWeeklyPlan
             .map((p: any) => p.material_id)
             .filter(Boolean);
           if (materialIds.length > 0) {

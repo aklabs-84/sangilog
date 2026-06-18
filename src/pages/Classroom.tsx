@@ -60,6 +60,7 @@ import AttendanceTab from '../components/classroom/AttendanceTab';
 import GroupTab from '../components/classroom/GroupTab';
 import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 import UpgradeModal from '../components/UpgradeModal';
+import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
 
 
 const Classroom = () => {
@@ -1049,18 +1050,25 @@ const Classroom = () => {
       const norm = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
 
       // 1. 학생 목록 + 수업 weekly_plan 병렬 조회
-      const [{ data: studentList }, { data: classInfo }] = await Promise.all([
+      const [{ data: studentList }, { data: classInfoData }] = await Promise.all([
         supabase.from('students').select('id, full_name').eq('class_id', classId),
-        supabase.from('classes').select('weekly_plan').eq('id', classId).single(),
+        supabase.from('classes').select('weekly_plan, parent_class_id').eq('id', classId).single(),
       ]);
       const studentIds = (studentList || []).map((s: any) => s.id);
       const nameMap: Record<string, string> = Object.fromEntries(
         (studentList || []).map((s: any) => [s.id, s.full_name])
       );
 
+      // 하위 클래스인 경우 부모 클래스의 weekly_plan 로드
+      let resolvedWeeklyPlan: any[] = classInfoData?.weekly_plan || [];
+      if (classInfoData?.parent_class_id && resolvedWeeklyPlan.length === 0) {
+        const { data: parentData } = await supabase.from('classes').select('weekly_plan').eq('id', classInfoData.parent_class_id).single();
+        if (parentData?.weekly_plan) resolvedWeeklyPlan = parentData.weekly_plan;
+      }
+
       // activity_name → week_number 매핑 (weekly_plan 기반)
       const topicWeekMap: Record<string, number> = {};
-      ((classInfo?.weekly_plan as any[]) || []).forEach((p: any) => {
+      (resolvedWeeklyPlan as any[]).forEach((p: any) => {
         if (p.topic && p.week) topicWeekMap[norm(p.topic)] = Number(p.week);
       });
 
@@ -1377,7 +1385,21 @@ const Classroom = () => {
             </div>
           </div>
 
-          {/* 2.1 Cohesive Segmented Control */}
+          {/* 학교 프로젝트 최상위 클래스 → 허브 뷰 */}
+          {classInfo?.school_project_id && !classInfo?.parent_class_id && (
+            <SchoolProjectHub
+              classInfo={classInfo}
+              onOpenResources={() => {
+                if (activeClassId) fetchResources(activeClassId);
+                setIsResourceModalOpen(true);
+              }}
+              onOpenProjectModal={() => { fetchSchools(); setIsSchoolModalOpen(true); }}
+            />
+          )}
+
+          {/* 2.1 Cohesive Segmented Control - 일반 클래스만 표시 */}
+          {(!classInfo?.school_project_id || classInfo?.parent_class_id) && (
+          <>
           <div className="flex justify-center mb-8 md:mb-16">
             <div className="p-1 md:p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[2rem] md:rounded-[2.5rem] flex items-center border border-white/40 shadow-soft relative overflow-x-auto max-w-full custom-scrollbar">
               {[
@@ -1703,6 +1725,8 @@ const Classroom = () => {
                 />
               )}
             </>
+          )}
+          </>
           )}
         </div>
       </main>
