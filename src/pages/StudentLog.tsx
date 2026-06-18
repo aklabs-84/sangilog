@@ -907,10 +907,12 @@ const StudentLog = () => {
           title:            resultTitle.trim() || null,
         };
 
-        const existingText  = editingGroupResults.find((r: any) => r.result_type === 'text');
-        const existingLink  = editingGroupResults.find((r: any) => r.result_type === 'link');
-        const existingImage = editingGroupResults.find((r: any) => r.result_type === 'image');
-        const existingFile  = editingGroupResults.find((r: any) => r.result_type === 'file');
+        // 본인 row만 필터 — RLS 때문에 다른 조원 row를 eq('id',...)로 update하면 0건 처리됨
+        const myGroupResults = editingGroupResults.filter((r: any) => r.student_id === session!.student_id);
+        const existingText  = myGroupResults.find((r: any) => r.result_type === 'text');
+        const existingLink  = myGroupResults.find((r: any) => r.result_type === 'link');
+        const existingImage = myGroupResults.find((r: any) => r.result_type === 'image');
+        const existingFile  = myGroupResults.find((r: any) => r.result_type === 'file');
 
         // ── 텍스트 ──
         if (hasText) {
@@ -977,6 +979,15 @@ const StudentLog = () => {
             .update({ status: 'submitted', rejection_feedback: null })
             .eq('submission_group', editingResult.submission_group)
             .eq('student_id', session!.student_id);
+        }
+
+        // 조별 제출이면 다른 조원 rows도 동기화 (SECURITY DEFINER RPC)
+        if (editingResult.is_group_submission && editingResult.submission_group) {
+          const { error: syncErr } = await supabase.rpc('sync_group_submission', {
+            p_submission_group: editingResult.submission_group,
+            p_submitter_id: session!.student_id,
+          });
+          if (syncErr) console.error('[sync_group_submission 오류]', syncErr);
         }
 
         resetResultForm();
