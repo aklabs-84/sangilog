@@ -106,10 +106,17 @@ export default function WhiteboardList() {
       }
     }
 
-    // 선생님의 모든 클래스 로드 (연결없음 보드 일괄 연결에 사용)
-    const { data: allClassesData } = await supabase
+    // 선생님의 모든 클래스 로드 (연결없음 보드 일괄 연결에 사용, 초대받은 클래스 포함)
+    const { data: ownClassesData } = await supabase
       .from('classes').select('id, name').eq('teacher_id', user.id).order('name');
-    setAllClasses(allClassesData || []);
+    let assignedClassesData: any[] = [];
+    try {
+      const { data } = await supabase.from('classes').select('id, name').eq('assigned_teacher_id', user.id).order('name');
+      assignedClassesData = data || [];
+    } catch (_e) {}
+    const seenIds = new Set<string>();
+    const combinedClasses = [...(ownClassesData || []), ...assignedClassesData].filter(c => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; });
+    setAllClasses(combinedClasses);
 
     setClassInfos(fetchedClasses);
     setBoards(data.map(b => ({

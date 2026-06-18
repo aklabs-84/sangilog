@@ -626,9 +626,17 @@ export default function SurveyTool() {
   useEffect(() => { if (user) fetchClasses(); }, [user?.id]);
 
   const fetchClasses = async () => {
-    const { data } = await supabase.from('classes').select('id, name, class_type')
+    const { data: ownData } = await supabase.from('classes').select('id, name, class_type')
       .eq('teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
-    if (data) { setClasses(data); if (data.length > 0) { setSelectedClass(data[0]); fetchForms(data[0].id); } }
+    let assignedData: any[] = [];
+    try {
+      const { data } = await supabase.from('classes').select('id, name, class_type')
+        .eq('assigned_teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
+      assignedData = data || [];
+    } catch (_e) {}
+    const seen = new Set<string>();
+    const combined = [...(ownData || []), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    if (combined.length > 0) { setClasses(combined); setSelectedClass(combined[0]); fetchForms(combined[0].id); }
   };
 
   const fetchForms = async (classId: string) => {

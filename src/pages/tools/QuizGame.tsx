@@ -136,13 +136,18 @@ const QuizGame = () => {
   }, [user?.id]);
 
   const fetchClasses = async () => {
-    const { data } = await supabase
-      .from('classes')
-      .select('id, name, class_type')
-      .eq('teacher_id', user!.id)
-      .eq('is_archived', false)
-      .order('created_at', { ascending: false });
-    if (data) setClasses(data);
+    const { data: ownData } = await supabase
+      .from('classes').select('id, name, class_type')
+      .eq('teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
+    let assignedData: any[] = [];
+    try {
+      const { data } = await supabase.from('classes').select('id, name, class_type')
+        .eq('assigned_teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
+      assignedData = data || [];
+    } catch (_e) {}
+    const seen = new Set<string>();
+    const combined = [...(ownData || []), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    if (combined.length > 0) setClasses(combined);
   };
 
   const fetchQuizSets = async (classId?: string) => {

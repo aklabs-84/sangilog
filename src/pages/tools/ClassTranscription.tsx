@@ -413,14 +413,18 @@ const ClassTranscription = () => {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from('classes')
-        .select('*')
-        .eq('teacher_id', user?.id);
-      if (data && data.length > 0) {
-        setClasses(data);
-        setSelectedClassId(data[0].id);
-        await fetchStudents(data[0].id, data[0]);
+      const { data: ownData } = await supabase.from('classes').select('*').eq('teacher_id', user?.id);
+      let assignedData: any[] = [];
+      try {
+        const { data } = await supabase.from('classes').select('*').eq('assigned_teacher_id', user?.id);
+        assignedData = data || [];
+      } catch (_e) {}
+      const seen = new Set<string>();
+      const combined = [...(ownData || []), ...assignedData].filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+      if (combined.length > 0) {
+        setClasses(combined);
+        setSelectedClassId(combined[0].id);
+        await fetchStudents(combined[0].id, combined[0]);
       }
     })();
     return () => {

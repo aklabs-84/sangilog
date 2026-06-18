@@ -571,7 +571,8 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* 학교 프로젝트 섹션 */}
+        {/* 학교 프로젝트 섹션 - Pro/School/Admin 요금제만 표시 */}
+        {['pro', 'school', 'admin'].includes(profile?.plan ?? 'free') && (
         <div className="col-span-12 space-y-4">
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
@@ -579,27 +580,15 @@ const Dashboard = () => {
               <h2 className="text-xl font-bold font-manrope">학교 프로젝트</h2>
               <span className="text-[10px] font-black bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full uppercase tracking-wide">PRO</span>
             </div>
-            {checkIsPro(profile) && (
-              <button
-                onClick={() => { setEditingProject(null); setProjectModalOpen(true); }}
-                className="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-xl transition-all"
-              >
-                <Plus size={14} /> 새 프로젝트
-              </button>
-            )}
+            <button
+              onClick={() => { setEditingProject(null); setProjectModalOpen(true); }}
+              className="flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-xl transition-all"
+            >
+              <Plus size={14} /> 새 프로젝트
+            </button>
           </div>
 
-          {!checkIsPro(profile) ? (
-            <div className="surface-card p-6 border border-violet-100 bg-gradient-to-r from-violet-50 to-purple-50 flex items-center gap-4">
-              <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center text-violet-400 shrink-0">
-                <Lock size={22} />
-              </div>
-              <div>
-                <p className="font-black text-sm text-violet-900">Pro 전용 기능</p>
-                <p className="text-xs text-violet-500 mt-0.5">여러 선생님이 하나의 학교 수업을 함께 관리하고, 학교 담당자에게 통합 결과를 공유할 수 있습니다.</p>
-              </div>
-            </div>
-          ) : myProjects.length === 0 ? (
+          {myProjects.length === 0 ? (
             <button
               onClick={() => { setEditingProject(null); setProjectModalOpen(true); }}
               className="w-full surface-card p-8 border-2 border-dashed border-violet-200 hover:border-violet-400 text-center text-violet-400 hover:text-violet-600 transition-all group"
@@ -683,6 +672,7 @@ const Dashboard = () => {
             </div>
           )}
         </div>
+        )}
 
         {/* 가이드 & 카탈로그 링크 */}
         <div className="col-span-12 grid grid-cols-2 gap-3">
