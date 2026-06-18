@@ -386,12 +386,18 @@ const Classroom = () => {
   const fetchClasses = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .eq('teacher_id', user?.id)
-        .eq('is_archived', false)
-        .order('created_at', { ascending: false });
+      // 직접 만든 클래스 + 학교 프로젝트에서 담당으로 지정된 하위 반 클래스 모두 포함
+      const [{ data: ownData, error }, { data: assignedData }] = await Promise.all([
+        supabase.from('classes').select('*').eq('teacher_id', user?.id).eq('is_archived', false).order('created_at', { ascending: false }),
+        supabase.from('classes').select('*').eq('assigned_teacher_id', user?.id).eq('is_archived', false).order('created_at', { ascending: false }),
+      ]);
+
+      const seen = new Set<string>();
+      const combined = [...(ownData || []), ...(assignedData || [])].filter(c => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
 
       if (error) throw error;
       

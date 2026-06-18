@@ -156,6 +156,7 @@ export function checkIsPro(profile: any): boolean {
   if (!profile) return false;
   if (['pro', 'school', 'admin'].includes(profile.plan ?? 'free')) return true;
   if (profile.beta_expires_at && new Date(profile.beta_expires_at) > new Date()) return true;
+  if (profile.project_pro_until && new Date(profile.project_pro_until) > new Date()) return true;
   return false;
 }
 

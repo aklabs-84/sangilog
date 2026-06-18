@@ -18,7 +18,9 @@ import {
   ExternalLink,
   Lock,
   Map,
-  BookMarked
+  BookMarked,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
@@ -38,6 +40,8 @@ const Dashboard = () => {
   const [myProjects, setMyProjects] = useState<any[]>([]);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<any>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [deletingProjectName, setDeletingProjectName] = useState('');
   const [showActivityChart, setShowActivityChart] = useState(false);
   const [chartData, setChartData] = useState<{ daily: { label: string; count: number }[]; byClass: { name: string; count: number }[]; totalCount: number; uniqueStudents: number }>({ daily: [], byClass: [], totalCount: 0, uniqueStudents: 0 });
 
@@ -52,13 +56,21 @@ const Dashboard = () => {
     const { data } = await supabase
       .from('school_projects')
       .select(`
-        id, name, school_name, status, end_date, share_token, created_at,
-        school_project_classes(class_id, teacher_id, classes(name, subject))
+        id, name, school_name, status, start_date, end_date, share_token, created_at,
+        classes!school_project_id(id, parent_class_id, assigned_teacher_id)
       `)
       .eq('admin_id', user.id)
       .neq('status', 'archived')
       .order('created_at', { ascending: false });
     setMyProjects(data || []);
+  };
+
+  const handleDeleteProject = async () => {
+    if (!deletingProjectId) return;
+    await supabase.from('school_projects').delete().eq('id', deletingProjectId);
+    setMyProjects(prev => prev.filter(p => p.id !== deletingProjectId));
+    setDeletingProjectId(null);
+    setDeletingProjectName('');
   };
 
   const fetchDashboardData = async () => {
@@ -522,46 +534,65 @@ const Dashboard = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {myProjects.map(proj => {
-                const classCount = (proj.school_project_classes || []).length;
+                const allClasses = proj.classes || [];
+                const subClassCount = allClasses.filter((c: any) => c.parent_class_id !== null).length;
+                const assignedCount = allClasses.filter((c: any) => c.parent_class_id !== null && c.assigned_teacher_id).length;
                 const isActive = proj.status === 'active';
                 const isClosed = proj.status === 'closed';
                 return (
                   <div
                     key={proj.id}
-                    className="surface-card p-6 hover:scale-[1.02] transition-all cursor-pointer group border border-violet-100"
+                    className="surface-card p-6 hover:scale-[1.02] transition-all cursor-pointer group border border-violet-100 relative"
                     onClick={() => { setEditingProject(proj); setProjectModalOpen(true); }}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center text-violet-600">
                         <School size={20} />
                       </div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                        isActive ? 'bg-green-100 text-green-600' :
-                        isClosed ? 'bg-orange-100 text-orange-600' :
-                        'bg-gray-100 text-gray-500'
-                      }`}>
-                        {isActive ? '진행 중' : isClosed ? '수업 종료' : '보관됨'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          isActive ? 'bg-green-100 text-green-600' :
+                          isClosed ? 'bg-orange-100 text-orange-600' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                          {isActive ? '진행 중' : isClosed ? '수업 종료' : '보관됨'}
+                        </span>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setDeletingProjectId(proj.id);
+                            setDeletingProjectName(proj.name);
+                          }}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                          title="프로젝트 삭제"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                     <h3 className="font-black text-base mb-1 truncate">{proj.name}</h3>
                     {proj.school_name && <p className="text-xs text-gray-400 mb-3">{proj.school_name}</p>}
                     <div className="flex items-center justify-between mt-auto">
-                      <p className="text-xs text-gray-500">{classCount}개 클래스</p>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          window.open(`/school-project/${proj.share_token}`, '_blank');
-                        }}
-                        className="flex items-center gap-1 text-[10px] font-bold text-violet-500 hover:text-violet-700 transition-all"
-                      >
-                        <ExternalLink size={11} /> 공유 URL
-                      </button>
+                      <div>
+                        <p className="text-xs text-gray-500">{subClassCount}개 반 · {assignedCount}명 담당</p>
+                        {proj.end_date && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            ~ {new Date(proj.end_date).toLocaleDateString('ko-KR')}
+                          </p>
+                        )}
+                      </div>
+                      {proj.share_token && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            window.open(`/school-project/${proj.share_token}`, '_blank');
+                          }}
+                          className="flex items-center gap-1 text-[10px] font-bold text-violet-500 hover:text-violet-700 transition-all"
+                        >
+                          <ExternalLink size={11} /> 공유 URL
+                        </button>
+                      )}
                     </div>
-                    {proj.end_date && (
-                      <p className="text-[10px] text-gray-400 mt-2">
-                        종료일: {new Date(proj.end_date).toLocaleDateString('ko-KR')}
-                      </p>
-                    )}
                   </div>
                 );
               })}
@@ -769,6 +800,47 @@ const Dashboard = () => {
         onSaved={() => fetchMyProjects()}
         editProject={editingProject}
       />
+
+      {/* 학교 프로젝트 삭제 확인 모달 */}
+      <AnimatePresence>
+        {deletingProjectId && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8"
+            >
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center text-red-500">
+                  <AlertTriangle size={26} />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-gray-900">프로젝트 삭제</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    <span className="font-bold text-gray-800">"{deletingProjectName}"</span>을(를)<br />
+                    삭제하면 복구할 수 없습니다.
+                  </p>
+                </div>
+                <div className="flex gap-3 w-full mt-2">
+                  <button
+                    onClick={() => { setDeletingProjectId(null); setDeletingProjectName(''); }}
+                    className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black text-sm transition-all"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleDeleteProject}
+                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-black text-sm transition-all active:scale-95"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

@@ -245,8 +245,10 @@ const SubjectDashboard = ({
   // 연결된 담임반의 weekly_plan (학생이 담임반 코드로 입장 시 activity_name이 담임반 주제로 저장됨)
   const [linkedWeeklyPlan, setLinkedWeeklyPlan] = useState<{week: number, topic: string}[]>([]);
 
-  // 주차 목록: weekly_plan + 실제 제출된 주차 union
-  const weeklyPlan: {week: number, topic: string}[] = classInfo?.weekly_plan || [];
+  // 주차 목록: parent_class의 weekly_plan 우선, 없으면 본인 클래스
+  const weeklyPlan: {week: number, topic: string}[] = classInfo?.parent_class_id
+    ? (linkedWeeklyPlan.length > 0 ? linkedWeeklyPlan : classInfo?.weekly_plan || [])
+    : classInfo?.weekly_plan || [];
   const submittedWeekNums = [...new Set(rawResults.map(r => r.week_number).filter((w): w is number => w !== null))];
   const statsWeeks = [...new Set([...weeklyPlan.map(p => p.week), ...submittedWeekNums])].sort((a, b) => a - b);
 
@@ -331,14 +333,13 @@ const SubjectDashboard = ({
         setRawObs(obsRes.data || []);
         setRawResults(resultsRes.data || []);
 
-        // 연결된 담임반의 weekly_plan 가져오기
-        // 학생이 담임반 입장코드로 로그인 시 activity_name = 담임반 주제로 저장되므로
-        // 과목반 주제와 담임반 주제를 모두 비교해야 정확한 제출 여부를 판단할 수 있음
-        if (classInfo.linked_class_id) {
+        // linked_class_id 또는 parent_class_id에서 weekly_plan 로드
+        const refClassId = classInfo.parent_class_id || classInfo.linked_class_id;
+        if (refClassId) {
           const linkedClassRes = await supabase
             .from('classes')
             .select('weekly_plan')
-            .eq('id', classInfo.linked_class_id)
+            .eq('id', refClassId)
             .single();
           if (linkedClassRes.data?.weekly_plan) {
             setLinkedWeeklyPlan(linkedClassRes.data.weekly_plan);
