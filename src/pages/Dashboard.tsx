@@ -37,6 +37,7 @@ const Dashboard = () => {
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [subjectInputs, setSubjectInputs] = useState<Record<string, string>>({});
   const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null);
+  const [assignedClasses, setAssignedClasses] = useState<any[]>([]);
   const [myProjects, setMyProjects] = useState<any[]>([]);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<any>(null);
@@ -49,6 +50,7 @@ const Dashboard = () => {
     fetchDashboardData();
     fetchPendingInvitations();
     fetchMyProjects();
+    fetchAssignedClasses();
   }, []);
 
   const fetchMyProjects = async () => {
@@ -63,6 +65,40 @@ const Dashboard = () => {
       .neq('status', 'archived')
       .order('created_at', { ascending: false });
     setMyProjects(data || []);
+  };
+
+  const fetchAssignedClasses = async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from('classes')
+        .select('id, name, subject, color_hex, school_project_id')
+        .eq('assigned_teacher_id', user.id)
+        .eq('is_archived', false)
+        .order('created_at', { ascending: false });
+      if (!data || data.length === 0) { setAssignedClasses([]); return; }
+
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('id, class_id, avatar_url, full_name')
+        .in('class_id', data.map(c => c.id));
+
+      const studentMap = (studentData || []).reduce((acc: any, curr: any) => {
+        if (!acc[curr.class_id]) acc[curr.class_id] = [];
+        acc[curr.class_id].push({ avatar: curr.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(curr.full_name)}&background=random` });
+        return acc;
+      }, {});
+
+      setAssignedClasses(data.map(c => ({
+        id: c.id,
+        name: c.name,
+        subject: c.subject,
+        students: (studentMap[c.id] || []).length,
+        avatars: (studentMap[c.id] || []).slice(0, 3).map((s: any) => s.avatar),
+        color: c.color_hex || 'bg-violet-100',
+        school_project_id: c.school_project_id,
+      })));
+    } catch (_e) { /* assigned_teacher_id 컬럼 미존재 시 무시 */ }
   };
 
   const handleDeleteProject = async () => {
@@ -493,6 +529,47 @@ const Dashboard = () => {
             )}
           </div>
         </div>
+
+        {/* 담당 학급 섹션 (학교 프로젝트에서 초대받은 클래스) */}
+        {assignedClasses.length > 0 && (
+          <div className="col-span-12 space-y-4">
+            <div className="flex items-center gap-2 px-2">
+              <School size={18} className="text-violet-500" />
+              <h2 className="text-xl font-bold font-manrope">담당 학급</h2>
+              <span className="text-[10px] font-black bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full">학교 프로젝트</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+              {assignedClasses.map(cls => (
+                <div
+                  key={cls.id}
+                  onClick={() => navigate(`/classroom?id=${cls.id}`)}
+                  className="surface-card p-5 md:p-8 shadow-ambient hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer group border-l-4 border-violet-400"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center group-hover:rotate-12 transition-transform">
+                      <School size={22} className="text-violet-600" />
+                    </div>
+                    <span className="text-[10px] font-black bg-violet-50 text-violet-500 px-2 py-1 rounded-xl border border-violet-100">담당 교사</span>
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">{cls.name}</h3>
+                  <p className="text-sm text-on-surface-variant mb-6">{cls.students}명 학생 • {cls.subject}</p>
+                  <div className="flex items-center justify-between mt-auto">
+                    <div className="flex -space-x-2">
+                      {cls.avatars && cls.avatars.map((avatar: string, i: number) => (
+                        <div key={i} className="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high overflow-hidden shadow-sm">
+                          <img src={avatar} alt="student" className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-violet-400 font-bold flex items-center gap-1">
+                      <School size={10} /> 학교 프로젝트
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 학교 프로젝트 섹션 */}
         <div className="col-span-12 space-y-4">

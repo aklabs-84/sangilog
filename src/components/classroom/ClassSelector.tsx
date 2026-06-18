@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check, School, SlidersHorizontal } from 'lucide-react';
+import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check, School, SlidersHorizontal, Crown } from 'lucide-react';
 
 interface ClassSelectorProps {
   classes: any[];
@@ -28,6 +28,10 @@ const ClassSelector = ({
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const activeClass = classes.find(c => c.id === activeClassId);
+
+  // 일반 학급 vs 학교 프로젝트 담당 학급 분리
+  const regularClasses = classes.filter(c => !c.parent_class_id);
+  const projectClasses = classes.filter(c => c.parent_class_id);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -59,18 +63,31 @@ const ClassSelector = ({
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setOpen(!open)}
-            className="flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-primary/5 border border-primary/20 shadow-sm hover:bg-primary/10 transition-all group"
+            className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl shadow-sm transition-all group ${
+              activeClass?.parent_class_id
+                ? 'bg-violet-50 border border-violet-200 hover:bg-violet-100'
+                : 'bg-primary/5 border border-primary/20 hover:bg-primary/10'
+            }`}
           >
-            <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
-              <GraduationCap size={18} strokeWidth={2.5} />
+            <div className={`w-9 h-9 rounded-xl text-white flex items-center justify-center shrink-0 ${
+              activeClass?.parent_class_id
+                ? 'bg-violet-500 shadow-lg shadow-violet-200'
+                : 'bg-primary shadow-lg shadow-primary/20'
+            }`}>
+              {activeClass?.parent_class_id ? <School size={18} /> : <GraduationCap size={18} strokeWidth={2.5} />}
             </div>
 
             {activeClass ? (
               <div className="flex flex-col items-start text-left">
-                <span className="text-sm font-black tracking-tight text-on-surface">
-                  {activeClass.name}
-                </span>
-                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-primary/80">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-black tracking-tight text-on-surface">
+                    {activeClass.name}
+                  </span>
+                  {activeClass.parent_class_id && (
+                    <span className="text-[9px] font-black bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">담당</span>
+                  )}
+                </div>
+                <span className={`text-[11px] font-black uppercase tracking-[0.1em] ${activeClass.parent_class_id ? 'text-violet-500' : 'text-primary/80'}`}>
                   {activeClass.subject}
                 </span>
               </div>
@@ -108,59 +125,87 @@ const ClassSelector = ({
                 </div>
 
                 {/* 학급 리스트 */}
-                <div className="py-2 max-h-[320px] overflow-y-auto custom-scrollbar">
-                  {classes.map(c => {
-                    const isActive = c.id === activeClassId;
-                    return (
-                      <div
-                        key={c.id}
-                        className={`flex items-center justify-between px-4 py-3 mx-2 rounded-xl transition-all group/item ${
-                          isActive
-                            ? 'bg-primary/5 border border-primary/15'
-                            : 'hover:bg-surface-container cursor-pointer'
-                        }`}
-                        onClick={() => !isActive && handleSelect(c.id)}
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${
-                            isActive ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-primary/10 text-primary/70 group-hover/item:bg-primary/20'
-                          }`}>
-                            <GraduationCap size={16} strokeWidth={2.5} />
+                <div className="py-2 max-h-[360px] overflow-y-auto custom-scrollbar">
+                  {/* 일반 학급 */}
+                  {regularClasses.length > 0 && (
+                    <>
+                      {projectClasses.length > 0 && (
+                        <p className="px-4 pt-1 pb-2 text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">내 학급</p>
+                      )}
+                      {regularClasses.map(c => {
+                        const isActive = c.id === activeClassId;
+                        return (
+                          <div
+                            key={c.id}
+                            className={`flex items-center justify-between px-4 py-3 mx-2 rounded-xl transition-all group/item ${
+                              isActive ? 'bg-primary/5 border border-primary/15' : 'hover:bg-surface-container cursor-pointer'
+                            }`}
+                            onClick={() => !isActive && handleSelect(c.id)}
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${
+                                isActive ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-primary/10 text-primary/70 group-hover/item:bg-primary/20'
+                              }`}>
+                                <GraduationCap size={16} strokeWidth={2.5} />
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <span className={`text-sm font-black tracking-tight truncate ${isActive ? 'text-primary' : 'text-on-surface'}`}>{c.name}</span>
+                                <span className="text-[11px] font-black uppercase tracking-wider text-on-surface-variant/70">{c.subject}</span>
+                              </div>
+                            </div>
+                            {isActive ? (
+                              <div className="flex items-center gap-1 shrink-0 ml-2">
+                                <Check size={14} className="text-primary mr-1" />
+                                <button onClick={(e) => { e.stopPropagation(); onEditClass(c); setOpen(false); }} className="p-1.5 hover:bg-primary/10 rounded-lg text-primary/70 hover:text-primary transition-all"><Settings2 size={14} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); onDeleteClass(c.id); setOpen(false); }} className="p-1.5 hover:bg-error/10 rounded-lg text-error/60 hover:text-error transition-all"><Trash2 size={14} /></button>
+                              </div>
+                            ) : (
+                              <div className="w-5 h-5 rounded-full border-2 border-neutral-200 group-hover/item:border-primary/30 transition-all shrink-0 ml-2" />
+                            )}
                           </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className={`text-sm font-black tracking-tight truncate ${isActive ? 'text-primary' : 'text-on-surface'}`}>
-                              {c.name}
-                            </span>
-                            <span className="text-[11px] font-black uppercase tracking-wider text-on-surface-variant/70">
-                              {c.subject}
-                            </span>
-                          </div>
-                        </div>
+                        );
+                      })}
+                    </>
+                  )}
 
-                        {isActive ? (
-                          <div className="flex items-center gap-1 shrink-0 ml-2">
-                            <Check size={14} className="text-primary mr-1" />
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onEditClass(c); setOpen(false); }}
-                              className="p-1.5 hover:bg-primary/10 rounded-lg text-primary/70 hover:text-primary transition-all"
-                              title="학급 수정"
-                            >
-                              <Settings2 size={14} />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onDeleteClass(c.id); setOpen(false); }}
-                              className="p-1.5 hover:bg-error/10 rounded-lg text-error/60 hover:text-error transition-all"
-                              title="학급 삭제"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full border-2 border-neutral-200 group-hover/item:border-primary/30 transition-all shrink-0 ml-2" />
-                        )}
+                  {/* 학교 프로젝트 담당 학급 */}
+                  {projectClasses.length > 0 && (
+                    <>
+                      <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 border-t border-surface-container-high mt-1">
+                        <Crown size={10} className="text-violet-500" />
+                        <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest">학교 프로젝트 담당</p>
                       </div>
-                    );
-                  })}
+                      {projectClasses.map(c => {
+                        const isActive = c.id === activeClassId;
+                        return (
+                          <div
+                            key={c.id}
+                            className={`flex items-center justify-between px-4 py-3 mx-2 rounded-xl transition-all group/item ${
+                              isActive ? 'bg-violet-50 border border-violet-200' : 'hover:bg-violet-50/50 cursor-pointer'
+                            }`}
+                            onClick={() => !isActive && handleSelect(c.id)}
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${
+                                isActive ? 'bg-violet-500 text-white shadow-md shadow-violet-200' : 'bg-violet-100 text-violet-500 group-hover/item:bg-violet-200'
+                              }`}>
+                                <School size={15} />
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <span className={`text-sm font-black tracking-tight truncate ${isActive ? 'text-violet-700' : 'text-on-surface'}`}>{c.name}</span>
+                                <span className="text-[11px] font-black uppercase tracking-wider text-violet-400">{c.subject}</span>
+                              </div>
+                            </div>
+                            {isActive ? (
+                              <Check size={14} className="text-violet-500 shrink-0 ml-2" />
+                            ) : (
+                              <div className="w-5 h-5 rounded-full border-2 border-violet-200 group-hover/item:border-violet-400 transition-all shrink-0 ml-2" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
                 </div>
 
                 {/* 푸터 액션 */}
