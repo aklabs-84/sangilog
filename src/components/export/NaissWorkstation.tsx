@@ -208,7 +208,7 @@ const NaissWorkstation = ({ classes }: Props) => {
         .from('student_results')
         .select('student_id, teacher_eval_score, teacher_eval_tags, teacher_eval_note, title')
         .in('student_id', ids)
-        .not('teacher_eval_note', 'is', null);
+        .or('teacher_eval_score.not.is.null,teacher_eval_note.not.is.null,teacher_eval_tags.not.is.null');
       const resultEvalsByStudent: Record<string, { score: number | null; tags: string[] | null; note: string | null; title: string | null }[]> = {};
       ids.forEach((id: string) => { resultEvalsByStudent[id] = []; });
       resultEvalsData?.forEach((r: any) => {

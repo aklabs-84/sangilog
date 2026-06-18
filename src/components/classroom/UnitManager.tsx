@@ -11,7 +11,8 @@ import {
   Pencil,
   Trash2,
   FileText,
-  AlertCircle
+  AlertCircle,
+  X,
 } from 'lucide-react';
 import UnitCreateModal from './UnitCreateModal';
 
@@ -35,6 +36,7 @@ const UnitManager = ({ classId, teacherId }: Props) => {
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<Record<string, any[]>>({});
   const [submissionsLoading, setSubmissionsLoading] = useState<Record<string, boolean>>({});
+  const [detailModal, setDetailModal] = useState<{ sub: any; unitTitle: string } | null>(null);
 
   useEffect(() => {
     fetchUnits();
@@ -63,7 +65,8 @@ const UnitManager = ({ classId, teacherId }: Props) => {
         .from('unit_submissions')
         .select('*, students(full_name, student_number)')
         .eq('unit_id', unitId)
-        .order('submitted_at', { ascending: false });
+        .order('submitted_at', { ascending: false })
+        .select('id, student_id, unit_id, submitted_at, performance_record, inquiry_reflection, self_eval, reading_record_title, reading_record_author, reading_record_reflection, students(full_name, student_number)');
       if (!error && data) {
         setSubmissions(prev => ({ ...prev, [unitId]: data }));
       }
@@ -303,28 +306,39 @@ const UnitManager = ({ classId, teacherId }: Props) => {
                           </p>
                         ) : (
                           <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {submissionList.map(sub => (
-                              <div
-                                key={sub.id}
-                                className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-secondary/10 text-secondary rounded-lg flex items-center justify-center">
-                                    <FileText size={14} />
+                            {submissionList.map(sub => {
+                              const hasContent = sub.performance_record || sub.inquiry_reflection || sub.self_eval || sub.reading_record_title;
+                              return (
+                                <div
+                                  key={sub.id}
+                                  onClick={() => hasContent && setDetailModal({ sub, unitTitle: unit.title })}
+                                  className={`flex items-center justify-between p-3 bg-surface-container-low rounded-xl transition-colors ${hasContent ? 'cursor-pointer hover:bg-surface-container hover:shadow-sm' : ''}`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-secondary/10 text-secondary rounded-lg flex items-center justify-center">
+                                      <FileText size={14} />
+                                    </div>
+                                    <div>
+                                      <p className="font-black text-sm">{sub.students?.full_name}</p>
+                                      <p className="text-[10px] font-bold text-on-surface-variant">
+                                        {sub.students?.student_number}번 ·{' '}
+                                        {new Date(sub.submitted_at).toLocaleDateString('ko-KR')}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="font-black text-sm">{sub.students?.full_name}</p>
-                                    <p className="text-[10px] font-bold text-on-surface-variant">
-                                      {sub.students?.student_number}번 ·{' '}
-                                      {new Date(sub.submitted_at).toLocaleDateString('ko-KR')}
-                                    </p>
+                                  <div className="flex items-center gap-2">
+                                    {hasContent && (
+                                      <span className="text-[9px] font-black text-primary/50 hover:text-primary transition-colors">
+                                        내용 보기 →
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] font-black text-secondary bg-secondary/10 px-2 py-1 rounded-lg">
+                                      제출 완료
+                                    </span>
                                   </div>
                                 </div>
-                                <span className="text-[10px] font-black text-secondary bg-secondary/10 px-2 py-1 rounded-lg">
-                                  제출 완료
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -347,6 +361,102 @@ const UnitManager = ({ classId, teacherId }: Props) => {
             onCreated={fetchUnits}
             editUnit={editUnit}
           />
+        )}
+      </AnimatePresence>
+
+      {/* 제출 내용 상세 모달 */}
+      <AnimatePresence>
+        {detailModal && (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => setDetailModal(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="w-full max-w-xl bg-white rounded-[2rem] shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* 헤더 */}
+              <div className="flex items-start justify-between p-7 pb-4 border-b border-neutral-100">
+                <div>
+                  <p className="text-[10px] font-black text-primary/50 uppercase tracking-widest mb-1">{detailModal.unitTitle}</p>
+                  <h3 className="text-lg font-black">
+                    {detailModal.sub.students?.student_number}번 {detailModal.sub.students?.full_name}
+                  </h3>
+                  <p className="text-xs font-bold text-on-surface-variant/40 mt-1 flex items-center gap-1">
+                    <Clock size={11} />
+                    {new Date(detailModal.sub.submitted_at).toLocaleString('ko-KR')} 제출
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDetailModal(null)}
+                  className="p-2 rounded-xl hover:bg-surface-container text-on-surface-variant transition-all mt-1"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* 내용 */}
+              <div className="px-7 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
+                {detailModal.sub.performance_record && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black text-primary uppercase tracking-widest">수행평가 활동 기술</p>
+                    <div className="p-4 bg-primary/[0.03] rounded-xl border border-primary/10 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                      {detailModal.sub.performance_record}
+                    </div>
+                    <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{detailModal.sub.performance_record.length}자</p>
+                  </div>
+                )}
+                {detailModal.sub.inquiry_reflection && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black text-violet-600 uppercase tracking-widest">탐구소감문</p>
+                    <div className="p-4 bg-violet-50/40 rounded-xl border border-violet-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                      {detailModal.sub.inquiry_reflection}
+                    </div>
+                    <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{detailModal.sub.inquiry_reflection.length}자</p>
+                  </div>
+                )}
+                {detailModal.sub.self_eval && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">자기평가서</p>
+                    <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                      {detailModal.sub.self_eval}
+                    </div>
+                    <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{detailModal.sub.self_eval.length}자</p>
+                  </div>
+                )}
+                {detailModal.sub.reading_record_title && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">독서기록</p>
+                    <div className="p-4 bg-amber-50/40 rounded-xl border border-amber-100 space-y-2">
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="font-black text-on-surface">{detailModal.sub.reading_record_title}</span>
+                        {detailModal.sub.reading_record_author && (
+                          <span className="text-on-surface-variant/60 font-bold">— {detailModal.sub.reading_record_author}</span>
+                        )}
+                      </div>
+                      {detailModal.sub.reading_record_reflection && (
+                        <p className="text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap pt-2 border-t border-amber-100">
+                          {detailModal.sub.reading_record_reflection}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-7 py-4 border-t border-neutral-100 flex justify-end">
+                <button
+                  onClick={() => setDetailModal(null)}
+                  className="px-6 py-2.5 bg-surface-container hover:bg-surface-container-high rounded-xl font-black text-sm text-on-surface-variant transition-all"
+                >
+                  닫기
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

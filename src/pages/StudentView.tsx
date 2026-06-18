@@ -7,7 +7,7 @@ import {
   Sparkles, CheckCircle2, ThumbsUp, Loader2, Pencil, Trash2,
   Check, X, FolderOpen, AlignLeft, Link2, ImageIcon, File,
   Upload, ExternalLink, Megaphone, MessageSquare, Reply, Send,
-  RotateCw, AlertCircle, AlertTriangle,
+  RotateCw, AlertCircle, AlertTriangle, BookMarked, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { studentAnalysisAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
@@ -93,6 +93,12 @@ const StudentView = () => {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Unit Submissions States
+  const [unitSubmissions, setUnitSubmissions] = useState<any[]>([]);
+  const [allUnits, setAllUnits] = useState<any[]>([]);
+  const [unitSubmissionsLoading, setUnitSubmissionsLoading] = useState(false);
+  const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
+
   // Result Evaluation States
   const [evalForms, setEvalForms] = useState<Record<string, { score: number; tags: string[]; note: string }>>({});
   const [savingEvalId, setSavingEvalId] = useState<string | null>(null);
@@ -155,13 +161,31 @@ const StudentView = () => {
       setLoading(false);
     }
 
-    // results & suggestions 병렬 조회
+    // results, suggestions, unit_submissions 병렬 조회
     setResultsLoading(true);
     setSuggestionsLoading(true);
-    const [resResult, sugResult] = await Promise.all([
+    setUnitSubmissionsLoading(true);
+
+    // studentData를 이 시점에 다시 가져올 수 없으므로 별도 조회
+    const { data: classInfo } = await supabase
+      .from('students')
+      .select('class_id')
+      .eq('id', id)
+      .single();
+    const classId = classInfo?.class_id;
+
+    const [resResult, sugResult, unitSubResult, allUnitsResult] = await Promise.all([
       supabase.from('student_results').select('*').eq('student_id', id).order('created_at', { ascending: false }),
-      supabase.from('student_suggestions').select('*').eq('student_id', id).order('created_at', { ascending: false })
+      supabase.from('student_suggestions').select('*').eq('student_id', id).order('created_at', { ascending: false }),
+      supabase.from('unit_submissions')
+        .select('*, units(id, title, form_config)')
+        .eq('student_id', id)
+        .order('submitted_at', { ascending: false }),
+      classId
+        ? supabase.from('units').select('id, title, form_config, status, created_at').eq('class_id', classId).eq('status', 'completed').order('created_at', { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
     ]);
+
     if (!resResult.error && resResult.data) {
       setResults(resResult.data);
       const initialEvals: Record<string, { score: number; tags: string[]; note: string }> = {};
@@ -182,6 +206,9 @@ const StudentView = () => {
     setResultsLoading(false);
     if (!sugResult.error) setStudentSuggestions(sugResult.data || []);
     setSuggestionsLoading(false);
+    if (!unitSubResult.error) setUnitSubmissions(unitSubResult.data || []);
+    if (!allUnitsResult.error) setAllUnits((allUnitsResult as any).data || []);
+    setUnitSubmissionsLoading(false);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -1251,6 +1278,159 @@ ${activitiesContext}
                       >
                         <Reply size={14} /> 답변 작성
                       </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ─── 단원기록 ─── */}
+      <div className="surface-card p-8 shadow-ambient border border-white/60">
+        <div className="flex items-center justify-between mb-6 pb-5 border-b border-surface-container">
+          <h2 className="text-xl font-black flex items-center gap-3">
+            <BookMarked size={22} className="text-primary" />
+            단원 마무리 기록
+          </h2>
+          <span className="px-3 py-1.5 bg-neutral-100 rounded-lg text-xs font-bold text-neutral-500">
+            {unitSubmissions.length}건 제출 / 총 {allUnits.length}개 단원
+          </span>
+        </div>
+
+        {unitSubmissionsLoading ? (
+          <div className="flex justify-center py-10"><Loader2 size={28} className="animate-spin text-primary" /></div>
+        ) : allUnits.length === 0 ? (
+          <div className="flex flex-col items-center py-12 space-y-3 opacity-30">
+            <BookMarked size={48} />
+            <p className="font-black">생성된 단원이 없습니다.</p>
+            <p className="text-xs font-bold text-center">선생님이 단원을 마무리하면 여기에 기록이 표시됩니다.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {allUnits.map(unit => {
+              const sub = unitSubmissions.find((s: any) => s.unit_id === unit.id || s.units?.id === unit.id);
+              const cfg: Record<string, boolean> = unit.form_config || {};
+              const isExpanded = expandedUnitId === unit.id;
+              const hasContent = sub && (sub.performance_record || sub.inquiry_reflection || sub.self_eval || sub.reading_record_title);
+
+              const FORM_LABELS: Record<string, string> = {
+                performance_record: '수행평가 활동 기술',
+                inquiry_reflection: '탐구소감문',
+                self_eval: '자기평가서',
+                reading_record: '독서기록',
+              };
+              const enabledFields = Object.entries(cfg).filter(([, v]) => v).map(([k]) => k);
+
+              return (
+                <div
+                  key={unit.id}
+                  className={`rounded-2xl border-2 overflow-hidden transition-colors ${
+                    sub ? 'border-secondary/20 bg-secondary/[0.02]' : 'border-surface-container bg-surface-container-low'
+                  }`}
+                >
+                  {/* 단원 헤더 */}
+                  <div
+                    className="flex items-center gap-4 p-5 cursor-pointer hover:bg-surface-container/30 transition-colors"
+                    onClick={() => {
+                      if (!hasContent) return;
+                      setExpandedUnitId(prev => prev === unit.id ? null : unit.id);
+                    }}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      sub ? 'bg-secondary/10 text-secondary' : 'bg-surface-container text-on-surface-variant/40'
+                    }`}>
+                      <BookMarked size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h4 className="font-black text-sm">{unit.title}</h4>
+                        {sub ? (
+                          <span className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-secondary/10 text-secondary uppercase tracking-wider">
+                            제출 완료
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-neutral-100 text-neutral-400 uppercase tracking-wider">
+                            미제출
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {enabledFields.map(f => (
+                          <span key={f} className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                            sub && sub[f === 'reading_record' ? 'reading_record_title' : f]
+                              ? 'bg-secondary/5 text-secondary border-secondary/20'
+                              : 'bg-white text-on-surface-variant/40 border-neutral-200'
+                          }`}>
+                            {FORM_LABELS[f] || f}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {sub?.submitted_at && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant/40">
+                          <Clock size={11} />
+                          {new Date(sub.submitted_at).toLocaleDateString('ko-KR')}
+                        </span>
+                      )}
+                      {hasContent && (
+                        <div className="text-on-surface-variant/30">
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 제출 내용 펼침 */}
+                  {isExpanded && hasContent && (
+                    <div className="border-t border-surface-container bg-white p-6 space-y-5">
+                      {sub.performance_record && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">수행평가 활동 기술</p>
+                          <div className="p-4 bg-primary/[0.03] rounded-xl border border-primary/10 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                            {sub.performance_record}
+                          </div>
+                          <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{sub.performance_record.length}자</p>
+                        </div>
+                      )}
+                      {sub.inquiry_reflection && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black text-violet-600 uppercase tracking-widest">탐구소감문</p>
+                          <div className="p-4 bg-violet-50/40 rounded-xl border border-violet-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                            {sub.inquiry_reflection}
+                          </div>
+                          <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{sub.inquiry_reflection.length}자</p>
+                        </div>
+                      )}
+                      {sub.self_eval && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">자기평가서</p>
+                          <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100 text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                            {sub.self_eval}
+                          </div>
+                          <p className="text-[10px] font-bold text-on-surface-variant/40 text-right">{sub.self_eval.length}자</p>
+                        </div>
+                      )}
+                      {sub.reading_record_title && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">독서기록</p>
+                          <div className="p-4 bg-amber-50/40 rounded-xl border border-amber-100 space-y-2">
+                            <div className="flex items-center gap-3 text-sm">
+                              <span className="font-black text-on-surface">{sub.reading_record_title}</span>
+                              {sub.reading_record_author && (
+                                <span className="text-on-surface-variant/60 font-bold">— {sub.reading_record_author}</span>
+                              )}
+                            </div>
+                            {sub.reading_record_reflection && (
+                              <p className="text-sm font-medium text-on-surface/80 leading-relaxed whitespace-pre-wrap pt-2 border-t border-amber-100">
+                                {sub.reading_record_reflection}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
