@@ -82,7 +82,7 @@ export default function StickyNote({ obj, isSelected, onSelect, onUpdate, onDele
           }}
         />
       ) : (
-        <div style={{ flex: 1, padding: 8, fontSize: 14, color: '#1a1a1a', lineHeight: 1.5, overflowWrap: 'break-word', overflowY: 'hidden' }}>
+        <div style={{ flex: 1, padding: 8, fontSize: 14, color: '#1a1a1a', lineHeight: 1.5, overflowWrap: 'break-word', overflowY: 'hidden', whiteSpace: 'pre-wrap' }}>
           {(obj.content.text as string) || <span style={{ color: '#aaa' }}>더블클릭해서 입력</span>}
         </div>
       )}
