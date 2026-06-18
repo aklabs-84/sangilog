@@ -41,6 +41,7 @@ import {
   Lock,
   Unlock,
   CalendarDays,
+  School,
 } from 'lucide-react';
 import { useAuth, checkIsPro, getClassLimit, getStudentLimit } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -533,25 +534,36 @@ const Classroom = () => {
     const isSubjectRequired = updateClassData?.class_type === 'subject';
     if (!updateClassData?.name || (isSubjectRequired && !updateClassData?.subject) || !user) return;
 
+    // 하위 클래스에 공통 적용할 설정값
+    const sharedSettings = {
+      student_guide_prompt: updateClassData.student_guide_prompt,
+      teacher_report_prompt: updateClassData.teacher_report_prompt,
+      min_obs_chars: updateClassData.min_obs_chars || 0,
+      blocked_keywords: updateClassData.blocked_keywords || [],
+      ai_review_enabled: updateClassData.ai_review_enabled ?? true,
+      start_date: updateClassData.start_date || null,
+      end_date: updateClassData.end_date || null,
+      is_closed: updateClassData.is_closed ?? false,
+    };
+
     try {
       const { error } = await supabase
         .from('classes')
         .update({
           name: updateClassData.name,
           subject: updateClassData.subject,
-          student_guide_prompt: updateClassData.student_guide_prompt,
-          teacher_report_prompt: updateClassData.teacher_report_prompt,
           weekly_plan: updateClassData.weekly_plan || [],
-          min_obs_chars: updateClassData.min_obs_chars || 0,
-          blocked_keywords: updateClassData.blocked_keywords || [],
-          ai_review_enabled: updateClassData.ai_review_enabled ?? true,
-          start_date: updateClassData.start_date || null,
-          end_date: updateClassData.end_date || null,
-          is_closed: updateClassData.is_closed ?? false,
+          ...sharedSettings,
         })
         .eq('id', updateClassData.id);
 
       if (error) throw error;
+
+      // 학교 프로젝트 부모 클래스이면 하위 클래스 전체에 공통 설정 cascade
+      if (updateClassData.school_project_id && !updateClassData.parent_class_id) {
+        await supabase.from('classes').update(sharedSettings).eq('parent_class_id', updateClassData.id);
+      }
+
       setIsUpdateModalOpen(false);
       setUpdateClassData(null);
       setEditingClassMaterials([]);
@@ -2013,6 +2025,16 @@ const Classroom = () => {
                   <button type="button" onClick={() => setEditModalTab('ai')} className={`px-6 py-2 text-xs font-black rounded-xl transition-all ${editModalTab === 'ai' ? 'bg-white shadow-sm text-primary' : 'text-neutral-500 hover:text-neutral-700'}`}>AI 지침 설정</button>
                 </div>
               </div>
+
+              {/* 학교 프로젝트 부모 클래스 안내 */}
+              {updateClassData.school_project_id && !updateClassData.parent_class_id && (
+                <div className="flex items-center gap-3 px-4 py-3 bg-violet-50 border border-violet-200 rounded-2xl">
+                  <School size={15} className="text-violet-500 shrink-0" />
+                  <p className="text-xs font-bold text-violet-700">
+                    AI 지침·수업 기간 등 공통 설정은 <strong>하위 반 전체에 동일하게 적용</strong>됩니다.
+                  </p>
+                </div>
+              )}
 
               <form onSubmit={handleUpdateClass} className="space-y-6">
                 <AnimatePresence mode="wait">

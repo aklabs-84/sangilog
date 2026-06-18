@@ -230,8 +230,8 @@ const ClassSelector = ({
           </AnimatePresence>
         </div>
 
-        {/* 학급 수정 버튼 — 드롭다운 밖에서 항상 노출 */}
-        {activeClass && (
+        {/* 학급 수정 버튼 — 서브클래스(담당 학급)는 설정 불가 */}
+        {activeClass && !activeClass.parent_class_id && (
           <button
             onClick={() => onEditClass(activeClass)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-neutral-200 hover:border-primary/30 hover:bg-primary/5 text-neutral-500 hover:text-primary font-black text-xs transition-all shadow-sm group shrink-0"
