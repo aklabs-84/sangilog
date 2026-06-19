@@ -60,6 +60,7 @@ import GroupTab from '../components/classroom/GroupTab';
 import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 import UpgradeModal from '../components/UpgradeModal';
 import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
+import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 
 
 const Classroom = () => {
@@ -112,6 +113,10 @@ const Classroom = () => {
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [archivedClasses, setArchivedClasses] = useState<any[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
+
+  // 학교 프로젝트 모달
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<any>(null);
 
   // 학교 그룹 관련 상태
   const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
@@ -1419,7 +1424,16 @@ const Classroom = () => {
                 if (activeClassId) fetchResources(activeClassId);
                 setIsResourceModalOpen(true);
               }}
-              onOpenProjectModal={() => { fetchSchools(); setIsSchoolModalOpen(true); }}
+              onOpenProjectModal={async () => {
+                if (!classInfo?.school_project_id) return;
+                const { data } = await supabase
+                  .from('school_projects')
+                  .select('*')
+                  .eq('id', classInfo.school_project_id)
+                  .single();
+                setEditingProject(data || null);
+                setIsProjectModalOpen(true);
+              }}
               onSaved={async () => {
                 if (!activeClassId) return;
                 const { data } = await supabase.from('classes').select('*').eq('id', activeClassId).single();
@@ -2856,6 +2870,14 @@ const Classroom = () => {
         isOpen={!!upgradeModalReason}
         onClose={() => setUpgradeModalReason(null)}
         reason={upgradeModalReason ?? 'class_limit'}
+      />
+
+      {/* ── 학교 프로젝트 관리 모달 ── */}
+      <SchoolProjectModal
+        isOpen={isProjectModalOpen}
+        onClose={() => { setIsProjectModalOpen(false); setEditingProject(null); }}
+        onSaved={() => {}}
+        editProject={editingProject}
       />
 
       {/* ── 학교 그룹 관리 모달 ── */}
