@@ -16,6 +16,10 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
   // 호출자 관리자 인증 검증
   const token = (req.headers['authorization'] ?? '').replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
@@ -33,10 +37,6 @@ export default async function handler(req: any, res: any) {
   const host     = req.headers['x-forwarded-host'] || req.headers.host || 'sangilog.vercel.app';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const siteUrl  = `${protocol}://${host}`;
-
-  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 
   // Gmail 트랜스포터 (설정된 경우에만 사용)
   const transporter = gmailUser && gmailPassword
