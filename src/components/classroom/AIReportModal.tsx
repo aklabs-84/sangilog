@@ -8,10 +8,11 @@ interface AIReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   className: string;
+  classId?: string;
   students: any[];
 }
 
-const AIReportModal = ({ isOpen, onClose, className, students }: AIReportModalProps) => {
+const AIReportModal = ({ isOpen, onClose, className, classId, students }: AIReportModalProps) => {
   const [report, setReport] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
@@ -21,7 +22,7 @@ const AIReportModal = ({ isOpen, onClose, className, students }: AIReportModalPr
         setLoading(true);
         try {
           const allObservations = students.flatMap(s => s.all_observations || []);
-          const result = await generateDetailedReport(className, allObservations);
+          const result = await generateDetailedReport(className, allObservations, classId);
           setReport(result);
         } catch (error) {
           console.error('AI Report Error:', error);

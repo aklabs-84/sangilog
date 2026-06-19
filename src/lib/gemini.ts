@@ -105,7 +105,7 @@ async function callProxy(body: object): Promise<string> {
 // Compatible wrappers matching the @google/generative-ai interface used in the codebase
 function makeModelWrapper(model: 'pro' | 'flash', feature = 'unknown', jsonMode = false) {
   return {
-    generateContent: async (input: string | any[]) => {
+    generateContent: async (input: string | any[], options?: { class_id?: string }) => {
       const parts = typeof input === 'string' ? [{ text: input }] : input;
       const textParts = parts.filter((p: any) => 'text' in p);
       const fileParts = parts.filter((p: any) => 'inlineData' in p);
@@ -117,6 +117,7 @@ function makeModelWrapper(model: 'pro' | 'flash', feature = 'unknown', jsonMode 
         prompt,
         ...(jsonMode && { jsonMode: true }),
         ...(fileParts.length > 0 && { files: fileParts }),
+        ...(options?.class_id && { class_id: options.class_id }),
       });
       return { response: { text: () => result } };
     },
@@ -152,7 +153,7 @@ export async function fileToGenerativePart(file: File): Promise<{ inlineData: { 
   });
 }
 
-export async function generateClassInsight(className: string, observations: any[]) {
+export async function generateClassInsight(className: string, observations: any[], classId?: string) {
   // 실제 데이터 기반 통계 추출
   const total = observations.length;
   const uniqueStudents = new Set(observations.map(o => o.student_id)).size;
@@ -195,6 +196,7 @@ export async function generateClassInsight(className: string, observations: any[
     feature: 'class_insight',
     systemInstruction: SYSTEM_INSTRUCTIONS.BASE + SYSTEM_INSTRUCTIONS.PRIVACY,
     prompt,
+    ...(classId && { class_id: classId }),
   });
 }
 
@@ -207,7 +209,7 @@ function anonymizeObservations(observations: any[]) {
   }));
 }
 
-export async function generateDetailedReport(className: string, observations: any[]) {
+export async function generateDetailedReport(className: string, observations: any[], classId?: string) {
   const prompt = `
     학급명: ${className}
     전체 관찰 기록: ${JSON.stringify(anonymizeObservations(observations))}
@@ -227,6 +229,7 @@ export async function generateDetailedReport(className: string, observations: an
     feature: 'detailed_report',
     systemInstruction: SYSTEM_INSTRUCTIONS.BASE + SYSTEM_INSTRUCTIONS.SEATUK_GUIDE + SYSTEM_INSTRUCTIONS.PRIVACY,
     prompt,
+    ...(classId && { class_id: classId }),
   });
 }
 
@@ -255,7 +258,8 @@ export async function chatWithClassData(
   history: { role: string; text: string }[],
   message: string,
   files?: { inlineData: { data: string; mimeType: string } }[],
-  extractedText?: string
+  extractedText?: string,
+  classId?: string
 ) {
   const systemInstruction = `${SYSTEM_INSTRUCTIONS.BASE}${SYSTEM_INSTRUCTIONS.SEATUK_GUIDE}${SYSTEM_INSTRUCTIONS.PRIVACY}
 당신은 '${className}'의 학급 데이터를 파악하고 있는 AI 어시스턴트입니다.
@@ -283,5 +287,6 @@ ${extractedText || '첨부된 파일이 없거나 아직 추출되지 않았습�
     })),
     message,
     ...(files && files.length > 0 && { files }),
+    ...(classId && { class_id: classId }),
   });
 }

@@ -645,7 +645,7 @@ const Admin = () => {
 
       const { data: raw, error: aiError } = await supabase
         .from('ai_usage_logs')
-        .select('user_id, feature_name, model_name, input_tokens, output_tokens, thinking_tokens, cost_usd, created_at')
+        .select('user_id, feature_name, model_name, input_tokens, output_tokens, thinking_tokens, cost_usd, created_at, class_id')
         .gte('created_at', since.toISOString())
         .order('created_at', { ascending: true });
 
@@ -754,18 +754,65 @@ const Admin = () => {
       let profileMap: Record<string, { full_name: string | null; email: string | null }> = {};
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, full_name, email')
-          .in('id', userIds);
+          .from('profiles').select('id, full_name, email').in('id', userIds);
         profileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p]));
       }
 
+      // 프로필 없는 user_id → class_id → 담당 선생님 매핑
+      const noProfileIds = userIds.filter(id => !profileMap[id]);
+      let teacherByUserId: Record<string, { full_name: string | null; email: string | null; teacher_id: string }> = {};
+      if (noProfileIds.length > 0) {
+        // 각 미확인 user_id의 가장 많이 사용된 class_id 추출
+        const classResolutionMap: Record<string, string> = {};
+        for (const uid of noProfileIds) {
+          const classCounts: Record<string, number> = {};
+          raw.filter(r => r.user_id === uid && r.class_id)
+             .forEach(r => { classCounts[r.class_id!] = (classCounts[r.class_id!] || 0) + 1; });
+          const topClass = Object.entries(classCounts).sort((a, b) => b[1] - a[1])[0];
+          if (topClass) classResolutionMap[uid] = topClass[0];
+        }
+
+        const classIds = [...new Set(Object.values(classResolutionMap))];
+        if (classIds.length > 0) {
+          const { data: classes } = await supabase
+            .from('classes').select('id, teacher_id').in('id', classIds);
+          const classTeacherMap = Object.fromEntries((classes ?? []).map(c => [c.id, c.teacher_id]));
+
+          const teacherIds = [...new Set(Object.values(classTeacherMap).filter(Boolean))] as string[];
+          if (teacherIds.length > 0) {
+            const { data: teacherProfiles } = await supabase
+              .from('profiles').select('id, full_name, email').in('id', teacherIds);
+            const teacherProfileMap = Object.fromEntries((teacherProfiles ?? []).map(p => [p.id, p]));
+
+            for (const uid of noProfileIds) {
+              const classId = classResolutionMap[uid];
+              const teacherId = classId ? classTeacherMap[classId] : null;
+              if (teacherId && teacherProfileMap[teacherId]) {
+                teacherByUserId[uid] = { ...teacherProfileMap[teacherId], teacher_id: teacherId };
+              }
+            }
+          }
+        }
+      }
+
+      // 미확인 유저 비용을 담당 선생님 항목에 병합
+      const mergedMap: Record<string, { cost_usd: number; call_count: number }> = {};
+      for (const [uid, v] of Object.entries(userMap)) {
+        const resolvedId = (!profileMap[uid] && teacherByUserId[uid])
+          ? teacherByUserId[uid].teacher_id
+          : uid;
+        mergedMap[resolvedId] = mergedMap[resolvedId]
+          ? { cost_usd: mergedMap[resolvedId].cost_usd + v.cost_usd, call_count: mergedMap[resolvedId].call_count + v.call_count }
+          : { ...v };
+      }
+
       setAiUserRows(
-        Object.entries(userMap)
+        Object.entries(mergedMap)
           .map(([user_id, v]) => ({
             user_id,
-            full_name: profileMap[user_id]?.full_name || profileMap[user_id]?.email || null,
-            email:     profileMap[user_id]?.email ?? null,
+            full_name: profileMap[user_id]?.full_name || profileMap[user_id]?.email
+                       || teacherByUserId[user_id]?.full_name || teacherByUserId[user_id]?.email || null,
+            email:     profileMap[user_id]?.email || teacherByUserId[user_id]?.email || null,
             ...v,
           }))
           .sort((a, b) => b.cost_usd - a.cost_usd)

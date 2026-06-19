@@ -43,6 +43,7 @@ export default async function handler(req: any, res: any) {
     mode, model = 'flash', prompt, systemInstruction, history, message, files,
     feature = 'unknown',
     jsonMode = false,
+    class_id = null,
   } = req.body;
 
   if (!mode) {
@@ -183,6 +184,7 @@ export default async function handler(req: any, res: any) {
         output_tokens:   outputTokens,
         thinking_tokens: thinkingTokens,
         cost_usd:        costUsd,
+        ...(class_id && { class_id }),
       });
       if (logError) console.error('[api/gemini] ai_usage_logs insert FAILED:', JSON.stringify(logError));
     }

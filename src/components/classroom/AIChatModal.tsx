@@ -9,10 +9,11 @@ interface AIChatModalProps {
   isOpen: boolean;
   onClose: () => void;
   className: string;
+  classId?: string;
   students: any[];
 }
 
-const AIChatModal = ({ isOpen, onClose, className, students }: AIChatModalProps) => {
+const AIChatModal = ({ isOpen, onClose, className, classId, students }: AIChatModalProps) => {
   const [messages, setMessages] = useState<{role: 'user' | 'ai', text: string, hasFiles?: boolean}[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -72,7 +73,7 @@ const AIChatModal = ({ isOpen, onClose, className, students }: AIChatModalProps)
       }
 
       // 3. AI 답변 생성
-      const response = await chatWithClassData(className, allObservations, history, userMessage, fileParts, currentExtracted || "");
+      const response = await chatWithClassData(className, allObservations, history, userMessage, fileParts, currentExtracted || "", classId);
       setMessages(prev => [...prev, { role: 'ai', text: response }]);
     } catch (error) {
       console.error('AI Chat Error:', error);

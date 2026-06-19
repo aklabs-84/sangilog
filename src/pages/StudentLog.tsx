@@ -1688,7 +1688,7 @@ ${guidePrompt}
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
 {"status":"good","reason":"","guide":""}
 `;
-          const aiResult = await observationReviewAI.generateContent(prompt);
+          const aiResult = await observationReviewAI.generateContent(prompt, { class_id: session?.class_id });
           const aiResponseText = aiResult.response.text();
 
           const jsonMatch = aiResponseText.match(/\{[\s\S]*?\}/);

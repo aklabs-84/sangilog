@@ -5,12 +5,13 @@ import { generateClassInsight } from '../../lib/gemini';
 
 interface AIInsightBannerProps {
   className: string;
+  classId?: string;
   students: any[];
   onOpenReport: () => void;
   onOpenChat: () => void;
 }
 
-const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIInsightBannerProps) => {
+const AIInsightBanner = ({ className, classId, students, onOpenReport, onOpenChat }: AIInsightBannerProps) => {
   const [insight, setInsight] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
@@ -26,7 +27,7 @@ const AIInsightBanner = ({ className, students, onOpenReport, onOpenChat }: AIIn
 
     setLoading(true);
     try {
-      const result = await generateClassInsight(className, allObservations);
+      const result = await generateClassInsight(className, allObservations, classId);
       setInsight(result);
     } catch (error: any) {
       console.error('AI Insight Error:', error);
