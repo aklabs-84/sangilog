@@ -3,8 +3,37 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   School, Users, ChevronDown, ChevronUp, ExternalLink,
-  FileText, Loader2, AlertCircle, Lock, Calendar
+  FileText, Loader2, AlertCircle, Lock, Calendar,
+  Images, Download, ZoomIn, X, BookOpen
 } from 'lucide-react';
+
+interface StudentWithData {
+  id: string;
+  full_name: string;
+  student_number: number | null;
+  observations: { id: string; activity_name: string; content: string; created_at: string }[];
+  results: {
+    id: string;
+    week_number: number | null;
+    title: string | null;
+    text_content: string | null;
+    result_type: string;
+    link_url: string | null;
+    image_url: string | null;
+    file_url: string | null;
+    created_at: string;
+  }[];
+}
+
+interface GalleryItem {
+  id: string;
+  file_url: string;
+  file_type: string;
+  file_name: string | null;
+  caption: string | null;
+  week_number: number | null;
+  created_at: string;
+}
 
 const SchoolProjectShareView = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
@@ -13,8 +42,12 @@ const SchoolProjectShareView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeClassId, setActiveClassId] = useState<string | null>(null);
-  const [classStudents, setClassStudents] = useState<Record<string, any[]>>({});
+  const [classStudents, setClassStudents] = useState<Record<string, StudentWithData[]>>({});
+  const [classGallery, setClassGallery] = useState<Record<string, GalleryItem[]>>({});
   const [loadingClass, setLoadingClass] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
+  // 학생별 섹션 펼침 여부
+  const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!shareToken) return;
@@ -72,7 +105,7 @@ const SchoolProjectShareView = () => {
     }
   };
 
-  const fetchClassStudents = async (classId: string) => {
+  const fetchClassData = async (classId: string) => {
     if (classStudents[classId]) {
       setActiveClassId(activeClassId === classId ? null : classId);
       return;
@@ -85,25 +118,68 @@ const SchoolProjectShareView = () => {
         .eq('class_id', classId)
         .order('student_number', { ascending: true });
 
-      if (!students) { setLoadingClass(null); return; }
+      if (!students || students.length === 0) {
+        setClassStudents(prev => ({ ...prev, [classId]: [] }));
+        setClassGallery(prev => ({ ...prev, [classId]: [] }));
+        setActiveClassId(classId);
+        return;
+      }
 
       const studentIds = students.map(s => s.id);
-      const { data: obs } = await supabase
-        .from('observations')
-        .select('student_id, activity_name, content, created_at')
-        .in('student_id', studentIds)
-        .order('created_at', { ascending: false });
+
+      const [obsRes, resultsRes, galleryRes] = await Promise.all([
+        supabase
+          .from('observations')
+          .select('id, student_id, activity_name, content, created_at')
+          .in('student_id', studentIds)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('student_results')
+          .select('id, student_id, week_number, title, text_content, result_type, created_at, link_url, storage_path')
+          .in('student_id', studentIds)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('class_gallery_items')
+          .select('id, file_url, file_type, file_name, caption, week_number, created_at')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false }),
+      ]);
+
+      // 결과물 URL 처리
+      const resultsWithUrls = (resultsRes.data || []).map((r: any) => {
+        let image_url: string | null = null;
+        let file_url: string | null = null;
+        if (r.result_type === 'image' && r.storage_path) {
+          const { data } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+          image_url = data?.publicUrl || null;
+        } else if (r.result_type === 'file' && r.storage_path) {
+          const { data } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+          file_url = data?.publicUrl || null;
+        }
+        return { ...r, image_url, file_url };
+      });
 
       const obsMap: Record<string, any[]> = {};
-      (obs || []).forEach(o => {
+      (obsRes.data || []).forEach((o: any) => {
         if (!obsMap[o.student_id]) obsMap[o.student_id] = [];
         obsMap[o.student_id].push(o);
       });
 
+      const resultsMap: Record<string, any[]> = {};
+      resultsWithUrls.forEach((r: any) => {
+        if (!resultsMap[r.student_id]) resultsMap[r.student_id] = [];
+        resultsMap[r.student_id].push(r);
+      });
+
       setClassStudents(prev => ({
         ...prev,
-        [classId]: students.map(s => ({ ...s, observations: obsMap[s.id] || [] }))
+        [classId]: students.map(s => ({
+          ...s,
+          observations: obsMap[s.id] || [],
+          results: resultsMap[s.id] || [],
+        })),
       }));
+      setClassGallery(prev => ({ ...prev, [classId]: galleryRes.data || [] }));
       setActiveClassId(classId);
     } finally {
       setLoadingClass(null);
@@ -114,8 +190,16 @@ const SchoolProjectShareView = () => {
     if (activeClassId === classId) {
       setActiveClassId(null);
     } else {
-      fetchClassStudents(classId);
+      fetchClassData(classId);
     }
+  };
+
+  const toggleStudent = (studentId: string) => {
+    setExpandedStudents(prev => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId); else next.add(studentId);
+      return next;
+    });
   };
 
   if (loading) {
@@ -145,6 +229,34 @@ const SchoolProjectShareView = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-violet-50 to-white">
+      {/* 라이트박스 */}
+      {lightbox && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
+          <button className="absolute top-4 right-4 text-white/70 hover:text-white" onClick={() => setLightbox(null)}>
+            <X size={28} />
+          </button>
+          <button
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+            onClick={(e) => { e.stopPropagation(); setLightbox(lb => lb && lb.index > 0 ? { ...lb, index: lb.index - 1 } : lb); }}
+          >
+            <ChevronDown size={32} className="-rotate-90" />
+          </button>
+          <img
+            src={lightbox.urls[lightbox.index]}
+            alt=""
+            className="max-w-full max-h-[85vh] rounded-xl object-contain"
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+            onClick={(e) => { e.stopPropagation(); setLightbox(lb => lb && lb.index < lb.urls.length - 1 ? { ...lb, index: lb.index + 1 } : lb); }}
+          >
+            <ChevronDown size={32} className="rotate-90" />
+          </button>
+          <p className="absolute bottom-4 text-white/50 text-sm">{lightbox.index + 1} / {lightbox.urls.length}</p>
+        </div>
+      )}
+
       {/* 헤더 */}
       <div className="bg-gradient-to-r from-violet-600 to-purple-700 text-white">
         <div className="max-w-4xl mx-auto px-6 py-10">
@@ -159,7 +271,7 @@ const SchoolProjectShareView = () => {
               <h1 className="text-2xl font-black">{project?.name}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-sm text-white/70">
+          <div className="flex items-center gap-4 text-sm text-white/70 flex-wrap">
             <span className="flex items-center gap-1.5">
               <Users size={14} /> {classList.length}개 학급
             </span>
@@ -188,8 +300,10 @@ const SchoolProjectShareView = () => {
           classList.map(cls => {
             const isExpanded = activeClassId === cls.id;
             const students = classStudents[cls.id] || [];
+            const gallery = classGallery[cls.id] || [];
             const isLoading = loadingClass === cls.id;
             const obsCount = students.reduce((sum, s) => sum + s.observations.length, 0);
+            const resultCount = students.reduce((sum, s) => sum + s.results.length, 0);
 
             return (
               <div key={cls.id} className="bg-white rounded-2xl shadow-sm border border-violet-100 overflow-hidden">
@@ -210,9 +324,14 @@ const SchoolProjectShareView = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap justify-end">
                     {isExpanded && students.length > 0 && (
-                      <span className="text-xs font-bold text-gray-400">{students.length}명 · 관찰기록 {obsCount}건</span>
+                      <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                        <span>{students.length}명</span>
+                        {obsCount > 0 && <span className="text-violet-500">📝 {obsCount}건</span>}
+                        {resultCount > 0 && <span className="text-emerald-500">📁 {resultCount}건</span>}
+                        {gallery.length > 0 && <span className="text-amber-500">🖼️ {gallery.length}장</span>}
+                      </div>
                     )}
                     {isLoading ? (
                       <Loader2 size={18} className="animate-spin text-violet-400" />
@@ -224,57 +343,168 @@ const SchoolProjectShareView = () => {
                   </div>
                 </button>
 
-                {/* 학생 목록 */}
-                {isExpanded && students.length > 0 && (
+                {/* 펼쳐진 내용 */}
+                {isExpanded && (
                   <div className="border-t border-violet-100">
-                    {students.map(student => (
-                      <div key={student.id} className="border-b border-gray-50 last:border-0">
-                        <div className="px-6 py-4 flex items-start gap-4">
-                          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-black text-gray-500 shrink-0 mt-0.5">
-                            {student.student_number || '?'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm">{student.full_name}</p>
-                            {student.observations.length === 0 ? (
-                              <p className="text-xs text-gray-300 mt-1">관찰 기록 없음</p>
-                            ) : (
-                              <div className="mt-2 space-y-1.5">
-                                {student.observations.slice(0, 3).map((obs: any, i: number) => (
-                                  <div key={i} className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
-                                    <span className="font-bold text-violet-600 mr-1">{obs.activity_name}</span>
-                                    {obs.content}
-                                  </div>
-                                ))}
-                                {student.observations.length > 3 && (
-                                  <p className="text-xs text-gray-400 pl-3">+{student.observations.length - 3}개 더보기</p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-gray-400 shrink-0">
-                            <FileText size={12} />
-                            <span>{student.observations.length}건</span>
-                          </div>
-                        </div>
+                    {students.length === 0 && !isLoading ? (
+                      <div className="py-8 text-center text-gray-300">
+                        <Users size={24} className="mx-auto mb-2" />
+                        <p className="text-xs">등록된 학생이 없습니다.</p>
                       </div>
-                    ))}
-                    {/* 개별 클래스 공유 링크 */}
-                    <div className="px-6 py-3 bg-gray-50 flex justify-end">
-                      <a
-                        href={`/share/${cls.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-xs font-bold text-violet-500 hover:text-violet-700 transition-all"
-                      >
-                        <ExternalLink size={12} /> 이 학급 상세 공유 페이지 →
-                      </a>
-                    </div>
-                  </div>
-                )}
-                {isExpanded && students.length === 0 && !isLoading && (
-                  <div className="border-t border-violet-100 py-8 text-center text-gray-300">
-                    <Users size={24} className="mx-auto mb-2" />
-                    <p className="text-xs">등록된 학생이 없습니다.</p>
+                    ) : (
+                      <>
+                        {/* 학생 목록 */}
+                        {students.map(student => {
+                          const hasData = student.observations.length > 0 || student.results.length > 0;
+                          const isStudentExpanded = expandedStudents.has(student.id);
+                          const imgResults = student.results.filter(r => r.image_url);
+
+                          return (
+                            <div key={student.id} className="border-b border-gray-50 last:border-0">
+                              {/* 학생 헤더 */}
+                              <button
+                                onClick={() => hasData && toggleStudent(student.id)}
+                                disabled={!hasData}
+                                className={`w-full flex items-center gap-4 px-6 py-4 text-left transition-colors ${hasData ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default opacity-50'}`}
+                              >
+                                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-black text-gray-500 shrink-0">
+                                  {student.student_number || '?'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-sm">{student.full_name}</p>
+                                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                    {student.observations.length > 0 && (
+                                      <span className="text-[10px] font-bold text-violet-600">📝 활동기록 {student.observations.length}건</span>
+                                    )}
+                                    {student.results.length > 0 && (
+                                      <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {student.results.length}건</span>
+                                    )}
+                                    {!hasData && <span className="text-[10px] text-gray-400">기록 없음</span>}
+                                  </div>
+                                </div>
+                                {hasData && (
+                                  isStudentExpanded ? <ChevronUp size={14} className="text-gray-400 shrink-0" /> : <ChevronDown size={14} className="text-gray-300 shrink-0" />
+                                )}
+                              </button>
+
+                              {/* 학생 상세 */}
+                              {isStudentExpanded && hasData && (
+                                <div className="px-6 pb-4 space-y-2 bg-gray-50/50">
+                                  {/* 관찰기록 */}
+                                  {student.observations.map(obs => (
+                                    <div key={obs.id} className="bg-white rounded-xl border border-violet-100 p-4">
+                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                        <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
+                                        <span className="text-[10px] text-gray-400 ml-auto">{new Date(obs.created_at).toLocaleDateString('ko-KR')}</span>
+                                      </div>
+                                      {obs.activity_name && (
+                                        <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{obs.activity_name}</p>
+                                      )}
+                                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{obs.content}</p>
+                                    </div>
+                                  ))}
+
+                                  {/* 결과물 */}
+                                  {student.results.map(r => (
+                                    <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
+                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                        <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
+                                        {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
+                                        <span className="text-[10px] text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                                      </div>
+                                      {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
+                                      {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
+                                        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
+                                      )}
+                                      {r.image_url && (
+                                        <div
+                                          className="mt-2 relative group cursor-pointer"
+                                          onClick={() => setLightbox({ urls: imgResults.map(x => x.image_url as string), index: imgResults.findIndex(x => x.id === r.id) })}
+                                        >
+                                          <img src={r.image_url} alt="결과물" className="rounded-lg max-h-56 w-full object-cover group-hover:opacity-90 transition-opacity" />
+                                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="bg-black/50 rounded-full p-2"><ZoomIn size={18} className="text-white" /></div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      {r.link_url && (
+                                        <a href={r.link_url} target="_blank" rel="noopener noreferrer"
+                                          className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors">
+                                          <ExternalLink size={14} /> 링크 열기
+                                        </a>
+                                      )}
+                                      {r.file_url && (
+                                        <a href={r.file_url} download target="_blank" rel="noopener noreferrer"
+                                          className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors">
+                                          <Download size={14} /> 파일 다운로드
+                                        </a>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* 갤러리 섹션 */}
+                        {gallery.length > 0 && (
+                          <div className="border-t border-violet-100 px-6 py-5">
+                            <div className="flex items-center gap-2 mb-4">
+                              <Images size={15} className="text-amber-500" />
+                              <p className="text-sm font-black text-gray-700">학급 갤러리</p>
+                              <span className="text-[10px] text-gray-400 font-bold">{gallery.length}장</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {gallery.map((item) => (
+                                <div key={item.id} className="relative group cursor-pointer rounded-xl overflow-hidden bg-gray-100 aspect-square"
+                                  onClick={() => {
+                                    const imgs = gallery.filter(g => g.file_type === 'image');
+                                    const idx = imgs.findIndex(g => g.id === item.id);
+                                    if (idx >= 0) setLightbox({ urls: imgs.map(g => g.file_url), index: idx });
+                                    else window.open(item.file_url, '_blank');
+                                  }}
+                                >
+                                  {item.file_type === 'image' ? (
+                                    <img src={item.file_url} alt={item.caption || ''} className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" />
+                                  ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-400">
+                                      <FileText size={24} />
+                                      <p className="text-[10px] font-bold px-2 text-center truncate w-full">{item.file_name || '파일'}</p>
+                                    </div>
+                                  )}
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                                    <ZoomIn size={20} className="text-white" />
+                                  </div>
+                                  {item.caption && (
+                                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1">
+                                      <p className="text-[10px] text-white truncate">{item.caption}</p>
+                                    </div>
+                                  )}
+                                  {item.week_number && (
+                                    <div className="absolute top-1.5 left-1.5 bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md">
+                                      {item.week_number}주
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 개별 클래스 공유 링크 */}
+                        <div className="px-6 py-3 bg-gray-50 flex items-center justify-between border-t border-gray-100">
+                          <div className="flex items-center gap-2 text-xs text-gray-400">
+                            <BookOpen size={12} />
+                            <span>총 {students.length}명 · 기록 {students.reduce((s, st) => s + st.observations.length + st.results.length, 0)}건</span>
+                          </div>
+                          <a href={`/share/${cls.id}`} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs font-bold text-violet-500 hover:text-violet-700 transition-all">
+                            <ExternalLink size={12} /> 학급 상세 페이지 →
+                          </a>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
