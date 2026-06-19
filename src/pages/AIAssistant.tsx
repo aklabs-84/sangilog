@@ -15,7 +15,10 @@ import {
   ArrowRight,
   BookOpen,
   ChevronUp,
+  Crown,
+  AlertTriangle,
 } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import { useAuth, checkIsPro, getAiMonthlyLimit } from '../lib/auth';
 import { seatukDraftAI, seatukRefineAI, SYSTEM_INSTRUCTIONS } from '../lib/gemini';
 import UpgradeModal from '../components/UpgradeModal';
@@ -458,6 +461,50 @@ ${obsText}
             : '학생별 관찰 기록을 바탕으로 교과 세부능력 및 특기사항 초안을 학생 1명씩 생성합니다.'}
         </p>
       </div>
+
+      {/* AI 사용량 경고 배너 */}
+      {!checkIsPro(profile) && aiMonthlyLimit > 0 && (() => {
+        const usageRatio = monthAiCount / aiMonthlyLimit;
+        if (usageRatio < 0.7) return null;
+        const isUrgent = usageRatio >= 0.95;
+        const remaining = aiMonthlyLimit - monthAiCount;
+        return (
+          <div className={`rounded-2xl px-5 py-4 flex items-center gap-4 border ${
+            isUrgent
+              ? 'bg-red-50 border-red-200'
+              : 'bg-orange-50 border-orange-200'
+          }`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              isUrgent ? 'bg-red-100' : 'bg-orange-100'
+            }`}>
+              {isUrgent
+                ? <AlertTriangle size={20} className="text-red-500" />
+                : <Crown size={20} className="text-orange-500" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`font-black text-sm ${isUrgent ? 'text-red-900' : 'text-orange-900'}`}>
+                {isUrgent
+                  ? `AI 한도가 거의 소진됐어요 (${remaining}회 남음)`
+                  : `이번 달 AI 한도가 얼마 남지 않았어요 (${remaining}회 남음)`}
+              </p>
+              <p className={`text-xs mt-0.5 ${isUrgent ? 'text-red-600' : 'text-orange-600'}`}>
+                Pro로 업그레이드하면 월 500회까지 사용 가능해요
+              </p>
+            </div>
+            <NavLink
+              to="/pricing"
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-2 text-white text-xs font-black rounded-xl transition-all active:scale-95 shadow-sm ${
+                isUrgent
+                  ? 'bg-red-500 hover:bg-red-600'
+                  : 'bg-orange-500 hover:bg-orange-600'
+              }`}
+            >
+              <Crown size={13} />
+              플랜 보기
+            </NavLink>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
         {/* 왼쪽: 설정 패널 */}

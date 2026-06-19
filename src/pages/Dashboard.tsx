@@ -23,10 +23,12 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
-  ChevronDown
+  ChevronDown,
+  Crown,
+  Zap
 } from 'lucide-react';
-import { useAuth } from '../lib/auth';
-import { useNavigate } from 'react-router-dom';
+import { useAuth, checkIsPro } from '../lib/auth';
+import { useNavigate, NavLink } from 'react-router-dom';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 
 const Dashboard = () => {
@@ -485,6 +487,36 @@ const Dashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 업그레이드 유도 배너 — free/basic 유저 */}
+      {!checkIsPro(profile) && profile?.plan !== 'admin' && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 px-5 py-4 flex items-center gap-4"
+        >
+          <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+            <Crown size={20} className="text-amber-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-amber-900">
+              {profile?.plan === 'free'
+                ? 'Basic으로 업그레이드하면 클래스 5개 · AI 세특 월 100회를 사용할 수 있어요'
+                : 'Pro로 업그레이드하면 AI 세특 월 500회 · 학급 전체 일괄 생성이 가능해요'}
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              현재: {profile?.plan === 'free' ? '무료 플랜 (AI 월 20회)' : 'Basic 플랜 (AI 월 100회)'}
+            </p>
+          </div>
+          <NavLink
+            to="/pricing"
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl transition-all active:scale-95 shadow-sm"
+          >
+            <Zap size={13} />
+            플랜 보기
+          </NavLink>
+        </motion.div>
+      )}
 
       {/* Hero & Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">

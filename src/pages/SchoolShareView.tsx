@@ -828,6 +828,25 @@ const SchoolShareView = () => {
           )}
         </div>
       )}
+
+      {/* 생기로그 홍보 배너 */}
+      <div className="max-w-4xl mx-auto px-4 pb-10 print:hidden">
+        <div className="rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 px-5 py-4 flex items-center gap-4">
+          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
+            <span className="text-lg">🏫</span>
+          </div>
+          <div className="flex-1">
+            <p className="font-black text-sm text-indigo-900">우리 학교도 생기로그 AI를 도입해보세요</p>
+            <p className="text-xs text-indigo-600 mt-0.5">학교 그룹 · 교사 연동 · 학급 공유 URL까지 지원합니다</p>
+          </div>
+          <a
+            href="/"
+            className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all active:scale-95"
+          >
+            자세히 보기
+          </a>
+        </div>
+      </div>
     </div>
     </>
   );

@@ -1051,6 +1051,23 @@ const ShareClassView = () => {
         <span>생기로그 AI — 수업 기록부터 세특까지</span>
         <span>{new Date().toLocaleString('ko-KR')}</span>
       </div>
+
+      {/* 생기로그 홍보 배너 */}
+      <div className="mt-6 rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 px-5 py-4 flex items-center gap-4 print:hidden">
+        <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
+          <span className="text-lg">🎓</span>
+        </div>
+        <div className="flex-1">
+          <p className="font-black text-sm text-indigo-900">생기로그 AI로 학생 기록을 체계적으로 관리해보세요</p>
+          <p className="text-xs text-indigo-600 mt-0.5">수업 기록 · AI 세특 초안 · 학급 공유까지 한 곳에서</p>
+        </div>
+        <a
+          href="/"
+          className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all active:scale-95"
+        >
+          무료로 시작하기
+        </a>
+      </div>
     </div>
     </>
   );

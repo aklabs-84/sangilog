@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { NavLink } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth, checkIsPro, getBetaDaysLeft, checkIsBasicOrAbove, getAiMonthlyLimit, checkCanUseAi } from '../lib/auth';
 import { useTheme } from '../hooks/useTheme';
@@ -415,12 +416,12 @@ const Settings = () => {
             </div>
           </div>
           {!isEffectivelyPro && (
-            <a
-              href="mailto:aklabs84@naver.com?subject=생기로그 AI Pro 업그레이드 문의"
+            <NavLink
+              to="/pricing"
               className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors"
             >
-              <Zap size={14} /> Pro 업그레이드
-            </a>
+              <Zap size={14} /> 플랜 업그레이드
+            </NavLink>
           )}
         </div>
 

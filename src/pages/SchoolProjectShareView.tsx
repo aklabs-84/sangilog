@@ -613,7 +613,26 @@ const SchoolProjectShareView = () => {
         })}
       </div>
 
-      <footer className="text-center py-8 text-xs text-gray-300">
+      {/* 생기로그 홍보 배너 */}
+      <div className="max-w-4xl mx-auto px-4 pb-6 print:hidden">
+        <div className="rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 px-5 py-4 flex items-center gap-4">
+          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
+            <span className="text-lg">✨</span>
+          </div>
+          <div className="flex-1">
+            <p className="font-black text-sm text-indigo-900">생기로그 AI로 학교 프로젝트를 운영해보세요</p>
+            <p className="text-xs text-indigo-600 mt-0.5">학교 그룹 · 프로젝트 관리 · 학생 결과 공유까지 한 번에</p>
+          </div>
+          <a
+            href="/"
+            className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all active:scale-95"
+          >
+            무료로 시작하기
+          </a>
+        </div>
+      </div>
+
+      <footer className="text-center py-4 text-xs text-gray-300">
         생기로그 · 학교 프로젝트 공유 페이지
       </footer>
     </div>
