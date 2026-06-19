@@ -1,0 +1,334 @@
+import { Check, X, Crown, Mail, School, Sparkles, Zap } from 'lucide-react';
+import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../lib/auth';
+
+type FeatureValue = boolean | string;
+
+interface Plan {
+  key: string;
+  name: string;
+  price: string;
+  priceAnnual: string;
+  highlight: boolean;
+  badge: string | null;
+  colorClass: string;
+  badgeClass: string;
+  ctaLabel: string;
+  features: Record<string, FeatureValue>;
+}
+
+const PLANS: Plan[] = [
+  {
+    key: 'free',
+    name: 'Free',
+    price: '무료',
+    priceAnnual: '',
+    highlight: false,
+    badge: null,
+    colorClass: 'border-gray-200 bg-white',
+    badgeClass: '',
+    ctaLabel: '현재 이용 중',
+    features: {
+      classes: '클래스 1개',
+      students: '학생 20명/반',
+      ai: '월 20회',
+      editor: false,
+      quiz: false,
+      whiteboard: false,
+      transcription: false,
+      bulkAi: false,
+      naiss: false,
+      teacherInvite: false,
+      schoolProject: false,
+    },
+  },
+  {
+    key: 'basic',
+    name: 'Basic',
+    price: '9,900원',
+    priceAnnual: '연 107,000원 (2개월 무료)',
+    highlight: false,
+    badge: null,
+    colorClass: 'border-blue-200 bg-white',
+    badgeClass: '',
+    ctaLabel: 'Basic 시작하기',
+    features: {
+      classes: '클래스 5개',
+      students: '학생 35명/반',
+      ai: '월 100회',
+      editor: true,
+      quiz: '최대 3개',
+      whiteboard: '최대 3개',
+      transcription: true,
+      bulkAi: false,
+      naiss: false,
+      teacherInvite: false,
+      schoolProject: '참여만 가능',
+    },
+  },
+  {
+    key: 'pro',
+    name: 'Pro',
+    price: '19,900원',
+    priceAnnual: '연 215,000원 (2개월 무료)',
+    highlight: true,
+    badge: '추천',
+    colorClass: 'border-amber-300 bg-amber-50/40',
+    badgeClass: 'bg-amber-500 text-white',
+    ctaLabel: 'Pro 시작하기',
+    features: {
+      classes: '클래스 10개',
+      students: '학생 35명/반',
+      ai: '월 500회',
+      editor: true,
+      quiz: '무제한',
+      whiteboard: '무제한',
+      transcription: true,
+      bulkAi: true,
+      naiss: true,
+      teacherInvite: true,
+      schoolProject: '생성 · 관리',
+    },
+  },
+];
+
+const FEATURE_ROWS: { label: string; key: string }[] = [
+  { label: '클래스 생성', key: 'classes' },
+  { label: '반당 학생 수', key: 'students' },
+  { label: 'AI 세특 생성 (월)', key: 'ai' },
+  { label: '수업 자료 에디터', key: 'editor' },
+  { label: '퀴즈 · 설문', key: 'quiz' },
+  { label: '화이트보드', key: 'whiteboard' },
+  { label: '수업 전사', key: 'transcription' },
+  { label: '일괄 AI 생성', key: 'bulkAi' },
+  { label: 'NAISS 내보내기', key: 'naiss' },
+  { label: '교사 초대 연동', key: 'teacherInvite' },
+  { label: '학교 프로젝트', key: 'schoolProject' },
+];
+
+const SCHOOL_TIERS = [
+  { name: 'School S', teachers: '최대 5명', price: '50,000원/월', annual: '연 540,000원', saving: 'Pro 개인 대비 49% 절감' },
+  { name: 'School M', teachers: '최대 15명', price: '120,000원/월', annual: '연 1,300,000원', saving: 'Pro 개인 대비 60% 절감' },
+  { name: 'School L', teachers: '최대 35명', price: '250,000원/월', annual: '연 2,700,000원', saving: 'Pro 개인 대비 64% 절감' },
+  { name: 'School XL', teachers: '무제한', price: '별도 협의', annual: '', saving: '맞춤 견적 제공' },
+];
+
+function FeatureCell({ value }: { value: FeatureValue }) {
+  if (value === true) return <Check size={16} className="text-green-500 mx-auto" strokeWidth={2.5} />;
+  if (value === false) return <X size={16} className="text-gray-300 mx-auto" />;
+  return <span className="text-xs font-bold text-on-surface">{value}</span>;
+}
+
+export default function Pricing() {
+  const { profile } = useAuth();
+  const currentPlan = profile?.plan ?? 'free';
+  const isPro = checkIsPro(profile);
+  const isBasic = checkIsBasicOrAbove(profile) && !isPro;
+
+  function getPlanCtaState(planKey: string) {
+    if (planKey === 'free') {
+      return { label: '현재 이용 중', disabled: true, href: null };
+    }
+    if (planKey === 'basic') {
+      if (isBasic) return { label: '현재 이용 중', disabled: true, href: null };
+      if (isPro) return { label: '다운그레이드', disabled: true, href: null };
+      return { label: 'Basic 업그레이드 문의', disabled: false, href: 'mailto:aklabs84@naver.com?subject=생기로그 Basic 플랜 업그레이드 문의' };
+    }
+    if (planKey === 'pro') {
+      if (isPro && currentPlan !== 'school') return { label: '현재 이용 중', disabled: true, href: null };
+      return { label: 'Pro 업그레이드 문의', disabled: false, href: 'mailto:aklabs84@naver.com?subject=생기로그 Pro 플랜 업그레이드 문의' };
+    }
+    return { label: '문의하기', disabled: false, href: 'mailto:aklabs84@naver.com' };
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-10 pb-20">
+      {/* Header */}
+      <div className="text-center mb-10">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-100 rounded-full mb-4">
+          <Crown size={14} className="text-amber-500" />
+          <span className="text-xs font-black text-amber-700">요금제 안내</span>
+        </div>
+        <h1 className="text-3xl font-black text-on-surface mb-3">
+          선생님께 딱 맞는 플랜을 선택하세요
+        </h1>
+        <p className="text-sm text-on-surface-variant max-w-md mx-auto leading-relaxed">
+          수업 기록부터 AI 세특까지, 필요한 만큼 유연하게.<br />
+          연 결제 시 2개월 무료입니다.
+        </p>
+        {/* 현재 플랜 표시 */}
+        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-surface-container-low rounded-xl border border-on-surface/10">
+          <Sparkles size={14} className="text-primary" />
+          <span className="text-xs font-bold text-on-surface-variant">
+            현재 플랜:
+          </span>
+          <span className="text-xs font-black text-primary capitalize">
+            {currentPlan === 'admin' ? 'Admin' : currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}
+          </span>
+        </div>
+      </div>
+
+      {/* Plan Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-12">
+        {PLANS.map((plan) => {
+          const cta = getPlanCtaState(plan.key);
+          const isCurrent =
+            (plan.key === 'free' && !isBasic && !isPro) ||
+            (plan.key === 'basic' && isBasic) ||
+            (plan.key === 'pro' && isPro && currentPlan !== 'school');
+
+          return (
+            <div
+              key={plan.key}
+              className={`relative rounded-3xl border-2 p-6 flex flex-col transition-all ${plan.colorClass} ${
+                plan.highlight ? 'shadow-xl shadow-amber-100 scale-[1.02]' : 'shadow-sm'
+              }`}
+            >
+              {plan.badge && (
+                <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[11px] font-black shadow-sm ${plan.badgeClass}`}>
+                  {plan.badge}
+                </div>
+              )}
+              {isCurrent && (
+                <div className="absolute -top-3 right-4 px-3 py-1 rounded-full text-[11px] font-black bg-primary text-white shadow-sm">
+                  현재 플랜
+                </div>
+              )}
+
+              <div className="mb-5">
+                <h2 className="text-lg font-black text-on-surface mb-1">{plan.name}</h2>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-black text-on-surface">{plan.price}</span>
+                  {plan.price !== '무료' && (
+                    <span className="text-xs text-on-surface-variant font-bold">/ 월</span>
+                  )}
+                </div>
+                {plan.priceAnnual && (
+                  <p className="text-[11px] text-on-surface-variant mt-1">{plan.priceAnnual}</p>
+                )}
+              </div>
+
+              <ul className="space-y-2.5 flex-1 mb-6">
+                {FEATURE_ROWS.map((row) => {
+                  const val = plan.features[row.key];
+                  if (val === false) return null;
+                  return (
+                    <li key={row.key} className="flex items-center gap-2">
+                      <Check size={14} className={plan.highlight ? 'text-amber-500' : 'text-green-500'} strokeWidth={2.5} />
+                      <span className="text-xs text-on-surface">
+                        {val === true ? row.label : `${row.label}: ${val}`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {cta.href ? (
+                <a
+                  href={cta.href}
+                  className={`w-full py-3 rounded-2xl text-sm font-black text-center transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                    plan.highlight
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-200'
+                      : 'bg-on-surface/5 hover:bg-on-surface/10 text-on-surface'
+                  }`}
+                >
+                  <Mail size={14} />
+                  {cta.label}
+                </a>
+              ) : (
+                <div
+                  className={`w-full py-3 rounded-2xl text-sm font-black text-center ${
+                    isCurrent
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-on-surface/5 text-on-surface-variant'
+                  }`}
+                >
+                  {cta.label}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Feature Comparison Table */}
+      <div className="bg-white rounded-3xl border border-on-surface/10 shadow-sm overflow-hidden mb-12">
+        <div className="px-6 py-4 border-b border-on-surface/5">
+          <h3 className="text-sm font-black text-on-surface">기능 상세 비교</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-on-surface/5">
+                <th className="text-left px-6 py-3 text-xs font-black text-on-surface-variant w-1/2">기능</th>
+                {PLANS.map((p) => (
+                  <th key={p.key} className={`px-4 py-3 text-center text-xs font-black ${p.highlight ? 'text-amber-600' : 'text-on-surface-variant'}`}>
+                    {p.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {FEATURE_ROWS.map((row, i) => (
+                <tr key={row.key} className={`border-b border-on-surface/5 last:border-0 ${i % 2 === 0 ? 'bg-surface/40' : ''}`}>
+                  <td className="px-6 py-3 text-xs font-bold text-on-surface">{row.label}</td>
+                  {PLANS.map((p) => (
+                    <td key={p.key} className="px-4 py-3 text-center">
+                      <FeatureCell value={p.features[row.key]} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* School Plan Section */}
+      <div className="rounded-3xl border-2 border-violet-200 bg-violet-50/50 p-8">
+        <div className="flex items-start gap-4 mb-6">
+          <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center shrink-0">
+            <School size={24} className="text-violet-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-on-surface mb-1">School 플랜 — 학교 단위 도입</h3>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+              학교 전체 교사가 함께 사용하는 플랜입니다. 교사 수 기준 티어제로,
+              Pro 개인 구매 대비 최대 <span className="font-black text-violet-700">64% 절감</span>됩니다.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          {SCHOOL_TIERS.map((tier) => (
+            <div key={tier.name} className="bg-white rounded-2xl p-4 border border-violet-100">
+              <p className="text-sm font-black text-violet-700 mb-1">{tier.name}</p>
+              <p className="text-xs text-on-surface-variant mb-2">{tier.teachers}</p>
+              <p className="text-base font-black text-on-surface">{tier.price}</p>
+              {tier.annual && <p className="text-[11px] text-on-surface-variant">{tier.annual}</p>}
+              <p className="text-[11px] text-violet-600 font-bold mt-1">{tier.saving}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <a
+            href="mailto:aklabs84@naver.com?subject=생기로그 School 플랜 도입 문의"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white text-sm font-black rounded-2xl transition-all active:scale-95 shadow-lg shadow-violet-200"
+          >
+            <Mail size={16} />
+            학교 도입 문의하기
+          </a>
+          <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+            <Zap size={13} className="text-violet-400" />
+            School 플랜은 이메일 문의 후 관리자가 직접 설정해 드립니다
+          </div>
+        </div>
+      </div>
+
+      {/* 결제 예정 안내 */}
+      <p className="text-center text-xs text-on-surface-variant mt-8">
+        현재 업그레이드는 이메일 문의를 통해 처리됩니다. 온라인 결제 기능은 곧 추가될 예정입니다.
+      </p>
+    </div>
+  );
+}

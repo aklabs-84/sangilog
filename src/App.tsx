@@ -41,6 +41,7 @@ import SetPassword from './pages/SetPassword';
 import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
 import Gallery from './pages/Gallery';
+import Pricing from './pages/Pricing';
 
 // 선생님 전용 라우트 가드
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -216,6 +217,7 @@ function App() {
                 <Route path="suggestions" element={<SuggestionsPage />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="help" element={<Help />} />
+                <Route path="pricing" element={<Pricing />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

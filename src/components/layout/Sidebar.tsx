@@ -14,6 +14,7 @@ import {
   Wrench,
   Images,
   School,
+  Crown,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { motion } from 'framer-motion';
@@ -26,6 +27,7 @@ interface SidebarProps {
 const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
   const { signOut, profile } = useAuth();
   const isSchool = profile?.plan === 'school';
+  const showUpgradeBadge = profile?.plan === 'free' || profile?.plan === 'basic';
 
   const allMenuItems = [
     { icon: LayoutDashboard, label: '대시보드', path: '/dashboard', schoolHide: true },
@@ -123,6 +125,41 @@ const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
           </NavLink>
         ))}
       </nav>
+
+      {/* Upgrade Badge — free/basic 유저에게만 표시 */}
+      {showUpgradeBadge && (
+        isCollapsed ? (
+          <div className="mb-3 relative group">
+            <NavLink
+              to="/pricing"
+              className="flex items-center justify-center w-full py-3 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
+            >
+              <Crown size={18} className="text-amber-500" />
+            </NavLink>
+            <div className="absolute left-full ml-4 px-3 py-1.5 bg-on-surface text-surface text-[10px] font-black rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all transform group-hover:translate-x-2 whitespace-nowrap z-50 shadow-xl">
+              Pro로 업그레이드
+            </div>
+          </div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-3 p-3 rounded-2xl bg-amber-50 border border-amber-200"
+          >
+            <p className="text-[10px] font-black text-amber-500 uppercase tracking-wide mb-0.5">현재 플랜</p>
+            <p className="text-xs font-black text-amber-800 mb-2.5">
+              {profile?.plan === 'free' ? 'Free (무료)' : 'Basic'}
+            </p>
+            <NavLink
+              to="/pricing"
+              className="w-full flex items-center justify-center gap-1.5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl transition-all active:scale-95 shadow-sm"
+            >
+              <Crown size={12} />
+              Pro 업그레이드 보기
+            </NavLink>
+          </motion.div>
+        )
+      )}
 
       {/* Bottom Actions */}
       <div className="mt-auto space-y-2 pt-6 border-t border-on-surface/5">
