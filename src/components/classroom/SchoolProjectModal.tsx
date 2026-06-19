@@ -252,6 +252,16 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
   // 담당 선생님 지정 (RPC 사용)
   const handleAssignTeacher = async (teacherId: string, classId: string, teacherName: string, teacherAvatar: string | null) => {
     if (!savedProjectId) return;
+
+    // 기존 선생님이 있으면 먼저 Pro 회수
+    const existing = subClasses.find(c => c.id === classId);
+    if (existing?.assigned_teacher_id && existing.assigned_teacher_id !== teacherId) {
+      await supabase.rpc('remove_teacher_from_subclass', {
+        p_class_id: classId,
+        p_teacher_id: existing.assigned_teacher_id,
+      });
+    }
+
     const { error } = await supabase.rpc('assign_teacher_to_subclass', {
       p_class_id: classId,
       p_teacher_id: teacherId,
