@@ -24,6 +24,19 @@ interface SchoolProjectModalProps {
   editProject?: any;
 }
 
+export const BANNER_THEMES = [
+  { key: 'violet', label: '보라',    from: '#7c3aed', to: '#6d28d9', text: '#ffffff', sub: 'rgba(255,255,255,0.65)' },
+  { key: 'blue',   label: '파랑',    from: '#2563eb', to: '#4338ca', text: '#ffffff', sub: 'rgba(255,255,255,0.65)' },
+  { key: 'emerald',label: '초록',    from: '#059669', to: '#0d9488', text: '#ffffff', sub: 'rgba(255,255,255,0.65)' },
+  { key: 'rose',   label: '분홍',    from: '#e11d48', to: '#db2777', text: '#ffffff', sub: 'rgba(255,255,255,0.65)' },
+  { key: 'amber',  label: '주황',    from: '#d97706', to: '#b45309', text: '#ffffff', sub: 'rgba(255,255,255,0.65)' },
+  { key: 'sky',    label: '하늘',    from: '#0ea5e9', to: '#3b82f6', text: '#ffffff', sub: 'rgba(255,255,255,0.65)' },
+  { key: 'slate',  label: '슬레이트', from: '#475569', to: '#334155', text: '#ffffff', sub: 'rgba(255,255,255,0.65)' },
+  { key: 'night',  label: '딥 네이비', from: '#1e1b4b', to: '#312e81', text: '#e0e7ff', sub: 'rgba(224,231,255,0.6)' },
+  { key: 'forest', label: '딥 그린', from: '#14532d', to: '#166534', text: '#dcfce7', sub: 'rgba(220,252,231,0.6)' },
+  { key: 'peach',  label: '피치',    from: '#fde68a', to: '#fdba74', text: '#78350f', sub: 'rgba(120,53,15,0.5)' },
+];
+
 const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolProjectModalProps) => {
   const { user, profile } = useAuth();
 
@@ -32,6 +45,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
   const [schoolName, setSchoolName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [bannerColor, setBannerColor] = useState('violet');
   const [saving, setSaving] = useState(false);
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
@@ -55,6 +69,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
         setSchoolName(editProject.school_name || '');
         setStartDate(editProject.start_date || '');
         setEndDate(editProject.end_date || '');
+        setBannerColor(editProject.banner_color || 'violet');
         setSavedProjectId(editProject.id);
         setShareToken(editProject.share_token || null);
         setParentClassId(editProject.parent_class_id || null);
@@ -66,6 +81,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
         setSchoolName(profile?.school_name || '');
         setStartDate(new Date().toISOString().split('T')[0]);
         setEndDate('');
+        setBannerColor('violet');
         setSavedProjectId(null);
         setShareToken(null);
         setParentClassId(null);
@@ -127,6 +143,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
           school_name: schoolName.trim() || null,
           start_date: startDate || null,
           end_date: endDate || null,
+          banner_color: bannerColor,
         }).eq('id', projectId);
         const { data: projData } = await supabase
           .from('school_projects')
@@ -144,6 +161,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
             admin_id: user.id,
             start_date: startDate || null,
             end_date: endDate || null,
+            banner_color: bannerColor,
           })
           .select('id, share_token')
           .single();
@@ -352,6 +370,34 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
                         onChange={e => setEndDate(e.target.value)}
                         className="w-full px-4 py-3.5 bg-gray-50 rounded-2xl text-sm font-bold border-2 border-transparent focus:border-violet-300 focus:bg-white outline-none transition-all"
                       />
+                    </div>
+                  </div>
+
+                  {/* 배너 테마 */}
+                  <div>
+                    <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-3">공유 페이지 배너 색상</label>
+                    {/* 미리보기 */}
+                    <div
+                      className="w-full h-14 rounded-2xl mb-3 flex items-center px-5 gap-3 transition-all"
+                      style={{ background: `linear-gradient(135deg, ${BANNER_THEMES.find(t => t.key === bannerColor)?.from ?? '#7c3aed'}, ${BANNER_THEMES.find(t => t.key === bannerColor)?.to ?? '#6d28d9'})` }}
+                    >
+                      <School size={16} style={{ color: BANNER_THEMES.find(t => t.key === bannerColor)?.text ?? '#fff' }} />
+                      <span className="text-sm font-black" style={{ color: BANNER_THEMES.find(t => t.key === bannerColor)?.text ?? '#fff' }}>
+                        {projectName || '프로젝트 이름'}
+                      </span>
+                    </div>
+                    {/* 팔레트 */}
+                    <div className="flex flex-wrap gap-2">
+                      {BANNER_THEMES.map(theme => (
+                        <button
+                          key={theme.key}
+                          type="button"
+                          onClick={() => setBannerColor(theme.key)}
+                          title={theme.label}
+                          className={`w-9 h-9 rounded-xl transition-all border-2 ${bannerColor === theme.key ? 'scale-110 border-gray-800 shadow-md' : 'border-transparent hover:scale-105'}`}
+                          style={{ background: `linear-gradient(135deg, ${theme.from}, ${theme.to})` }}
+                        />
+                      ))}
                     </div>
                   </div>
 

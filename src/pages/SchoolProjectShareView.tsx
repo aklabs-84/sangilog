@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { BANNER_THEMES } from '../components/classroom/SchoolProjectModal';
 import {
   School, Users, ChevronDown, ChevronUp, ExternalLink,
   FileText, Loader2, AlertCircle, Lock, Calendar,
@@ -84,7 +85,7 @@ const SchoolProjectShareView = () => {
     try {
       const { data: proj, error: projErr } = await supabase
         .from('school_projects')
-        .select('id, name, school_name, status, end_date, created_at')
+        .select('id, name, school_name, status, end_date, created_at, banner_color')
         .eq('share_token', shareToken)
         .single();
 
@@ -355,26 +356,37 @@ const SchoolProjectShareView = () => {
       )}
 
       {/* 헤더 */}
-      <div className="bg-gradient-to-r from-violet-600 to-purple-700 text-white">
-        <div className="max-w-4xl mx-auto px-6 py-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center"><School size={24} /></div>
-            <div>
-              {project?.school_name && <p className="text-xs font-bold text-white/60 uppercase tracking-widest">{project.school_name}</p>}
-              <h1 className="text-2xl font-black">{project?.name}</h1>
+      {(() => {
+        const theme = BANNER_THEMES.find(t => t.key === (project?.banner_color || 'violet')) ?? BANNER_THEMES[0];
+        return (
+          <div style={{ background: `linear-gradient(135deg, ${theme.from} 0%, ${theme.to} 100%)` }}>
+            <div className="max-w-4xl mx-auto px-6 py-10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>
+                  <School size={24} style={{ color: theme.text }} />
+                </div>
+                <div>
+                  {project?.school_name && (
+                    <p className="text-xs font-bold uppercase tracking-widest" style={{ color: theme.sub }}>{project.school_name}</p>
+                  )}
+                  <h1 className="text-2xl font-black" style={{ color: theme.text }}>{project?.name}</h1>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-sm flex-wrap" style={{ color: theme.sub }}>
+                <span className="flex items-center gap-1.5"><Users size={14} /> {classList.length}개 학급</span>
+                {project?.end_date && (
+                  <span className="flex items-center gap-1.5"><Calendar size={14} /> 종료일: {new Date(project.end_date).toLocaleDateString('ko-KR')}</span>
+                )}
+                {isClosed && (
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: 'rgba(255,255,255,0.2)', color: theme.text }}>
+                    <Lock size={11} /> 수업 종료됨
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-sm text-white/70 flex-wrap">
-            <span className="flex items-center gap-1.5"><Users size={14} /> {classList.length}개 학급</span>
-            {project?.end_date && (
-              <span className="flex items-center gap-1.5"><Calendar size={14} /> 종료일: {new Date(project.end_date).toLocaleDateString('ko-KR')}</span>
-            )}
-            {isClosed && (
-              <span className="flex items-center gap-1.5 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold"><Lock size={11} /> 수업 종료됨</span>
-            )}
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* 클래스 목록 */}
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-4">
