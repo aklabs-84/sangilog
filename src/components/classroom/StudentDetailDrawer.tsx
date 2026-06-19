@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
+import { downloadFile } from '../../lib/fileUtils';
 
 interface StudentDetailDrawerProps {
   isOpen: boolean;
@@ -77,13 +78,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
 
   const handleDownloadResult = (result: any) => {
     const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
-    const link = document.createElement('a');
-    link.href = data.publicUrl;
-    link.download = result.display_name || 'download';
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadFile(data.publicUrl, result.display_name || 'download');
   };
 
   const handleRejectObs = async () => {

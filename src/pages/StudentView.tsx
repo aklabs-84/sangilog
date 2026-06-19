@@ -12,6 +12,7 @@ import {
 import { studentAnalysisAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../lib/auth';
+import { downloadFile } from '../lib/fileUtils';
 
 const StudentView = () => {
   const { id } = useParams<{ id: string }>();
@@ -292,13 +293,7 @@ const StudentView = () => {
 
   const handleDownloadResult = (result: any) => {
     const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
-    const link = document.createElement('a');
-    link.href = data.publicUrl;
-    link.download = result.display_name || 'download';
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadFile(data.publicUrl, result.display_name || 'download');
   };
 
   const handleApprove = async (obsId: string) => {

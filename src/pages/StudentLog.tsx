@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { openFile } from '../lib/fileUtils';
+import { openFile, downloadFile } from '../lib/fileUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap,
@@ -1135,13 +1135,7 @@ const StudentLog = () => {
 
   const handleDownloadResult = (result: any) => {
     const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
-    const link = document.createElement('a');
-    link.href = data.publicUrl;
-    link.download = result.display_name || 'download';
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadFile(data.publicUrl, result.display_name || 'download');
   };
 
   const handleDeleteResult = async (result: any) => {
