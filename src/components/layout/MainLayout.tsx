@@ -3,6 +3,7 @@ import Navbar from './Navbar';
 import AnnouncementBanner from './AnnouncementBanner';
 import BetaWelcomeBanner from './BetaWelcomeBanner';
 import FloatingTimer from '../FloatingTimer';
+import ScrollToTopButton from './ScrollToTopButton';
 
 const MainLayout = () => {
   return (
@@ -18,6 +19,7 @@ const MainLayout = () => {
         </main>
       </div>
       <FloatingTimer />
+      <ScrollToTopButton />
     </div>
   );
 };
