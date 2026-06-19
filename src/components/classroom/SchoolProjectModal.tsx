@@ -5,7 +5,7 @@ import { useAuth } from '../../lib/auth';
 import {
   X, School, Plus, Trash2, UserPlus, Copy, Check,
   CalendarDays, Users, ChevronRight, AlertCircle,
-  Crown, Sparkles, GraduationCap, Search, Link as LinkIcon
+  Crown, Sparkles, GraduationCap, Search, Link as LinkIcon, Save
 } from 'lucide-react';
 
 interface SubClass {
@@ -47,6 +47,7 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
   const [endDate, setEndDate] = useState('');
   const [bannerColor, setBannerColor] = useState('violet');
   const [saving, setSaving] = useState(false);
+  const [savedInfo, setSavedInfo] = useState(false);
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [parentClassId, setParentClassId] = useState<string | null>(null);
@@ -151,6 +152,12 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
           .eq('id', projectId)
           .single();
         if (projData) setShareToken(projData.share_token);
+        setSavedProjectId(projectId);
+        setParentClassId(pClassId);
+        setSavedInfo(true);
+        setTimeout(() => setSavedInfo(false), 2000);
+        onSaved();
+        return;
       } else {
         // 신규 프로젝트 생성
         const { data: proj } = await supabase
@@ -423,9 +430,18 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
                   <button
                     onClick={handleSaveInfo}
                     disabled={!projectName.trim() || !startDate || !endDate || saving}
-                    className="w-full py-4 bg-violet-500 hover:bg-violet-600 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-all active:scale-95"
+                    className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 disabled:opacity-40 transition-all active:scale-95 ${
+                      savedInfo
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-violet-500 hover:bg-violet-600 text-white'
+                    }`}
                   >
-                    {saving ? '저장 중...' : <><ChevronRight size={16} /> 다음: 반 클래스 추가</>}
+                    {saving ? '저장 중...'
+                      : savedInfo ? <><Check size={16} /> 저장됨!</>
+                      : savedProjectId
+                        ? <><Save size={16} /> 변경 내용 저장</>
+                        : <><ChevronRight size={16} /> 다음: 반 클래스 추가</>
+                    }
                   </button>
                 </div>
               )}
