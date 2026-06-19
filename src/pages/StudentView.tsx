@@ -1465,7 +1465,7 @@ ${activitiesContext}
                         image: { color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
                         file:  { color: 'text-amber-500 bg-amber-50',     label: '파일' }
                       };
-                      const types = [...new Set(modalItems.map((r: any) => r.result_type as string))];
+                      const types: string[] = [...new Set<string>(modalItems.map((r: any) => r.result_type as string))];
                       return (
                         <>
                           {modalTitle && <h3 className="text-xl font-black tracking-tight w-full">{modalTitle}</h3>}

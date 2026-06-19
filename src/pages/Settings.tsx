@@ -21,8 +21,6 @@ import {
   ExternalLink,
   ChevronUp,
   Copy,
-  Edit3,
-  Trash2,
   Crown,
   Zap,
   Sparkles,

@@ -32,7 +32,7 @@ const SetPassword = () => {
     });
 
     // Supabase가 URL 토큰을 처리한 후 세션 생성 시 감지
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setSessionReady(true);
       }

@@ -440,7 +440,6 @@ const TeachingTools = () => {
               const isBasicLocked = !isBasicOrAbove && (tool.planRequired === 'basic' || tool.planRequired === 'pro');
               const isProLocked = isBasicOrAbove && !isPro && tool.planRequired === 'pro';
               const isLocked = isBasicLocked || isProLocked;
-              const isLimited = !isPro && tool.planRequired === 'limited';
               return (
                 <motion.button
                   key={tool.id}

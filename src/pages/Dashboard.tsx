@@ -16,7 +16,6 @@ import {
   School,
   Plus,
   ExternalLink,
-  Lock,
   Map,
   BookMarked,
   Trash2,
@@ -26,7 +25,7 @@ import {
   FolderPlus,
   ChevronDown
 } from 'lucide-react';
-import { useAuth, checkIsPro } from '../lib/auth';
+import { useAuth } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 
@@ -151,10 +150,15 @@ const Dashboard = () => {
 
   const handleDeleteProject = async () => {
     if (!deletingProjectId) return;
+    // 프로젝트에 속한 부모 클래스 먼저 삭제 (CASCADE로 하위 클래스도 자동 삭제)
+    await supabase.from('classes').delete()
+      .eq('school_project_id', deletingProjectId)
+      .is('parent_class_id', null);
     await supabase.from('school_projects').delete().eq('id', deletingProjectId);
-    setMyProjects(prev => prev.filter(p => p.id !== deletingProjectId));
     setDeletingProjectId(null);
     setDeletingProjectName('');
+    // 전체 데이터 재조회로 대시보드 갱신
+    await Promise.all([fetchDashboardData(), fetchMyProjects(), fetchAssignedClasses()]);
   };
 
   const fetchDashboardData = async () => {

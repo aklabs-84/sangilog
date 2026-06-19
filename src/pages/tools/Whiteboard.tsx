@@ -169,7 +169,7 @@ export default function Whiteboard() {
   }, [boardId]);
 
   // saveObjects를 ref로 관리해서 auto-save의 stale closure 방지
-  const saveObjectsRef = useRef<(objs: BoardObject[]) => Promise<void>>();
+  const saveObjectsRef = useRef<((objs: BoardObject[]) => Promise<void>) | undefined>(undefined);
 
   // 자동 저장 (디바운스 2초)
   const scheduleAutoSave = useCallback((updatedObjects: BoardObject[]) => {

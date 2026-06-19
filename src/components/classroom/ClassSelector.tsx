@@ -12,6 +12,7 @@ interface ClassSelectorProps {
   onOpenArchive: () => void;
   schoolName?: string;
   onSchoolSettings?: () => void;
+  currentUserId?: string;
 }
 
 const ClassSelector = ({
@@ -24,6 +25,7 @@ const ClassSelector = ({
   onOpenArchive,
   schoolName,
   onSchoolSettings,
+  currentUserId,
 }: ClassSelectorProps) => {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -197,7 +199,13 @@ const ClassSelector = ({
                               </div>
                             </div>
                             {isActive ? (
-                              <Check size={14} className="text-violet-500 shrink-0 ml-2" />
+                              <div className="flex items-center gap-1 shrink-0 ml-2">
+                                <Check size={14} className="text-violet-500 mr-1" />
+                                {/* 프로젝트 생성자(teacher_id)만 하위 클래스 삭제 가능 */}
+                                {c.teacher_id === currentUserId && (
+                                  <button onClick={(e) => { e.stopPropagation(); onDeleteClass(c.id); setOpen(false); }} className="p-1.5 hover:bg-error/10 rounded-lg text-error/60 hover:text-error transition-all" title="학급 삭제"><Trash2 size={14} /></button>
+                                )}
+                              </div>
                             ) : (
                               <div className="w-5 h-5 rounded-full border-2 border-violet-200 group-hover/item:border-violet-400 transition-all shrink-0 ml-2" />
                             )}
@@ -230,8 +238,8 @@ const ClassSelector = ({
           </AnimatePresence>
         </div>
 
-        {/* 학급 수정 버튼 — 서브클래스(담당 학급)는 설정 불가 */}
-        {activeClass && !activeClass.parent_class_id && (
+        {/* 학급 수정 버튼 — 배정받은 담당 학급은 설정 불가, 프로젝트 생성자는 가능 */}
+        {activeClass && (!activeClass.parent_class_id || activeClass.teacher_id === currentUserId) && (
           <button
             onClick={() => onEditClass(activeClass)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-neutral-200 hover:border-primary/30 hover:bg-primary/5 text-neutral-500 hover:text-primary font-black text-xs transition-all shadow-sm group shrink-0"

@@ -1407,7 +1407,7 @@ const Admin = () => {
                       >
                         <div className="pt-3 border-t border-indigo-100">
                           <p className="text-xs font-bold text-indigo-700 mb-2 flex items-center gap-1.5">
-                            <Ticket size={12} /> 쿠폰 코드 이메일 발송 → <span className="font-mono">{couponSend.email}</span>
+                            <Ticket size={12} /> 쿠폰 코드 이메일 발송 → <span className="font-mono">{couponSend?.email}</span>
                           </p>
                           {coupons.filter(c => c.is_active).length === 0 ? (
                             <p className="text-xs text-gray-400">활성화된 쿠폰이 없습니다. 쿠폰 탭에서 먼저 생성하세요.</p>

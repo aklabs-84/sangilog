@@ -37,7 +37,6 @@ import {
   ImageIcon,
   File,
   ExternalLink,
-  AlertCircle,
 } from 'lucide-react';
 import { useColumnVisibility } from '../../hooks/useColumnVisibility';
 import { supabase } from '../../lib/supabase';

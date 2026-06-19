@@ -68,7 +68,7 @@ const REASON_CONFIG: Record<Reason, {
   },
 };
 
-const UpgradeModal = ({ isOpen, onClose, reason, currentPlan }: UpgradeModalProps) => {
+const UpgradeModal = ({ isOpen, onClose, reason, currentPlan: _currentPlan }: UpgradeModalProps) => {
   const config = REASON_CONFIG[reason];
 
   return (

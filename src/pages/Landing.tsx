@@ -10,13 +10,11 @@ import {
   CheckCircle2,
   Loader2,
   Users,
-  Clock,
   Heart,
   Send,
   KeyRound,
   PenLine,
   School,
-  FileText,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 

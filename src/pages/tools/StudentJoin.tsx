@@ -161,7 +161,7 @@ export default function StudentJoin() {
     }
   };
 
-  const handleJoinBoard = async (boardId: string, boardName: string) => {
+  const handleJoinBoard = async (boardId: string, _boardName: string) => {
     if (!session || !name.trim()) return;
     setJoining(boardId);
 

@@ -31,7 +31,7 @@ interface StudentDraft {
 }
 
 const AIAssistant = () => {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile } = useAuth();
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
@@ -172,7 +172,7 @@ const AIAssistant = () => {
 
   // 학생 1명씩 Gemini 호출
   const generateForStudent = async (
-    studentName: string,
+    _studentName: string,
     observations: { activity_name: string; content: string }[],
     docType: string,
     teacherPrompt: string,
@@ -812,7 +812,7 @@ ${obsText}
             {savedDrafts.map((item) => (
               <div key={item.id}
                 onClick={() => {
-                  setDraftResults([{ name: '불러온 초안', content: item.content, isExpanded: true, isCopied: false }]);
+                  setDraftResults([{ studentId: '', name: '불러온 초안', content: item.content, isExpanded: true, isCopied: false }]);
                   setShowDraft(true);
                 }}
                 className="p-6 surface-card shadow-ambient hover:translate-y-[-4px] transition-all cursor-pointer border-t-4 border-primary/20 hover:border-primary">

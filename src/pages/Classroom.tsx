@@ -7,7 +7,6 @@ import { openFile } from '../lib/fileUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trash2,
-  Key,
   X,
   LayoutDashboard,
   Sparkles,
@@ -19,7 +18,6 @@ import {
   Users,
   BookOpen,
   Link2,
-  ArrowRight,
   Plus,
   ClipboardList,
   Users2,
@@ -43,7 +41,7 @@ import {
   CalendarDays,
   School,
 } from 'lucide-react';
-import { useAuth, checkIsPro, getClassLimit, getStudentLimit } from '../lib/auth';
+import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
 import CodeBlock from '../components/CodeBlock';
@@ -515,7 +513,7 @@ const Classroom = () => {
         class_type: 'subject',
         student_guide_prompt: '',
         teacher_report_prompt: '',
-        weekly_plan: [{ week: 1, topic: '', url: '' }],
+        weekly_plan: [{ week: 1, topic: '', url: '', requires_result: true, requires_activity: true }],
         min_obs_chars: 0,
         blocked_keywords: [],
         ai_review_enabled: true,
@@ -775,15 +773,6 @@ const Classroom = () => {
     }
   };
 
-
-  const handleCopyCode = () => {
-    if (classInfo?.entry_code) {
-      navigator.clipboard.writeText(classInfo.entry_code);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-      showToast('✨ 학급 코드가 복사되었습니다.');
-    }
-  };
 
   const handleCopyLink = () => {
     if (classInfo?.entry_code) {
@@ -1359,6 +1348,7 @@ const Classroom = () => {
           setEditingClassMaterials(data || []);
         }}
         onDeleteClass={handleDeleteClass}
+        currentUserId={user?.id}
         onOpenArchive={() => {
           fetchArchivedClasses();
           setIsArchiveModalOpen(true);

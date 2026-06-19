@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   School, Users, ChevronDown, ChevronUp, ExternalLink,
-  FileText, Images, Loader2, AlertCircle, Lock, Calendar
+  FileText, Loader2, AlertCircle, Lock, Calendar
 } from 'lucide-react';
 
 const SchoolProjectShareView = () => {

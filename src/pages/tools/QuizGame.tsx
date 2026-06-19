@@ -77,7 +77,6 @@ const OPTION_LIGHT_COLORS = [
   'bg-yellow-50 border-yellow-200 text-yellow-700',
   'bg-green-50 border-green-200 text-green-700',
 ] as const;
-const CORRECT_COLOR = 'bg-green-100 border-green-400 text-green-700';
 
 // PIN 코드 생성 (6자리 숫자)
 const generatePin = () =>

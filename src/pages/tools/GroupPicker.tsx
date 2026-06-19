@@ -938,7 +938,7 @@ const SavedGroupPicker = ({ userId }: { userId: string }) => {
   const [spinIdx, setSpinIdx]               = useState(0);
   const [history, setHistory]               = useState<string[]>([]);
   const [excludePicked, setExcludePicked]   = useState(false);
-  const [remaining, setRemaining]           = useState<string[]>([]);
+  const [_remaining, setRemaining]           = useState<string[]>([]);
   const spinRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {

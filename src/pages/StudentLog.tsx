@@ -152,7 +152,6 @@ const StudentLog = () => {
   const [classResources, setClassResources] = useState<any[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
-  const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string } | null>(null);
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
   const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'general'>('weekly');
@@ -663,7 +662,7 @@ const StudentLog = () => {
   };
 
   const fetchStudentNotifs = async (studentId: string) => {
-    const { data, error } = await supabase
+    const { data, error: _error } = await supabase
       .from('student_notifications')
       .select('*')
       .eq('student_id', studentId)
@@ -717,7 +716,7 @@ const StudentLog = () => {
         let resolvedWeeklyPlan = data.weekly_plan;
         if (data.parent_class_id && (!resolvedWeeklyPlan || resolvedWeeklyPlan.length === 0)) {
           const { data: parentData } = await supabase.from('classes').select('weekly_plan').eq('id', data.parent_class_id).single();
-          if (parentData?.weekly_plan?.length > 0) resolvedWeeklyPlan = parentData.weekly_plan;
+          if (parentData?.weekly_plan?.length > 0) resolvedWeeklyPlan = parentData?.weekly_plan;
         }
 
         if (resolvedWeeklyPlan && Array.isArray(resolvedWeeklyPlan) && resolvedWeeklyPlan.length > 0) {

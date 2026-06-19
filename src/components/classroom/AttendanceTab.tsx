@@ -241,7 +241,6 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
   // ── 달력 계산 ─────────────────────────────────────────────────────────────
   const firstDayOfMonth = new Date(calYear, calMonth, 1).getDay(); // 0=일
   const daysInMonth     = new Date(calYear, calMonth + 1, 0).getDate();
-  const calMonthStr     = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
 
   const prevCalMonth = () => {
     if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); }
