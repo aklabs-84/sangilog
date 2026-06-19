@@ -150,14 +150,33 @@ const Dashboard = () => {
 
   const handleDeleteProject = async () => {
     if (!deletingProjectId) return;
-    // 프로젝트에 속한 부모 클래스 먼저 삭제 (CASCADE로 하위 클래스도 자동 삭제)
+
+    // 배정된 선생님들의 Pro 권한 먼저 회수
+    const { data: subClasses } = await supabase
+      .from('classes')
+      .select('id, assigned_teacher_id')
+      .eq('school_project_id', deletingProjectId)
+      .not('parent_class_id', 'is', null)
+      .not('assigned_teacher_id', 'is', null);
+
+    if (subClasses && subClasses.length > 0) {
+      await Promise.all(
+        subClasses.map((cls: any) =>
+          supabase.rpc('remove_teacher_from_subclass', {
+            p_class_id: cls.id,
+            p_teacher_id: cls.assigned_teacher_id,
+          })
+        )
+      );
+    }
+
+    // 프로젝트에 속한 부모 클래스 삭제 (CASCADE로 하위 클래스도 자동 삭제)
     await supabase.from('classes').delete()
       .eq('school_project_id', deletingProjectId)
       .is('parent_class_id', null);
     await supabase.from('school_projects').delete().eq('id', deletingProjectId);
     setDeletingProjectId(null);
     setDeletingProjectName('');
-    // 전체 데이터 재조회로 대시보드 갱신
     await Promise.all([fetchDashboardData(), fetchMyProjects(), fetchAssignedClasses()]);
   };
 
