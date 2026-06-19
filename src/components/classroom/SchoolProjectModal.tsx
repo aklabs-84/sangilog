@@ -305,8 +305,8 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
             <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-8 py-6 text-white flex items-center justify-between shrink-0">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <School size={20} />
-                  <h2 className="text-xl font-black">학교 프로젝트</h2>
+                  <School size={20} className="text-white" />
+                  <h2 className="text-xl font-black text-white">학교 프로젝트</h2>
                 </div>
                 <p className="text-sm text-white/70">여러 반을 여러 선생님과 함께 운영하는 협업 수업</p>
               </div>
@@ -637,27 +637,108 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
                   <div className="space-y-3">
                     <p className="text-xs font-black text-gray-500 uppercase tracking-widest">반 클래스 현황 ({subClasses.length}개)</p>
                     {subClasses.map(cls => (
-                      <div key={cls.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-violet-100 rounded-xl flex items-center justify-center text-violet-600">
-                            <GraduationCap size={15} />
+                      <div key={cls.id} className="relative">
+                        <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl">
+                          <div className="w-9 h-9 bg-violet-100 rounded-xl flex items-center justify-center text-violet-600 shrink-0">
+                            <GraduationCap size={16} />
                           </div>
-                          <div>
-                            <p className="text-sm font-black">{cls.name}</p>
-                            <p className="text-xs text-gray-400">
-                              입장코드: <span className="font-mono font-bold">{cls.entry_code}</span>
-                              {cls.assigned_teacher_name && (
-                                <span className="ml-2 text-violet-600 font-bold">· {cls.assigned_teacher_name} 선생님</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black truncate">{cls.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[10px] font-mono bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">{cls.entry_code}</span>
+                              {cls.assigned_teacher_name ? (
+                                <span className="text-[10px] text-violet-600 font-bold flex items-center gap-1">
+                                  <Crown size={9} /> {cls.assigned_teacher_name} 선생님
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-orange-400 font-bold">담당 선생님 미지정</span>
                               )}
-                            </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => handleCopyEntryCode(cls.entry_code)}
+                              title="입장코드 복사"
+                              className="p-2 rounded-xl bg-white border border-gray-200 hover:border-violet-300 text-gray-400 hover:text-violet-600 transition-all"
+                            >
+                              {copiedCode === cls.entry_code ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                            </button>
+                            <button
+                              onClick={() => setAssigningClassId(assigningClassId === cls.id ? null : cls.id)}
+                              title={cls.assigned_teacher_name ? '선생님 변경' : '선생님 지정'}
+                              className={`p-2 rounded-xl border transition-all ${
+                                assigningClassId === cls.id
+                                  ? 'bg-violet-100 border-violet-300 text-violet-600'
+                                  : 'bg-white border-gray-200 hover:border-violet-300 text-gray-400 hover:text-violet-600'
+                              }`}
+                            >
+                              <UserPlus size={14} />
+                            </button>
+                            {cls.assigned_teacher_id && (
+                              <button
+                                onClick={() => handleRemoveTeacher(cls.id)}
+                                title="담당 해제"
+                                className="p-2 rounded-xl bg-white border border-gray-200 hover:border-orange-300 text-gray-300 hover:text-orange-400 transition-all"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleCopyEntryCode(cls.entry_code)}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 hover:border-violet-300 rounded-xl text-xs font-bold text-gray-600 hover:text-violet-600 transition-all"
-                        >
-                          {copiedCode === cls.entry_code ? <><Check size={12} className="text-green-500" /> 복사됨</> : <><Copy size={12} /> 코드 복사</>}
-                        </button>
+
+                        {/* 선생님 검색 드롭다운 */}
+                        <AnimatePresence>
+                          {assigningClassId === cls.id && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -6 }}
+                              className="mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-10"
+                            >
+                              <div className="p-3 border-b border-gray-100 flex items-center gap-2">
+                                <Search size={13} className="text-gray-400" />
+                                <input
+                                  type="text"
+                                  placeholder="선생님 이름 검색..."
+                                  value={teacherSearchQuery}
+                                  onChange={e => setTeacherSearchQuery(e.target.value)}
+                                  className="flex-1 text-xs font-bold outline-none"
+                                  autoFocus
+                                />
+                                <button onClick={() => { setAssigningClassId(null); setTeacherSearchQuery(''); }} className="text-gray-300 hover:text-gray-500">
+                                  <X size={14} />
+                                </button>
+                              </div>
+                              <div className="max-h-44 overflow-y-auto">
+                                {filteredTeachers.length === 0 ? (
+                                  <p className="text-xs text-gray-400 text-center py-4">
+                                    {schoolTeachers.length === 0 ? '같은 학교 선생님이 없습니다' : '검색 결과 없음'}
+                                  </p>
+                                ) : (
+                                  filteredTeachers.map(t => (
+                                    <button
+                                      key={t.id}
+                                      onClick={() => handleAssignTeacher(t.id, cls.id, t.full_name, t.avatar_url)}
+                                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-violet-50 text-left transition-all"
+                                    >
+                                      <img
+                                        src={t.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.full_name)}&background=random`}
+                                        alt={t.full_name}
+                                        className="w-8 h-8 rounded-full object-cover shrink-0"
+                                      />
+                                      <div>
+                                        <p className="text-sm font-bold">{t.full_name} 선생님</p>
+                                        {endDate && (
+                                          <p className="text-[10px] text-violet-500">수업 기간 Pro 자동 부여</p>
+                                        )}
+                                      </div>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     ))}
                   </div>
