@@ -1,19 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { School, Users, Calendar, Plus, Trash2, Save, BookOpen, Package, ExternalLink } from 'lucide-react';
+import { School, Users, Calendar, Plus, Trash2, Save, BookOpen, Package, ExternalLink, Link2, ChevronDown } from 'lucide-react';
 
 interface Props {
   classInfo: any;
   onOpenResources: () => void;
   onOpenProjectModal: () => void;
+  onSaved?: () => void;
 }
 
-const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal }: Props) => {
+const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal, onSaved }: Props) => {
   const [project, setProject] = useState<any>(null);
   const [subClasses, setSubClasses] = useState<any[]>([]);
   const [weeklyPlan, setWeeklyPlan] = useState<any[]>([]);
+  const [classMaterials, setClassMaterials] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // 각 주차별 자료 선택 드롭다운 열림 여부
+  const [matDropdownIdx, setMatDropdownIdx] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!classInfo) return;
@@ -28,6 +32,14 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal }: Pr
         .single();
       setProject(proj);
     }
+
+    // 수업 자료 에디터 자료 로드 (class_materials)
+    const { data: mats } = await supabase
+      .from('class_materials')
+      .select('id, title, week_number, is_published')
+      .eq('class_id', classInfo.id)
+      .order('week_number', { ascending: true });
+    setClassMaterials(mats || []);
 
     const { data: subs } = await supabase
       .from('classes')
@@ -65,6 +77,7 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal }: Pr
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    onSaved?.();
   };
 
   const addWeek = () => {
@@ -79,6 +92,20 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal }: Pr
   const updateWeek = (idx: number, field: string, value: any) => {
     const updated = [...weeklyPlan];
     updated[idx] = { ...updated[idx], [field]: value };
+    setWeeklyPlan(updated);
+  };
+
+  const linkMaterial = (idx: number, mat: any) => {
+    const updated = [...weeklyPlan];
+    updated[idx] = { ...updated[idx], material_id: mat.id, url: '', topic: updated[idx].topic || mat.title };
+    setWeeklyPlan(updated);
+    setMatDropdownIdx(null);
+  };
+
+  const unlinkMaterial = (idx: number) => {
+    const updated = [...weeklyPlan];
+    const { material_id: _, ...rest } = updated[idx];
+    updated[idx] = rest;
     setWeeklyPlan(updated);
   };
 
@@ -169,26 +196,84 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal }: Pr
           </div>
 
           <div className="space-y-2 max-h-[360px] overflow-y-auto custom-scrollbar pr-1">
-            {weeklyPlan.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-3 py-2 shadow-sm group">
-                <span className="text-[10px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-lg shrink-0 w-10 text-center">{item.week}주</span>
-                <input
-                  className="flex-1 text-sm font-bold text-on-surface bg-transparent outline-none placeholder:text-neutral-300"
-                  placeholder="수업 주제 입력"
-                  value={item.topic}
-                  onChange={(e) => updateWeek(idx, 'topic', e.target.value)}
-                />
-                <input
-                  className="w-36 text-xs font-bold text-on-surface-variant bg-transparent outline-none placeholder:text-neutral-300"
-                  placeholder="URL (선택)"
-                  value={item.url || ''}
-                  onChange={(e) => updateWeek(idx, 'url', e.target.value)}
-                />
-                <button onClick={() => removeWeek(idx)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-error/10 rounded-lg text-error/60 hover:text-error transition-all">
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
+            {weeklyPlan.map((item, idx) => {
+              const linkedMat = item.material_id
+                ? classMaterials.find((m: any) => m.id === item.material_id)
+                : null;
+              const isMatOpen = matDropdownIdx === idx;
+
+              return (
+                <div key={idx} className="bg-white border border-neutral-200 rounded-xl px-3 py-2 shadow-sm group">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-lg shrink-0 w-10 text-center">{item.week}주</span>
+                    <input
+                      className="flex-1 text-sm font-bold text-on-surface bg-transparent outline-none placeholder:text-neutral-300"
+                      placeholder="수업 주제 입력"
+                      value={item.topic}
+                      onChange={(e) => updateWeek(idx, 'topic', e.target.value)}
+                    />
+                    {/* 자료 연결 토글 */}
+                    {linkedMat ? (
+                      <button
+                        onClick={() => unlinkMaterial(idx)}
+                        className="flex items-center gap-1 text-[10px] font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-lg hover:bg-error/10 hover:text-error transition-all shrink-0"
+                        title="연결 해제"
+                      >
+                        <BookOpen size={10} />
+                        {linkedMat.title?.slice(0, 6) || '자료'}
+                      </button>
+                    ) : (
+                      <div className="relative shrink-0">
+                        <button
+                          onClick={() => setMatDropdownIdx(isMatOpen ? null : idx)}
+                          className="flex items-center gap-1 text-[10px] font-black text-on-surface-variant/50 hover:text-violet-500 transition-all"
+                          title="자료에디터 자료 연결"
+                        >
+                          <BookOpen size={11} />
+                          <ChevronDown size={10} />
+                        </button>
+                        {isMatOpen && (
+                          <div className="absolute right-0 top-6 z-10 w-48 bg-white border border-neutral-200 rounded-xl shadow-lg overflow-hidden">
+                            {classMaterials.length === 0 ? (
+                              <p className="text-[10px] text-on-surface-variant/60 px-3 py-2">자료에디터에 등록된 자료 없음</p>
+                            ) : (
+                              classMaterials.map((mat: any) => (
+                                <button
+                                  key={mat.id}
+                                  onClick={() => linkMaterial(idx, mat)}
+                                  className="w-full text-left px-3 py-2 text-xs font-bold hover:bg-violet-50 text-on-surface transition-all flex items-center gap-2"
+                                >
+                                  <BookOpen size={11} className="text-violet-400 shrink-0" />
+                                  <span className="truncate">{mat.title}</span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {/* URL 입력 (자료 연결 안 된 경우만) */}
+                    {!linkedMat && (
+                      <input
+                        className="w-28 text-xs font-bold text-on-surface-variant bg-transparent outline-none placeholder:text-neutral-300"
+                        placeholder="URL"
+                        value={item.url || ''}
+                        onChange={(e) => updateWeek(idx, 'url', e.target.value)}
+                      />
+                    )}
+                    {linkedMat && (
+                      <div className="flex items-center gap-1 text-[10px] text-on-surface-variant/40 shrink-0">
+                        <Link2 size={10} />
+                        자료 연결됨
+                      </div>
+                    )}
+                    <button onClick={() => removeWeek(idx)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-error/10 rounded-lg text-error/60 hover:text-error transition-all">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex items-center gap-2 mt-3">
@@ -199,6 +284,12 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal }: Pr
               <Plus size={13} strokeWidth={3} />
               주차 추가
             </button>
+            {classMaterials.length > 0 && (
+              <span className="text-[10px] text-on-surface-variant/50 font-bold">
+                <BookOpen size={10} className="inline mr-1" />
+                자료에디터 {classMaterials.length}개 연결 가능
+              </span>
+            )}
             <div className="flex-1" />
             <button
               onClick={saveWeeklyPlan}
@@ -210,7 +301,7 @@ const SchoolProjectHub = ({ classInfo, onOpenResources, onOpenProjectModal }: Pr
               }`}
             >
               <Save size={13} />
-              {saved ? '저장됨' : saving ? '저장 중...' : '저장 (전 반 적용)'}
+              {saved ? '저장됨 ✓' : saving ? '저장 중...' : '저장 (전 반 적용)'}
             </button>
           </div>
         </div>

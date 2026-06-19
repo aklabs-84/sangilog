@@ -1420,6 +1420,14 @@ const Classroom = () => {
                 setIsResourceModalOpen(true);
               }}
               onOpenProjectModal={() => { fetchSchools(); setIsSchoolModalOpen(true); }}
+              onSaved={async () => {
+                if (!activeClassId) return;
+                const { data } = await supabase.from('classes').select('*').eq('id', activeClassId).single();
+                if (data) {
+                  setClassInfo(data);
+                  setClasses(prev => prev.map(c => c.id === data.id ? data : c));
+                }
+              }}
             />
           )}
 
