@@ -335,6 +335,7 @@ const Settings = () => {
   const betaDaysLeft = getBetaDaysLeft(profile);
   const isBetaActive = betaDaysLeft !== null;
   const isEffectivelyPro = checkIsPro(profile);
+  const isProjectPro = isEffectivelyPro && !isBetaActive && !['pro', 'school', 'admin'].includes(plan);
   const aiUsedThisMonth = (() => {
     if (!profile?.ai_monthly_reset) return 0;
     const thisMonth = new Date().toISOString().slice(0, 7);
@@ -375,12 +376,14 @@ const Settings = () => {
               plan === 'school' ? 'bg-violet-500' :
               plan === 'basic'  ? 'bg-blue-500' :
               isBetaActive      ? 'bg-blue-500' :
+              isProjectPro      ? 'bg-amber-500' :
                                   'bg-gray-400'
             }`}>
               {plan === 'admin'  ? <ShieldCheck size={18} className="text-white" /> :
                plan === 'pro'    ? <Crown size={18} className="text-white" /> :
                plan === 'school' ? <GraduationCap size={18} className="text-white" /> :
                plan === 'basic'  ? <Crown size={18} className="text-white" /> :
+               isProjectPro      ? <Crown size={18} className="text-white" /> :
                                    <User size={18} className="text-white" />}
             </div>
             <div>
@@ -389,6 +392,10 @@ const Settings = () => {
                 {isBetaActive ? (
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                     🎟 Pro 체험중 (D-{betaDaysLeft})
+                  </span>
+                ) : isProjectPro ? (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    🏫 수업 Pro (기간제)
                   </span>
                 ) : (
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${PLAN_COLOR[plan]}`}>
@@ -399,6 +406,10 @@ const Settings = () => {
               {isBetaActive ? (
                 <p className="text-xs text-blue-600 mt-0.5">
                   베타 체험 기간 동안 Pro 기능을 모두 사용하실 수 있습니다
+                </p>
+              ) : isProjectPro ? (
+                <p className="text-xs text-amber-600 mt-0.5">
+                  학교 프로젝트 기간 동안 Pro 기능을 모두 사용하실 수 있습니다
                 </p>
               ) : plan === 'pro' ? (
                 <p className="text-xs text-amber-600 mt-0.5">
@@ -720,9 +731,10 @@ const Settings = () => {
               plan === 'school' ? 'bg-violet-100 text-violet-700 shadow-violet-100' :
               plan === 'basic'  ? 'bg-blue-100 text-blue-700 shadow-blue-100' :
               isBetaActive      ? 'bg-blue-100 text-blue-700 shadow-blue-100' :
+              isProjectPro      ? 'bg-amber-100 text-amber-700 shadow-amber-100' :
                                   'bg-gray-100 text-gray-500'
             }`}>
-              {plan === 'admin' ? 'ADMIN' : plan === 'pro' ? 'PRO' : plan === 'school' ? 'SCHOOL' : plan === 'basic' ? 'BASIC' : isBetaActive ? 'BETA' : 'FREE'}
+              {plan === 'admin' ? 'ADMIN' : plan === 'pro' ? 'PRO' : plan === 'school' ? 'SCHOOL' : plan === 'basic' ? 'BASIC' : isBetaActive ? 'BETA' : isProjectPro ? 'PROJECT PRO' : 'FREE'}
             </span>
             <span className="px-3 py-1 bg-surface-container-highest text-on-surface-variant font-bold text-[11px] rounded-lg tracking-widest uppercase">ACTIVE</span>
           </div>
