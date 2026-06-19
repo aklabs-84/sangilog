@@ -37,21 +37,35 @@ const SchoolProjectShareView = () => {
 
       setProject(proj);
 
-      const { data: pcList } = await supabase
-        .from('school_project_classes')
-        .select(`
-          class_id, role,
-          classes!inner(id, name, subject),
-          profiles(full_name)
-        `)
-        .eq('project_id', proj.id)
-        .eq('role', 'class_owner');
+      // V2: classes 테이블에서 school_project_id로 직접 조회 (하위 클래스만)
+      const { data: subClasses } = await supabase
+        .from('classes')
+        .select('id, name, subject, assigned_teacher_id')
+        .eq('school_project_id', proj.id)
+        .not('parent_class_id', 'is', null)
+        .order('created_at', { ascending: true });
 
-      setClassList((pcList || []).map((pc: any) => ({
-        id: pc.class_id,
-        name: pc.classes?.name || '',
-        subject: pc.classes?.subject || '',
-        teacher_name: pc.profiles?.full_name || null,
+      if (!subClasses || subClasses.length === 0) {
+        setClassList([]);
+        return;
+      }
+
+      // 담당 선생님 이름 일괄 조회
+      const teacherIds = [...new Set(subClasses.map((c: any) => c.assigned_teacher_id).filter(Boolean))];
+      const teacherMap: Record<string, string> = {};
+      if (teacherIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', teacherIds);
+        (profiles || []).forEach((p: any) => { teacherMap[p.id] = p.full_name; });
+      }
+
+      setClassList(subClasses.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        subject: c.subject || '',
+        teacher_name: c.assigned_teacher_id ? (teacherMap[c.assigned_teacher_id] || null) : null,
       })));
     } finally {
       setLoading(false);
