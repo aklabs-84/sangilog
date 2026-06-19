@@ -1398,6 +1398,7 @@ const Classroom = () => {
               {/* 학교 그룹 관리 버튼 */}
               <button
                 onClick={() => { fetchSchools(); setIsSchoolModalOpen(true); }}
+                title="담당 선생님께 공유할 수 있는 학교 단위 묶음이에요 (공유 링크 생성 가능)"
                 className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-600 font-black text-xs transition-all hover:scale-[1.02] active:scale-95"
               >
                 <GraduationCap size={14} />
@@ -2905,7 +2906,7 @@ const Classroom = () => {
                   </div>
                   <div>
                     <h2 className="text-white font-black text-base">학교 그룹 관리</h2>
-                    <p className="text-violet-200 text-[11px] font-semibold">같은 학교 학급을 묶어 하나의 링크로 공유</p>
+                    <p className="text-violet-200 text-[11px] font-semibold">같은 학교 학급을 묶어 담당 선생님께 공유 링크 전달</p>
                   </div>
                 </div>
                 <button

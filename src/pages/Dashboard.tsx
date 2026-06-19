@@ -554,7 +554,10 @@ const Dashboard = () => {
         <div className="col-span-12 lg:col-span-7 space-y-4">
           {/* 헤더 */}
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-xl md:text-2xl font-bold font-manrope">나의 학급</h2>
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold font-manrope">나의 학급</h2>
+              <p className="text-xs text-on-surface-variant/60 mt-0.5">폴더로 묶어 내 화면에서만 정리할 수 있어요</p>
+            </div>
             <button
               onClick={() => navigate('/classroom')}
               className="text-xs font-bold text-primary flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
@@ -610,6 +613,7 @@ const Dashboard = () => {
             {!showCreateFolder ? (
               <button
                 onClick={() => setShowCreateFolder(true)}
+                title="내 화면에서만 보이는 정리용 폴더예요 (다른 사람에게 공유되지 않아요)"
                 className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-on-surface-variant/60 hover:text-primary hover:bg-primary/8 border border-dashed border-surface-container-high transition-all"
               >
                 <FolderPlus size={13} />
