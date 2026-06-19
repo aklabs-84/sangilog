@@ -307,6 +307,7 @@ const Admin = () => {
   const [aiDetailModal, setAiDetailModal]   = useState<AiDetailModal | null>(null);
   const [aiDetailLogs, setAiDetailLogs]     = useState<AiDetailLog[]>([]);
   const [aiDetailLoading, setAiDetailLoading] = useState(false);
+  const [aiUserPage, setAiUserPage]         = useState(0);
 
   // ── 공통 삭제 ──────────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
@@ -763,12 +764,13 @@ const Admin = () => {
         Object.entries(userMap)
           .map(([user_id, v]) => ({
             user_id,
-            full_name: profileMap[user_id]?.full_name ?? null,
+            full_name: profileMap[user_id]?.full_name || profileMap[user_id]?.email || null,
             email:     profileMap[user_id]?.email ?? null,
             ...v,
           }))
           .sort((a, b) => b.cost_usd - a.cost_usd)
       );
+      setAiUserPage(0);
     } finally {
       setAiCostLoading(false);
     }
@@ -2089,7 +2091,8 @@ const Admin = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {aiUserRows.map((r, i) => {
+                          {aiUserRows.slice(aiUserPage * 10, aiUserPage * 10 + 10).map((r, i) => {
+                            const globalIdx = aiUserPage * 10 + i;
                             const maxCost = aiUserRows[0]?.cost_usd ?? 0.000001;
                             const pct = (r.cost_usd / maxCost) * 100;
                             return (
@@ -2100,15 +2103,15 @@ const Admin = () => {
                               >
                                 <td className="py-2.5 pr-4">
                                   <span className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] ${
-                                    i === 0 ? 'bg-amber-400 text-white' :
-                                    i === 1 ? 'bg-gray-300 text-white' :
-                                    i === 2 ? 'bg-amber-700 text-white' :
+                                    globalIdx === 0 ? 'bg-amber-400 text-white' :
+                                    globalIdx === 1 ? 'bg-gray-300 text-white' :
+                                    globalIdx === 2 ? 'bg-amber-700 text-white' :
                                     'bg-gray-100 text-gray-500'
-                                  }`}>{i + 1}</span>
+                                  }`}>{globalIdx + 1}</span>
                                 </td>
                                 <td className="py-2.5 pr-4 font-bold text-gray-800">
                                   <span className="group-hover:text-blue-700 transition-colors flex items-center gap-1">
-                                    {r.full_name || '이름 없음'}
+                                    {r.full_name || r.email || '이름 없음'}
                                     <ChevronRight size={12} className="text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                                   </span>
                                 </td>
@@ -2148,6 +2151,25 @@ const Admin = () => {
                           </tr>
                         </tfoot>
                       </table>
+                      {aiUserRows.length > 10 && (
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-100 mt-2">
+                          <span className="text-xs text-gray-400">
+                            {aiUserPage * 10 + 1}–{Math.min(aiUserPage * 10 + 10, aiUserRows.length)} / 총 {aiUserRows.length}명
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              disabled={aiUserPage === 0}
+                              onClick={() => setAiUserPage(p => p - 1)}
+                              className="px-3 py-1 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                            >이전</button>
+                            <button
+                              disabled={(aiUserPage + 1) * 10 >= aiUserRows.length}
+                              onClick={() => setAiUserPage(p => p + 1)}
+                              className="px-3 py-1 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                            >다음</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
