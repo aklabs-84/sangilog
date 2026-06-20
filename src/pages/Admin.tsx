@@ -9,14 +9,32 @@ import {
   Trash2, BookOpen, GraduationCap, ClipboardList, AlertTriangle,
   BarChart3, FileCheck, Megaphone, Bell, Download, Plus, Send,
   TrendingUp, Zap, Bug, Ticket, Calendar, ToggleLeft, ToggleRight,
-  Shuffle, DollarSign, Cpu, Layers, X, ChevronRight,
+  Shuffle, DollarSign, Cpu, Layers, X, ChevronRight, Activity,
+  ArrowUpDown, LogIn,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActiveTab =
-  | 'dashboard' | 'requests' | 'users' | 'classes'
+  | 'dashboard' | 'requests' | 'users' | 'activity' | 'classes'
   | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'ai_cost';
+
+interface TeacherActivityRow {
+  id: string;
+  full_name: string | null;
+  email: string;
+  plan: string;
+  school_name: string | null;
+  class_count: number;
+  student_count: number;
+  obs_count: number;
+  ai_count: number;
+  last_class_at: string | null;
+  last_obs_at: string | null;
+  last_ai_at: string | null;
+  last_sign_in_at: string | null;
+  last_active_at: string | null;
+}
 
 type AiCostView = 'daily' | 'weekly' | 'monthly';
 
@@ -145,6 +163,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard',     label: '현황',      icon: BarChart3 },
   { id: 'requests',      label: '사용 신청',  icon: ShieldCheck },
   { id: 'users',         label: '사용자',     icon: Users },
+  { id: 'activity',      label: '활동 현황',  icon: Activity },
   { id: 'classes',       label: '학급',       icon: BookOpen },
   { id: 'students',      label: '학생',       icon: GraduationCap },
   { id: 'observations',  label: '활동 기록',  icon: ClipboardList },
@@ -242,6 +261,11 @@ const Admin = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [planUpdating, setPlanUpdating] = useState<string | null>(null);
 
+  // ── 활동 현황 ────────────────────────────────────────────────────────────────
+  const [teacherActivity, setTeacherActivity]     = useState<TeacherActivityRow[]>([]);
+  const [activityLoading, setActivityLoading]     = useState(false);
+  const [activitySort, setActivitySort]           = useState<{ key: keyof TeacherActivityRow | 'last_active_at'; dir: 'asc' | 'desc' }>({ key: 'last_active_at', dir: 'desc' });
+
   // ── 학급 ───────────────────────────────────────────────────────────────────
   const [classes, setClasses]           = useState<ClassRow[]>([]);
   const [classesLoading, setClassesLoading] = useState(false);
@@ -321,6 +345,7 @@ const Admin = () => {
     if (activeTab === 'dashboard')     fetchDashboard();
     if (activeTab === 'requests')      fetchRequests();
     if (activeTab === 'users')         fetchUsers();
+    if (activeTab === 'activity')      fetchTeacherActivity();
     if (activeTab === 'classes')       fetchClasses();
     if (activeTab === 'students')      fetchStudents();
     if (activeTab === 'observations')  fetchObservations();
@@ -491,6 +516,96 @@ const Admin = () => {
       setCouponSendMsg({ type: 'err', text: '네트워크 오류' });
     }
     setCouponSending(false);
+  };
+
+  const fetchTeacherActivity = async () => {
+    setActivityLoading(true);
+
+    const { data: teachers } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, plan, school_name')
+      .eq('is_admin', false)
+      .order('full_name');
+
+    if (!teachers) { setActivityLoading(false); return; }
+
+    const tids = teachers.map(t => t.id);
+
+    const [
+      { data: classData },
+      { data: obsData },
+      { data: aiData },
+      { data: loginData },
+    ] = await Promise.all([
+      supabase.from('classes').select('id, teacher_id, created_at').in('teacher_id', tids),
+      supabase.from('observations').select('teacher_id, created_at').in('teacher_id', tids).order('created_at', { ascending: false }),
+      supabase.from('ai_usage_logs').select('user_id, created_at').in('user_id', tids).order('created_at', { ascending: false }),
+      supabase.rpc('get_teacher_last_logins').then(r => r),
+    ]);
+
+    const loginMap: Record<string, string> = {};
+    if (loginData) (loginData as { id: string; last_sign_in_at: string }[]).forEach(l => {
+      loginMap[l.id] = l.last_sign_in_at;
+    });
+
+    const classIds = (classData || []).map(c => c.id);
+    const { data: studentData } = classIds.length > 0
+      ? await supabase.from('students').select('class_id').in('class_id', classIds)
+      : { data: [] };
+
+    const classMap: Record<string, { count: number; last: string | null }> = {};
+    (classData || []).forEach(c => {
+      if (!classMap[c.teacher_id]) classMap[c.teacher_id] = { count: 0, last: null };
+      classMap[c.teacher_id].count++;
+      if (!classMap[c.teacher_id].last || c.created_at > classMap[c.teacher_id].last!)
+        classMap[c.teacher_id].last = c.created_at;
+    });
+
+    const classToTeacher: Record<string, string> = {};
+    (classData || []).forEach(c => { classToTeacher[c.id] = c.teacher_id; });
+    const studentMap: Record<string, number> = {};
+    (studentData || []).forEach(s => {
+      const tid = classToTeacher[s.class_id];
+      if (tid) studentMap[tid] = (studentMap[tid] || 0) + 1;
+    });
+
+    const obsMap: Record<string, { count: number; last: string | null }> = {};
+    (obsData || []).forEach(o => {
+      if (!obsMap[o.teacher_id]) obsMap[o.teacher_id] = { count: 0, last: null };
+      obsMap[o.teacher_id].count++;
+      if (!obsMap[o.teacher_id].last) obsMap[o.teacher_id].last = o.created_at;
+    });
+
+    const aiMap: Record<string, { count: number; last: string | null }> = {};
+    (aiData || []).forEach(a => {
+      if (!aiMap[a.user_id]) aiMap[a.user_id] = { count: 0, last: null };
+      aiMap[a.user_id].count++;
+      if (!aiMap[a.user_id].last) aiMap[a.user_id].last = a.created_at;
+    });
+
+    const result: TeacherActivityRow[] = teachers.map(t => {
+      const cls = classMap[t.id] || { count: 0, last: null };
+      const obs = obsMap[t.id] || { count: 0, last: null };
+      const ai  = aiMap[t.id]  || { count: 0, last: null };
+      const signIn = loginMap[t.id] ?? null;
+      const times = [cls.last, obs.last, ai.last, signIn].filter(Boolean) as string[];
+      const last_active_at = times.length > 0 ? times.reduce((a, b) => a > b ? a : b) : null;
+      return {
+        ...t,
+        class_count:     cls.count,
+        student_count:   studentMap[t.id] || 0,
+        obs_count:       obs.count,
+        ai_count:        ai.count,
+        last_class_at:   cls.last,
+        last_obs_at:     obs.last,
+        last_ai_at:      ai.last,
+        last_sign_in_at: signIn,
+        last_active_at,
+      };
+    });
+
+    setTeacherActivity(result);
+    setActivityLoading(false);
   };
 
   const fetchClasses = async () => {
@@ -874,6 +989,7 @@ const Admin = () => {
     if (activeTab === 'dashboard')     fetchDashboard();
     if (activeTab === 'requests')      fetchRequests();
     if (activeTab === 'users')         fetchUsers();
+    if (activeTab === 'activity')      fetchTeacherActivity();
     if (activeTab === 'classes')       fetchClasses();
     if (activeTab === 'students')      fetchStudents();
     if (activeTab === 'observations')  fetchObservations();
@@ -1538,6 +1654,138 @@ const Admin = () => {
             })}
           </div>
         )}
+
+        {/* ── 활동 현황 ── */}
+        {activeTab === 'activity' && (() => {
+          const PLAN_COLOR: Record<string, string> = {
+            free: 'bg-gray-100 text-gray-600',
+            basic: 'bg-blue-100 text-blue-700',
+            pro: 'bg-amber-100 text-amber-700',
+            school: 'bg-violet-100 text-violet-700',
+            admin: 'bg-emerald-100 text-emerald-700',
+          };
+          const fmtDate = (s: string | null) => {
+            if (!s) return '—';
+            const d = new Date(s);
+            const diff = Date.now() - d.getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1)   return '방금';
+            if (mins < 60)  return `${mins}분 전`;
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24)   return `${hrs}시간 전`;
+            const days = Math.floor(hrs / 24);
+            if (days < 7)   return `${days}일 전`;
+            return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+          };
+
+          type SortKey = 'full_name' | 'class_count' | 'student_count' | 'obs_count' | 'ai_count' | 'last_active_at' | 'last_sign_in_at';
+          const sortKey = activitySort.key as SortKey;
+          const sorted = [...teacherActivity].sort((a, b) => {
+            const av = a[sortKey] ?? '';
+            const bv = b[sortKey] ?? '';
+            return activitySort.dir === 'asc'
+              ? av < bv ? -1 : av > bv ? 1 : 0
+              : av > bv ? -1 : av < bv ? 1 : 0;
+          });
+
+          const toggleSort = (key: SortKey) => setActivitySort(prev =>
+            prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'desc' }
+          );
+
+          const activeThisWeek = teacherActivity.filter(t => {
+            if (!t.last_active_at) return false;
+            return Date.now() - new Date(t.last_active_at).getTime() < 7 * 86400000;
+          }).length;
+          const activeToday = teacherActivity.filter(t => {
+            if (!t.last_active_at) return false;
+            return Date.now() - new Date(t.last_active_at).getTime() < 86400000;
+          }).length;
+
+          const SortTh = ({ label, k }: { label: string; k: SortKey }) => (
+            <th className="text-left px-4 py-3 text-xs font-black text-amber-700 cursor-pointer select-none whitespace-nowrap"
+              onClick={() => toggleSort(k)}>
+              <span className="flex items-center gap-1">
+                {label}
+                <ArrowUpDown size={10} className={activitySort.key === k ? 'text-amber-500' : 'text-amber-200'} />
+              </span>
+            </th>
+          );
+
+          return (
+            <>
+              {/* 요약 카드 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                {[
+                  { label: '전체 선생님', value: teacherActivity.length, color: 'bg-amber-50 border-amber-100 text-amber-700' },
+                  { label: '오늘 활성', value: activeToday, color: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
+                  { label: '이번 주 활성', value: activeThisWeek, color: 'bg-blue-50 border-blue-100 text-blue-700' },
+                  { label: '비활성 (30일+)', value: teacherActivity.filter(t => !t.last_active_at || Date.now() - new Date(t.last_active_at).getTime() > 30 * 86400000).length, color: 'bg-gray-50 border-gray-100 text-gray-600' },
+                ].map(c => (
+                  <div key={c.label} className={`rounded-2xl border p-4 ${c.color}`}>
+                    <p className="text-xs font-bold opacity-70 uppercase tracking-wider mb-1">{c.label}</p>
+                    <p className="text-2xl font-black">{c.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {activityLoading
+                ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
+                : teacherActivity.length === 0
+                  ? <div className="text-center py-20 text-amber-400"><Activity size={40} className="mx-auto mb-3 opacity-40" /><p>등록된 선생님이 없습니다</p></div>
+                  : (
+                    <div className="overflow-x-auto rounded-2xl border border-amber-100">
+                      <table className="w-full text-sm">
+                        <thead className="bg-amber-50 border-b border-amber-100">
+                          <tr>
+                            <SortTh label="이름" k="full_name" />
+                            <th className="text-left px-4 py-3 text-xs font-black text-amber-700">플랜</th>
+                            <SortTh label="학급" k="class_count" />
+                            <SortTh label="학생" k="student_count" />
+                            <SortTh label="관찰기록" k="obs_count" />
+                            <SortTh label="AI 사용" k="ai_count" />
+                            <SortTh label="마지막 로그인" k="last_sign_in_at" />
+                            <SortTh label="마지막 활동" k="last_active_at" />
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-amber-50">
+                          {sorted.map((t, i) => {
+                            const isActive = t.last_active_at && Date.now() - new Date(t.last_active_at).getTime() < 7 * 86400000;
+                            return (
+                              <motion.tr key={t.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
+                                className="bg-white hover:bg-amber-50/40 transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="font-bold text-amber-900 text-sm">{t.full_name ?? '이름 없음'}</div>
+                                  <div className="text-xs text-amber-400">{t.email}</div>
+                                  {t.school_name && <div className="text-xs text-amber-300">{t.school_name}</div>}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${PLAN_COLOR[t.plan] ?? 'bg-gray-100 text-gray-600'}`}>
+                                    {t.plan.toUpperCase()}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center font-bold text-amber-700">{t.class_count}</td>
+                                <td className="px-4 py-3 text-center font-bold text-blue-600">{t.student_count}</td>
+                                <td className="px-4 py-3 text-center font-bold text-emerald-600">{t.obs_count}</td>
+                                <td className="px-4 py-3 text-center font-bold text-violet-600">{t.ai_count}</td>
+                                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                                  <span className="flex items-center gap-1"><LogIn size={11} className="text-gray-300" />{fmtDate(t.last_sign_in_at)}</span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    {fmtDate(t.last_active_at)}
+                                  </span>
+                                </td>
+                              </motion.tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+              }
+            </>
+          );
+        })()}
 
         {/* ── 학급 ── */}
         {activeTab === 'classes' && (
