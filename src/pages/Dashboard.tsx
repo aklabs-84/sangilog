@@ -172,7 +172,11 @@ const Dashboard = () => {
       );
     }
 
-    // 프로젝트에 속한 부모 클래스 삭제 (CASCADE로 하위 클래스도 자동 삭제)
+    // 하위 클래스 먼저 삭제 (parent_class_id가 있는 것)
+    await supabase.from('classes').delete()
+      .eq('school_project_id', deletingProjectId)
+      .not('parent_class_id', 'is', null);
+    // 부모 클래스 삭제
     await supabase.from('classes').delete()
       .eq('school_project_id', deletingProjectId)
       .is('parent_class_id', null);
