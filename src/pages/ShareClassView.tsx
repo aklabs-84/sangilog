@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import JSZip from 'jszip';
-import writeXlsxFile from 'write-excel-file';
+import { buildXlsxBlob } from '../lib/xlsxBuilder';
+import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
 import {
   GraduationCap,
@@ -327,18 +328,15 @@ const ShareClassView = () => {
     setDownloading(true);
     try {
       const className = classInfo?.name || '클래스';
-
-      const H = { fontWeight: 'bold' as const, backgroundColor: '#D6EAF8', align: 'center' as const };
-      const S = { fontWeight: 'bold' as const, backgroundColor: '#EBF5FB', align: 'center' as const };
-      const statusLabel = (s?: string | null) =>
-        s === 'done' ? '완료' : s === 'draft' ? '초안' : '미작성';
+      const sl = (s?: string | null) => (s === 'done' ? '완료' : s === 'draft' ? '초안' : '미작성');
 
       // 시트 1: 전체학생
-      const sheet1 = [
+      const sheet1Rows: XCell[][] = [
         [
-          { value: '번호', ...H }, { value: '이름', ...H },
-          { value: '활동기록 수', ...H }, { value: '결과물 수', ...H },
-          { value: '세특 상태', ...H }, { value: '성취도', ...H }, { value: '세특 글자수', ...H },
+          { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
+          { value: '활동기록 수', style: 'header' }, { value: '결과물 수', style: 'header' },
+          { value: '세특 상태', style: 'header' }, { value: '성취도', style: 'header' },
+          { value: '세특 글자수', style: 'header' },
         ],
         ...studentData.map(({ student, obs, results }) => {
           const ev = evalMap[student.id];
@@ -347,62 +345,63 @@ const ShareClassView = () => {
             { value: student.full_name },
             { value: obs.length },
             { value: results.length },
-            { value: statusLabel(ev?.status) },
+            { value: sl(ev?.status) },
             { value: ev?.achievement_level ?? '' },
             { value: (ev?.setech_content || '').length },
-          ];
+          ] as XCell[];
         }),
       ];
 
       // 시트 2: 개별 학생
-      const sheet2: ((object | null)[])[] = [];
+      const sheet2Rows: (XCell | null)[][] = [];
       studentData.forEach(({ student, obs, results }) => {
         const label = `${student.student_number != null ? student.student_number + '번 ' : ''}${student.full_name}`;
-        sheet2.push([{ value: label, span: 5, ...S }, null, null, null, null]);
+        sheet2Rows.push([{ value: label, span: 5, style: 'section' }, null, null, null, null]);
 
         if (obs.length === 0 && results.length === 0) {
-          sheet2.push([{ value: '미제출', span: 5, align: 'center' as const }, null, null, null, null]);
+          sheet2Rows.push([{ value: '미제출', span: 5 }, null, null, null, null]);
         } else {
           if (obs.length > 0) {
-            sheet2.push([
-              { value: '유형', ...H }, { value: '주차', ...H },
-              { value: '활동명', ...H }, { value: '내용', ...H }, { value: '날짜', ...H },
+            sheet2Rows.push([
+              { value: '유형', style: 'header' }, { value: '주차', style: 'header' },
+              { value: '활동명', style: 'header' }, { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
             ]);
             obs.forEach((o) => {
-              sheet2.push([
+              sheet2Rows.push([
                 { value: '활동기록' },
                 { value: o.week_number != null ? `${o.week_number}주차` : '' },
                 { value: o.activity_name || '' },
-                { value: o.content, wrap: true },
+                { value: o.content, style: 'wrap' },
                 { value: new Date(o.created_at).toLocaleDateString('ko-KR') },
               ]);
             });
           }
           if (results.length > 0) {
-            sheet2.push([
-              { value: '유형', ...H }, { value: '주차', ...H },
-              { value: '제목', ...H }, { value: '내용', ...H }, { value: '날짜', ...H },
+            sheet2Rows.push([
+              { value: '유형', style: 'header' }, { value: '주차', style: 'header' },
+              { value: '제목', style: 'header' }, { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
             ]);
             results.forEach((r) => {
               const ct = r.text_content || (r.link_url ? `링크: ${r.link_url}` : r.file_url ? '파일 첨부' : r.image_url ? '이미지 첨부' : '');
-              sheet2.push([
+              sheet2Rows.push([
                 { value: '결과물' },
                 { value: r.week_number != null ? `${r.week_number}주차` : '' },
                 { value: r.title || '' },
-                { value: ct, wrap: true },
+                { value: ct, style: 'wrap' },
                 { value: new Date(r.created_at).toLocaleDateString('ko-KR') },
               ]);
             });
           }
         }
-        sheet2.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }, { value: '' }]);
+        sheet2Rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }, { value: '' }]);
       });
 
       // 시트 3: 학생 기록 (세특)
-      const sheet3 = [
+      const sheet3Rows: XCell[][] = [
         [
-          { value: '번호', ...H }, { value: '이름', ...H }, { value: '성취도', ...H },
-          { value: '상태', ...H }, { value: '세특 문장', ...H }, { value: '글자수', ...H },
+          { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
+          { value: '성취도', style: 'header' }, { value: '상태', style: 'header' },
+          { value: '세특 문장', style: 'header' }, { value: '글자수', style: 'header' },
         ],
         ...studentData.map(({ student }) => {
           const ev = evalMap[student.id];
@@ -411,10 +410,10 @@ const ShareClassView = () => {
             { value: student.student_number ?? null },
             { value: student.full_name },
             { value: ev?.achievement_level ?? '' },
-            { value: statusLabel(ev?.status) },
-            { value: content, wrap: true },
+            { value: sl(ev?.status) },
+            { value: content, style: 'wrap' },
             { value: content.length },
-          ];
+          ] as XCell[];
         }),
       ];
 
@@ -422,16 +421,17 @@ const ShareClassView = () => {
         .toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
         .replace(/\. /g, '').replace(/\.$/, '');
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await writeXlsxFile([sheet1, sheet2, sheet3] as any, {
-        sheets: ['전체학생', '개별 학생', '학생 기록'],
-        columns: [
-          [{ width: 6 }, { width: 14 }, { width: 13 }, { width: 12 }, { width: 12 }, { width: 10 }, { width: 13 }],
-          [{ width: 12 }, { width: 10 }, { width: 22 }, { width: 52 }, { width: 14 }],
-          [{ width: 6 }, { width: 14 }, { width: 10 }, { width: 10 }, { width: 65 }, { width: 10 }],
-        ],
-        fileName: `${className}_학생기록_${todayStr}.xlsx`,
-      });
+      const blob = await buildXlsxBlob([
+        { name: '전체학생', colWidths: [6, 14, 13, 12, 12, 10, 13], rows: sheet1Rows },
+        { name: '개별 학생', colWidths: [12, 10, 22, 52, 14], rows: sheet2Rows },
+        { name: '학생 기록', colWidths: [6, 14, 10, 10, 65, 10], rows: sheet3Rows },
+      ]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${className}_학생기록_${todayStr}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('XLSX 다운로드 오류:', err);
       alert('엑셀 파일 생성 중 오류가 발생했습니다.');
