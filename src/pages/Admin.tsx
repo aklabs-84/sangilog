@@ -1112,11 +1112,16 @@ const Admin = () => {
       setAnnTitle(''); setAnnContent('');
 
       // Slack 알림 발송 (실패해도 공지 저장은 성공으로 처리)
-      fetch('/api/slack-announcement', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content }),
-      }).catch(() => {});
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        fetch('/api/slack-announcement', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({ title, content }),
+        }).catch(() => {});
+      });
     } else {
       alert('공지사항 저장 실패. announcements 테이블이 생성되어 있는지 확인해주세요.');
     }

@@ -125,7 +125,7 @@ const ShareClassView = () => {
       setMetaLoading(true);
       const { data: cls, error } = await supabase
         .from('classes')
-        .select('id, name, subject, weekly_plan, share_enabled, entry_code, teacher_id')
+        .select('id, name, subject, weekly_plan, share_enabled, teacher_id')
         .eq('id', classId)
         .single();
 
@@ -236,13 +236,16 @@ const ShareClassView = () => {
     if (verified && classInfo) fetchData();
   }, [verified, classInfo, fetchData]);
 
-  // ── 입장 코드 확인 ────────────────────────────────────────────────────────
+  // ── 입장 코드 확인 (서버 RPC로 검증) ─────────────────────────────────────
   const handleVerify = async () => {
     if (!classInfo) return;
     setVerifying(true);
     setCodeError('');
-    await new Promise((r) => setTimeout(r, 300));
-    if (codeInput.trim().toUpperCase() === classInfo.entry_code) {
+    const { data: isValid } = await supabase.rpc('verify_class_entry_code', {
+      p_class_id: classInfo.id,
+      p_code:     codeInput.trim(),
+    });
+    if (isValid) {
       sessionStorage.setItem(sessionKey, 'true');
       setVerified(true);
     } else {

@@ -1,12 +1,32 @@
+import { createClient } from '@supabase/supabase-js';
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  const supabaseUrl    = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const webhookUrl     = process.env.SLACK_WEBHOOK_URL;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
   if (!webhookUrl) {
     return res.status(500).json({ error: 'SLACK_WEBHOOK_URL not configured' });
   }
+
+  // 관리자 인증 검증
+  const token = (req.headers['authorization'] ?? '').replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !caller) return res.status(401).json({ error: 'Unauthorized' });
+  const { data: callerProfile } = await supabaseAdmin.from('profiles').select('is_admin').eq('id', caller.id).single();
+  if (!callerProfile?.is_admin) return res.status(403).json({ error: 'Forbidden' });
 
   const { title, content } = req.body;
   if (!title || !content) {
