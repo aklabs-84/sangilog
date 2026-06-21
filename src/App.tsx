@@ -149,10 +149,52 @@ const RootRedirect = () => {
 
 const Help = () => <div className="p-10 font-manrope text-2xl font-bold">Help Center (Coming Soon)</div>;
 
+const IdleWarningModal = () => {
+  const { showIdleWarning, idleSecondsLeft, dismissIdleWarning, signOut } = useAuth();
+  if (!showIdleWarning) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full mx-4 text-center space-y-5">
+        <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto">
+          <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-black text-gray-900 font-manrope">자리를 비우셨나요?</h2>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            30분간 활동이 없어<br />
+            보안을 위해 자동 로그아웃됩니다.
+          </p>
+        </div>
+        <div className="text-4xl font-black text-amber-500 font-manrope tabular-nums">
+          {idleSecondsLeft}초
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={signOut}
+            className="flex-1 py-3 text-sm font-bold text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+          >
+            로그아웃
+          </button>
+          <button
+            onClick={dismissIdleWarning}
+            className="flex-1 py-3 text-sm font-bold text-white bg-primary rounded-xl hover:opacity-90 transition-opacity"
+          >
+            계속 사용하기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   return (
     <AuthProvider>
       <TimerProvider>
+      <IdleWarningModal />
       <div className="relative min-h-screen bg-surface overflow-hidden">
         <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/10 rounded-full blur-[120px] pointer-events-none" />

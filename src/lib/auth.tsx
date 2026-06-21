@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from './supabase';
 import type { User, Session, RealtimeChannel } from '@supabase/supabase-js';
+import { useIdleTimeout } from '../hooks/useIdleTimeout';
+
+const IDLE_MS = 29 * 60 * 1000;   // 29분 무활동 → 경고
+const WARNING_MS = 60 * 1000;      // 1분 카운트다운 → 자동 로그아웃
 
 interface AuthContextType {
   user: User | null;
@@ -10,6 +14,9 @@ interface AuthContextType {
   isTeacher: boolean; // 인증된 선생님 여부 (익명 유저 제외)
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  showIdleWarning: boolean;
+  idleSecondsLeft: number;
+  dismissIdleWarning: () => void;
 }
 
 // 익명 유저 판별 — is_anonymous(최신 SDK) + app_metadata.provider(구버전) 이중 확인
@@ -139,7 +146,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isTeacher = !!user && !isAnonymousUser(user);
-  const value = { user, session, profile, loading, isTeacher, signOut, refreshProfile };
+
+  const { showWarning: showIdleWarning, secondsLeft: idleSecondsLeft, resetTimer: dismissIdleWarning } = useIdleTimeout({
+    idleMs: IDLE_MS,
+    warningMs: WARNING_MS,
+    onTimeout: signOut,
+    enabled: isTeacher,
+  });
+
+  const value = { user, session, profile, loading, isTeacher, signOut, refreshProfile, showIdleWarning, idleSecondsLeft, dismissIdleWarning };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
