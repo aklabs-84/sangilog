@@ -42,6 +42,7 @@ import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
 import Gallery from './pages/Gallery';
 import Pricing from './pages/Pricing';
+import InstallPromptBanner from './components/InstallPromptBanner';
 
 // 선생님 전용 라우트 가드
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -195,6 +196,7 @@ function App() {
     <AuthProvider>
       <TimerProvider>
       <IdleWarningModal />
+      <InstallPromptBanner />
       <div className="relative min-h-screen bg-surface overflow-hidden">
         <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
         <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/10 rounded-full blur-[120px] pointer-events-none" />

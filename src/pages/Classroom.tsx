@@ -1520,7 +1520,7 @@ const Classroom = () => {
                 <div className="min-h-[600px] flex flex-col items-center justify-center">
                   <AIInsightBanner
                     className={classInfo.name}
-                    classId={activeClassId}
+                    classId={activeClassId ?? undefined}
                     students={sortedStudents}
                     onOpenReport={() => setIsAIReportOpen(true)}
                     onOpenChat={() => setIsAIChatOpen(true)}
@@ -1834,7 +1834,7 @@ const Classroom = () => {
         isOpen={isAIReportOpen}
         onClose={() => setIsAIReportOpen(false)}
         className={classInfo?.name || ''}
-        classId={activeClassId}
+        classId={activeClassId ?? undefined}
         students={students}
       />
 
@@ -1842,7 +1842,7 @@ const Classroom = () => {
         isOpen={isAIChatOpen}
         onClose={() => setIsAIChatOpen(false)}
         className={classInfo?.name || ''}
-        classId={activeClassId}
+        classId={activeClassId ?? undefined}
         students={students}
       />
 
