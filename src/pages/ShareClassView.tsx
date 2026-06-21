@@ -352,39 +352,46 @@ const ShareClassView = () => {
         }),
       ];
 
-      // 시트 2: 개별 학생
-      const sheet2Rows: (XCell | null)[][] = [];
-      studentData.forEach(({ student, obs, results }) => {
+      // 시트 2~N: 학생별 개별 시트 (1학생 = 1시트)
+      const studentSheets = studentData.map(({ student, obs, results }) => {
+        const sheetName = `${student.student_number ?? '?'}. ${student.full_name}`
+          .replace(/[/\\?*[\]:]/g, '_')
+          .slice(0, 31);
         const label = `${student.student_number != null ? student.student_number + '번 ' : ''}${student.full_name}`;
-        sheet2Rows.push([{ value: label, span: 5, style: 'section' }, null, null, null, null]);
+        const rows: (XCell | null)[][] = [];
+
+        // 학생 이름 헤더
+        rows.push([{ value: label, span: 4, style: 'section' }, null, null, null]);
+        rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }]);
 
         if (obs.length === 0 && results.length === 0) {
-          sheet2Rows.push([{ value: '미제출', span: 5 }, null, null, null, null]);
+          rows.push([{ value: '제출 없음', span: 4 }, null, null, null]);
         } else {
           if (obs.length > 0) {
-            sheet2Rows.push([
-              { value: '유형', style: 'header' }, { value: '주차', style: 'header' },
-              { value: '활동명', style: 'header' }, { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
+            rows.push([{ value: '활동기록', span: 4, style: 'section' }, null, null, null]);
+            rows.push([
+              { value: '주차', style: 'header' }, { value: '활동명', style: 'header' },
+              { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
             ]);
             obs.forEach((o) => {
-              sheet2Rows.push([
-                { value: '활동기록' },
+              rows.push([
                 { value: o.week_number != null ? `${o.week_number}주차` : '' },
                 { value: o.activity_name || '' },
                 { value: o.content, style: 'wrap' },
                 { value: new Date(o.created_at).toLocaleDateString('ko-KR') },
               ]);
             });
+            rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }]);
           }
           if (results.length > 0) {
-            sheet2Rows.push([
-              { value: '유형', style: 'header' }, { value: '주차', style: 'header' },
-              { value: '제목', style: 'header' }, { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
+            rows.push([{ value: '결과제출', span: 4, style: 'section' }, null, null, null]);
+            rows.push([
+              { value: '주차', style: 'header' }, { value: '제목', style: 'header' },
+              { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
             ]);
             results.forEach((r) => {
               const ct = r.text_content || (r.link_url ? `링크: ${r.link_url}` : r.file_url ? '파일 첨부' : r.image_url ? '이미지 첨부' : '');
-              sheet2Rows.push([
-                { value: '결과물' },
+              rows.push([
                 { value: r.week_number != null ? `${r.week_number}주차` : '' },
                 { value: r.title || '' },
                 { value: ct, style: 'wrap' },
@@ -393,10 +400,11 @@ const ShareClassView = () => {
             });
           }
         }
-        sheet2Rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }, { value: '' }]);
+
+        return { name: sheetName, colWidths: [10, 22, 55, 14], rows };
       });
 
-      // 시트 3: 학생 기록 (세특)
+      // 마지막 시트: 학생 기록 (세특)
       const sheet3Rows: XCell[][] = [
         [
           { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
@@ -423,7 +431,7 @@ const ShareClassView = () => {
 
       const blob = await buildXlsxBlob([
         { name: '전체학생', colWidths: [6, 14, 13, 12, 12, 10, 13], rows: sheet1Rows },
-        { name: '개별 학생', colWidths: [12, 10, 22, 52, 14], rows: sheet2Rows },
+        ...studentSheets,
         { name: '학생 기록', colWidths: [6, 14, 10, 10, 65, 10], rows: sheet3Rows },
       ]);
       const url = URL.createObjectURL(blob);
