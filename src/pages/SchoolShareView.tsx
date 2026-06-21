@@ -972,7 +972,7 @@ const SchoolShareView = () => {
             <p className="text-xs text-indigo-600 mt-0.5">학교 그룹 · 교사 연동 · 학급 공유 URL까지 지원합니다</p>
           </div>
           <a
-            href="/"
+            href="/school-intro"
             className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all active:scale-95"
           >
             자세히 보기
