@@ -335,8 +335,7 @@ const ShareClassView = () => {
         [
           { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
           { value: '활동기록 수', style: 'header' }, { value: '결과물 수', style: 'header' },
-          { value: '세특 상태', style: 'header' }, { value: '성취도', style: 'header' },
-          { value: '세특 글자수', style: 'header' },
+          { value: '성취도', style: 'header' },
         ],
         ...studentData.map(({ student, obs, results }) => {
           const ev = evalMap[student.id];
@@ -345,9 +344,7 @@ const ShareClassView = () => {
             { value: student.full_name },
             { value: obs.length },
             { value: results.length },
-            { value: sl(ev?.status) },
             { value: ev?.achievement_level ?? '' },
-            { value: (ev?.setech_content || '').length },
           ] as XCell[];
         }),
       ];
@@ -430,7 +427,7 @@ const ShareClassView = () => {
         .replace(/\. /g, '').replace(/\.$/, '');
 
       const blob = await buildXlsxBlob([
-        { name: '전체학생', colWidths: [6, 14, 13, 12, 12, 10, 13], rows: sheet1Rows },
+        { name: '전체학생', colWidths: [6, 14, 13, 12, 10], rows: sheet1Rows },
         ...studentSheets,
         { name: '학생 기록', colWidths: [6, 14, 10, 10, 65, 10], rows: sheet3Rows },
       ]);
