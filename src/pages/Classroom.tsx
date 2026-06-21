@@ -40,6 +40,7 @@ import {
   Unlock,
   CalendarDays,
   School,
+  Copy,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
@@ -125,6 +126,7 @@ const Classroom = () => {
   const [newSchoolName, setNewSchoolName] = useState('');
   const [schoolCreating, setSchoolCreating] = useState(false);
   const [schoolCopiedId, setSchoolCopiedId] = useState<string | null>(null);
+  const [schoolCodeCopiedId, setSchoolCodeCopiedId] = useState<string | null>(null);
   const [assigningClassId, setAssigningClassId] = useState<string | null>(null);
   const [editingSchoolId, setEditingSchoolId] = useState<string | null>(null);
   const [editingSchoolName, setEditingSchoolName] = useState('');
@@ -857,6 +859,13 @@ const Classroom = () => {
     setSchoolCopiedId(schoolId);
     setTimeout(() => setSchoolCopiedId(null), 2000);
     showToast('🏫 학교 전체 공유 링크가 복사되었습니다.');
+  };
+
+  const handleCopySchoolCode = (schoolId: string, code: string) => {
+    navigator.clipboard.writeText(code);
+    setSchoolCodeCopiedId(schoolId);
+    setTimeout(() => setSchoolCodeCopiedId(null), 2000);
+    showToast('입장코드가 복사되었습니다.');
   };
 
   const handleUpdateSchool = async (schoolId: string) => {
@@ -1707,7 +1716,8 @@ const Classroom = () => {
               )}
 
               {activeTab === 'list' && classInfo && (() => {
-                const today = new Date().toISOString().slice(0, 10);
+                const now = new Date();
+                const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                 const autoClosedByDate = classInfo.end_date && classInfo.end_date < today;
                 const isClosed = classInfo.is_closed || autoClosedByDate;
                 return isClosed ? (
@@ -2999,10 +3009,27 @@ const Classroom = () => {
                                 ) : (
                                   <p className="font-black text-gray-900 text-sm truncate">{school.name}</p>
                                 )}
-                                <p className="text-[10px] font-bold text-gray-400 mt-0.5">
-                                  입장 코드: <span className="text-violet-600 font-black tracking-widest">{school.entry_code}</span>
-                                  {' · '}배정된 학급: {assignedClasses.length}개
-                                </p>
+                                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                                  <button
+                                    onClick={() => handleCopySchoolCode(school.id, school.entry_code)}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 transition-all ${
+                                      schoolCodeCopiedId === school.id
+                                        ? 'bg-green-50 border-green-300 text-green-700'
+                                        : 'bg-violet-50 border-violet-200 hover:border-violet-400 text-violet-700'
+                                    }`}
+                                    title="클릭하여 입장코드 복사"
+                                  >
+                                    <span className="text-[10px] font-bold text-gray-400">입장코드</span>
+                                    <span className="text-base font-black tracking-[0.2em] font-mono">
+                                      {schoolCodeCopiedId === school.id ? '복사됨!' : school.entry_code}
+                                    </span>
+                                    {schoolCodeCopiedId === school.id
+                                      ? <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+                                      : <Copy size={13} className="text-violet-400 shrink-0" />
+                                    }
+                                  </button>
+                                  <span className="text-[10px] font-bold text-gray-400">배정된 학급: {assignedClasses.length}개</span>
+                                </div>
                               </div>
                               {/* 링크복사 / 수정 / 삭제 버튼 */}
                               <div className="flex items-center gap-1.5 shrink-0">

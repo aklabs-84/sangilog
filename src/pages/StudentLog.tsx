@@ -708,7 +708,8 @@ const StudentLog = () => {
         setMinObsChars(data.min_obs_chars || 0);
         setBlockedKeywords(data.blocked_keywords || []);
         setAiReviewEnabled(data.ai_review_enabled ?? true);
-        const today = new Date().toISOString().slice(0, 10);
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         const autoClosedByDate = data.end_date && data.end_date < today;
         setIsClassClosed(!!(data.is_closed || autoClosedByDate));
 

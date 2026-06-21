@@ -80,16 +80,16 @@ const ClassSelector = ({
             </div>
 
             {activeClass ? (
-              <div className="flex flex-col items-start text-left">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-black tracking-tight text-on-surface">
+              <div className="flex flex-col items-start text-left min-w-0 max-w-[90px] sm:max-w-[180px]">
+                <div className="flex items-center gap-1.5 min-w-0 w-full">
+                  <span className="text-sm font-black tracking-tight text-on-surface truncate">
                     {activeClass.name}
                   </span>
                   {activeClass.parent_class_id && (
-                    <span className="text-[9px] font-black bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full">담당</span>
+                    <span className="text-[9px] font-black bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full shrink-0">담당</span>
                   )}
                 </div>
-                <span className={`text-[11px] font-black uppercase tracking-[0.1em] ${activeClass.parent_class_id ? 'text-violet-500' : 'text-primary/80'}`}>
+                <span className={`text-[11px] font-black uppercase tracking-[0.1em] whitespace-nowrap truncate w-full ${activeClass.parent_class_id ? 'text-violet-500' : 'text-primary/80'}`}>
                   {activeClass.subject}
                 </span>
               </div>

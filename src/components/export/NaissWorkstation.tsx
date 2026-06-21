@@ -9,6 +9,7 @@ import {
   ChevronDown, ChevronUp, Check, RotateCw, Sparkles,
   Download, AlertCircle, Search, Save, FileSpreadsheet,
   Settings2, RefreshCw, Undo2, Maximize2, X, ExternalLink,
+  ListChecks, Scissors,
 } from 'lucide-react';
 
 interface ExportColumn {
@@ -129,6 +130,11 @@ const NaissWorkstation = ({ classes }: Props) => {
   type AchievementSuggestion = { level: '상' | '중' | '하'; score: number; reason: string } | 'no-text';
   const [achievementSuggestions, setAchievementSuggestions] = useState<Record<string, AchievementSuggestion>>({});
   const [suggestingAchievementId, setSuggestingAchievementId] = useState<string | null>(null);
+
+  // 일괄 처리 선택
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkCompressing, setBulkCompressing] = useState(false);
+  const [bulkCompressProgress, setBulkCompressProgress] = useState<{ current: number; total: number } | null>(null);
 
   const toggleExpand = (rowId: string, currentContent: string) => {
     if (expandedId !== rowId) {
@@ -404,6 +410,83 @@ ${row.setech_content}`;
     for (const row of dirtyRows) await saveRow(row);
   };
 
+  // ── 일괄 처리 함수 ──
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const selectOver500 = () => {
+    const over500ids = rows.filter(r => {
+      if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+      if (searchQuery && !r.full_name.includes(searchQuery) && !r.student_number.includes(searchQuery)) return false;
+      return r.setech_content.length > 500;
+    }).map(r => r.id);
+    setSelectedIds(new Set(over500ids));
+  };
+
+  const bulkSmartTrim = () => {
+    setRows(prev => prev.map(r =>
+      selectedIds.has(r.id) && r.setech_content.length > 500
+        ? { ...r, setech_content: smartTrim(r.setech_content), isDirty: true }
+        : r
+    ));
+  };
+
+  const bulkAICompress = async () => {
+    const targets = rows.filter(r => selectedIds.has(r.id) && r.setech_content.length > 500);
+    if (!targets.length) { alert('선택된 학생 중 500자 초과 내용이 없습니다.'); return; }
+    setBulkCompressing(true);
+    for (let i = 0; i < targets.length; i++) {
+      setBulkCompressProgress({ current: i + 1, total: targets.length });
+      setCompressingId(targets[i].id);
+      try {
+        const prompt = `다음 세특 문구를 500자 이내로 자연스럽게 압축해주세요.\n핵심 내용과 학생의 역량이 잘 드러나도록 유지하면서, 문장이 자연스럽게 마무리되게 해주세요.\n문구만 출력하고 설명은 쓰지 마세요.\n\n원본:\n${targets[i].setech_content}`;
+        const result = await seatukCompressAI.generateContent(prompt);
+        const compressed = smartTrim(result.response.text().trim());
+        updateRow(targets[i].id, { setech_content: compressed, isDirty: true });
+      } catch { /* 개별 실패 스킵 */ }
+    }
+    setCompressingId(null);
+    setBulkCompressing(false);
+    setBulkCompressProgress(null);
+  };
+
+  const bulkMarkFinal = async () => {
+    const targets = rows.filter(r => selectedIds.has(r.id) && r.setech_content);
+    if (!targets.length) { alert('선택된 학생 중 세특 내용이 있는 학생이 없습니다.'); return; }
+    // 낙관적 UI 업데이트
+    setRows(prev => prev.map(r =>
+      selectedIds.has(r.id) && r.setech_content ? { ...r, status: 'final', isDirty: false } : r
+    ));
+    // 일괄 upsert
+    const upsertData = targets.map(row => ({
+      ...(row.eval_id ? { id: row.eval_id } : {}),
+      student_id: row.id,
+      class_id: selectedClassId,
+      teacher_id: user?.id,
+      academic_year: academicYear,
+      achievement_level: row.achievement_level,
+      setech_content: row.setech_content,
+      status: 'final',
+      updated_at: new Date().toISOString(),
+    }));
+    const { data } = await supabase.from('student_evaluations')
+      .upsert(upsertData, { onConflict: 'student_id,class_id,academic_year' })
+      .select();
+    if (data) {
+      const evalIdMap: Record<string, string> = {};
+      data.forEach((d: any) => { evalIdMap[d.student_id] = d.id; });
+      setRows(prev => prev.map(r => evalIdMap[r.id] ? { ...r, eval_id: evalIdMap[r.id] } : r));
+    }
+    clearSelection();
+  };
+
   // AI 초안 DB에서 불러오기 (AI 초안 페이지에서 저장된 것)
   const importFromAIDrafts = async () => {
     setIsImportingDrafts(true);
@@ -645,7 +728,7 @@ CREATE POLICY "teacher_own" ON student_evaluations
       </AnimatePresence>
 
       {/* 필터 + 검색 */}
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
         <div className="flex items-center gap-1 bg-surface-container p-1 rounded-xl">
           {([['all', '전체'], ['empty', '미작성'], ['draft', '초안'], ['final', '완료']] as [string, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setFilterStatus(k as typeof filterStatus)}
@@ -661,6 +744,12 @@ CREATE POLICY "teacher_own" ON student_evaluations
           <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
             placeholder="이름/번호 검색..." className="pl-8 pr-4 py-2 bg-surface-container rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none w-44" />
         </div>
+        {rows.some(r => r.setech_content.length > 500) && (
+          <button onClick={selectOver500}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-black hover:bg-red-100 transition-all">
+            <AlertCircle size={13} /> 500자 초과 전체 선택
+          </button>
+        )}
       </div>
 
       {/* 학생 목록 */}
@@ -674,8 +763,76 @@ CREATE POLICY "teacher_own" ON student_evaluations
         </div>
       ) : (
         <div className="space-y-2">
+          {/* 일괄 처리 액션 바 */}
+          {selectedIds.size > 0 && (() => {
+            const selOver500 = rows.filter(r => selectedIds.has(r.id) && r.setech_content.length > 500).length;
+            const selWithContent = rows.filter(r => selectedIds.has(r.id) && r.setech_content).length;
+            return (
+              <div className="flex items-center gap-2 flex-wrap px-4 py-3 bg-primary/5 border border-primary/15 rounded-2xl">
+                <div className="flex items-center gap-2 mr-1">
+                  <ListChecks size={15} className="text-primary" />
+                  <span className="text-xs font-black text-primary">{selectedIds.size}명 선택됨</span>
+                  {selOver500 > 0 && (
+                    <span className="text-[10px] font-bold text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                      500자 초과 {selOver500}명
+                    </span>
+                  )}
+                </div>
+                <div className="h-4 w-px bg-neutral-200 hidden sm:block" />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {selOver500 > 0 && (
+                    <>
+                      <button
+                        onClick={bulkSmartTrim}
+                        disabled={bulkCompressing}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-50 border border-red-200 text-red-600 text-[11px] font-black hover:bg-red-100 transition-all disabled:opacity-40"
+                      >
+                        <Scissors size={12} /> 문장 단위 자르기 ({selOver500})
+                      </button>
+                      <button
+                        onClick={bulkAICompress}
+                        disabled={bulkCompressing}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-violet-50 border border-violet-200 text-violet-600 text-[11px] font-black hover:bg-violet-100 transition-all disabled:opacity-40"
+                      >
+                        {bulkCompressing
+                          ? <><RotateCw size={12} className="animate-spin" /> AI 압축 중 {bulkCompressProgress?.current}/{bulkCompressProgress?.total}</>
+                          : <><Sparkles size={12} /> AI 압축 ({selOver500})</>
+                        }
+                      </button>
+                    </>
+                  )}
+                  {selWithContent > 0 && (
+                    <button
+                      onClick={bulkMarkFinal}
+                      disabled={bulkCompressing}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 text-[11px] font-black hover:bg-emerald-100 transition-all disabled:opacity-40"
+                    >
+                      <Check size={12} /> 최종 확정 ({selWithContent})
+                    </button>
+                  )}
+                  <button
+                    onClick={clearSelection}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white border border-neutral-200 text-neutral-500 text-[11px] font-black hover:bg-neutral-50 transition-all"
+                  >
+                    <X size={12} /> 선택 해제
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* 컬럼 헤더 (데스크탑) */}
-          <div className="hidden sm:grid grid-cols-[40px_32px_80px_72px_1fr_80px_48px_90px_80px] gap-2 px-4 text-[10px] font-black text-on-surface-variant/40 uppercase tracking-wider">
+          <div className="hidden sm:grid grid-cols-[28px_40px_32px_80px_72px_1fr_80px_48px_90px_80px] gap-2 px-4 text-[10px] font-black text-on-surface-variant/40 uppercase tracking-wider">
+            <div className="flex items-center justify-center">
+              <input type="checkbox"
+                checked={filtered.length > 0 && filtered.every(r => selectedIds.has(r.id))}
+                onChange={e => {
+                  if (e.target.checked) setSelectedIds(new Set(filtered.map(r => r.id)));
+                  else clearSelection();
+                }}
+                className="w-3.5 h-3.5 rounded accent-primary cursor-pointer"
+              />
+            </div>
             <span></span><span>번호</span><span>이름</span><span>성취도</span><span>세특 내용</span>
             <span className="text-right">글자수</span><span className="text-center">기록</span><span className="text-center">상태</span><span></span>
           </div>
@@ -702,6 +859,13 @@ CREATE POLICY "teacher_own" ON student_evaluations
                   className="sm:hidden flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-container/30 transition-all"
                   onClick={() => toggleExpand(row.id, row.setech_content)}
                 >
+                  <div onClick={e => e.stopPropagation()} className="shrink-0">
+                    <input type="checkbox"
+                      checked={selectedIds.has(row.id)}
+                      onChange={() => toggleSelect(row.id)}
+                      className="w-4 h-4 rounded accent-primary cursor-pointer"
+                    />
+                  </div>
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${row.status === 'final' ? 'bg-emerald-100 text-emerald-600' : row.status === 'draft' ? 'bg-amber-100 text-amber-500' : 'bg-neutral-100 text-neutral-300'}`}>
                     {row.status === 'final' ? <Check size={14} strokeWidth={3} /> : row.status === 'draft' ? '✏️' : '·'}
                   </div>
@@ -750,10 +914,18 @@ CREATE POLICY "teacher_own" ON student_evaluations
 
                 {/* ── 데스크탑 요약 행 (sm 이상) ── */}
                 <div
-                  className="hidden sm:grid grid-cols-[40px_32px_80px_72px_1fr_80px_48px_90px_80px] gap-2 items-center px-4 py-3 cursor-pointer hover:bg-surface-container/30 transition-all"
+                  className="hidden sm:grid grid-cols-[28px_40px_32px_80px_72px_1fr_80px_48px_90px_80px] gap-2 items-center px-4 py-3 cursor-pointer hover:bg-surface-container/30 transition-all"
                   onClick={() => toggleExpand(row.id, row.setech_content)}
                 >
-                  {/* 체크 아이콘 */}
+                  {/* 체크박스 */}
+                  <div onClick={e => e.stopPropagation()} className="flex items-center justify-center">
+                    <input type="checkbox"
+                      checked={selectedIds.has(row.id)}
+                      onChange={() => toggleSelect(row.id)}
+                      className="w-3.5 h-3.5 rounded accent-primary cursor-pointer"
+                    />
+                  </div>
+                  {/* 상태 아이콘 */}
                   <div className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-black ${row.status === 'final' ? 'bg-emerald-100 text-emerald-600' : row.status === 'draft' ? 'bg-amber-100 text-amber-500' : 'bg-neutral-100 text-neutral-300'}`}>
                     {row.status === 'final' ? <Check size={13} strokeWidth={3} /> : row.status === 'draft' ? '✏️' : '·'}
                   </div>

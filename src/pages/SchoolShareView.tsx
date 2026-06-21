@@ -23,6 +23,7 @@ import {
   Images,
   ArrowRight,
   School,
+  BookOpen,
 } from 'lucide-react';
 
 async function blobDownload(url: string, filename: string) {
@@ -79,6 +80,13 @@ interface GalleryItem {
   created_at: string;
 }
 
+interface EvalRow {
+  student_id: string;
+  setech_content: string;
+  achievement_level: string | null;
+  status: string | null;
+}
+
 interface ClassData {
   id: string;
   name: string;
@@ -86,6 +94,7 @@ interface ClassData {
   weekly_plan: any[];
   studentData: StudentData[];
   galleryItems: GalleryItem[];
+  evalMap: Record<string, EvalRow>;
   loaded: boolean;
 }
 
@@ -107,7 +116,7 @@ const SchoolShareView = () => {
   const [classDataMap, setClassDataMap] = useState<Record<string, ClassData>>({});
   const [loadingClassId, setLoadingClassId] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'results' | 'gallery'>('results');
+  const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech'>('results');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [lightbox, setLightbox] = useState<{ urls: string[]; names: string[]; index: number } | null>(null);
@@ -224,6 +233,16 @@ const SchoolShareView = () => {
         .eq('class_id', classId)
         .order('created_at', { ascending: false });
 
+      // 세특(학급 기록) 데이터
+      let evalMap: Record<string, EvalRow> = {};
+      if (studentIds.length > 0) {
+        const { data: evals } = await supabase
+          .from('student_evaluations')
+          .select('student_id, setech_content, achievement_level, status')
+          .in('student_id', studentIds);
+        (evals || []).forEach((e: any) => { evalMap[e.student_id] = e; });
+      }
+
       setClassDataMap(prev => ({
         ...prev,
         [classId]: {
@@ -233,6 +252,7 @@ const SchoolShareView = () => {
           weekly_plan: cls.weekly_plan,
           studentData,
           galleryItems: gallery || [],
+          evalMap,
           loaded: true,
         },
       }));
@@ -493,7 +513,7 @@ const SchoolShareView = () => {
           </div>
         </div>
 
-        {/* 결과/갤러리 탭 */}
+        {/* 결과/갤러리/학급기록 탭 */}
         {currentData?.loaded && (
           <div className="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 print:hidden">
             {[
@@ -503,10 +523,11 @@ const SchoolShareView = () => {
                 label: `갤러리${currentData.galleryItems.length > 0 ? ` (${currentData.galleryItems.length})` : ''}`,
                 icon: Images,
               },
+              { key: 'setech', label: '학급 기록', icon: BookOpen },
             ].map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
-                onClick={() => setActiveTab(key as 'results' | 'gallery')}
+                onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech')}
                 className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-black border-b-2 transition-all ${
                   activeTab === key
                     ? 'border-indigo-600 text-indigo-600'
@@ -784,6 +805,117 @@ const SchoolShareView = () => {
               )}
             </>
           )}
+
+          {/* ── 학급 기록 탭 ── */}
+          {activeTab === 'setech' && (() => {
+            const setechRows = currentData.studentData.map(sd => ({
+              student: sd.student,
+              eval: currentData.evalMap[sd.student.id] ?? null,
+            }));
+            const doneCount = setechRows.filter(r => r.eval?.status === 'final' || r.eval?.status === 'done').length;
+            const draftCount = setechRows.filter(r => r.eval?.status === 'draft').length;
+            const emptyCount = setechRows.filter(r => !r.eval?.setech_content).length;
+            const charCounts = setechRows.map(r => (r.eval?.setech_content || '').length);
+            const avgChars = charCounts.length > 0 ? Math.round(charCounts.reduce((a, b) => a + b, 0) / charCounts.length) : 0;
+
+            const statusLabel = (s: string | null | undefined) => {
+              if (s === 'final' || s === 'done') return { label: '완료', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+              if (s === 'draft') return { label: '초안', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+              return { label: '미작성', cls: 'bg-gray-100 text-gray-400 border-gray-200' };
+            };
+            const achLabel = (a: string | null | undefined) => {
+              if (a === '상') return 'bg-blue-100 text-blue-700';
+              if (a === '중') return 'bg-yellow-100 text-yellow-700';
+              if (a === '하') return 'bg-red-100 text-red-700';
+              return 'bg-gray-100 text-gray-400';
+            };
+
+            return (
+              <>
+                {/* 통계 */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: '전체 학생', value: currentData.studentData.length, unit: '명', icon: Users },
+                    { label: '완료', value: doneCount, unit: '명', icon: CheckCircle2 },
+                    { label: '초안/미작성', value: draftCount + emptyCount, unit: '명', icon: FileText },
+                    { label: '평균 글자수', value: avgChars, unit: '자', icon: BookOpen },
+                  ].map(({ label, value, unit, icon: Icon }) => (
+                    <div key={label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Icon size={13} className="text-gray-400" />
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</p>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-black text-gray-900">{value}</span>
+                        <span className="text-sm font-bold text-gray-400">{unit}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 학생 세특 목록 */}
+                <div className="space-y-2">
+                  {setechRows.map(({ student, eval: ev }) => {
+                    const isExpanded = expandedIds.has(`setech_${student.id}`);
+                    const content = ev?.setech_content || '';
+                    const hasContent = !!content;
+                    const st = statusLabel(ev?.status);
+                    return (
+                      <div key={student.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                        <button
+                          onClick={() => {
+                            if (!hasContent) return;
+                            setExpandedIds(prev => {
+                              const next = new Set(prev);
+                              const k = `setech_${student.id}`;
+                              if (next.has(k)) next.delete(k); else next.add(k);
+                              return next;
+                            });
+                          }}
+                          disabled={!hasContent}
+                          className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${hasContent ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default opacity-60'}`}
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                            <span className="text-sm font-black text-gray-600">{student.student_number ?? '—'}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-gray-900 text-sm">{student.full_name}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              {ev?.achievement_level && (
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${achLabel(ev.achievement_level)}`}>
+                                  성취도 {ev.achievement_level}
+                                </span>
+                              )}
+                              {hasContent && (
+                                <span className="text-[10px] font-bold text-gray-400">{content.length}자</span>
+                              )}
+                            </div>
+                          </div>
+                          <span className={`shrink-0 text-[10px] font-black px-2.5 py-1 rounded-full border ${st.cls}`}>{st.label}</span>
+                          {hasContent && <div className="shrink-0 text-gray-400">{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>}
+                        </button>
+
+                        {isExpanded && (
+                          <div className="border-t border-gray-100 px-5 py-4 bg-gray-50/50">
+                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {setechRows.length === 0 && (
+                  <div className="flex flex-col items-center py-20 space-y-3">
+                    <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
+                      <BookOpen size={32} className="text-gray-300" />
+                    </div>
+                    <p className="font-black text-gray-400 text-sm">등록된 학생이 없습니다</p>
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           <div className="text-center pt-4 pb-8">
             <p className="text-[10px] text-gray-300 font-semibold">
