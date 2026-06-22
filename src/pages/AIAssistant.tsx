@@ -57,6 +57,8 @@ const AIAssistant = () => {
   const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
   const [weekFilterMode, setWeekFilterMode] = useState<'all' | 'select'>('all');
   const [selectedWeeks, setSelectedWeeks] = useState<number[]>([]);
+  const [savedStudentIds, setSavedStudentIds] = useState<Set<string>>(new Set());
+  const [showOnlyPending, setShowOnlyPending] = useState(false);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isHomeroom = selectedClass?.class_type === 'homeroom';
@@ -123,7 +125,15 @@ const AIAssistant = () => {
             const stu = studentList.find((s: any) => s.id === e.student_id);
             return { studentId: e.student_id, name: stu?.full_name || '알 수 없음', content: e.setech_content, isExpanded: false, isCopied: false };
           });
-        if (drafts.length > 0) { setDraftResults(drafts); setShowDraft(true); }
+        if (drafts.length > 0) {
+          setDraftResults(drafts);
+          setShowDraft(true);
+          setSavedStudentIds(new Set(drafts.map(d => d.studentId)));
+        } else {
+          setSavedStudentIds(new Set());
+        }
+      } else {
+        setSavedStudentIds(new Set());
       }
     } catch { /* 조용히 실패 */ }
   };
@@ -164,6 +174,8 @@ const AIAssistant = () => {
     setAvailableWeeks([]);
     setSelectedWeeks([]);
     setWeekFilterMode('all');
+    setSavedStudentIds(new Set());
+    setShowOnlyPending(false);
     fetchStudents(id);
     setShowDraft(false);
     setDraftResults([]);
@@ -366,6 +378,7 @@ ${obsText}
         localAiCount += 1;
         setMonthAiCount(localAiCount);
       }
+      setSavedStudentIds(prev => { const next = new Set(prev); results.forEach(r => next.add(r.studentId)); return next; });
       aiGenStore.complete(results.length);
     } catch (err) {
       console.error(err);
@@ -420,6 +433,7 @@ ${obsText}
         await supabase.from('students').update({ behavior_insight: '' }).eq('id', draft.studentId);
       }
       setDraftResults(prev => prev.filter((_, i) => i !== index));
+      setSavedStudentIds(prev => { const next = new Set(prev); next.delete(draft.studentId); return next; });
       if (draftResults.length <= 1) setShowDraft(false);
     } catch {
       setDraftResults(prev => prev.map((d, i) => i === index ? { ...d, isDeleting: false } : d));
@@ -564,6 +578,50 @@ ${obsText}
               {/* 학생 선택 목록 */}
               {students.length > 0 && (
                 <div className="space-y-2">
+                  {/* 미작성 필터 배너 */}
+                  {savedStudentIds.size > 0 && (() => {
+                    const pendingCount = students.filter(s => !savedStudentIds.has(s.id)).length;
+                    return (
+                      <div className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all ${
+                        showOnlyPending
+                          ? 'bg-amber-50 border-amber-300'
+                          : 'bg-surface-container-low border-surface-container-high'
+                      }`}>
+                        <div>
+                          <p className="text-[10px] font-black text-on-surface-variant">
+                            미작성 <span className={`font-black ${pendingCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{pendingCount}명</span>
+                            <span className="text-on-surface-variant/40 mx-1">·</span>
+                            완료 <span className="text-emerald-600 font-black">{savedStudentIds.size}명</span>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {pendingCount > 0 && (
+                            <button
+                              onClick={() => {
+                                const pendingIds = students.filter(s => !savedStudentIds.has(s.id)).map(s => s.id);
+                                setSelectedStudentIds(pendingIds);
+                                setShowOnlyPending(true);
+                              }}
+                              className="text-[10px] font-black text-amber-600 hover:text-amber-700 transition-colors"
+                            >
+                              미작성만 선택
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setShowOnlyPending(p => !p)}
+                            className={`text-[10px] font-black px-2 py-1 rounded-lg border transition-all ${
+                              showOnlyPending
+                                ? 'bg-amber-100 text-amber-700 border-amber-300'
+                                : 'bg-white text-on-surface-variant/60 border-surface-container-high hover:border-amber-300 hover:text-amber-600'
+                            }`}
+                          >
+                            {showOnlyPending ? '전체 보기' : '미작성만 보기'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* 검색 + 전체 선택 헤더 */}
                   <div className="flex items-center justify-between">
                     <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
@@ -591,9 +649,11 @@ ${obsText}
                   <div className="max-h-52 overflow-y-auto rounded-2xl border border-surface-container-high bg-surface-container-low custom-scrollbar">
                     {students
                       .filter(s => s.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .filter(s => !showOnlyPending || !savedStudentIds.has(s.id))
                       .sort((a, b) => a.full_name.localeCompare(b.full_name, 'ko'))
                       .map((s, idx) => {
                         const isSelected = selectedStudentIds.includes(s.id);
+                        const hasDraft = savedStudentIds.has(s.id);
                         return (
                           <button key={s.id} onClick={() => toggleStudent(s.id)}
                             className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all border-b border-surface-container last:border-0 ${isSelected ? 'bg-primary/5' : 'hover:bg-surface-container'}`}>
@@ -606,9 +666,19 @@ ${obsText}
                             <span className={`text-xs font-bold flex-1 ${isSelected ? 'text-on-surface' : 'text-on-surface-variant/60'}`}>
                               {s.full_name}
                             </span>
+                            {hasDraft ? (
+                              <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md shrink-0">완료</span>
+                            ) : (
+                              <span className="text-[9px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md shrink-0">미작성</span>
+                            )}
                           </button>
                         );
                       })}
+                    {students.filter(s => s.full_name.toLowerCase().includes(searchQuery.toLowerCase())).filter(s => !showOnlyPending || !savedStudentIds.has(s.id)).length === 0 && (
+                      <div className="py-6 text-center text-xs text-on-surface-variant/50 font-bold">
+                        {showOnlyPending ? '미작성 학생이 없습니다 🎉' : '학생이 없습니다'}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
