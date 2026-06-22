@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
@@ -112,8 +112,6 @@ const SubjectDashboard = ({
     SUBJECT_COL_DEFAULTS
   );
   const [showColDropdown, setShowColDropdown] = useState(false);
-  const [colDropdownPos, setColDropdownPos] = useState({ top: 0, right: 0 });
-  const colBtnRef = useRef<HTMLButtonElement>(null);
   const [copyCodeSuccess, setCopyCodeSuccess] = useState(false);
 
   const handleCopyEntryCode = () => {
@@ -535,50 +533,12 @@ const SubjectDashboard = ({
             </button>
             <div className="relative shrink-0">
               <button
-                ref={colBtnRef}
-                onClick={() => {
-                  if (!showColDropdown && colBtnRef.current) {
-                    const rect = colBtnRef.current.getBoundingClientRect();
-                    setColDropdownPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
-                  }
-                  setShowColDropdown(v => !v);
-                }}
+                onClick={() => setShowColDropdown(true)}
                 className={`w-9 h-9 sm:w-10 sm:h-10 bg-white rounded-xl flex items-center justify-center transition-all shadow-soft ${showColDropdown ? 'text-primary bg-primary/10' : 'text-on-surface-variant/80 hover:bg-primary/10 hover:text-primary'}`}
                 title="컬럼 표시 설정"
               >
                 <SlidersHorizontal size={17} />
               </button>
-              {showColDropdown && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowColDropdown(false)} />
-                  <div
-                    style={{ position: 'fixed', top: colDropdownPos.top, right: colDropdownPos.right }}
-                    className="z-50 bg-white rounded-2xl shadow-xl border border-neutral-100 p-4 min-w-[180px]"
-                  >
-                    <p className="text-xs font-black text-neutral-600 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
-                    <div className="space-y-1">
-                      {Object.entries(SUBJECT_COL_LABELS).map(([key, label]) => (
-                        <label
-                          key={key}
-                          onClick={() => toggleCol(key)}
-                          className="flex items-center gap-2.5 py-1.5 px-1 rounded-lg cursor-pointer hover:bg-neutral-50 group"
-                        >
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0 ${colVis[key] ? 'bg-primary border-primary' : 'border-neutral-300'}`}>
-                            {colVis[key] && <Check size={10} className="text-white" strokeWidth={3.5} />}
-                          </div>
-                          <span className="text-sm font-bold text-neutral-700 group-hover:text-primary transition-colors">{label}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <button
-                      onClick={resetCols}
-                      className="mt-3 w-full text-xs font-black text-neutral-500 hover:text-neutral-700 transition-colors text-center py-1.5 rounded-lg hover:bg-neutral-50"
-                    >
-                      기본값으로 초기화
-                    </button>
-                  </div>
-                </>
-              )}
             </div>
           </div>
 
@@ -1196,6 +1156,68 @@ const SubjectDashboard = ({
         )}
       </section>
     </motion.div>
+
+    {/* 컬럼 표시 설정 모달 */}
+    <AnimatePresence>
+      {showColDropdown && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm"
+          onClick={() => setShowColDropdown(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                  <SlidersHorizontal size={16} />
+                </div>
+                <h3 className="text-base font-black text-on-surface">컬럼 표시 설정</h3>
+              </div>
+              <button onClick={() => setShowColDropdown(false)} className="p-2 rounded-xl text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-all">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-1 mb-5">
+              {Object.entries(SUBJECT_COL_LABELS).map(([key, label]) => (
+                <label
+                  key={key}
+                  onClick={() => toggleCol(key)}
+                  className="flex items-center gap-3 py-2.5 px-3 rounded-xl cursor-pointer hover:bg-neutral-50 group transition-colors"
+                >
+                  <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${colVis[key] ? 'bg-primary border-primary' : 'border-neutral-300'}`}>
+                    {colVis[key] && <Check size={11} className="text-white" strokeWidth={3.5} />}
+                  </div>
+                  <span className="text-sm font-bold text-neutral-700 group-hover:text-primary transition-colors">{label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={resetCols}
+                className="flex-1 py-2.5 text-sm font-black text-neutral-500 hover:text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-2xl transition-all"
+              >
+                기본값으로 초기화
+              </button>
+              <button
+                onClick={() => setShowColDropdown(false)}
+                className="flex-1 py-2.5 text-sm font-black text-white bg-primary hover:bg-primary/90 rounded-2xl transition-all"
+              >
+                확인
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
     {/* 활동 참여 현황 모달 */}
     <AnimatePresence>
