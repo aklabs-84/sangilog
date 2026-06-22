@@ -1565,10 +1565,10 @@ const StudentLog = () => {
           .limit(100),
         supabase
           .from('student_results')
-          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, created_at')
+          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, submission_group, created_at')
           .in('student_id', studentIds)
           .order('created_at', { ascending: false })
-          .limit(100),
+          .limit(300),
       ]);
 
       // 3. student_name 매핑 + 이미지 URL 변환(썸네일) + 관찰기록에 week_number 부여
@@ -1578,22 +1578,52 @@ const StudentLog = () => {
         student_name: nameMap[o.student_id] || '학생',
         _type: 'obs' as const,
       }));
-      const resultPosts = (results || []).map((r: any) => {
+
+      // submission_group 기준으로 그룹핑
+      const boardGroupMap: Record<string, any[]> = {};
+      (results || []).forEach((r: any) => {
+        const key = r.submission_group || r.id;
+        if (!boardGroupMap[key]) boardGroupMap[key] = [];
+        boardGroupMap[key].push(r);
+      });
+
+      const resultPosts = Object.values(boardGroupMap).map((group: any[]) => {
+        const rep = group[0];
+        const imageItem = group.find((r: any) => r.result_type === 'image');
+        const fileItem  = group.find((r: any) => r.result_type === 'file');
+        const textItem  = group.find((r: any) => r.result_type === 'text');
+        const linkItem  = group.find((r: any) => r.result_type === 'link');
+
         let image_url = null;
         let image_original_url = null;
         let file_url = null;
-        if (r.result_type === 'image' && r.storage_path) {
-          const { data: orig } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+
+        if (imageItem?.storage_path) {
+          const { data: orig } = supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path);
           image_original_url = orig?.publicUrl || null;
-          const { data: thumb } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
+          const { data: thumb } = supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path, {
             transform: { width: 600, quality: 70 },
           });
           image_url = thumb?.publicUrl || image_original_url;
-        } else if (r.result_type === 'file' && r.storage_path) {
-          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+        }
+        if (fileItem?.storage_path) {
+          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(fileItem.storage_path);
           file_url = urlData?.publicUrl || null;
         }
-        return { ...r, image_url, image_original_url, file_url, student_name: nameMap[r.student_id] || '학생', _type: 'result' as const };
+
+        return {
+          ...rep,
+          text_content: textItem?.text_content || null,
+          link_url: linkItem?.link_url || null,
+          display_name: fileItem?.display_name || rep.display_name,
+          image_url,
+          image_original_url,
+          file_url,
+          student_name: nameMap[rep.student_id] || '학생',
+          _type: 'result' as const,
+          _group: group,
+          _types: [...new Set(group.map((r: any) => r.result_type))] as string[],
+        };
       });
 
       setBoardPosts([...obsPosts, ...resultPosts].sort(
@@ -4209,39 +4239,64 @@ ${guidePrompt}
                                   💬 {post.feeling}
                                 </p>
                               )}
-                              {!isObs && post.text_content && (
-                                <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">
-                                  {post.text_content}
-                                </p>
-                              )}
-                              {!isObs && post.image_url && (
-                                <img
-                                  src={post.image_url}
-                                  alt="결과 이미지"
-                                  className="w-full rounded-xl object-cover max-h-40"
-                                  loading="lazy"
-                                  onError={e => {
-                                    if (post.image_original_url) (e.target as HTMLImageElement).src = post.image_original_url;
-                                  }}
-                                />
-                              )}
-                              {!isObs && post.link_url && (
-                                <a
-                                  href={post.link_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 text-xs font-black text-blue-600 hover:underline"
-                                >
-                                  <ExternalLink size={11} />
-                                  <span className="truncate">{post.link_url}</span>
-                                </a>
-                              )}
-                              {!isObs && post.file_url && (
-                                <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
-                                  <File size={13} className="text-amber-500 shrink-0" />
-                                  <span className="text-xs font-black text-amber-700 truncate flex-1">{post.display_name || '파일'}</span>
-                                  <Download size={11} className="text-amber-400 shrink-0" />
-                                </div>
+                              {!isObs && (
+                                <>
+                                  {/* 타입 뱃지 */}
+                                  {post._types && post._types.length > 0 && (
+                                    <div className="flex gap-1 flex-wrap">
+                                      {(post._types as string[]).map((t: string) => {
+                                        const cfg: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+                                          text:  { icon: <AlignLeft size={10} />,  label: '텍스트', color: 'text-primary bg-primary/10' },
+                                          link:  { icon: <Link2 size={10} />,      label: '링크',   color: 'text-blue-500 bg-blue-50' },
+                                          image: { icon: <ImageIcon size={10} />,  label: '이미지', color: 'text-emerald-500 bg-emerald-50' },
+                                          file:  { icon: <File size={10} />,       label: '파일',   color: 'text-amber-500 bg-amber-50' },
+                                        };
+                                        const c = cfg[t];
+                                        if (!c) return null;
+                                        return (
+                                          <span key={t} className={`flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-md ${c.color}`}>
+                                            {c.icon}{c.label}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  {post.text_content && (
+                                    <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-4">
+                                      {post.text_content}
+                                    </p>
+                                  )}
+                                  {post.image_url && (
+                                    <img
+                                      src={post.image_url}
+                                      alt="결과 이미지"
+                                      className="w-full rounded-xl object-cover max-h-40"
+                                      loading="lazy"
+                                      onError={e => {
+                                        if (post.image_original_url) (e.target as HTMLImageElement).src = post.image_original_url;
+                                      }}
+                                    />
+                                  )}
+                                  {post.link_url && (
+                                    <a
+                                      href={post.link_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      className="flex items-center gap-1.5 text-xs font-black text-blue-600 hover:underline"
+                                    >
+                                      <ExternalLink size={11} />
+                                      <span className="truncate">{post.link_url}</span>
+                                    </a>
+                                  )}
+                                  {post.file_url && (
+                                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
+                                      <File size={13} className="text-amber-500 shrink-0" />
+                                      <span className="text-xs font-black text-amber-700 truncate flex-1">{post.display_name || '파일'}</span>
+                                      <Download size={11} className="text-amber-400 shrink-0" />
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
 
@@ -5059,6 +5114,13 @@ ${guidePrompt}
                         <ExternalLink size={14} /><span className="truncate">{p.link_url}</span>
                       </a>
                     )}
+                    {/* 추가 링크 (같은 그룹 내 여러 링크) */}
+                    {!isObs && p._group && p._group.filter((r: any) => r.result_type === 'link' && r.link_url !== p.link_url).map((r: any) => (
+                      <a key={r.id} href={r.link_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
+                        <ExternalLink size={14} /><span className="truncate">{r.link_url}</span>
+                      </a>
+                    ))}
                     {!isObs && p.file_url && (
                       <button
                         onClick={() => openFile(p.file_url, p.display_name || '첨부파일')}
