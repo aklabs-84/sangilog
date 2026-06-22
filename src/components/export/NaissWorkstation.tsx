@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
+import { buildXlsxBlob } from '../../lib/xlsxBuilder';
+import type { XCell } from '../../lib/xlsxBuilder';
 import { seatukDraftAI, seatukCompressAI, achievementSuggestAI, SYSTEM_INSTRUCTIONS } from '../../lib/gemini';
 import { useAuth } from '../../lib/auth';
 import {
@@ -524,49 +525,57 @@ ${row.setech_content}`;
     }
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const cls = classes.find(c => c.id === selectedClassId);
     const checkedCols = exportColumns.filter(c => c.checked);
-    const wb = XLSX.utils.book_new();
 
-    // 컬럼 선택 기반 데이터 빌드
-    const buildRow = (r: StudentRow) => {
-      const obj: Record<string, string | number> = {};
-      checkedCols.forEach(col => {
+    // ── 시트 1: 나이스 제출용 ──
+    const headerRow1: XCell[] = checkedCols.map(col => ({ value: col.naissLabel, style: 'header' as const }));
+    const sheet1Rows: XCell[][] = [headerRow1];
+    rows.forEach(r => {
+      sheet1Rows.push(checkedCols.map(col => {
         switch (col.key) {
-          case 'class':   obj[col.naissLabel] = cls?.name || ''; break;
-          case 'number':  obj[col.naissLabel] = r.student_number; break;
-          case 'name':    obj[col.naissLabel] = r.full_name; break;
-          case 'level':   obj[col.naissLabel] = r.achievement_level || ''; break;
-          case 'setech':  obj[col.naissLabel] = sanitizeForNaiss(r.setech_content); break;
-          case 'obs':     obj[col.naissLabel] = r.obs_count; break;
-          case 'chars':   obj[col.naissLabel] = charCount(r.setech_content); break;
-          case 'status':  obj[col.naissLabel] = STATUS_LABELS[r.status]; break;
+          case 'class':  return { value: cls?.name || '' };
+          case 'number': return { value: r.student_number };
+          case 'name':   return { value: r.full_name };
+          case 'level':  return { value: r.achievement_level || '' };
+          case 'setech': return { value: sanitizeForNaiss(r.setech_content), style: 'wrap' as const };
+          case 'obs':    return { value: r.obs_count };
+          case 'chars':  return { value: charCount(r.setech_content) };
+          case 'status': return { value: STATUS_LABELS[r.status] };
+          default:       return { value: '' };
         }
-      });
-      return obj;
-    };
+      }));
+    });
+    const colWidths1 = checkedCols.map(c => c.key === 'setech' ? 65 : c.key === 'name' ? 12 : 10);
 
-    // 시트 1: 선택한 컬럼만 — 나이스 제출용
-    const naissData = rows.map(buildRow);
-    const ws1 = XLSX.utils.json_to_sheet(naissData);
-    const colWidths = checkedCols.map(c => ({ wch: c.key === 'setech' ? 65 : c.key === 'name' ? 12 : 10 }));
-    ws1['!cols'] = colWidths;
-    XLSX.utils.book_append_sheet(wb, ws1, '나이스제출');
+    // ── 시트 2: 전체 현황 ──
+    const headerRow2: XCell[] = ['반', '번호', '이름', '성취도', '세특내용', '글자수', '바이트', '활동기록수', '상태']
+      .map(v => ({ value: v, style: 'header' as const }));
+    const sheet2Rows: XCell[][] = [headerRow2];
+    rows.forEach(r => {
+      sheet2Rows.push([
+        { value: cls?.name || '' },
+        { value: r.student_number },
+        { value: r.full_name },
+        { value: r.achievement_level || '' },
+        { value: r.setech_content, style: 'wrap' },
+        { value: charCount(r.setech_content) },
+        { value: byteCount(r.setech_content) },
+        { value: r.obs_count },
+        { value: STATUS_LABELS[r.status] },
+      ] as XCell[]);
+    });
 
-    // 시트 2: 전체 현황 (고정)
-    const fullData = rows.map(r => ({
-      '반': cls?.name || '', '번호': r.student_number, '이름': r.full_name,
-      '성취도': r.achievement_level || '',
-      '세특내용': r.setech_content,
-      '글자수': charCount(r.setech_content), '바이트': byteCount(r.setech_content),
-      '활동기록수': r.obs_count, '상태': STATUS_LABELS[r.status],
-    }));
-    const ws2 = XLSX.utils.json_to_sheet(fullData);
-    ws2['!cols'] = [{ wch: 10 }, { wch: 6 }, { wch: 12 }, { wch: 8 }, { wch: 55 }, { wch: 7 }, { wch: 7 }, { wch: 9 }, { wch: 8 }];
-    XLSX.utils.book_append_sheet(wb, ws2, '전체현황');
-
-    XLSX.writeFile(wb, `${cls?.name || '학급'}_나이스세특_${academicYear}.xlsx`);
+    const blob = await buildXlsxBlob([
+      { name: '나이스제출', colWidths: colWidths1, rows: sheet1Rows },
+      { name: '전체현황',   colWidths: [10, 6, 12, 8, 55, 7, 7, 9, 8], rows: sheet2Rows },
+    ]);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${cls?.name || '학급'}_나이스세특_${academicYear}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   };
 
   // 필터
