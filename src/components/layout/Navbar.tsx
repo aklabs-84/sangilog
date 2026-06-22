@@ -2,21 +2,31 @@ import { useState, useEffect } from 'react';
 import {
   Bell, Settings, Trash2, Plus, GraduationCap, Menu, X,
   LayoutDashboard, School, Wrench, Sparkles, FileBarChart2, Archive,
-  ActivitySquare, Bug, Images,
+  ActivitySquare, Bug, Images, Download, Share, MoreVertical,
 } from 'lucide-react';
 import BugReportModal from '../BugReportModal';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 const Navbar = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const { installState, triggerInstall } = usePWAInstall();
   const [showNotifications, setShowNotifications] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [bugReportOpen, setBugReportOpen] = useState(false);
+  const [showNavIOSGuide, setShowNavIOSGuide] = useState(false);
+
+  const canInstall = installState === 'available' || installState === 'ios';
+
+  const handleNavInstall = () => {
+    if (installState === 'available') triggerInstall();
+    else if (installState === 'ios') setShowNavIOSGuide(true);
+  };
 
   useEffect(() => {
     setAvatarError(false);
@@ -141,6 +151,16 @@ const Navbar = () => {
 
       {/* 오른쪽: 액션 버튼 */}
       <div className="flex items-center gap-1.5 md:gap-2">
+        {/* 앱 설치 — PC만, 설치 가능할 때만 */}
+        {canInstall && (
+          <button
+            onClick={handleNavInstall}
+            className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-primary/70 hover:text-primary hover:bg-primary/8 border border-primary/20 hover:border-primary/40 transition-all shrink-0"
+          >
+            <Download size={13} strokeWidth={2.5} /> 앱 설치
+          </button>
+        )}
+
         {/* 관찰 기록 — PC만 */}
         <NavLink to="/activity-log"
           className="hidden md:flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-xl font-black text-xs shadow-md shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all"
@@ -325,27 +345,113 @@ const Navbar = () => {
             </nav>
 
             {/* 하단 액션 */}
-            <div className="border-t border-on-surface/5 p-2 flex items-center gap-2">
-              <NavLink
-                to="/activity-log"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-4 py-3 btn-gradient rounded-xl font-black text-sm flex-1 justify-center"
-              >
-                <ActivitySquare size={16} /> 교사 메모 작성
-              </NavLink>
-              <NavLink
-                to="/settings"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 px-4 py-3 rounded-xl font-black text-sm bg-surface-container hover:bg-surface-container-high transition-all text-on-surface-variant"
-              >
-                <Settings size={16} /> 설정
-              </NavLink>
+            <div className="border-t border-on-surface/5 p-2 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <NavLink
+                  to="/activity-log"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-3 btn-gradient rounded-xl font-black text-sm flex-1 justify-center"
+                >
+                  <ActivitySquare size={16} /> 교사 메모 작성
+                </NavLink>
+                <NavLink
+                  to="/settings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl font-black text-sm bg-surface-container hover:bg-surface-container-high transition-all text-on-surface-variant"
+                >
+                  <Settings size={16} /> 설정
+                </NavLink>
+              </div>
+              {canInstall && (
+                <button
+                  onClick={() => { setMobileMenuOpen(false); handleNavInstall(); }}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl font-black text-sm border border-primary/20 text-primary/80 hover:bg-primary/5 transition-all"
+                >
+                  <Download size={16} /> 앱 설치하기
+                </button>
+              )}
             </div>
           </motion.div>
         </>
       )}
     </AnimatePresence>
     <BugReportModal isOpen={bugReportOpen} onClose={() => setBugReportOpen(false)} />
+
+    {/* iOS 앱 설치 안내 모달 (네비 버튼에서 트리거) */}
+    <AnimatePresence>
+      {showNavIOSGuide && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9991] bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowNavIOSGuide(false)}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 40, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 40, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="fixed bottom-0 left-0 right-0 z-[9992] bg-white rounded-t-3xl shadow-elevated p-6 pb-10"
+          >
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-base font-black text-on-surface">생기로그 앱 설치 방법</h3>
+              <button
+                onClick={() => setShowNavIOSGuide(false)}
+                className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400"
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                  <Share size={16} className="text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-on-surface">1단계</p>
+                  <p className="text-sm text-on-surface-variant/70 mt-0.5 leading-relaxed">
+                    하단 툴바의 <span className="font-black text-blue-500">공유 버튼</span>을 탭하세요
+                    <br />
+                    <span className="text-[11px] text-on-surface-variant/50">(사각형에 위쪽 화살표 모양)</span>
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                  <MoreVertical size={16} className="text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-on-surface">2단계</p>
+                  <p className="text-sm text-on-surface-variant/70 mt-0.5 leading-relaxed">
+                    스크롤해서 <span className="font-black text-primary">"홈 화면에 추가"</span>를 탭하세요
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-green-50 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-green-500 text-base font-black">✓</span>
+                </div>
+                <div>
+                  <p className="text-sm font-black text-on-surface">3단계</p>
+                  <p className="text-sm text-on-surface-variant/70 mt-0.5 leading-relaxed">
+                    오른쪽 위 <span className="font-black text-green-600">"추가"</span>를 탭하면 완료!
+                    <br />
+                    <span className="text-[11px] text-on-surface-variant/50">홈 화면에 생기로그 아이콘이 생깁니다</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowNavIOSGuide(false)}
+              className="mt-6 w-full py-3.5 btn-gradient rounded-2xl font-black text-sm shadow-md shadow-primary/20"
+            >
+              알겠어요!
+            </button>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
     </>
   );
 };

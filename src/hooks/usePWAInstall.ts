@@ -7,13 +7,19 @@ interface BeforeInstallPromptEvent extends Event {
 
 export type InstallState = 'idle' | 'available' | 'ios' | 'installed' | 'dismissed';
 
+const DISMISS_KEY = 'pwa-install-hide-until';
+
+function isBannerHidden() {
+  const until = localStorage.getItem(DISMISS_KEY);
+  return until !== null && Date.now() < parseInt(until, 10);
+}
+
 export function usePWAInstall() {
   const [installState, setInstallState] = useState<InstallState>('idle');
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
-    // 이미 설치됐거나 사용자가 영구 닫기한 경우 건너뜀
-    if (localStorage.getItem('pwa-install-dismissed') === 'true') return;
+    if (isBannerHidden()) return;
     if (window.matchMedia('(display-mode: standalone)').matches) return;
     if ((navigator as any).standalone === true) return;
 
@@ -50,8 +56,10 @@ export function usePWAInstall() {
     setDeferredPrompt(null);
   };
 
-  const dismiss = (permanent = false) => {
-    if (permanent) localStorage.setItem('pwa-install-dismissed', 'true');
+  const dismiss = (forDay = true) => {
+    if (forDay) {
+      localStorage.setItem(DISMISS_KEY, String(Date.now() + 24 * 60 * 60 * 1000));
+    }
     setInstallState('dismissed');
   };
 

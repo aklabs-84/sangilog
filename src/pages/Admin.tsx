@@ -10,7 +10,7 @@ import {
   BarChart3, FileCheck, Megaphone, Bell, Download, Plus, Send,
   TrendingUp, Zap, Bug, Ticket, Calendar, ToggleLeft, ToggleRight,
   Shuffle, DollarSign, Cpu, Layers, X, ChevronRight, Activity,
-  ArrowUpDown, LogIn,
+  ArrowUpDown, LogIn, ChevronUp, ChevronDown,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -2829,35 +2829,38 @@ function VideoGuidesTab() {
   const [videos, setVideos] = useState<VideoGuideRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', url: '', category: '시작하기', order_num: 0 });
+  const [reordering, setReordering] = useState(false);
+  const [form, setForm] = useState({ title: '', description: '', url: '', category: '시작하기' });
   const [error, setError] = useState<string | null>(null);
 
   const CATEGORIES = ['시작하기', '클래스룸', 'AI 기능', '수업 도구', '기타'];
 
-  const fetch = async () => {
+  const fetchVideos = async () => {
     setLoading(true);
     const { data } = await supabase.from('video_guides').select('*').order('category').order('order_num');
     setVideos(data ?? []);
     setLoading(false);
   };
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { fetchVideos(); }, []);
 
   const handleAdd = async () => {
     if (!form.title.trim() || !form.url.trim()) { setError('제목과 URL은 필수입니다.'); return; }
     setSaving(true);
     setError(null);
+    const catVideos = videos.filter(v => v.category === form.category);
+    const nextOrder = catVideos.length > 0 ? Math.max(...catVideos.map(v => v.order_num)) + 1 : 1;
     const { error: err } = await supabase.from('video_guides').insert({
       title: form.title.trim(),
       description: form.description.trim() || null,
       url: form.url.trim(),
       category: form.category,
-      order_num: form.order_num,
+      order_num: nextOrder,
       is_active: true,
     });
     if (err) { setError(err.message); } else {
-      setForm({ title: '', description: '', url: '', category: '시작하기', order_num: 0 });
-      await fetch();
+      setForm({ title: '', description: '', url: '', category: '시작하기' });
+      await fetchVideos();
     }
     setSaving(false);
   };
@@ -2872,6 +2875,44 @@ function VideoGuidesTab() {
     await supabase.from('video_guides').delete().eq('id', id);
     setVideos(prev => prev.filter(v => v.id !== id));
   };
+
+  const handleMove = async (id: string, direction: 'up' | 'down') => {
+    const video = videos.find(v => v.id === id);
+    if (!video) return;
+
+    const sameCat = [...videos]
+      .filter(v => v.category === video.category)
+      .sort((a, b) => a.order_num - b.order_num);
+
+    const idx = sameCat.findIndex(v => v.id === id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sameCat.length) return;
+
+    const aOrder = sameCat[idx].order_num;
+    const bOrder = sameCat[swapIdx].order_num;
+    const aId = sameCat[idx].id;
+    const bId = sameCat[swapIdx].id;
+
+    setVideos(prev => prev.map(v => {
+      if (v.id === aId) return { ...v, order_num: bOrder };
+      if (v.id === bId) return { ...v, order_num: aOrder };
+      return v;
+    }));
+
+    setReordering(true);
+    await Promise.all([
+      supabase.from('video_guides').update({ order_num: bOrder }).eq('id', aId),
+      supabase.from('video_guides').update({ order_num: aOrder }).eq('id', bId),
+    ]);
+    setReordering(false);
+  };
+
+  const grouped = CATEGORIES.map(cat => ({
+    category: cat,
+    items: [...videos]
+      .filter(v => v.category === cat)
+      .sort((a, b) => a.order_num - b.order_num),
+  })).filter(g => g.items.length > 0);
 
   return (
     <div className="space-y-6">
@@ -2912,14 +2953,7 @@ function VideoGuidesTab() {
             value={form.description}
             onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
             placeholder="설명 (선택)"
-            className="px-3 py-2.5 rounded-xl border border-on-surface/10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-          <input
-            type="number"
-            value={form.order_num}
-            onChange={e => setForm(p => ({ ...p, order_num: Number(e.target.value) }))}
-            placeholder="순서 (숫자)"
-            className="px-3 py-2.5 rounded-xl border border-on-surface/10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="px-3 py-2.5 rounded-xl border border-on-surface/10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 sm:col-span-2"
           />
         </div>
 
@@ -2933,11 +2967,14 @@ function VideoGuidesTab() {
         </button>
       </div>
 
-      {/* 목록 */}
+      {/* 목록 — 카테고리별 그룹 */}
       <div className="bg-white rounded-2xl border border-on-surface/8 shadow-sm overflow-hidden">
         <div className="px-5 py-3.5 border-b border-on-surface/5 flex items-center justify-between">
-          <h3 className="font-black text-sm text-on-surface">등록된 영상 ({videos.length}개)</h3>
-          <button onClick={fetch} className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors">
+          <h3 className="font-black text-sm text-on-surface flex items-center gap-2">
+            등록된 영상 ({videos.length}개)
+            {reordering && <Loader2 size={13} className="animate-spin text-primary/50" />}
+          </h3>
+          <button onClick={fetchVideos} className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors">
             <RefreshCw size={14} />
           </button>
         </div>
@@ -2951,35 +2988,67 @@ function VideoGuidesTab() {
             등록된 영상이 없습니다
           </div>
         ) : (
-          <div className="divide-y divide-on-surface/5">
-            {videos.map(v => (
-              <div key={v.id} className={`flex items-start gap-4 px-5 py-4 ${!v.is_active ? 'opacity-40' : ''}`}>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{v.category}</span>
-                    <span className="text-[10px] text-on-surface-variant">순서 {v.order_num}</span>
-                  </div>
-                  <p className="text-sm font-bold text-on-surface mt-1">{v.title}</p>
-                  {v.description && <p className="text-xs text-on-surface-variant mt-0.5">{v.description}</p>}
-                  <p className="text-xs text-primary/60 mt-1 truncate font-mono">{v.url}</p>
+          <div>
+            {grouped.map(({ category, items }) => (
+              <div key={category}>
+                <div className="px-5 py-2 bg-surface-container/40 border-y border-on-surface/5 flex items-center gap-2">
+                  <span className="text-[11px] font-black text-on-surface-variant uppercase tracking-wider">{category}</span>
+                  <span className="text-[10px] text-on-surface-variant/50">{items.length}개</span>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => handleToggle(v.id, v.is_active)}
-                    className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-colors ${
-                      v.is_active
-                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                    }`}
-                  >
-                    {v.is_active ? '공개' : '숨김'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(v.id)}
-                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                <div className="divide-y divide-on-surface/5">
+                  {items.map((v, idx) => (
+                    <div key={v.id} className={`flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface-container/20 ${!v.is_active ? 'opacity-40' : ''}`}>
+                      {/* 순서 이동 버튼 */}
+                      <div className="flex flex-col gap-0.5 shrink-0">
+                        <button
+                          onClick={() => handleMove(v.id, 'up')}
+                          disabled={idx === 0 || reordering}
+                          className="w-6 h-6 rounded-md flex items-center justify-center text-on-surface-variant/40 hover:text-primary hover:bg-primary/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                        >
+                          <ChevronUp size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleMove(v.id, 'down')}
+                          disabled={idx === items.length - 1 || reordering}
+                          className="w-6 h-6 rounded-md flex items-center justify-center text-on-surface-variant/40 hover:text-primary hover:bg-primary/8 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                      </div>
+
+                      {/* 순서 번호 */}
+                      <span className="text-[11px] font-black text-on-surface-variant/30 w-5 text-center shrink-0">
+                        {idx + 1}
+                      </span>
+
+                      {/* 영상 정보 */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-on-surface">{v.title}</p>
+                        {v.description && <p className="text-xs text-on-surface-variant/60 mt-0.5">{v.description}</p>}
+                        <p className="text-xs text-primary/50 mt-0.5 truncate font-mono">{v.url}</p>
+                      </div>
+
+                      {/* 액션 */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => handleToggle(v.id, v.is_active)}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg font-bold transition-colors ${
+                            v.is_active
+                              ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          {v.is_active ? '공개' : '숨김'}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(v.id)}
+                          className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
