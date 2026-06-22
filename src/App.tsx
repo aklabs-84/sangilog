@@ -218,6 +218,7 @@ function App() {
               <Route path="/survey/:pin" element={<SurveyStudent />} />
               <Route path="/survey" element={<SurveyStudent />} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/video-guide" element={<VideoGuide />} />
               <Route path="/sb/:boardId" element={<StudentBoardViewer />} />
               <Route path="/wb-join" element={<StudentJoin />} />
               <Route path="/share/:classId" element={<ShareClassView />} />
@@ -261,7 +262,6 @@ function App() {
                 <Route path="activity-log" element={<ActivityLog />} />
                 <Route path="teaching-tools" element={<TeachingTools />} />
                 <Route path="gallery" element={<Gallery />} />
-                <Route path="video-guide" element={<VideoGuide />} />
                 <Route path="suggestions" element={<SuggestionsPage />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="help" element={<Help />} />

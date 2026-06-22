@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   PlayCircle, X, ChevronLeft, ChevronRight, Loader2,
-  Video, HardDrive, ExternalLink, BookOpen,
+  Video, HardDrive, ExternalLink, BookOpen, GraduationCap,
+  LayoutDashboard, LogIn,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { parseVideoUrl } from '../lib/gallery';
+import { useAuth, isAnonymousUser } from '../lib/auth';
 
 export interface VideoGuideItem {
   id: string;
@@ -21,6 +24,10 @@ export interface VideoGuideItem {
 const ALL_LABEL = '전체';
 
 export default function VideoGuide() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const isLoggedIn = !!user && !isAnonymousUser(user);
+
   const [items, setItems] = useState<VideoGuideItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>(ALL_LABEL);
@@ -40,64 +47,95 @@ export default function VideoGuide() {
   }, []);
 
   const categories = [ALL_LABEL, ...Array.from(new Set(items.map(i => i.category)))];
-
-  const filtered =
-    activeCategory === ALL_LABEL ? items : items.filter(i => i.category === activeCategory);
-
+  const filtered = activeCategory === ALL_LABEL ? items : items.filter(i => i.category === activeCategory);
   const lightboxItem = lightboxIndex !== null ? filtered[lightboxIndex] : null;
 
   return (
-    <div className="min-h-screen p-6 font-manrope">
-      {/* 헤더 */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center text-white shadow-md shadow-primary/20">
-          <PlayCircle size={20} />
+    <div className="min-h-screen bg-[#FFFBF5] font-pretendard">
+      {/* 상단 네비게이션 */}
+      <nav className="sticky top-0 z-50 bg-[#FFFBF5]/90 backdrop-blur border-b border-amber-100">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2.5"
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-sm">
+              <GraduationCap size={18} className="text-white" strokeWidth={2.5} />
+            </div>
+            <span className="text-base font-black tracking-tight text-amber-800">생기로그 AI</span>
+          </button>
+
+          {isLoggedIn ? (
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
+            >
+              <LayoutDashboard size={14} />
+              대시보드
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm"
+            >
+              <LogIn size={14} />
+              선생님 로그인
+            </button>
+          )}
         </div>
-        <div>
-          <h1 className="text-xl font-black text-on-surface tracking-tightest">영상 가이드</h1>
-          <p className="text-xs text-on-surface-variant font-medium">
+      </nav>
+
+      {/* 본문 */}
+      <div className="max-w-5xl mx-auto px-6 py-10">
+        {/* 헤더 */}
+        <div className="mb-8 text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl shadow-md mb-4">
+            <PlayCircle size={28} className="text-white" />
+          </div>
+          <h1 className="text-2xl font-black text-amber-900 tracking-tight">영상 가이드</h1>
+          <p className="text-sm text-amber-700/70 mt-1.5">
             생기로그 AI 사용 방법을 영상으로 확인하세요
           </p>
         </div>
+
+        {/* 카테고리 탭 */}
+        {!loading && items.length > 0 && (
+          <div className="flex gap-2 mb-6 flex-wrap justify-center">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
+                  activeCategory === cat
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 콘텐츠 */}
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 size={32} className="animate-spin text-amber-400" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filtered.map((item, idx) => (
+              <VideoCard
+                key={item.id}
+                item={item}
+                onClick={() => setLightboxIndex(idx)}
+              />
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* 카테고리 탭 */}
-      {!loading && items.length > 0 && (
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
-                activeCategory === cat
-                  ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
-                  : 'border-on-surface/10 text-on-surface-variant hover:bg-white hover:text-on-surface'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* 콘텐츠 */}
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 size={32} className="animate-spin text-primary/40" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((item, idx) => (
-            <VideoCard
-              key={item.id}
-              item={item}
-              onClick={() => setLightboxIndex(idx)}
-            />
-          ))}
-        </div>
-      )}
 
       {/* 라이트박스 */}
       <AnimatePresence>
@@ -167,11 +205,10 @@ function VideoCard({ item, onClick }: { item: VideoGuideItem; onClick: () => voi
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group cursor-pointer rounded-2xl overflow-hidden bg-white border border-on-surface/8 shadow-sm hover:shadow-lg transition-all duration-200"
+      className="group cursor-pointer rounded-2xl overflow-hidden bg-white border border-amber-100 shadow-sm hover:shadow-lg transition-all duration-200"
       onClick={onClick}
     >
-      {/* 썸네일 영역 */}
-      <div className="relative aspect-video bg-surface-container-low overflow-hidden">
+      <div className="relative aspect-video bg-amber-50 overflow-hidden">
         {isYoutube && info?.thumbnailUrl ? (
           <>
             <img
@@ -211,17 +248,15 @@ function VideoCard({ item, onClick }: { item: VideoGuideItem; onClick: () => voi
           </div>
         )}
 
-        {/* 카테고리 뱃지 */}
         <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
           {item.category}
         </div>
       </div>
 
-      {/* 텍스트 */}
       <div className="p-4">
-        <p className="font-bold text-sm text-on-surface leading-snug line-clamp-2">{item.title}</p>
+        <p className="font-bold text-sm text-amber-900 leading-snug line-clamp-2">{item.title}</p>
         {item.description && (
-          <p className="text-xs text-on-surface-variant mt-1.5 line-clamp-2 leading-relaxed">
+          <p className="text-xs text-amber-700/60 mt-1.5 line-clamp-2 leading-relaxed">
             {item.description}
           </p>
         )}
@@ -256,13 +291,11 @@ function VideoPlayer({ url }: { url: string }) {
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-64 gap-4 text-on-surface-variant">
-      <div className="text-on-surface/20">
-        <BookOpen size={48} />
-      </div>
+    <div className="flex flex-col items-center justify-center h-64 gap-4 text-amber-700/50">
+      <BookOpen size={48} />
       <div className="text-center">
         <p className="font-bold text-sm">아직 등록된 영상이 없습니다</p>
-        <p className="text-xs mt-1 opacity-70">관리자가 영상을 등록하면 여기에 표시됩니다</p>
+        <p className="text-xs mt-1 opacity-70">곧 영상이 업로드될 예정입니다</p>
       </div>
     </div>
   );

@@ -167,6 +167,12 @@ const Landing = () => {
               사용 가이드
             </a>
             <button
+              onClick={() => navigate('/video-guide')}
+              className="hidden sm:flex px-4 py-2 text-amber-700 hover:text-amber-900 text-sm font-bold rounded-full transition-colors items-center gap-1.5 hover:bg-amber-50"
+            >
+              영상 가이드
+            </button>
+            <button
               onClick={() => navigate('/classroom-entry')}
               className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-full transition-colors shadow-sm flex items-center gap-1.5"
             >
