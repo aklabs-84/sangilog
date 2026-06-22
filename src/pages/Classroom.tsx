@@ -43,6 +43,7 @@ import {
   Copy,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
+import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
 import CodeBlock from '../components/CodeBlock';
@@ -109,6 +110,10 @@ const Classroom = () => {
   const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
+  const [promptValidation, setPromptValidation] = useState<{ feasible: boolean; message: string; guide?: string } | null>(null);
+  const [isValidatingPrompt, setIsValidatingPrompt] = useState(false);
+  const [guideValidation, setGuideValidation] = useState<{ feasible: boolean; message: string; guide?: string } | null>(null);
+  const [isValidatingGuide, setIsValidatingGuide] = useState(false);
   
   // 아카이브 관련 상태
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
@@ -2319,12 +2324,41 @@ const Classroom = () => {
                           <label className="text-xs font-black text-primary uppercase tracking-widest">학생 활동 가이드 (Guide Prompt)</label>
                           <span className="text-xs text-neutral-500 font-bold">학생 입력 시 AI가 참고할 지침</span>
                         </div>
-                        <textarea 
-                          value={updateClassData.student_guide_prompt} 
-                          onChange={e => setUpdateClassData({...updateClassData, student_guide_prompt: e.target.value})} 
+                        <textarea
+                          value={updateClassData.student_guide_prompt}
+                          onChange={e => { setUpdateClassData({...updateClassData, student_guide_prompt: e.target.value}); setGuideValidation(null); }}
                           className="w-full h-32 px-5 py-4 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-2xl font-bold text-sm text-neutral-800 transition-all outline-none resize-none"
                           placeholder="학생들에게 강조하고 싶은 기록 요령을 입력하세요..."
                         />
+                        <button
+                          type="button"
+                          disabled={isValidatingGuide || !updateClassData.student_guide_prompt?.trim()}
+                          onClick={async () => {
+                            setIsValidatingGuide(true);
+                            setGuideValidation(null);
+                            const result = await validateStudentGuidePrompt(updateClassData.student_guide_prompt);
+                            setGuideValidation(result);
+                            setIsValidatingGuide(false);
+                          }}
+                          className="mt-2 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all border disabled:opacity-40 disabled:cursor-not-allowed bg-white border-primary/30 text-primary hover:bg-primary/5"
+                        >
+                          {isValidatingGuide ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                          {isValidatingGuide ? '검증 중...' : '가이드 동작 검증'}
+                        </button>
+                        {guideValidation && (
+                          <div className={`mt-2 p-4 rounded-2xl border-2 text-sm font-bold space-y-1.5 ${guideValidation.feasible ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                            <div className="flex items-center gap-2 font-black">
+                              {guideValidation.feasible ? <CheckCircle2 size={15} className="text-emerald-600" /> : <AlertCircle size={15} className="text-rose-500" />}
+                              {guideValidation.feasible ? 'AI가 이 가이드로 학생 제출물을 정상 판단할 수 있습니다' : 'AI가 이 가이드로 정확히 판단하기 어렵습니다'}
+                            </div>
+                            <p className="text-xs leading-relaxed">{guideValidation.message}</p>
+                            {guideValidation.guide && (
+                              <p className="text-xs leading-relaxed pt-1 border-t border-rose-200 text-rose-700">
+                                💡 {guideValidation.guide}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between ml-1">
@@ -2335,10 +2369,39 @@ const Classroom = () => {
                         </div>
                         <textarea
                           value={updateClassData.teacher_report_prompt}
-                          onChange={e => setUpdateClassData({...updateClassData, teacher_report_prompt: e.target.value})}
+                          onChange={e => { setUpdateClassData({...updateClassData, teacher_report_prompt: e.target.value}); setPromptValidation(null); }}
                           className="w-full h-32 px-5 py-4 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-secondary/40 focus:bg-white rounded-2xl font-bold text-sm text-neutral-800 transition-all outline-none resize-none"
                           placeholder="AI가 문구를 작성할 때 특별히 반영하길 원하는 스타일을 입력하세요..."
                         />
+                        <button
+                          type="button"
+                          disabled={isValidatingPrompt || !updateClassData.teacher_report_prompt?.trim()}
+                          onClick={async () => {
+                            setIsValidatingPrompt(true);
+                            setPromptValidation(null);
+                            const result = await validateTeacherPrompt(updateClassData.teacher_report_prompt);
+                            setPromptValidation(result);
+                            setIsValidatingPrompt(false);
+                          }}
+                          className="mt-2 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all border disabled:opacity-40 disabled:cursor-not-allowed bg-white border-secondary/30 text-secondary hover:bg-secondary/5"
+                        >
+                          {isValidatingPrompt ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                          {isValidatingPrompt ? '검증 중...' : '지침 동작 검증'}
+                        </button>
+                        {promptValidation && (
+                          <div className={`mt-2 p-4 rounded-2xl border-2 text-sm font-bold space-y-1.5 ${promptValidation.feasible ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                            <div className="flex items-center gap-2 font-black">
+                              {promptValidation.feasible ? <CheckCircle2 size={15} className="text-emerald-600" /> : <AlertCircle size={15} className="text-rose-500" />}
+                              {promptValidation.feasible ? '이 지침은 정상적으로 동작합니다' : '이 지침은 동작하지 않는 내용을 포함합니다'}
+                            </div>
+                            <p className="text-xs leading-relaxed">{promptValidation.message}</p>
+                            {promptValidation.guide && (
+                              <p className="text-xs leading-relaxed pt-1 border-t border-rose-200 text-rose-700">
+                                💡 {promptValidation.guide}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between ml-1">

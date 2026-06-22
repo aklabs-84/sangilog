@@ -814,13 +814,16 @@ const StudentLog = () => {
     }
     setSavingLogId(logId);
     try {
+      const normE = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
+      const editWeekMatch = (classResources as any[]).find(r => normE(r.topic) === normE(editLogForm.activity_name.trim()));
+      const editWeekNumber = editWeekMatch?.week ?? null;
       const { error } = await supabase
         .from('observations')
-        .update({ activity_name: editLogForm.activity_name.trim(), content: editLogForm.content.trim() })
+        .update({ activity_name: editLogForm.activity_name.trim(), content: editLogForm.content.trim(), week_number: editWeekNumber })
         .eq('id', logId);
       if (error) throw error;
       setHistoryLogs(prev => prev.map(l =>
-        l.id === logId ? { ...l, activity_name: editLogForm.activity_name.trim(), content: editLogForm.content.trim() } : l
+        l.id === logId ? { ...l, activity_name: editLogForm.activity_name.trim(), content: editLogForm.content.trim(), week_number: editWeekNumber } : l
       ));
       setEditingLogId(null);
       showToast('수정되었습니다.');
@@ -1711,6 +1714,8 @@ ${guidePrompt}
       // ── 1. 관찰 기록 저장 ──────────────────────────────────────────────────
       // review_needed → rejected 자동 반려 (teacher_feedback = AI 사유)
       const obsStatus = aiReviewFlag === 'review_needed' ? 'rejected' : 'approved';
+      const normW = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
+      const weekMatch = (classResources as any[]).find(r => normW(r.topic) === normW(title));
       const { error: obsError } = await supabase
         .from('observations')
         .insert({
@@ -1722,7 +1727,8 @@ ${guidePrompt}
           status: obsStatus,
           ai_concern: aiConcern || null,
           teacher_feedback: aiReviewFlag === 'review_needed' ? aiConcern : null,
-          category: session?.subject || '학생 제출'
+          category: session?.subject || '학생 제출',
+          week_number: weekMatch?.week ?? null,
         });
 
       if (obsError) throw new Error(`기록 저장 오류: ${obsError.message}`);

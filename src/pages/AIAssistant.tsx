@@ -274,16 +274,26 @@ ${obsText}
       // 전체 관찰기록 한 번에 조회
       const { data: allObs, error } = await supabase
         .from('observations')
-        .select('content, activity_name, student_id')
+        .select('content, activity_name, student_id, week_number')
         .in('student_id', ids);
       if (error) throw error;
 
       // 학생별 관찰기록 그룹화
-      const obsByStudent: Record<string, { activity_name: string; content: string }[]> = {};
+      const obsByStudent: Record<string, { activity_name: string; content: string; week_number: number | null }[]> = {};
       studentList.forEach(s => { obsByStudent[s.id] = []; });
       allObs?.forEach(o => {
         if (obsByStudent[o.student_id]) obsByStudent[o.student_id].push(o);
       });
+
+      // 학생별 최신 주차 필터링 (week_number가 있는 기록이 있으면 최신 주차만 사용)
+      for (const studentId of Object.keys(obsByStudent)) {
+        const obs = obsByStudent[studentId];
+        const weeks = obs.map(o => o.week_number).filter((w): w is number => w != null);
+        if (weeks.length > 0) {
+          const maxWeek = Math.max(...weeks);
+          obsByStudent[studentId] = obs.filter(o => o.week_number === maxWeek);
+        }
+      }
 
       // 관찰기록 있는 학생만
       const targetStudents = studentList.filter(s => obsByStudent[s.id].length > 0);

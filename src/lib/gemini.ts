@@ -128,6 +128,7 @@ export const geminiFlash = makeModelWrapper('flash');
 export const geminiPro   = makeModelWrapper('pro');
 
 // 기능별 named wrapper (비용 추적용)
+export const promptValidatorAI    = makeModelWrapper('flash', 'prompt_validate', true);
 export const seatukDraftAI        = makeModelWrapper('pro',   'seatuk_draft');
 export const seatukRefineAI       = makeModelWrapper('pro',   'seatuk_refine');
 export const seatukCompressAI     = makeModelWrapper('pro',   'seatuk_compress');
@@ -151,6 +152,98 @@ export async function fileToGenerativePart(file: File): Promise<{ inlineData: { 
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+export async function validateStudentGuidePrompt(
+  prompt: string
+): Promise<{ feasible: boolean; message: string; guide?: string }> {
+  const validationPrompt = `당신은 AI 학생 활동 기록 검토 시스템의 지침 검증 전문가입니다.
+교사가 "학생 활동 가이드"에 입력한 내용이 AI가 학생 제출물을 실제로 판단할 수 있는 기준인지 평가하세요.
+
+[시스템 동작 방식]
+- 학생이 활동 기록(제목 + 내용 + 느낀 점)을 제출하면 AI가 이 가이드 기준으로 품질을 분석
+- 기준 미충족 시 자동 반려(학생에게 사유와 개선 안내 제공)
+- 글자수 제한·금지어는 별도 시스템이 이미 처리하므로 가이드에서 불필요
+
+[AI가 판단 가능한 기준]
+- 구체적 활동 서술 요구 (예: "단순 감상이 아닌 본인의 역할과 과정을 써야 함")
+- 특정 내용 포함 요구 (예: "배운 개념을 실생활에 연결하여 작성")
+- 작성 태도 기준 (예: "반복 문장으로 분량만 채운 경우 반려")
+- 수업 연관성 확인 (예: "수업 내용과 무관한 내용은 반려")
+
+[AI가 판단할 수 없는 기준]
+- 사실 여부 확인 (예: "실제로 수업에 참여했는지 확인")
+- 외부 데이터 비교 (예: "지난주보다 발전했는지")
+- 글자수·맞춤법 기준 (별도 시스템에서 이미 처리)
+- 표절 검사
+- 지나치게 주관적인 기준 (예: "창의적이지 않으면 반려" — 창의성은 AI가 일관되게 판단 불가)
+
+[교사가 작성한 가이드]
+"${prompt}"
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{"feasible":true,"message":"성공 메시지"}
+또는
+{"feasible":false,"message":"안 되는 이유","guide":"대신 이렇게 작성하세요"}`;
+
+  try {
+    const result = await promptValidatorAI.generateContent(validationPrompt);
+    const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(raw);
+    return {
+      feasible: Boolean(parsed.feasible),
+      message: String(parsed.message || ''),
+      guide: parsed.guide ? String(parsed.guide) : undefined,
+    };
+  } catch {
+    return { feasible: true, message: '검증 중 오류가 발생했습니다. 지침은 저장됩니다.' };
+  }
+}
+
+export async function validateTeacherPrompt(
+  prompt: string
+): Promise<{ feasible: boolean; message: string; guide?: string }> {
+  const validationPrompt = `당신은 AI 생기부 초안 작성 시스템의 지침 검증 전문가입니다.
+교사가 "AI 행특/세특 초안 작성 지침"에 입력한 내용이 시스템에서 실제로 동작 가능한지 판별하세요.
+
+[시스템이 AI에게 제공하는 데이터]
+- 학생의 활동 기록 (활동명 + 학생이 직접 작성한 내용 텍스트)
+- 가장 최신 주차(week_number 기준)의 기록만 전달됨
+
+[시스템이 절대 할 수 없는 것]
+- 날짜/기간으로 필터링 (날짜 정보가 전달되지 않음)
+- 성적·점수 반영 (성적 데이터 없음)
+- 출석·결석 반영 (출석 데이터 없음)
+- 특정 주차 범위 선택 (자동으로 최신 1개 주차만 필터링)
+- 다른 학생과 비교 (학생 1명씩 개별 처리)
+- 외부 액션(알림 발송 등)
+
+[동작 가능한 지침 예시]
+- 문체·어미·분량·강조점 지침 (예: "~함, ~임 어미 사용", "500자 이내")
+- 특정 역량·내용 강조 (예: "협업 태도 강조", "성장 가능성 위주로")
+- AI로 작성한 것 같은 표현 검토 요청
+- 학생의 활동 내용 기반 성취 판단
+
+[교사가 작성한 지침]
+"${prompt}"
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{"feasible":true,"message":"성공 메시지"}
+또는
+{"feasible":false,"message":"안 되는 이유","guide":"대신 이렇게 작성하세요"}`;
+
+  try {
+    const result = await promptValidatorAI.generateContent(validationPrompt);
+    const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(raw);
+    return {
+      feasible: Boolean(parsed.feasible),
+      message: String(parsed.message || ''),
+      guide: parsed.guide ? String(parsed.guide) : undefined,
+    };
+  } catch {
+    return { feasible: true, message: '검증 중 오류가 발생했습니다. 지침은 저장됩니다.' };
+  }
 }
 
 export async function generateClassInsight(className: string, observations: any[], classId?: string) {

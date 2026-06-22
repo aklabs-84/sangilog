@@ -115,6 +115,10 @@ const ActivityLog = () => {
     }
     setIsSaving(true);
     try {
+      const weeklyPlan: { week: number; topic: string }[] = classes.find(c => c.id === selectedClassId)?.weekly_plan || [];
+      const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+      const matchedWeek = weeklyPlan.find(p => norm(p.topic) === norm(activityTitle))?.week ?? null;
+
       const observations = selectedStudents.map(studentId => ({
         teacher_id: user?.id,
         student_id: studentId,
@@ -122,6 +126,7 @@ const ActivityLog = () => {
         activity_name: activityTitle,
         category,
         is_student_record: false,
+        week_number: matchedWeek,
       }));
       const { error } = await supabase.from('observations').insert(observations);
       if (error) throw error;
@@ -150,10 +155,14 @@ const ActivityLog = () => {
     if (!editForm.activity_name.trim() || !editForm.content.trim()) return;
     setSavingEditId(obsId);
     try {
+      const weeklyPlanEdit: { week: number; topic: string }[] = classes.find(c => c.id === selectedClassId)?.weekly_plan || [];
+      const normEdit = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+      const editWeek = weeklyPlanEdit.find(p => normEdit(p.topic) === normEdit(editForm.activity_name.trim()))?.week ?? null;
       const { error } = await supabase.from('observations').update({
         activity_name: editForm.activity_name.trim(),
         category: editForm.category.trim(),
         content: editForm.content.trim(),
+        week_number: editWeek,
       }).eq('id', obsId);
       if (error) throw error;
       setMyObs(prev => prev.map(o =>
