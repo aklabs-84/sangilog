@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Images, Upload, X, ChevronLeft, ChevronRight, Trash2,
   Play, Crown, AlertCircle, Loader2, ImageOff, Plus, Check,
-  BadgeCheck, Link, Youtube, HardDrive, ExternalLink
+  BadgeCheck, Link, Video, HardDrive, ExternalLink
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -368,7 +368,7 @@ export default function Gallery() {
                 }`}>
                   {videoUrlInfo ? (
                     <>
-                      {videoUrlInfo.platform === 'youtube' && <Youtube size={14} />}
+                      {videoUrlInfo.platform === 'youtube' && <Video size={14} />}
                       {videoUrlInfo.platform === 'drive' && <HardDrive size={14} />}
                       {videoUrlInfo.platform === 'direct' && <ExternalLink size={14} />}
                       {videoUrlInfo.label} 링크 감지됨
@@ -584,8 +584,8 @@ function GalleryCard({
               <Play size={20} className="text-white fill-white ml-1" />
             </div>
           </div>
-          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-600/80 text-white text-[10px] font-bold">
-            YouTube
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-600/80 text-white text-[10px] font-bold flex items-center gap-1">
+            <Video size={10} /> YouTube
           </div>
         </div>
       ) : videoInfo?.platform === 'drive' ? (
