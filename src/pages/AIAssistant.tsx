@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { aiGenStore } from '../lib/aiGenerationStore';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,7 @@ import {
   ChevronUp,
   Crown,
   AlertTriangle,
+  Square,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth, checkIsPro, getAiMonthlyLimit } from '../lib/auth';
@@ -59,6 +60,8 @@ const AIAssistant = () => {
   const [selectedWeeks, setSelectedWeeks] = useState<number[]>([]);
   const [savedStudentIds, setSavedStudentIds] = useState<Set<string>>(new Set());
   const [showOnlyPending, setShowOnlyPending] = useState(false);
+  const [isStopped, setIsStopped] = useState(false);
+  const abortRef = useRef(false);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isHomeroom = selectedClass?.class_type === 'homeroom';
@@ -276,6 +279,8 @@ ${obsText}
     }
 
     setIsGenerating(true);
+    setIsStopped(false);
+    abortRef.current = false;
     setShowDraft(false);
     setDraftResults([]);
     setProgress({ current: 0, total: 0 });
@@ -338,6 +343,7 @@ ${obsText}
 
       // 학생별 순차 생성
       for (let i = 0; i < targetStudents.length; i++) {
+        if (abortRef.current) break;
         const student = targetStudents[i];
         setGeneratingName(student.full_name);
         setProgress({ current: i + 1, total: targetStudents.length });
@@ -379,7 +385,12 @@ ${obsText}
         setMonthAiCount(localAiCount);
       }
       setSavedStudentIds(prev => { const next = new Set(prev); results.forEach(r => next.add(r.studentId)); return next; });
-      aiGenStore.complete(results.length);
+      if (abortRef.current) {
+        setIsStopped(true);
+        aiGenStore.error();
+      } else {
+        aiGenStore.complete(results.length);
+      }
     } catch (err) {
       console.error(err);
       aiGenStore.error();
@@ -804,25 +815,32 @@ ${obsText}
                 <p className="text-[10px] text-on-surface-variant/50 mt-1">학생 1명 × 1개 초안 순차 생성</p>
               </div>
 
-              {/* 생성 버튼 */}
-              <button onClick={handleGenerate}
-                disabled={isGenerating || obsCount === 0 || selectedStudentIds.length === 0 || (weekFilterMode === 'select' && selectedWeeks.length === 0)}
-                className="w-full btn-gradient py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                {isGenerating ? (
-                  <>
-                    <RotateCw size={18} className="animate-spin" />
-                    <span>{generatingName ? `${generatingName} (${progress.current}/${progress.total})` : '준비 중...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={18} />
-                    <span>
-                      {reportMode === 'academy' ? '학원 보고서' : (isHomeroom ? '행특' : '세특')} 초안 생성
-                      {selectedStudentIds.length > 0 && ` (${selectedStudentIds.length}명)`}
-                    </span>
-                  </>
-                )}
-              </button>
+              {/* 생성 버튼 / 중지 버튼 */}
+              {isGenerating ? (
+                <div className="space-y-2">
+                  <div className="w-full bg-surface-container py-3.5 rounded-2xl flex items-center justify-center gap-2 text-sm font-black text-on-surface-variant">
+                    <RotateCw size={16} className="animate-spin text-primary" />
+                    <span>{generatingName ? `${generatingName} 생성 중... (${progress.current}/${progress.total})` : '준비 중...'}</span>
+                  </div>
+                  <button
+                    onClick={() => { abortRef.current = true; }}
+                    className="w-full py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white active:scale-95 transition-all shadow-lg shadow-red-200"
+                  >
+                    <Square size={15} fill="white" />
+                    생성 중지
+                  </button>
+                </div>
+              ) : (
+                <button onClick={handleGenerate}
+                  disabled={obsCount === 0 || selectedStudentIds.length === 0 || (weekFilterMode === 'select' && selectedWeeks.length === 0)}
+                  className="w-full btn-gradient py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Sparkles size={18} />
+                  <span>
+                    {reportMode === 'academy' ? '학원 보고서' : (isHomeroom ? '행특' : '세특')} 초안 생성
+                    {selectedStudentIds.length > 0 && ` (${selectedStudentIds.length}명)`}
+                  </span>
+                </button>
+              )}
               {selectedStudentIds.length === 0 && <p className="text-center text-xs text-on-surface-variant/60">학생을 1명 이상 선택해주세요.</p>}
               {obsCount === 0 && selectedStudentIds.length > 0 && <p className="text-center text-xs text-on-surface-variant/60">활동 기록을 먼저 등록해야 합니다.</p>}
 
@@ -900,6 +918,9 @@ ${obsText}
                     <p className="text-xs text-on-surface-variant/60 mt-0.5">
                       {draftResults.length}명 생성됨
                       {isGenerating && progress.total > 0 && ` · ${progress.current}/${progress.total} 진행 중`}
+                      {isStopped && !isGenerating && (
+                        <span className="ml-1.5 text-red-500 font-black">· {draftResults.length}명 완료 후 중단됨</span>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
