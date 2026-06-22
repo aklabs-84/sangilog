@@ -53,6 +53,9 @@ const AIAssistant = () => {
   const [reportMode, setReportMode] = useState<'school' | 'academy'>('school');
   const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
+  const [weekFilterMode, setWeekFilterMode] = useState<'all' | 'select'>('all');
+  const [selectedWeeks, setSelectedWeeks] = useState<number[]>([]);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isHomeroom = selectedClass?.class_type === 'homeroom';
@@ -139,6 +142,15 @@ const AIAssistant = () => {
         else if (diff < 1440) setRecentObsTime(`${Math.floor(diff / 60)}시간 전`);
         else setRecentObsTime(`${Math.floor(diff / 1440)}일 전`);
       } else { setRecentObsTime(null); }
+      // 주차 목록 조회
+      const { data: obsWeeks } = await supabase
+        .from('observations')
+        .select('week_number')
+        .in('student_id', ids)
+        .not('week_number', 'is', null);
+      const weeks = [...new Set((obsWeeks || []).map(o => o.week_number as number))].sort((a, b) => a - b);
+      setAvailableWeeks(weeks);
+      setSelectedWeeks(weeks);
     } catch (e) { console.error(e); }
   };
 
@@ -148,6 +160,9 @@ const AIAssistant = () => {
     setStudents([]);
     setSelectedStudentIds([]);
     setSearchQuery('');
+    setAvailableWeeks([]);
+    setSelectedWeeks([]);
+    setWeekFilterMode('all');
     fetchStudents(id);
     setShowDraft(false);
     setDraftResults([]);
@@ -285,14 +300,15 @@ ${obsText}
         if (obsByStudent[o.student_id]) obsByStudent[o.student_id].push(o);
       });
 
-      // 학생별 최신 주차 필터링 (week_number가 있는 기록이 있으면 최신 주차만 사용)
+      // 주차 필터링 — 선택 모드에 따라 다르게 적용
       for (const studentId of Object.keys(obsByStudent)) {
         const obs = obsByStudent[studentId];
-        const weeks = obs.map(o => o.week_number).filter((w): w is number => w != null);
-        if (weeks.length > 0) {
-          const maxWeek = Math.max(...weeks);
-          obsByStudent[studentId] = obs.filter(o => o.week_number === maxWeek);
+        const hasWeekNums = obs.some(o => o.week_number != null);
+        if (!hasWeekNums) continue;
+        if (weekFilterMode === 'select' && selectedWeeks.length > 0) {
+          obsByStudent[studentId] = obs.filter(o => o.week_number == null || selectedWeeks.includes(o.week_number));
         }
+        // 'all' 모드: 필터 없이 전체 주차 사용
       }
 
       // 관찰기록 있는 학생만
@@ -602,6 +618,69 @@ ${obsText}
                 </div>
               </div>
 
+              {/* 주차 데이터 범위 선택 */}
+              {availableWeeks.length > 0 && (
+                <div className="p-3 bg-surface-container-low rounded-2xl border border-surface-container-high space-y-2">
+                  <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">데이터 범위 (주차)</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { value: 'all', label: '전체 주차', desc: `${availableWeeks[0]}~${availableWeeks[availableWeeks.length - 1]}주차` },
+                      { value: 'select', label: '주차 선택', desc: `${availableWeeks.length}개 중 직접 선택` },
+                    ].map(({ value, label, desc }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setWeekFilterMode(value as 'all' | 'select')}
+                        className={`px-3 py-2.5 rounded-xl text-left transition-all border ${
+                          weekFilterMode === value
+                            ? 'bg-secondary/10 border-secondary/30 text-secondary'
+                            : 'bg-white border-surface-container-high text-on-surface-variant/60 hover:bg-surface-container'
+                        }`}
+                      >
+                        <p className="text-[11px] font-black">{label}</p>
+                        <p className="text-[9px] mt-0.5 opacity-70">{desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                  {weekFilterMode === 'select' && (
+                    <div className="pt-1 space-y-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold text-on-surface-variant/60">포함할 주차 선택</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWeeks(selectedWeeks.length === availableWeeks.length ? [] : [...availableWeeks])}
+                          className="text-[10px] font-black text-secondary hover:text-primary transition-colors"
+                        >
+                          {selectedWeeks.length === availableWeeks.length ? '전체 해제' : '전체 선택'}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {availableWeeks.map(w => {
+                          const isOn = selectedWeeks.includes(w);
+                          return (
+                            <button
+                              key={w}
+                              type="button"
+                              onClick={() => setSelectedWeeks(isOn ? selectedWeeks.filter(x => x !== w) : [...selectedWeeks, w].sort((a, b) => a - b))}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all border ${
+                                isOn
+                                  ? 'bg-secondary text-white border-secondary shadow-sm'
+                                  : 'bg-white text-on-surface-variant/50 border-surface-container-high hover:border-secondary/30'
+                              }`}
+                            >
+                              {w}주차
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {selectedWeeks.length === 0 && (
+                        <p className="text-[10px] text-rose-500 font-bold">주차를 1개 이상 선택해야 합니다.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 용도 선택 */}
               <div className="p-3 bg-surface-container-low rounded-2xl border border-surface-container-high">
                 <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest mb-2">사용 목적</p>
@@ -651,7 +730,7 @@ ${obsText}
 
               {/* 생성 버튼 */}
               <button onClick={handleGenerate}
-                disabled={isGenerating || obsCount === 0 || selectedStudentIds.length === 0}
+                disabled={isGenerating || obsCount === 0 || selectedStudentIds.length === 0 || (weekFilterMode === 'select' && selectedWeeks.length === 0)}
                 className="w-full btn-gradient py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                 {isGenerating ? (
                   <>
