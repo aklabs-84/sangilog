@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
@@ -112,6 +112,8 @@ const SubjectDashboard = ({
     SUBJECT_COL_DEFAULTS
   );
   const [showColDropdown, setShowColDropdown] = useState(false);
+  const [colDropdownPos, setColDropdownPos] = useState({ top: 0, right: 0 });
+  const colBtnRef = useRef<HTMLButtonElement>(null);
   const [copyCodeSuccess, setCopyCodeSuccess] = useState(false);
 
   const handleCopyEntryCode = () => {
@@ -533,7 +535,14 @@ const SubjectDashboard = ({
             </button>
             <div className="relative shrink-0">
               <button
-                onClick={() => setShowColDropdown(v => !v)}
+                ref={colBtnRef}
+                onClick={() => {
+                  if (!showColDropdown && colBtnRef.current) {
+                    const rect = colBtnRef.current.getBoundingClientRect();
+                    setColDropdownPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+                  }
+                  setShowColDropdown(v => !v);
+                }}
                 className={`w-9 h-9 sm:w-10 sm:h-10 bg-white rounded-xl flex items-center justify-center transition-all shadow-soft ${showColDropdown ? 'text-primary bg-primary/10' : 'text-on-surface-variant/80 hover:bg-primary/10 hover:text-primary'}`}
                 title="컬럼 표시 설정"
               >
@@ -542,7 +551,10 @@ const SubjectDashboard = ({
               {showColDropdown && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowColDropdown(false)} />
-                  <div className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-xl border border-neutral-100 p-4 min-w-[180px]">
+                  <div
+                    style={{ position: 'fixed', top: colDropdownPos.top, right: colDropdownPos.right }}
+                    className="z-50 bg-white rounded-2xl shadow-xl border border-neutral-100 p-4 min-w-[180px]"
+                  >
                     <p className="text-xs font-black text-neutral-600 uppercase tracking-widest mb-3">컬럼 표시 설정</p>
                     <div className="space-y-1">
                       {Object.entries(SUBJECT_COL_LABELS).map(([key, label]) => (
