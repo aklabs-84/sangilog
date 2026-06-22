@@ -125,11 +125,16 @@ export default function Gallery() {
               file.name.replace(/\.[^.]+$/, '.mp4'),
               { type: 'video/mp4' }
             );
-          } catch {
-            setError('영상 압축에 실패했습니다. 파일 형식을 확인하거나 더 작은 파일을 사용해 주세요.');
-            setUploading(false);
-            setUploadPhase(null);
-            continue;
+          } catch (compressErr) {
+            console.error('[FFmpeg] 영상 압축 실패:', compressErr);
+            // 압축 실패 시 500MB 미만이면 원본 파일로 직접 업로드 시도
+            if (file.size > VIDEO_MAX_BYTES) {
+              setError('영상이 너무 크고 압축에도 실패했습니다. 더 작은 파일을 사용해 주세요.');
+              setUploading(false);
+              setUploadPhase(null);
+              continue;
+            }
+            // fileToUpload는 이미 원본 file로 초기화되어 있으므로 그대로 업로드
           }
         }
 
@@ -294,7 +299,7 @@ export default function Gallery() {
               </p>
               <p className="text-xs text-blue-600/70 mt-0.5">
                 {uploadPhase === 'loading'
-                  ? '처음 한 번만 다운로드되며, 이후에는 즉시 압축이 시작됩니다.'
+                  ? '처음 한 번만 다운로드되며, 이후에는 즉시 압축이 시작됩니다. 압축 실패 시 원본으로 업로드합니다.'
                   : '100MB 초과 영상을 720p로 변환하고 있습니다. 페이지를 닫지 마세요.'
                 }
               </p>
