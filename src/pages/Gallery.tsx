@@ -8,6 +8,7 @@ import { useAuth, checkIsPro } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import {
   fetchGalleryItems, uploadGalleryItem, deleteGalleryItem, countGalleryItems,
+  compressVideo, VIDEO_COMPRESS_THRESHOLD,
   type GalleryItem
 } from '../lib/gallery';
 
@@ -33,6 +34,8 @@ export default function Gallery() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [compressProgress, setCompressProgress] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState<'loading' | 'compressing' | 'uploading' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -105,14 +108,40 @@ export default function Gallery() {
 
         setUploading(true);
         setUploadProgress(0);
+        setCompressProgress(0);
 
-        // 진행 표시용 인터벌 (Storage는 진행률 콜백 없음 → 가짜 진행률)
+        let fileToUpload: File = file;
+
+        // 100MB 초과 영상 → FFmpeg.wasm으로 자동 압축
+        if (isVideo && file.size > VIDEO_COMPRESS_THRESHOLD) {
+          try {
+            const compressed = await compressVideo(
+              file,
+              (pct) => setCompressProgress(pct),
+              (phase) => setUploadPhase(phase)
+            );
+            fileToUpload = new File(
+              [compressed],
+              file.name.replace(/\.[^.]+$/, '.mp4'),
+              { type: 'video/mp4' }
+            );
+          } catch {
+            setError('영상 압축에 실패했습니다. 파일 형식을 확인하거나 더 작은 파일을 사용해 주세요.');
+            setUploading(false);
+            setUploadPhase(null);
+            continue;
+          }
+        }
+
+        setUploadPhase('uploading');
+
+        // Storage는 진행률 콜백 없음 → 가짜 진행률
         const interval = setInterval(() => {
           setUploadProgress(p => Math.min(p + 10, 85));
         }, 300);
 
         try {
-          const item = await uploadGalleryItem(user.id, selectedClassId, selectedWeek, file);
+          const item = await uploadGalleryItem(user.id, selectedClassId, selectedWeek, fileToUpload);
           setItems(prev => [item, ...prev]);
           setTotalCount(c => c + 1);
         } catch (e: any) {
@@ -120,7 +149,12 @@ export default function Gallery() {
         } finally {
           clearInterval(interval);
           setUploadProgress(100);
-          setTimeout(() => { setUploading(false); setUploadProgress(0); }, 400);
+          setTimeout(() => {
+            setUploading(false);
+            setUploadProgress(0);
+            setCompressProgress(0);
+            setUploadPhase(null);
+          }, 400);
         }
       }
     },
@@ -222,7 +256,14 @@ export default function Gallery() {
           className="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm shadow-primary/20 active:scale-95"
         >
           {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          {uploading ? `업로드 중 ${uploadProgress}%` : '사진·영상 추가'}
+          {uploading
+            ? uploadPhase === 'loading'
+              ? 'FFmpeg 로드 중...'
+              : uploadPhase === 'compressing'
+              ? `압축 중 ${compressProgress}%`
+              : `업로드 중 ${uploadProgress}%`
+            : '사진·영상 추가'
+          }
         </button>
         <input
           ref={fileInputRef}
@@ -233,6 +274,37 @@ export default function Gallery() {
           onChange={e => handleFiles(e.target.files)}
         />
       </div>
+
+      {/* 영상 압축 진행 배너 */}
+      <AnimatePresence>
+        {(uploadPhase === 'loading' || uploadPhase === 'compressing') && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="flex items-start gap-3 mb-4 px-4 py-3.5 bg-blue-50 border border-blue-200/70 rounded-xl"
+          >
+            <Loader2 size={16} className="animate-spin text-blue-500 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-blue-700">
+                {uploadPhase === 'loading'
+                  ? 'FFmpeg 로드 중 (최초 1회, 약 30MB)...'
+                  : `영상 자동 압축 중 — ${compressProgress}%`
+                }
+              </p>
+              <p className="text-xs text-blue-600/70 mt-0.5">
+                {uploadPhase === 'loading'
+                  ? '처음 한 번만 다운로드되며, 이후에는 즉시 압축이 시작됩니다.'
+                  : '100MB 초과 영상을 720p로 변환하고 있습니다. 페이지를 닫지 마세요.'
+                }
+              </p>
+            </div>
+            {uploadPhase === 'compressing' && (
+              <span className="text-sm font-black text-blue-500 shrink-0">{compressProgress}%</span>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 에러 메시지 */}
       <AnimatePresence>
@@ -474,7 +546,8 @@ function GalleryCard({
 function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }) {
   const freeRows = [
     { label: '사진 업로드', free: `최대 ${FREE_IMAGE_LIMIT}장`, pro: '무제한', freeOk: true },
-    { label: '영상 업로드', free: '불가', pro: '가능 (파일당 500MB)', freeOk: false },
+    { label: '영상 업로드', free: '불가', pro: '가능 (원본 최대 500MB)', freeOk: false },
+    { label: '영상 자동 압축', free: '불가', pro: '100MB 초과 시 720p 자동 변환', freeOk: false },
     { label: '이미지 자동 최적화', free: 'WebP 변환 + 리사이즈', pro: 'WebP 변환 + 리사이즈', freeOk: true },
     { label: '드래그 & 드롭', free: '지원', pro: '지원', freeOk: true },
     { label: '라이트박스 뷰어', free: '지원', pro: '지원', freeOk: true },
@@ -484,7 +557,10 @@ function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }
     return (
       <div className="flex items-center gap-2.5 mb-5 px-4 py-3 bg-emerald-50 border border-emerald-200/70 rounded-2xl">
         <BadgeCheck size={18} className="text-emerald-500 shrink-0" />
-        <p className="text-sm font-bold text-emerald-700">PRO 플랜 이용 중 — 사진 무제한 + 영상 업로드 모두 이용 가능합니다</p>
+        <div>
+          <p className="text-sm font-bold text-emerald-700">PRO 플랜 이용 중 — 사진 무제한 + 영상 업로드 가능</p>
+          <p className="text-xs text-emerald-600/80 mt-0.5">100MB 초과 영상은 브라우저에서 720p로 자동 압축 후 업로드됩니다 (원본 최대 500MB)</p>
+        </div>
       </div>
     );
   }

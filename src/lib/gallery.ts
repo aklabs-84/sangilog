@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import heic2any from 'heic2any';
+import type { FFmpeg as FFmpegType } from '@ffmpeg/ffmpeg';
 
 export interface GalleryItem {
   id: string;
@@ -63,7 +64,73 @@ export async function updateCaption(id: string, caption: string): Promise<void> 
   if (error) throw error;
 }
 
-// 이미지 → WebP 변환 + 리사이즈 (최대 1920x1080)
+// ── 영상 압축 (FFmpeg.wasm) ─────────────────────────────────────────────────
+
+export const VIDEO_COMPRESS_THRESHOLD = 100 * 1024 * 1024; // 100MB 초과 시 압축
+
+let _ffmpeg: FFmpegType | null = null;
+
+async function loadFFmpeg(): Promise<FFmpegType> {
+  if (_ffmpeg?.loaded) return _ffmpeg;
+  const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+  const { toBlobURL } = await import('@ffmpeg/util');
+  const ffmpeg = new FFmpeg();
+  const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+  });
+  _ffmpeg = ffmpeg;
+  return ffmpeg;
+}
+
+export async function compressVideo(
+  file: File,
+  onProgress: (pct: number) => void,
+  onPhase: (phase: 'loading' | 'compressing') => void
+): Promise<Blob> {
+  onPhase('loading');
+  const ffmpeg = await loadFFmpeg();
+  const { fetchFile } = await import('@ffmpeg/util');
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'mp4';
+  const inputName = `in.${ext}`;
+  const outputName = 'out.mp4';
+
+  await ffmpeg.writeFile(inputName, await fetchFile(file));
+
+  const handler = ({ progress }: { progress: number }) => {
+    onProgress(Math.min(Math.round(progress * 100), 99));
+  };
+  ffmpeg.on('progress', handler);
+  onPhase('compressing');
+
+  await ffmpeg.exec([
+    '-i', inputName,
+    '-vf', 'scale=1280:-2',
+    '-c:v', 'libx264',
+    '-crf', '28',
+    '-preset', 'fast',
+    '-c:a', 'aac',
+    '-b:a', '128k',
+    '-movflags', '+faststart',
+    outputName,
+  ]);
+
+  ffmpeg.off('progress', handler);
+
+  const data = await ffmpeg.readFile(outputName);
+  await ffmpeg.deleteFile(inputName).catch(() => {});
+  await ffmpeg.deleteFile(outputName).catch(() => {});
+
+  // SharedArrayBuffer 호환성: 새 Uint8Array에 복사하여 일반 ArrayBuffer로 변환
+  const src = data as Uint8Array;
+  const copy = new Uint8Array(src.length);
+  copy.set(src);
+  return new Blob([copy], { type: 'video/mp4' });
+}
+
+// ── 이미지 → WebP 변환 + 리사이즈 (최대 1920x1080) ────────────────────────
 export async function compressImage(file: File, quality = 0.85): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
