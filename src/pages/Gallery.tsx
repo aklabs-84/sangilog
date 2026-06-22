@@ -300,7 +300,7 @@ export default function Gallery() {
               <p className="text-xs text-blue-600/70 mt-0.5">
                 {uploadPhase === 'loading'
                   ? '처음 한 번만 다운로드되며, 이후에는 즉시 압축이 시작됩니다. 압축 실패 시 원본으로 업로드합니다.'
-                  : '100MB 초과 영상을 720p로 변환하고 있습니다. 페이지를 닫지 마세요.'
+                  : '200MB 초과 영상을 720p로 변환하고 있습니다. 페이지를 닫지 마세요.'
                 }
               </p>
             </div>
@@ -552,7 +552,7 @@ function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }
   const freeRows = [
     { label: '사진 업로드', free: `최대 ${FREE_IMAGE_LIMIT}장`, pro: '무제한', freeOk: true },
     { label: '영상 업로드', free: '불가', pro: '가능 (원본 최대 500MB)', freeOk: false },
-    { label: '영상 자동 압축', free: '불가', pro: '100MB 초과 시 720p 자동 변환', freeOk: false },
+    { label: '영상 자동 압축', free: '불가', pro: '200MB 초과 시 720p 자동 변환', freeOk: false },
     { label: '이미지 자동 최적화', free: 'WebP 변환 + 리사이즈', pro: 'WebP 변환 + 리사이즈', freeOk: true },
     { label: '드래그 & 드롭', free: '지원', pro: '지원', freeOk: true },
     { label: '라이트박스 뷰어', free: '지원', pro: '지원', freeOk: true },
@@ -564,7 +564,7 @@ function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }
         <BadgeCheck size={18} className="text-emerald-500 shrink-0" />
         <div>
           <p className="text-sm font-bold text-emerald-700">PRO 플랜 이용 중 — 사진 무제한 + 영상 업로드 가능</p>
-          <p className="text-xs text-emerald-600/80 mt-0.5">100MB 초과 영상은 브라우저에서 720p로 자동 압축 후 업로드됩니다 (원본 최대 500MB)</p>
+          <p className="text-xs text-emerald-600/80 mt-0.5">200MB 초과 영상은 브라우저에서 720p로 자동 압축 후 업로드됩니다 (원본 최대 500MB)</p>
         </div>
       </div>
     );

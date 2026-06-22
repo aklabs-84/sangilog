@@ -66,7 +66,7 @@ export async function updateCaption(id: string, caption: string): Promise<void> 
 
 // ── 영상 압축 (FFmpeg.wasm) ─────────────────────────────────────────────────
 
-export const VIDEO_COMPRESS_THRESHOLD = 100 * 1024 * 1024; // 100MB 초과 시 압축
+export const VIDEO_COMPRESS_THRESHOLD = 200 * 1024 * 1024; // 200MB 초과 시 압축
 
 let _ffmpeg: FFmpegType | null = null;
 
@@ -75,7 +75,7 @@ async function loadFFmpeg(): Promise<FFmpegType> {
   const { FFmpeg } = await import('@ffmpeg/ffmpeg');
   const { toBlobURL } = await import('@ffmpeg/util');
   const ffmpeg = new FFmpeg();
-  const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
   await ffmpeg.load({
     coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
     wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
