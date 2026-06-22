@@ -320,6 +320,17 @@ const Classroom = () => {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isUpdateModalOpen) {
+        setIsUpdateModalOpen(false);
+        setEditModalTab('basic');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isUpdateModalOpen]);
+
   // 서브클래스의 부모 weekly_plan 로드 (수업 자료실 모달용)
   const loadParentWeeklyPlan = async (parentClassId: string) => {
     try {
@@ -2046,8 +2057,8 @@ const Classroom = () => {
         )}
 
         {isUpdateModalOpen && updateClassData && (
-          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-black/30 backdrop-blur-md overflow-y-auto">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-white p-8 md:p-10 rounded-[3rem] space-y-8 shadow-2xl border border-neutral-200 my-auto">
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-black/30 backdrop-blur-md overflow-y-auto" onClick={() => { setIsUpdateModalOpen(false); setEditModalTab('basic'); }}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-white p-8 md:p-10 rounded-[3rem] space-y-8 shadow-2xl border border-neutral-200 my-auto" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-black text-neutral-900">학급 정보 관리</h3>
                 <div className="flex p-1 bg-neutral-100 rounded-2xl border border-neutral-200">
