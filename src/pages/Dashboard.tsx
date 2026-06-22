@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Map,
   BookMarked,
+  PlayCircle,
   Trash2,
   AlertTriangle,
   Folder,
@@ -963,7 +964,7 @@ const Dashboard = () => {
         )}
 
         {/* 가이드 & 카탈로그 링크 */}
-        <div className="col-span-12 grid grid-cols-2 gap-3">
+        <div className="col-span-12 grid grid-cols-3 gap-3">
           <a
             href="/catalog.html"
             target="_blank"
@@ -994,6 +995,19 @@ const Dashboard = () => {
             </div>
             <ArrowRight size={14} className="ml-auto text-on-surface-variant/40 group-hover:text-secondary transition-colors" />
           </a>
+          <button
+            onClick={() => navigate('/video-guide')}
+            className="flex items-center gap-3 px-5 py-3.5 surface-card hover:bg-surface-container-high border border-surface-container-high transition-all group text-left"
+          >
+            <div className="w-8 h-8 bg-accent/10 rounded-xl flex items-center justify-center text-accent shrink-0 group-hover:scale-110 transition-transform">
+              <PlayCircle size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-bold leading-tight">영상 가이드</p>
+              <p className="text-[11px] text-on-surface-variant">사용법 영상으로 확인</p>
+            </div>
+            <ArrowRight size={14} className="ml-auto text-on-surface-variant/40 group-hover:text-accent transition-colors" />
+          </button>
         </div>
 
         {/* Activity Section */}
