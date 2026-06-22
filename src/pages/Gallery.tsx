@@ -542,12 +542,6 @@ function VideoPlayer({ fileUrl }: { fileUrl: string }) {
   );
 }
 
-function getVideoInfo(fileUrl: string): VideoUrlInfo {
-  const info = parseVideoUrl(fileUrl);
-  if (info) return info;
-  return { platform: 'direct', embedUrl: fileUrl, thumbnailUrl: null, label: '영상' };
-}
-
 // 갤러리 카드
 function GalleryCard({
   item,
