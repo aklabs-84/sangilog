@@ -322,14 +322,18 @@ const Classroom = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isUpdateModalOpen) {
-        setIsUpdateModalOpen(false);
-        setEditModalTab('basic');
-      }
+      if (e.key !== 'Escape') return;
+      if (isUpdateModalOpen) { setIsUpdateModalOpen(false); setEditModalTab('basic'); }
+      else if (isCreateModalOpen) { setIsCreateModalOpen(false); }
+      else if (isQRModalOpen) { setIsQRModalOpen(false); }
+      else if (isStudentModalOpen) { setIsStudentModalOpen(false); }
+      else if (isArchiveModalOpen) { setIsArchiveModalOpen(false); }
+      else if (isResourceModalOpen) { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }
+      else if (isSchoolModalOpen) { setIsSchoolModalOpen(false); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isUpdateModalOpen]);
+  }, [isUpdateModalOpen, isCreateModalOpen, isQRModalOpen, isStudentModalOpen, isArchiveModalOpen, isResourceModalOpen, isSchoolModalOpen]);
 
   // 서브클래스의 부모 weekly_plan 로드 (수업 자료실 모달용)
   const loadParentWeeklyPlan = async (parentClassId: string) => {
@@ -1884,8 +1888,8 @@ const Classroom = () => {
 
       <AnimatePresence>
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-on-surface/20 backdrop-blur-sm overflow-y-auto">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-white p-8 md:p-10 rounded-[2.5rem] space-y-8 shadow-2xl border border-neutral-200 my-auto">
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-on-surface/20 backdrop-blur-sm overflow-y-auto" onClick={() => setIsCreateModalOpen(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-white p-8 md:p-10 rounded-[2.5rem] space-y-8 shadow-2xl border border-neutral-200 my-auto" onClick={e => e.stopPropagation()}>
               <h3 className="text-2xl font-black text-center text-neutral-900">새 학급 만들기</h3>
               <form onSubmit={handleCreateClass} className="space-y-5">
                 <div className="space-y-1.5">
@@ -2495,8 +2499,8 @@ const Classroom = () => {
         )}
 
         {isQRModalOpen && classInfo && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm glass p-10 rounded-[3rem] text-center space-y-8 relative shadow-2xl border border-white/20">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsQRModalOpen(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm glass p-10 rounded-[3rem] text-center space-y-8 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
               <button onClick={() => setIsQRModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
               <div className="space-y-2">
                 <h3 className="text-3xl font-black font-manrope">{classInfo.name}</h3>
@@ -2515,8 +2519,8 @@ const Classroom = () => {
 
         {/* 학생 명찰 관리 모달 (개별 추가/일괄 등록) */}
         {isStudentModalOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg surface-card shadow-2xl p-10 rounded-[3rem] space-y-8 relative">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsStudentModalOpen(false)}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg surface-card shadow-2xl p-10 rounded-[3rem] space-y-8 relative" onClick={e => e.stopPropagation()}>
               <button onClick={() => setIsStudentModalOpen(false)} className="absolute top-8 right-8 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
               <h3 className="text-3xl font-black font-manrope">학생 명단 관리</h3>
               <div className="flex p-1 bg-surface-container rounded-2xl mb-6">
@@ -2540,8 +2544,8 @@ const Classroom = () => {
         )}
 
         {isArchiveModalOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl glass p-10 rounded-[3rem] space-y-8 relative shadow-2xl border border-white/20">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsArchiveModalOpen(false)}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl glass p-10 rounded-[3rem] space-y-8 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
               <button onClick={() => setIsArchiveModalOpen(false)} className="absolute top-8 right-8 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center text-secondary shadow-sm">
@@ -2736,8 +2740,8 @@ const Classroom = () => {
 
         {/* 수업 자료실 모달 */}
         {isResourceModalOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg glass p-8 rounded-[3rem] space-y-6 relative shadow-2xl border border-white/20">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg glass p-8 rounded-[3rem] space-y-6 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
               <button onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
 
               {/* 헤더 */}

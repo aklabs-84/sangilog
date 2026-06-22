@@ -533,6 +533,16 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
     }
   }, [value, editor]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (linkDialogOpen) { setLinkDialogOpen(false); setLinkText(''); setLinkUrl(''); }
+      else if (imageUrlDialogOpen) { setImageUrlDialogOpen(false); setImageUrlInput(''); setImageAltInput(''); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [linkDialogOpen, imageUrlDialogOpen]);
+
   const handleInsertLink = () => {
     if (!editor || !linkUrl.trim()) return;
     editor.chain().focus().setLink({ href: linkUrl.trim() }).insertContent(linkText.trim() || linkUrl.trim()).run();
@@ -622,8 +632,8 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
 
       {/* ── 링크 삽입 다이얼로그 ── */}
       {linkDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl w-80 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setLinkDialogOpen(false); setLinkText(''); setLinkUrl(''); }}>
+          <div className="bg-white rounded-3xl p-6 shadow-2xl w-80 space-y-4" onClick={e => e.stopPropagation()}>
             <h3 className="font-black text-base">🔗 링크 삽입</h3>
             <div className="space-y-2">
               <input type="text" value={linkText} onChange={e => setLinkText(e.target.value)} placeholder="표시할 텍스트 (선택)" className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none" autoFocus />
@@ -639,8 +649,8 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
 
       {/* ── 이미지 URL 다이얼로그 ── */}
       {imageUrlDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl w-96 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setImageUrlDialogOpen(false); setImageUrlInput(''); setImageAltInput(''); }}>
+          <div className="bg-white rounded-3xl p-6 shadow-2xl w-96 space-y-4" onClick={e => e.stopPropagation()}>
             <h3 className="font-black text-base">🖼️ 이미지 URL로 추가</h3>
             <p className="text-xs text-on-surface-variant font-bold">외부 이미지 주소를 입력하면 직접 삽입됩니다.</p>
             <div className="space-y-2">

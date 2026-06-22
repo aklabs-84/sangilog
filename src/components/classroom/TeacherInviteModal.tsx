@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   School, 
@@ -36,6 +36,12 @@ const TeacherInviteModal = ({
     t.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (isOpen) window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleCopyLink = () => {
     const inviteLink = `${window.location.origin}/classroom?importId=${classId}`;
     navigator.clipboard.writeText(inviteLink);
@@ -46,11 +52,12 @@ const TeacherInviteModal = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-md">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: 20 }} 
-            animate={{ opacity: 1, scale: 1, y: 0 }} 
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-md" onClick={onClose}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            onClick={e => e.stopPropagation()}
             className="w-full max-w-3xl glass p-12 rounded-[3.5rem] space-y-8 relative overflow-hidden"
           >
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary to-secondary" />

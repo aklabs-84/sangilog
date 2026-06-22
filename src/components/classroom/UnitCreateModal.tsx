@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { motion } from 'framer-motion';
 import { X, BookOpen, Lightbulb, Check } from 'lucide-react';
@@ -54,6 +54,12 @@ const FORM_ITEMS = [
 
 const UnitCreateModal = ({ classId, teacherId, onClose, onCreated, editUnit }: Props) => {
   const [title, setTitle] = useState(editUnit?.title || '');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
   const [description, setDescription] = useState(editUnit?.description || '');
   const [formConfig, setFormConfig] = useState<FormConfig>(
     editUnit?.form_config || {
@@ -103,11 +109,12 @@ const UnitCreateModal = ({ classId, teacherId, onClose, onCreated, editUnit }: P
   };
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm" onClick={onClose}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={e => e.stopPropagation()}
         className="w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
       >
         {/* Header */}

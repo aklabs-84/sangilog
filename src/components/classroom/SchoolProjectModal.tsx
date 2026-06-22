@@ -92,6 +92,12 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
     }
   }, [isOpen, editProject]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (isOpen) window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const fetchSchoolTeachers = async () => {
     if (!profile?.school_code) return;
     const { data } = await supabase
@@ -304,11 +310,12 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            onClick={e => e.stopPropagation()}
             className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           >
             {/* 헤더 */}

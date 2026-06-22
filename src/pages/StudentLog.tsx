@@ -633,6 +633,14 @@ const StudentLog = () => {
     return () => { supabase.removeChannel(channel); };
   }, [session?.student_id, session?.class_id]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isRejectModalOpen) setIsRejectModalOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isRejectModalOpen]);
+
   const fetchMyGroup = async (studentId: string, classId: string) => {
     const { data: memberData } = await supabase
       .from('class_group_members')
@@ -4588,11 +4596,12 @@ ${guidePrompt}
 
       <AnimatePresence>
         {isRejectModalOpen && aiFeedback && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsRejectModalOpen(false)}>
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={e => e.stopPropagation()}
               className="w-full max-w-lg bg-white p-10 rounded-[3rem] space-y-8 shadow-2xl relative overflow-hidden"
             >
               {/* 상단 색상 바 */}

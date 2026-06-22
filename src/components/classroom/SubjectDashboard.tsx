@@ -360,6 +360,16 @@ const SubjectDashboard = ({
     fetchStats();
   }, [classInfo?.id, students.length, statsRefreshKey]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (resultDetailStudent) setResultDetailStudent(null);
+      else if (resultRejectModal) setResultRejectModal(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [resultDetailStudent, resultRejectModal]);
+
   const pendingCount = students.reduce((acc, s) => acc + (s.pending_obs_ids?.length || 0), 0);
   const isAllSelected = students.length > 0 && selectedIds.length === students.length;
   const filteredStudents = students.filter(s =>
@@ -1423,11 +1433,12 @@ const SubjectDashboard = ({
     {/* 결과물 상세 모달 (학생 클릭 시) */}
     <AnimatePresence>
       {resultDetailStudent && (
-        <div className="fixed inset-0 z-[950] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[950] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm" onClick={() => setResultDetailStudent(null)}>
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            onClick={e => e.stopPropagation()}
             className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
             style={{ maxHeight: 'calc(100vh - 4rem)' }}
           >
@@ -1556,11 +1567,12 @@ const SubjectDashboard = ({
     {/* 반려 피드백 입력 모달 */}
     <AnimatePresence>
       {resultRejectModal && (
-        <div className="fixed inset-0 z-[960] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[960] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm" onClick={() => setResultRejectModal(null)}>
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
+            onClick={e => e.stopPropagation()}
             className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
           >
             <div className="p-6 space-y-4">

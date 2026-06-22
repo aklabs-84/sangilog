@@ -460,6 +460,14 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.state]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && aiModalOpen) setAiModalOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [aiModalOpen]);
+
   // ── 게임 제어 ──────────────────────────────────────────────────────────────
   const updateSessionState = async (
     state: GameState,
@@ -792,8 +800,8 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
 
         {/* AI 문제 생성 모달 */}
         {aiModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white rounded-3xl p-6 shadow-2xl w-96 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAiModalOpen(false)}>
+            <div className="bg-white rounded-3xl p-6 shadow-2xl w-96 space-y-4" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between">
                 <h3 className="font-black text-base">✨ 수업 자료로 AI 문제 생성</h3>
                 <button onClick={() => setAiModalOpen(false)} className="p-1.5 rounded-lg hover:bg-surface-container transition-colors">

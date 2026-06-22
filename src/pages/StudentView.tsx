@@ -117,6 +117,17 @@ const StudentView = () => {
     fetchStudentData();
   }, [id]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (selectedResult) setSelectedResult(null);
+      else if (obsRejectModal) { setObsRejectModal(null); setObsRejectFeedback(''); }
+      else if (rejectModal) { setRejectModal(null); setRejectFeedback(''); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedResult, obsRejectModal, rejectModal]);
+
   const fetchStudentData = async () => {
     if (!id) return;
     setLoading(true);
@@ -1438,11 +1449,12 @@ ${activitiesContext}
       {/* ─── 결과 상세 모달 ─── */}
       <AnimatePresence>
         {selectedResult && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm" onClick={() => setSelectedResult(null)}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              onClick={e => e.stopPropagation()}
               className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-hidden"
             >
               {/* 모달 헤더 */}
@@ -1693,11 +1705,12 @@ ${activitiesContext}
       {/* 관찰기록 반려 모달 */}
       <AnimatePresence>
         {obsRejectModal && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setObsRejectModal(null); setObsRejectFeedback(''); }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
               className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
             >
               <div className="p-6 space-y-4">
@@ -1737,11 +1750,12 @@ ${activitiesContext}
       {/* 결과물 반려 피드백 입력 모달 */}
       <AnimatePresence>
         {rejectModal && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setRejectModal(null); setRejectFeedback(''); }}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
               className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
             >
               <div className="p-6 space-y-4">

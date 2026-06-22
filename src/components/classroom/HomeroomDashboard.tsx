@@ -181,6 +181,19 @@ const HomeroomDashboard = ({
     };
     fetchActivityStats();
   }, [classInfo?.id, students.length]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showActivityModal) {
+        setShowActivityModal(false);
+        setSelectedActivityWeek(null);
+        setActivityTab('obs');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showActivityModal]);
+
   const [selectedActivityWeek, setSelectedActivityWeek] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNumber, setEditNumber] = useState('');
@@ -1122,11 +1135,12 @@ const HomeroomDashboard = ({
         const tabLabel = activityTab === 'obs' ? '활동 기록' : '결과제출';
 
         return (
-          <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md" onClick={closeModal}>
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={e => e.stopPropagation()}
               className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
             >
               {/* Modal Header */}
