@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import JSZip from 'jszip';
+import { buildXlsxBlob } from '../lib/xlsxBuilder';
+import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
 import {
-  Printer,
   RefreshCw,
   Users,
   FileText,
@@ -121,6 +122,7 @@ const SchoolShareView = () => {
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [lightbox, setLightbox] = useState<{ urls: string[]; names: string[]; index: number } | null>(null);
   const [zipping, setZipping] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Step 1: 학교 메타 + 클래스 목록 로드
   useEffect(() => {
@@ -359,6 +361,161 @@ const SchoolShareView = () => {
     }
   };
 
+  // ── CSV 다운로드 ──────────────────────────────────────────────────────────
+  const downloadCSV = () => {
+    if (!currentData) return;
+    const className = currentData.name || '클래스';
+    const headers = ['번호', '이름', '활동기록 수', '결과물 수', '세특 상태', '성취도', '세특 글자수'];
+    const rows = currentData.studentData.map(({ student, obs, results }) => {
+      const ev = currentData.evalMap[student.id];
+      const sl = ev?.status === 'done' || ev?.status === 'final' ? '완료' : ev?.status === 'draft' ? '초안' : '미작성';
+      return [
+        student.student_number ?? '',
+        student.full_name,
+        obs.length,
+        results.length,
+        sl,
+        ev?.achievement_level ?? '',
+        (ev?.setech_content || '').length,
+      ];
+    });
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const todayStr = new Date()
+      .toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
+      .replace(/\. /g, '').replace(/\.$/, '');
+    a.download = `${schoolInfo?.name || ''}_${className}_전체학생_${todayStr}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── XLSX 다운로드 ──────────────────────────────────────────────────────────
+  const downloadXLSX = async () => {
+    if (!currentData) return;
+    setDownloading(true);
+    try {
+      const className = currentData.name || '클래스';
+      const sl = (s?: string | null) => (s === 'done' || s === 'final' ? '완료' : s === 'draft' ? '초안' : '미작성');
+
+      // 시트 1: 전체학생
+      const sheet1Rows: XCell[][] = [
+        [
+          { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
+          { value: '활동기록 수', style: 'header' }, { value: '결과물 수', style: 'header' },
+          { value: '성취도', style: 'header' },
+        ],
+        ...currentData.studentData.map(({ student, obs, results }) => {
+          const ev = currentData.evalMap[student.id];
+          return [
+            { value: student.student_number ?? null },
+            { value: student.full_name },
+            { value: obs.length },
+            { value: results.length },
+            { value: ev?.achievement_level ?? '' },
+          ] as XCell[];
+        }),
+      ];
+
+      // 시트 2~N: 학생별 개별 시트
+      const studentSheets = currentData.studentData.map(({ student, obs, results }) => {
+        const sheetName = `${student.student_number ?? '?'}. ${student.full_name}`
+          .replace(/[/\\?*[\]:]/g, '_')
+          .slice(0, 31);
+        const label = `${student.student_number != null ? student.student_number + '번 ' : ''}${student.full_name}`;
+        const rows: (XCell | null)[][] = [];
+
+        rows.push([{ value: label, span: 4, style: 'section' }, null, null, null]);
+        rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }]);
+
+        if (obs.length === 0 && results.length === 0) {
+          rows.push([{ value: '제출 없음', span: 4 }, null, null, null]);
+        } else {
+          if (obs.length > 0) {
+            rows.push([{ value: '활동기록', span: 4, style: 'section' }, null, null, null]);
+            rows.push([
+              { value: '주차', style: 'header' }, { value: '활동명', style: 'header' },
+              { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
+            ]);
+            obs.forEach(o => {
+              rows.push([
+                { value: o.week_number != null ? `${o.week_number}주차` : '' },
+                { value: o.activity_name || '' },
+                { value: o.content, style: 'wrap' },
+                { value: new Date(o.created_at).toLocaleDateString('ko-KR') },
+              ]);
+            });
+            rows.push([{ value: '' }, { value: '' }, { value: '' }, { value: '' }]);
+          }
+          if (results.length > 0) {
+            rows.push([{ value: '결과제출', span: 4, style: 'section' }, null, null, null]);
+            rows.push([
+              { value: '주차', style: 'header' }, { value: '제목', style: 'header' },
+              { value: '내용', style: 'header' }, { value: '날짜', style: 'header' },
+            ]);
+            results.forEach(r => {
+              const ct = r.text_content || (r.link_url ? `링크: ${r.link_url}` : r.file_url ? '파일 첨부' : r.image_url ? '이미지 첨부' : '');
+              rows.push([
+                { value: r.week_number != null ? `${r.week_number}주차` : '' },
+                { value: r.title || '' },
+                { value: ct, style: 'wrap' },
+                { value: new Date(r.created_at).toLocaleDateString('ko-KR') },
+              ]);
+            });
+          }
+        }
+
+        return { name: sheetName, colWidths: [10, 22, 55, 14], rows };
+      });
+
+      // 마지막 시트: 학급 기록 (세특)
+      const sheet3Rows: XCell[][] = [
+        [
+          { value: '번호', style: 'header' }, { value: '이름', style: 'header' },
+          { value: '성취도', style: 'header' }, { value: '상태', style: 'header' },
+          { value: '세특 문장', style: 'header' }, { value: '글자수', style: 'header' },
+        ],
+        ...currentData.studentData.map(({ student }) => {
+          const ev = currentData.evalMap[student.id];
+          const content = ev?.setech_content || '';
+          return [
+            { value: student.student_number ?? null },
+            { value: student.full_name },
+            { value: ev?.achievement_level ?? '' },
+            { value: sl(ev?.status) },
+            { value: content, style: 'wrap' },
+            { value: content.length },
+          ] as XCell[];
+        }),
+      ];
+
+      const todayStr = new Date()
+        .toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
+        .replace(/\. /g, '').replace(/\.$/, '');
+
+      const blob = await buildXlsxBlob([
+        { name: '전체학생', colWidths: [6, 14, 13, 12, 10], rows: sheet1Rows },
+        ...studentSheets,
+        { name: '학급 기록', colWidths: [6, 14, 10, 10, 65, 10], rows: sheet3Rows },
+      ]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${schoolInfo?.name || ''}${schoolInfo?.name ? '_' : ''}${className}_학생기록_${todayStr}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('XLSX 다운로드 오류:', err);
+      alert('엑셀 파일 생성 중 오류가 발생했습니다.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   // ── 로딩 / 에러 상태 ──────────────────────────────────────────────────────
   if (metaLoading) {
     return (
@@ -481,11 +638,22 @@ const SchoolShareView = () => {
               </button>
             )}
             <button
-              onClick={() => window.print()}
-              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-black transition-all"
+              onClick={downloadCSV}
+              disabled={!currentData?.loaded}
+              className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 rounded-xl text-sm font-black transition-all"
+              title="CSV 다운로드"
             >
-              <Printer size={15} />
-              <span className="hidden sm:inline">인쇄 / PDF</span>
+              <FileText size={15} />
+              <span className="hidden sm:inline">CSV</span>
+            </button>
+            <button
+              onClick={downloadXLSX}
+              disabled={!currentData?.loaded || downloading}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-sm font-black transition-all"
+              title="XLSX 엑셀 다운로드"
+            >
+              {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              <span className="hidden sm:inline">XLSX</span>
             </button>
           </div>
         </div>
