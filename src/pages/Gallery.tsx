@@ -8,7 +8,7 @@ import { useAuth, checkIsPro } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import {
   fetchGalleryItems, uploadGalleryItem, deleteGalleryItem, countGalleryItems,
-  compressVideo, VIDEO_COMPRESS_THRESHOLD,
+  compressVideo, VIDEO_COMPRESS_THRESHOLD, SUPABASE_VIDEO_LIMIT,
   type GalleryItem
 } from '../lib/gallery';
 
@@ -112,7 +112,7 @@ export default function Gallery() {
 
         let fileToUpload: File = file;
 
-        // 100MB 초과 영상 → FFmpeg.wasm으로 자동 압축
+        // 49MB 초과 영상 → FFmpeg.wasm으로 자동 압축 (Supabase 무료 50MB 제한)
         if (isVideo && file.size > VIDEO_COMPRESS_THRESHOLD) {
           try {
             const compressed = await compressVideo(
@@ -120,6 +120,13 @@ export default function Gallery() {
               (pct) => setCompressProgress(pct),
               (phase) => setUploadPhase(phase)
             );
+            // 압축 후에도 50MB 초과 → 영상이 너무 길거나 복잡한 경우
+            if (compressed.size > SUPABASE_VIDEO_LIMIT) {
+              setError('압축 후에도 50MB를 초과합니다. 약 5분 이내의 영상을 올려주세요.');
+              setUploading(false);
+              setUploadPhase(null);
+              continue;
+            }
             fileToUpload = new File(
               [compressed],
               file.name.replace(/\.[^.]+$/, '.mp4'),
@@ -127,14 +134,14 @@ export default function Gallery() {
             );
           } catch (compressErr) {
             console.error('[FFmpeg] 영상 압축 실패:', compressErr);
-            // 압축 실패 시 500MB 미만이면 원본 파일로 직접 업로드 시도
-            if (file.size > VIDEO_MAX_BYTES) {
-              setError('영상이 너무 크고 압축에도 실패했습니다. 더 작은 파일을 사용해 주세요.');
+            // 압축 실패 + 원본이 50MB 초과 → Supabase가 거부하므로 업로드 불가
+            if (file.size > SUPABASE_VIDEO_LIMIT) {
+              setError('영상 압축에 실패했습니다. 브라우저를 새로고침 후 다시 시도하거나 더 짧은 영상을 사용해 주세요.');
               setUploading(false);
               setUploadPhase(null);
               continue;
             }
-            // fileToUpload는 이미 원본 file로 초기화되어 있으므로 그대로 업로드
+            // 50MB 미만이면 원본 직접 업로드 시도
           }
         }
 
@@ -150,7 +157,12 @@ export default function Gallery() {
           setItems(prev => [item, ...prev]);
           setTotalCount(c => c + 1);
         } catch (e: any) {
-          setError(e?.message ?? '업로드에 실패했습니다.');
+          const msg: string = e?.message ?? '';
+          if (msg.includes('exceeded the maximum allowed size') || msg.includes('maximum allowed size')) {
+            setError('Supabase 50MB 제한 초과. 영상을 더 짧게 줄이거나 Supabase Pro 플랜이 필요합니다.');
+          } else {
+            setError(msg || '업로드에 실패했습니다.');
+          }
         } finally {
           clearInterval(interval);
           setUploadProgress(100);
@@ -300,7 +312,7 @@ export default function Gallery() {
               <p className="text-xs text-blue-600/70 mt-0.5">
                 {uploadPhase === 'loading'
                   ? '처음 한 번만 다운로드되며, 이후에는 즉시 압축이 시작됩니다. 압축 실패 시 원본으로 업로드합니다.'
-                  : '200MB 초과 영상을 720p로 변환하고 있습니다. 페이지를 닫지 마세요.'
+                  : '49MB 초과 영상을 480p로 압축 중입니다. 페이지를 닫지 마세요.'
                 }
               </p>
             </div>
@@ -551,8 +563,8 @@ function GalleryCard({
 function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }) {
   const freeRows = [
     { label: '사진 업로드', free: `최대 ${FREE_IMAGE_LIMIT}장`, pro: '무제한', freeOk: true },
-    { label: '영상 업로드', free: '불가', pro: '가능 (원본 최대 500MB)', freeOk: false },
-    { label: '영상 자동 압축', free: '불가', pro: '200MB 초과 시 720p 자동 변환', freeOk: false },
+    { label: '영상 업로드', free: '불가', pro: '가능 (최종 50MB 이하, 약 5분 이내)', freeOk: false },
+    { label: '영상 자동 압축', free: '불가', pro: '49MB 초과 시 480p 자동 변환', freeOk: false },
     { label: '이미지 자동 최적화', free: 'WebP 변환 + 리사이즈', pro: 'WebP 변환 + 리사이즈', freeOk: true },
     { label: '드래그 & 드롭', free: '지원', pro: '지원', freeOk: true },
     { label: '라이트박스 뷰어', free: '지원', pro: '지원', freeOk: true },
@@ -564,7 +576,7 @@ function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }
         <BadgeCheck size={18} className="text-emerald-500 shrink-0" />
         <div>
           <p className="text-sm font-bold text-emerald-700">PRO 플랜 이용 중 — 사진 무제한 + 영상 업로드 가능</p>
-          <p className="text-xs text-emerald-600/80 mt-0.5">200MB 초과 영상은 브라우저에서 720p로 자동 압축 후 업로드됩니다 (원본 최대 500MB)</p>
+          <p className="text-xs text-emerald-600/80 mt-0.5">49MB 초과 영상은 브라우저에서 480p로 자동 압축합니다 · 압축 후 50MB 이내 (약 5분 이내) 영상 권장</p>
         </div>
       </div>
     );

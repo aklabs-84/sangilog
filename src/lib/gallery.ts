@@ -66,7 +66,8 @@ export async function updateCaption(id: string, caption: string): Promise<void> 
 
 // ── 영상 압축 (FFmpeg.wasm) ─────────────────────────────────────────────────
 
-export const VIDEO_COMPRESS_THRESHOLD = 200 * 1024 * 1024; // 200MB 초과 시 압축
+export const VIDEO_COMPRESS_THRESHOLD = 49 * 1024 * 1024; // 49MB 초과 시 압축 (Supabase 무료 50MB 제한)
+export const SUPABASE_VIDEO_LIMIT = 50 * 1024 * 1024;    // Supabase 버킷 파일 크기 제한
 
 let _ffmpeg: FFmpegType | null = null;
 
@@ -106,14 +107,17 @@ export async function compressVideo(
   ffmpeg.on('progress', handler);
   onPhase('compressing');
 
+  // 480p + 비트레이트 캡 → Supabase 무료 50MB 제한 내 압축
   await ffmpeg.exec([
     '-i', inputName,
-    '-vf', 'scale=1280:-2',
+    '-vf', 'scale=854:-2',
     '-c:v', 'libx264',
-    '-crf', '28',
+    '-crf', '30',
     '-preset', 'fast',
+    '-maxrate', '1500k',
+    '-bufsize', '3000k',
     '-c:a', 'aac',
-    '-b:a', '128k',
+    '-b:a', '64k',
     '-movflags', '+faststart',
     outputName,
   ]);
