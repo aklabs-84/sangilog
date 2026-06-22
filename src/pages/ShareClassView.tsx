@@ -160,7 +160,7 @@ const ShareClassView = () => {
         .eq('class_id', classId)
         .order('student_number', { ascending: true });
 
-      const studentList = students || [];
+      const studentList = (students || []).sort((a, b) => a.full_name.localeCompare(b.full_name, 'ko'));
       const studentIds = studentList.map((s) => s.id);
 
       if (studentIds.length > 0) {
