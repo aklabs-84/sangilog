@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
 import heic2any from 'heic2any';
-import type { FFmpeg as FFmpegType } from '@ffmpeg/ffmpeg';
 
 export interface GalleryItem {
   id: string;
@@ -13,6 +12,50 @@ export interface GalleryItem {
   file_size: number | null;
   caption: string | null;
   created_at: string;
+}
+
+export interface VideoUrlInfo {
+  platform: 'youtube' | 'drive' | 'direct';
+  embedUrl: string;
+  thumbnailUrl: string | null;
+  label: string;
+}
+
+export function parseVideoUrl(url: string): VideoUrlInfo | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  // YouTube (watch, shorts, youtu.be)
+  const ytMatch = trimmed.match(
+    /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  if (ytMatch) {
+    return {
+      platform: 'youtube',
+      embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}`,
+      thumbnailUrl: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`,
+      label: 'YouTube',
+    };
+  }
+
+  // Google Drive
+  const driveMatch = trimmed.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (driveMatch) {
+    return {
+      platform: 'drive',
+      embedUrl: `https://drive.google.com/file/d/${driveMatch[1]}/preview`,
+      thumbnailUrl: null,
+      label: '구글 드라이브',
+    };
+  }
+
+  // 직접 URL (기본 형식 검증)
+  try {
+    new URL(trimmed);
+    return { platform: 'direct', embedUrl: trimmed, thumbnailUrl: null, label: '직접 링크' };
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchGalleryItems(
@@ -46,11 +89,15 @@ export async function countGalleryItems(teacherId: string): Promise<number> {
 }
 
 export async function deleteGalleryItem(id: string, fileUrl: string): Promise<void> {
-  // Storage path는 URL에서 bucket 이후 경로 추출
-  const url = new URL(fileUrl);
-  const pathParts = url.pathname.split('/class-gallery/');
-  if (pathParts.length === 2) {
-    await supabase.storage.from('class-gallery').remove([pathParts[1]]);
+  // Supabase storage에 저장된 파일만 삭제 시도
+  try {
+    const url = new URL(fileUrl);
+    const pathParts = url.pathname.split('/class-gallery/');
+    if (pathParts.length === 2) {
+      await supabase.storage.from('class-gallery').remove([pathParts[1]]);
+    }
+  } catch {
+    // 외부 URL(YouTube 등)은 storage 삭제 불필요
   }
   const { error } = await supabase.from('class_gallery_items').delete().eq('id', id);
   if (error) throw error;
@@ -64,75 +111,30 @@ export async function updateCaption(id: string, caption: string): Promise<void> 
   if (error) throw error;
 }
 
-// ── 영상 압축 (FFmpeg.wasm) ─────────────────────────────────────────────────
+export async function addVideoLink(
+  teacherId: string,
+  classId: string,
+  weekNumber: number | null,
+  videoUrl: string
+): Promise<GalleryItem> {
+  const info = parseVideoUrl(videoUrl);
+  if (!info) throw new Error('올바른 URL 형식이 아닙니다.');
 
-export const VIDEO_COMPRESS_THRESHOLD = 49 * 1024 * 1024; // 49MB 초과 시 압축 (Supabase 무료 50MB 제한)
-export const SUPABASE_VIDEO_LIMIT = 50 * 1024 * 1024;    // Supabase 버킷 파일 크기 제한
-
-let _ffmpeg: FFmpegType | null = null;
-
-async function loadFFmpeg(): Promise<FFmpegType> {
-  if (_ffmpeg?.loaded) return _ffmpeg;
-  const { FFmpeg } = await import('@ffmpeg/ffmpeg');
-  const { toBlobURL } = await import('@ffmpeg/util');
-  const ffmpeg = new FFmpeg();
-  // ESM 빌드 사용 — UMD는 동적 import() 불가, ESM만 작동
-  const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
-  });
-  _ffmpeg = ffmpeg;
-  return ffmpeg;
-}
-
-export async function compressVideo(
-  file: File,
-  onProgress: (pct: number) => void,
-  onPhase: (phase: 'loading' | 'compressing') => void
-): Promise<Blob> {
-  onPhase('loading');
-  const ffmpeg = await loadFFmpeg();
-  const { fetchFile } = await import('@ffmpeg/util');
-
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'mp4';
-  const inputName = `in.${ext}`;
-  const outputName = 'out.mp4';
-
-  await ffmpeg.writeFile(inputName, await fetchFile(file));
-
-  const handler = ({ progress }: { progress: number }) => {
-    onProgress(Math.min(Math.round(progress * 100), 99));
-  };
-  ffmpeg.on('progress', handler);
-  onPhase('compressing');
-
-  // 480p + 비트레이트 캡 → Supabase 무료 50MB 제한 내 압축
-  await ffmpeg.exec([
-    '-i', inputName,
-    '-vf', 'scale=854:-2',
-    '-c:v', 'libx264',
-    '-crf', '30',
-    '-preset', 'fast',
-    '-maxrate', '1500k',
-    '-bufsize', '3000k',
-    '-c:a', 'aac',
-    '-b:a', '64k',
-    '-movflags', '+faststart',
-    outputName,
-  ]);
-
-  ffmpeg.off('progress', handler);
-
-  const data = await ffmpeg.readFile(outputName);
-  await ffmpeg.deleteFile(inputName).catch(() => {});
-  await ffmpeg.deleteFile(outputName).catch(() => {});
-
-  // SharedArrayBuffer 호환성: 새 Uint8Array에 복사하여 일반 ArrayBuffer로 변환
-  const src = data as Uint8Array;
-  const copy = new Uint8Array(src.length);
-  copy.set(src);
-  return new Blob([copy], { type: 'video/mp4' });
+  const { data, error } = await supabase
+    .from('class_gallery_items')
+    .insert({
+      teacher_id: teacherId,
+      class_id: classId,
+      week_number: weekNumber,
+      file_url: videoUrl.trim(),
+      file_type: 'video',
+      file_name: info.label,
+      file_size: null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 // ── 이미지 → WebP 변환 + 리사이즈 (최대 1920x1080) ────────────────────────
@@ -185,21 +187,14 @@ export async function uploadGalleryItem(
     sourceFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
   }
 
-  const isImage = sourceFile.type.startsWith('image/');
-  const isVideo = sourceFile.type.startsWith('video/');
-  if (!isImage && !isVideo) throw new Error('이미지 또는 영상 파일만 업로드할 수 있습니다.');
+  if (!sourceFile.type.startsWith('image/')) throw new Error('이미지 파일만 업로드할 수 있습니다.');
 
-  const ext = isImage ? 'webp' : sourceFile.name.split('.').pop() ?? 'mp4';
-  const path = `${teacherId}/${classId}/${Date.now()}.${ext}`;
-
-  let uploadBlob: Blob = sourceFile;
-  if (isImage) {
-    uploadBlob = await compressImage(sourceFile);
-  }
+  const path = `${teacherId}/${classId}/${Date.now()}.webp`;
+  const uploadBlob = await compressImage(sourceFile);
 
   const { error: uploadError } = await supabase.storage
     .from('class-gallery')
-    .upload(path, uploadBlob, { contentType: isImage ? 'image/webp' : sourceFile.type });
+    .upload(path, uploadBlob, { contentType: 'image/webp' });
   if (uploadError) throw uploadError;
 
   const { data: urlData } = supabase.storage.from('class-gallery').getPublicUrl(path);
@@ -211,7 +206,7 @@ export async function uploadGalleryItem(
       class_id: classId,
       week_number: weekNumber,
       file_url: urlData.publicUrl,
-      file_type: isImage ? 'image' : 'video',
+      file_type: 'image',
       file_name: sourceFile.name,
       file_size: uploadBlob.size,
     })

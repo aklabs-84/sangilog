@@ -2,23 +2,31 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Images, Upload, X, ChevronLeft, ChevronRight, Trash2,
-  Play, Crown, AlertCircle, Loader2, ImageOff, Plus, Check, BadgeCheck
+  Play, Crown, AlertCircle, Loader2, ImageOff, Plus, Check,
+  BadgeCheck, Link, Youtube, HardDrive, ExternalLink
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import {
   fetchGalleryItems, uploadGalleryItem, deleteGalleryItem, countGalleryItems,
-  compressVideo, VIDEO_COMPRESS_THRESHOLD, SUPABASE_VIDEO_LIMIT,
-  type GalleryItem
+  addVideoLink, parseVideoUrl,
+  type GalleryItem, type VideoUrlInfo
 } from '../lib/gallery';
 
 const FREE_IMAGE_LIMIT = 100;
-const VIDEO_MAX_BYTES = 500 * 1024 * 1024; // 500MB
 
 interface Class {
   id: string;
   name: string;
   weekly_plan?: { week: number; topic: string }[];
+}
+
+// 영상 URL에서 표시 정보 추출 (기존 데이터 포함)
+function getVideoInfo(fileUrl: string): VideoUrlInfo {
+  const info = parseVideoUrl(fileUrl);
+  if (info) return info;
+  // 파싱 실패 시 direct로 처리
+  return { platform: 'direct', embedUrl: fileUrl, thumbnailUrl: null, label: '영상' };
 }
 
 export default function Gallery() {
@@ -34,17 +42,18 @@ export default function Gallery() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [compressProgress, setCompressProgress] = useState(0);
-  const [uploadPhase, setUploadPhase] = useState<'loading' | 'compressing' | 'uploading' | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // 영상 링크 모달
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoAddingLoading, setVideoAddingLoading] = useState(false);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropZoneRef = useRef<HTMLDivElement>(null);
 
-  // 클래스 목록 로드
   useEffect(() => {
     if (!user) return;
     supabase
@@ -60,13 +69,11 @@ export default function Gallery() {
       });
   }, [user]);
 
-  // 전체 업로드 카운트 (무료 제한용)
   useEffect(() => {
     if (!user || isPro) return;
     countGalleryItems(user.id).then(setTotalCount);
   }, [user, isPro, items]);
 
-  // 갤러리 아이템 로드
   useEffect(() => {
     if (!user || !selectedClassId) { setItems([]); return; }
     setLoading(true);
@@ -80,25 +87,15 @@ export default function Gallery() {
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const totalWeeks = selectedClass?.weekly_plan?.length ?? 0;
 
+  // 이미지 파일 업로드
   const handleFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0 || !user || !selectedClassId) return;
       setError(null);
 
       for (const file of Array.from(files)) {
-        const isImage = file.type.startsWith('image/');
-        const isVideo = file.type.startsWith('video/');
-
-        if (!isImage && !isVideo) {
-          setError('이미지 또는 영상 파일만 업로드할 수 있습니다.');
-          continue;
-        }
-        if (isVideo && !isPro) {
-          setError('영상 업로드는 PRO 플랜 전용입니다.');
-          continue;
-        }
-        if (isVideo && file.size > VIDEO_MAX_BYTES) {
-          setError('영상 파일은 최대 500MB까지 업로드할 수 있습니다.');
+        if (!file.type.startsWith('image/')) {
+          setError('이미지 파일만 업로드할 수 있습니다. 영상은 링크로 추가해주세요.');
           continue;
         }
         if (!isPro && totalCount >= FREE_IMAGE_LIMIT) {
@@ -108,75 +105,54 @@ export default function Gallery() {
 
         setUploading(true);
         setUploadProgress(0);
-        setCompressProgress(0);
-
-        let fileToUpload: File = file;
-
-        // 49MB 초과 영상 → FFmpeg.wasm으로 자동 압축 (Supabase 무료 50MB 제한)
-        if (isVideo && file.size > VIDEO_COMPRESS_THRESHOLD) {
-          try {
-            const compressed = await compressVideo(
-              file,
-              (pct) => setCompressProgress(pct),
-              (phase) => setUploadPhase(phase)
-            );
-            // 압축 후에도 50MB 초과 → 영상이 너무 길거나 복잡한 경우
-            if (compressed.size > SUPABASE_VIDEO_LIMIT) {
-              setError('압축 후에도 50MB를 초과합니다. 약 5분 이내의 영상을 올려주세요.');
-              setUploading(false);
-              setUploadPhase(null);
-              continue;
-            }
-            fileToUpload = new File(
-              [compressed],
-              file.name.replace(/\.[^.]+$/, '.mp4'),
-              { type: 'video/mp4' }
-            );
-          } catch (compressErr) {
-            console.error('[FFmpeg] 영상 압축 실패:', compressErr);
-            // 압축 실패 + 원본이 50MB 초과 → Supabase가 거부하므로 업로드 불가
-            if (file.size > SUPABASE_VIDEO_LIMIT) {
-              setError('영상 압축에 실패했습니다. 브라우저를 새로고침 후 다시 시도하거나 더 짧은 영상을 사용해 주세요.');
-              setUploading(false);
-              setUploadPhase(null);
-              continue;
-            }
-            // 50MB 미만이면 원본 직접 업로드 시도
-          }
-        }
-
-        setUploadPhase('uploading');
-
-        // Storage는 진행률 콜백 없음 → 가짜 진행률
         const interval = setInterval(() => {
           setUploadProgress(p => Math.min(p + 10, 85));
         }, 300);
 
         try {
-          const item = await uploadGalleryItem(user.id, selectedClassId, selectedWeek, fileToUpload);
+          const item = await uploadGalleryItem(user.id, selectedClassId, selectedWeek, file);
           setItems(prev => [item, ...prev]);
           setTotalCount(c => c + 1);
         } catch (e: any) {
-          const msg: string = e?.message ?? '';
-          if (msg.includes('exceeded the maximum allowed size') || msg.includes('maximum allowed size')) {
-            setError('Supabase 50MB 제한 초과. 영상을 더 짧게 줄이거나 Supabase Pro 플랜이 필요합니다.');
-          } else {
-            setError(msg || '업로드에 실패했습니다.');
-          }
+          setError(e?.message ?? '업로드에 실패했습니다.');
         } finally {
           clearInterval(interval);
           setUploadProgress(100);
           setTimeout(() => {
             setUploading(false);
             setUploadProgress(0);
-            setCompressProgress(0);
-            setUploadPhase(null);
           }, 400);
         }
       }
     },
     [user, selectedClassId, selectedWeek, isPro, totalCount]
   );
+
+  // 영상 링크 추가
+  const handleAddVideoLink = async () => {
+    if (!user || !selectedClassId || !videoUrl.trim()) return;
+    const info = parseVideoUrl(videoUrl);
+    if (!info) {
+      setError('올바른 URL 형식이 아닙니다. YouTube, 구글 드라이브, 직접 링크를 지원합니다.');
+      return;
+    }
+    if (!isPro) {
+      setError('영상 추가는 PRO 플랜 전용입니다.');
+      return;
+    }
+
+    setVideoAddingLoading(true);
+    try {
+      const item = await addVideoLink(user.id, selectedClassId, selectedWeek, videoUrl);
+      setItems(prev => [item, ...prev]);
+      setVideoModalOpen(false);
+      setVideoUrl('');
+    } catch (e: any) {
+      setError(e?.message ?? '영상 링크 추가에 실패했습니다.');
+    } finally {
+      setVideoAddingLoading(false);
+    }
+  };
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -199,6 +175,7 @@ export default function Gallery() {
     }
   };
 
+  const videoUrlInfo = videoUrl ? parseVideoUrl(videoUrl) : null;
   const lightboxItem = lightboxIndex !== null ? items[lightboxIndex] : null;
 
   return (
@@ -222,12 +199,10 @@ export default function Gallery() {
         )}
       </div>
 
-      {/* 플랜 안내 카드 */}
       <PlanGuide isPro={isPro} totalCount={totalCount} />
 
       {/* 필터 바 */}
       <div className="flex gap-3 mb-6 flex-wrap">
-        {/* 클래스 선택 */}
         <select
           value={selectedClassId}
           onChange={e => { setSelectedClassId(e.target.value); setSelectedWeek(null); }}
@@ -239,7 +214,6 @@ export default function Gallery() {
           ))}
         </select>
 
-        {/* 주차 필터 */}
         <div className="flex gap-1.5 flex-wrap">
           <button
             onClick={() => setSelectedWeek(null)}
@@ -266,62 +240,38 @@ export default function Gallery() {
           ))}
         </div>
 
-        {/* 업로드 버튼 */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || !selectedClassId}
-          className="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm shadow-primary/20 active:scale-95"
-        >
-          {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          {uploading
-            ? uploadPhase === 'loading'
-              ? 'FFmpeg 로드 중...'
-              : uploadPhase === 'compressing'
-              ? `압축 중 ${compressProgress}%`
-              : `업로드 중 ${uploadProgress}%`
-            : '사진·영상 추가'
-          }
-        </button>
+        {/* 업로드 버튼 그룹 */}
+        <div className="ml-auto flex gap-2">
+          {/* 영상 링크 추가 */}
+          {isPro && (
+            <button
+              onClick={() => { setVideoModalOpen(true); setError(null); }}
+              disabled={!selectedClassId}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 text-primary text-sm font-bold hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
+            >
+              <Link size={15} />
+              영상 링크
+            </button>
+          )}
+          {/* 사진 추가 */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || !selectedClassId}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm shadow-primary/20 active:scale-95"
+          >
+            {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+            {uploading ? `업로드 중 ${uploadProgress}%` : '사진 추가'}
+          </button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*"
+          accept="image/*"
           multiple
           className="hidden"
           onChange={e => handleFiles(e.target.files)}
         />
       </div>
-
-      {/* 영상 압축 진행 배너 */}
-      <AnimatePresence>
-        {(uploadPhase === 'loading' || uploadPhase === 'compressing') && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="flex items-start gap-3 mb-4 px-4 py-3.5 bg-blue-50 border border-blue-200/70 rounded-xl"
-          >
-            <Loader2 size={16} className="animate-spin text-blue-500 shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-blue-700">
-                {uploadPhase === 'loading'
-                  ? 'FFmpeg 로드 중 (최초 1회, 약 30MB)...'
-                  : `영상 자동 압축 중 — ${compressProgress}%`
-                }
-              </p>
-              <p className="text-xs text-blue-600/70 mt-0.5">
-                {uploadPhase === 'loading'
-                  ? '처음 한 번만 다운로드되며, 이후에는 즉시 압축이 시작됩니다. 압축 실패 시 원본으로 업로드합니다.'
-                  : '49MB 초과 영상을 480p로 압축 중입니다. 페이지를 닫지 마세요.'
-                }
-              </p>
-            </div>
-            {uploadPhase === 'compressing' && (
-              <span className="text-sm font-black text-blue-500 shrink-0">{compressProgress}%</span>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* 에러 메시지 */}
       <AnimatePresence>
@@ -341,7 +291,6 @@ export default function Gallery() {
 
       {/* 드롭존 + 그리드 */}
       <div
-        ref={dropZoneRef}
         onDragOver={e => e.preventDefault()}
         onDrop={handleDrop}
         className="min-h-[400px]"
@@ -356,7 +305,7 @@ export default function Gallery() {
           <EmptyState
             icon={<ImageOff size={40} />}
             message="아직 업로드된 사진·영상이 없습니다"
-            sub="위 버튼이나 이 영역에 파일을 드래그해서 추가하세요"
+            sub="사진 추가 버튼으로 사진을, 영상 링크 버튼으로 영상을 추가하세요"
             onUpload={() => fileInputRef.current?.click()}
           />
         ) : (
@@ -373,6 +322,91 @@ export default function Gallery() {
         )}
       </div>
 
+      {/* 영상 링크 추가 모달 */}
+      <AnimatePresence>
+        {videoModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={() => { setVideoModalOpen(false); setVideoUrl(''); }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 shadow-xl max-w-md w-full mx-4"
+            >
+              <h3 className="font-black text-on-surface mb-1 flex items-center gap-2">
+                <Link size={18} className="text-primary" /> 영상 링크 추가
+              </h3>
+              <p className="text-xs text-on-surface-variant mb-4">
+                YouTube, 구글 드라이브 공유 링크, 직접 URL을 지원합니다
+              </p>
+
+              <input
+                type="url"
+                value={videoUrl}
+                onChange={e => setVideoUrl(e.target.value)}
+                onPaste={e => {
+                  const pasted = e.clipboardData.getData('text');
+                  setVideoUrl(pasted);
+                }}
+                placeholder="https://youtube.com/watch?v=... 또는 drive.google.com/..."
+                className="w-full px-4 py-3 rounded-xl border border-on-surface/15 text-sm font-medium text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 mb-3"
+                autoFocus
+              />
+
+              {/* URL 감지 결과 */}
+              {videoUrl && (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold mb-4 ${
+                  videoUrlInfo
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                    : 'bg-error/5 text-error border border-error/20'
+                }`}>
+                  {videoUrlInfo ? (
+                    <>
+                      {videoUrlInfo.platform === 'youtube' && <Youtube size={14} />}
+                      {videoUrlInfo.platform === 'drive' && <HardDrive size={14} />}
+                      {videoUrlInfo.platform === 'direct' && <ExternalLink size={14} />}
+                      {videoUrlInfo.label} 링크 감지됨
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={14} /> 올바른 URL 형식이 아닙니다
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* 안내 */}
+              <div className="text-xs text-on-surface-variant/70 mb-5 space-y-1">
+                <p>• 구글 드라이브: 공유 설정을 <strong>"링크가 있는 모든 사용자"</strong>로 변경하세요</p>
+                <p>• YouTube: 비공개 영상은 재생되지 않습니다</p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setVideoModalOpen(false); setVideoUrl(''); }}
+                  className="flex-1 py-2.5 rounded-xl border border-on-surface/10 text-sm font-bold text-on-surface-variant hover:bg-surface-container-low"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleAddVideoLink}
+                  disabled={!videoUrlInfo || videoAddingLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {videoAddingLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  추가
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 삭제 확인 모달 */}
       <AnimatePresence>
@@ -425,23 +459,18 @@ export default function Gallery() {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
             onClick={() => setLightboxIndex(null)}
           >
-            {/* 닫기 */}
             <button
               className="absolute top-4 right-4 text-white/70 hover:text-white"
               onClick={() => setLightboxIndex(null)}
             >
               <X size={28} />
             </button>
-
-            {/* 삭제 */}
             <button
               className="absolute top-4 left-4 text-white/70 hover:text-error"
               onClick={e => { e.stopPropagation(); setDeleteTarget(lightboxItem.id); }}
             >
               <Trash2 size={22} />
             </button>
-
-            {/* 이전/다음 */}
             {lightboxIndex > 0 && (
               <button
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
@@ -459,7 +488,6 @@ export default function Gallery() {
               </button>
             )}
 
-            {/* 미디어 */}
             <motion.div
               initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -474,12 +502,7 @@ export default function Gallery() {
                   className="max-w-full max-h-[80vh] rounded-xl object-contain"
                 />
               ) : (
-                <video
-                  src={lightboxItem.file_url}
-                  controls
-                  autoPlay
-                  className="max-w-full max-h-[80vh] rounded-xl"
-                />
+                <VideoPlayer fileUrl={lightboxItem.file_url} />
               )}
               {lightboxItem.caption && (
                 <p className="text-white/80 text-sm font-medium">{lightboxItem.caption}</p>
@@ -496,6 +519,35 @@ export default function Gallery() {
   );
 }
 
+// 영상 플레이어 (YouTube/Drive → iframe, 직접 URL → video)
+function VideoPlayer({ fileUrl }: { fileUrl: string }) {
+  const info = getVideoInfo(fileUrl);
+  if (info.platform === 'direct') {
+    return (
+      <video
+        src={info.embedUrl}
+        controls
+        autoPlay
+        className="max-w-full max-h-[80vh] rounded-xl"
+      />
+    );
+  }
+  return (
+    <iframe
+      src={info.embedUrl}
+      className="w-[80vw] max-w-[900px] aspect-video rounded-xl"
+      allow="autoplay; fullscreen"
+      allowFullScreen
+    />
+  );
+}
+
+function getVideoInfo(fileUrl: string): VideoUrlInfo {
+  const info = parseVideoUrl(fileUrl);
+  if (info) return info;
+  return { platform: 'direct', embedUrl: fileUrl, thumbnailUrl: null, label: '영상' };
+}
+
 // 갤러리 카드
 function GalleryCard({
   item,
@@ -506,6 +558,8 @@ function GalleryCard({
   onClick: () => void;
   onDelete: () => void;
 }) {
+  const videoInfo = item.file_type === 'video' ? getVideoInfo(item.file_url) : null;
+
   return (
     <motion.div
       layout
@@ -522,7 +576,37 @@ function GalleryCard({
           className="w-full h-full object-cover"
           loading="lazy"
         />
+      ) : videoInfo?.platform === 'youtube' && videoInfo.thumbnailUrl ? (
+        // YouTube 썸네일
+        <div className="relative w-full h-full bg-black">
+          <img
+            src={videoInfo.thumbnailUrl}
+            alt="YouTube 썸네일"
+            className="w-full h-full object-cover opacity-90"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-red-600/90 flex items-center justify-center shadow-lg">
+              <Play size={20} className="text-white fill-white ml-1" />
+            </div>
+          </div>
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-600/80 text-white text-[10px] font-bold">
+            YouTube
+          </div>
+        </div>
+      ) : videoInfo?.platform === 'drive' ? (
+        // 구글 드라이브
+        <div className="w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 flex flex-col items-center justify-center gap-2">
+          <HardDrive size={32} className="text-blue-500" />
+          <span className="text-xs font-bold text-blue-600">구글 드라이브</span>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center mt-8">
+              <Play size={16} className="text-blue-600 fill-blue-600 ml-0.5" />
+            </div>
+          </div>
+        </div>
       ) : (
+        // 직접 링크 / 기존 Supabase 영상
         <div className="relative w-full h-full bg-black/80">
           <video
             src={item.file_url}
@@ -538,10 +622,8 @@ function GalleryCard({
         </div>
       )}
 
-      {/* 호버 오버레이 */}
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
 
-      {/* 삭제 버튼 */}
       <button
         onClick={e => { e.stopPropagation(); onDelete(); }}
         className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-error"
@@ -549,7 +631,6 @@ function GalleryCard({
         <Trash2 size={12} />
       </button>
 
-      {/* 주차 배지 */}
       {item.week_number != null && (
         <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
           {item.week_number}주차
@@ -563,8 +644,7 @@ function GalleryCard({
 function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }) {
   const freeRows = [
     { label: '사진 업로드', free: `최대 ${FREE_IMAGE_LIMIT}장`, pro: '무제한', freeOk: true },
-    { label: '영상 업로드', free: '불가', pro: '가능 (최종 50MB 이하, 약 5분 이내)', freeOk: false },
-    { label: '영상 자동 압축', free: '불가', pro: '49MB 초과 시 480p 자동 변환', freeOk: false },
+    { label: '영상 추가', free: '불가', pro: 'YouTube / 구글 드라이브 링크', freeOk: false },
     { label: '이미지 자동 최적화', free: 'WebP 변환 + 리사이즈', pro: 'WebP 변환 + 리사이즈', freeOk: true },
     { label: '드래그 & 드롭', free: '지원', pro: '지원', freeOk: true },
     { label: '라이트박스 뷰어', free: '지원', pro: '지원', freeOk: true },
@@ -575,8 +655,8 @@ function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }
       <div className="flex items-center gap-2.5 mb-5 px-4 py-3 bg-emerald-50 border border-emerald-200/70 rounded-2xl">
         <BadgeCheck size={18} className="text-emerald-500 shrink-0" />
         <div>
-          <p className="text-sm font-bold text-emerald-700">PRO 플랜 이용 중 — 사진 무제한 + 영상 업로드 가능</p>
-          <p className="text-xs text-emerald-600/80 mt-0.5">49MB 초과 영상은 브라우저에서 480p로 자동 압축합니다 · 압축 후 50MB 이내 (약 5분 이내) 영상 권장</p>
+          <p className="text-sm font-bold text-emerald-700">PRO 플랜 이용 중 — 사진 무제한 + 영상 링크 추가 가능</p>
+          <p className="text-xs text-emerald-600/80 mt-0.5">YouTube, 구글 드라이브 공유 링크로 영상을 갤러리에 추가하세요</p>
         </div>
       </div>
     );
@@ -584,7 +664,6 @@ function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }
 
   return (
     <div className="mb-5 rounded-2xl border border-on-surface/8 overflow-hidden bg-white shadow-sm">
-      {/* 제목 행 */}
       <div className="grid grid-cols-3 bg-surface-container-low/60">
         <div className="px-4 py-2.5 text-xs font-black text-on-surface-variant uppercase tracking-wider">기능</div>
         <div className="px-4 py-2.5 text-xs font-black text-on-surface-variant text-center border-l border-on-surface/5">
@@ -600,7 +679,6 @@ function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }
         </div>
       </div>
 
-      {/* 비교 행 */}
       {freeRows.map((row, i) => (
         <div
           key={row.label}
@@ -620,9 +698,8 @@ function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }
         </div>
       ))}
 
-      {/* 업그레이드 CTA */}
       <div className="border-t border-amber-100 bg-amber-50/60 px-4 py-3 flex items-center justify-between gap-4">
-        <p className="text-xs text-amber-700 font-medium">PRO로 업그레이드하면 영상 업로드 + 사진 무제한이 가능합니다</p>
+        <p className="text-xs text-amber-700 font-medium">PRO로 업그레이드하면 영상 링크 추가 + 사진 무제한이 가능합니다</p>
         <a
           href="mailto:aklabs84@naver.com?subject=생기로그 Pro 플랜 업그레이드 문의"
           className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl transition-colors"
@@ -634,12 +711,8 @@ function PlanGuide({ isPro, totalCount }: { isPro: boolean; totalCount: number }
   );
 }
 
-// 빈 상태
 function EmptyState({
-  icon,
-  message,
-  sub,
-  onUpload,
+  icon, message, sub, onUpload,
 }: {
   icon: React.ReactNode;
   message: string;
@@ -658,7 +731,7 @@ function EmptyState({
           onClick={onUpload}
           className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-dashed border-on-surface/20 text-sm font-bold text-on-surface-variant hover:border-primary hover:text-primary transition-all"
         >
-          <Upload size={16} /> 파일 업로드
+          <Upload size={16} /> 사진 업로드
         </button>
       )}
     </div>
