@@ -844,17 +844,20 @@ ${obsText}
                   </div>
                 </div>
 
-                {/* 학생별 카드 */}
-                {draftResults.map((draft, index) => (
-                  <motion.div key={`${draft.name}-${index}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
+                {/* 학생별 카드 — 가나다순 표시, originalIndex로 핸들러 연결 */}
+                {[...draftResults]
+                  .map((draft, originalIndex) => ({ draft, originalIndex }))
+                  .sort((a, b) => a.draft.name.localeCompare(b.draft.name, 'ko'))
+                  .map(({ draft, originalIndex }, displayIndex) => (
+                  <motion.div key={draft.studentId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: displayIndex * 0.05 }}
                     className="surface-card shadow-ambient border-l-4 border-primary/30 overflow-hidden">
 
                     {/* 카드 헤더 */}
                     <div className="flex items-center justify-between px-5 py-4 border-b border-surface-container">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black text-sm">
-                          {index + 1}
+                          {displayIndex + 1}
                         </div>
                         <div>
                           <p className="font-black text-sm">{draft.name}</p>
@@ -862,16 +865,16 @@ ${obsText}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => copyStudent(index)}
+                        <button onClick={() => copyStudent(originalIndex)}
                           className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all ${draft.isCopied ? 'bg-primary/10 text-primary' : 'hover:bg-surface-container text-on-surface-variant'}`}>
                           {draft.isCopied ? <Check size={13} /> : <Copy size={13} />}
                           {draft.isCopied ? '복사됨' : '복사'}
                         </button>
-                        <button onClick={() => handleDeleteDraft(index)} disabled={draft.isDeleting}
+                        <button onClick={() => handleDeleteDraft(originalIndex)} disabled={draft.isDeleting}
                           className="p-1.5 rounded-xl hover:bg-red-50 hover:text-red-500 text-on-surface-variant/40 transition-all disabled:opacity-50" title="초안 삭제">
                           {draft.isDeleting ? <ArrowRight size={14} className="animate-spin" /> : <Trash2 size={14} />}
                         </button>
-                        <button onClick={() => toggleExpand(index)}
+                        <button onClick={() => toggleExpand(originalIndex)}
                           className="p-1.5 rounded-xl hover:bg-surface-container text-on-surface-variant transition-all">
                           {draft.isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                         </button>
@@ -884,7 +887,7 @@ ${obsText}
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                           transition={{ duration: 0.2 }} className="overflow-hidden">
                           <div className="px-5 pt-4">
-                            <textarea value={draft.content} onChange={e => updateContent(index, e.target.value)}
+                            <textarea value={draft.content} onChange={e => updateContent(originalIndex, e.target.value)}
                               className="w-full min-h-[180px] p-3 text-sm font-medium leading-relaxed bg-surface-container/40 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all border border-transparent focus:border-primary/20"
                             />
                           </div>
@@ -897,13 +900,13 @@ ${obsText}
                               { label: '내용 축소', cmd: '핵심만 50% 분량으로 축소' },
                               { label: '전문적인 어조', cmd: '명사형 종결어미(~함, ~임)를 사용하고 객관적 관찰자 시점의 전문적인 어조로 수정' },
                             ].map(({ label, cmd }) => (
-                              <button key={label} disabled={isGenerating} onClick={() => applyRefineForStudent(index, cmd)}
+                              <button key={label} disabled={isGenerating} onClick={() => applyRefineForStudent(originalIndex, cmd)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-[11px] font-bold transition-all disabled:opacity-40">
                                 <RotateCw size={12} className={isGenerating ? 'animate-spin' : ''} />
                                 {label}
                               </button>
                             ))}
-                            <button onClick={() => applyRefineForStudent(index, '더 구체적인 사례와 역량 중심으로 보완')}
+                            <button onClick={() => applyRefineForStudent(originalIndex, '더 구체적인 사례와 역량 중심으로 보완')}
                               disabled={isGenerating}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-[11px] font-bold transition-all disabled:opacity-40">
                               <Sparkles size={12} className="text-primary" />
