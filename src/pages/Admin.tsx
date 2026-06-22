@@ -17,7 +17,7 @@ import {
 
 type ActiveTab =
   | 'dashboard' | 'requests' | 'users' | 'activity' | 'classes'
-  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'ai_cost';
+  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'ai_cost' | 'video_guides';
 
 interface TeacherActivityRow {
   id: string;
@@ -173,6 +173,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'bugs',          label: '버그신고',   icon: Bug },
   { id: 'coupons',       label: '쿠폰',       icon: Ticket },
   { id: 'ai_cost',       label: 'AI 비용',    icon: DollarSign },
+  { id: 'video_guides',  label: '영상 가이드', icon: Layers },
 ];
 
 // ── AI Feature Labels ──────────────────────────────────────────────────────────
@@ -2567,6 +2568,11 @@ const Admin = () => {
           </div>
         )}
 
+        {/* ── 영상 가이드 관리 ──────────────────────────────────────────────── */}
+        {activeTab === 'video_guides' && (
+          <VideoGuidesTab />
+        )}
+
       </div>
     </div>
 
@@ -2805,5 +2811,183 @@ const Admin = () => {
     </>
   );
 };
+
+// ── 영상 가이드 관리 탭 ────────────────────────────────────────────────────────
+
+interface VideoGuideRow {
+  id: string;
+  title: string;
+  description: string | null;
+  url: string;
+  category: string;
+  order_num: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+function VideoGuidesTab() {
+  const [videos, setVideos] = useState<VideoGuideRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ title: '', description: '', url: '', category: '시작하기', order_num: 0 });
+  const [error, setError] = useState<string | null>(null);
+
+  const CATEGORIES = ['시작하기', '클래스룸', 'AI 기능', '수업 도구', '기타'];
+
+  const fetch = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('video_guides').select('*').order('category').order('order_num');
+    setVideos(data ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetch(); }, []);
+
+  const handleAdd = async () => {
+    if (!form.title.trim() || !form.url.trim()) { setError('제목과 URL은 필수입니다.'); return; }
+    setSaving(true);
+    setError(null);
+    const { error: err } = await supabase.from('video_guides').insert({
+      title: form.title.trim(),
+      description: form.description.trim() || null,
+      url: form.url.trim(),
+      category: form.category,
+      order_num: form.order_num,
+      is_active: true,
+    });
+    if (err) { setError(err.message); } else {
+      setForm({ title: '', description: '', url: '', category: '시작하기', order_num: 0 });
+      await fetch();
+    }
+    setSaving(false);
+  };
+
+  const handleToggle = async (id: string, current: boolean) => {
+    await supabase.from('video_guides').update({ is_active: !current }).eq('id', id);
+    setVideos(prev => prev.map(v => v.id === id ? { ...v, is_active: !current } : v));
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('삭제하시겠습니까?')) return;
+    await supabase.from('video_guides').delete().eq('id', id);
+    setVideos(prev => prev.filter(v => v.id !== id));
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 추가 폼 */}
+      <div className="bg-white rounded-2xl border border-on-surface/8 p-5 shadow-sm space-y-4">
+        <h3 className="font-black text-sm text-on-surface flex items-center gap-2">
+          <Plus size={16} className="text-primary" /> 영상 추가
+        </h3>
+
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium">
+            <AlertTriangle size={14} /> {error}
+            <button onClick={() => setError(null)} className="ml-auto"><X size={12} /></button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input
+            value={form.title}
+            onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+            placeholder="제목 *"
+            className="px-3 py-2.5 rounded-xl border border-on-surface/10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <select
+            value={form.category}
+            onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
+            className="px-3 py-2.5 rounded-xl border border-on-surface/10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input
+            value={form.url}
+            onChange={e => setForm(p => ({ ...p, url: e.target.value }))}
+            placeholder="YouTube URL 또는 구글 드라이브 링크 *"
+            className="px-3 py-2.5 rounded-xl border border-on-surface/10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 sm:col-span-2"
+          />
+          <input
+            value={form.description}
+            onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+            placeholder="설명 (선택)"
+            className="px-3 py-2.5 rounded-xl border border-on-surface/10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <input
+            type="number"
+            value={form.order_num}
+            onChange={e => setForm(p => ({ ...p, order_num: Number(e.target.value) }))}
+            placeholder="순서 (숫자)"
+            className="px-3 py-2.5 rounded-xl border border-on-surface/10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+
+        <button
+          onClick={handleAdd}
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-40 transition-all"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+          추가
+        </button>
+      </div>
+
+      {/* 목록 */}
+      <div className="bg-white rounded-2xl border border-on-surface/8 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-on-surface/5 flex items-center justify-between">
+          <h3 className="font-black text-sm text-on-surface">등록된 영상 ({videos.length}개)</h3>
+          <button onClick={fetch} className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors">
+            <RefreshCw size={14} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 size={24} className="animate-spin text-primary/40" />
+          </div>
+        ) : videos.length === 0 ? (
+          <div className="text-center py-12 text-on-surface-variant text-sm">
+            등록된 영상이 없습니다
+          </div>
+        ) : (
+          <div className="divide-y divide-on-surface/5">
+            {videos.map(v => (
+              <div key={v.id} className={`flex items-start gap-4 px-5 py-4 ${!v.is_active ? 'opacity-40' : ''}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{v.category}</span>
+                    <span className="text-[10px] text-on-surface-variant">순서 {v.order_num}</span>
+                  </div>
+                  <p className="text-sm font-bold text-on-surface mt-1">{v.title}</p>
+                  {v.description && <p className="text-xs text-on-surface-variant mt-0.5">{v.description}</p>}
+                  <p className="text-xs text-primary/60 mt-1 truncate font-mono">{v.url}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handleToggle(v.id, v.is_active)}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-colors ${
+                      v.is_active
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {v.is_active ? '공개' : '숨김'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(v.id)}
+                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default Admin;

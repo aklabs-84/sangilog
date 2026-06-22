@@ -1,0 +1,269 @@
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  PlayCircle, X, ChevronLeft, ChevronRight, Loader2,
+  Video, HardDrive, ExternalLink, BookOpen,
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { parseVideoUrl } from '../lib/gallery';
+
+export interface VideoGuideItem {
+  id: string;
+  title: string;
+  description: string | null;
+  url: string;
+  category: string;
+  order_num: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+const ALL_LABEL = '전체';
+
+export default function VideoGuide() {
+  const [items, setItems] = useState<VideoGuideItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<string>(ALL_LABEL);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from('video_guides')
+      .select('*')
+      .eq('is_active', true)
+      .order('category')
+      .order('order_num')
+      .then(({ data }) => {
+        setItems(data ?? []);
+        setLoading(false);
+      });
+  }, []);
+
+  const categories = [ALL_LABEL, ...Array.from(new Set(items.map(i => i.category)))];
+
+  const filtered =
+    activeCategory === ALL_LABEL ? items : items.filter(i => i.category === activeCategory);
+
+  const lightboxItem = lightboxIndex !== null ? filtered[lightboxIndex] : null;
+
+  return (
+    <div className="min-h-screen p-6 font-manrope">
+      {/* 헤더 */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center text-white shadow-md shadow-primary/20">
+          <PlayCircle size={20} />
+        </div>
+        <div>
+          <h1 className="text-xl font-black text-on-surface tracking-tightest">영상 가이드</h1>
+          <p className="text-xs text-on-surface-variant font-medium">
+            생기로그 AI 사용 방법을 영상으로 확인하세요
+          </p>
+        </div>
+      </div>
+
+      {/* 카테고리 탭 */}
+      {!loading && items.length > 0 && (
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                activeCategory === cat
+                  ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                  : 'border-on-surface/10 text-on-surface-variant hover:bg-white hover:text-on-surface'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 콘텐츠 */}
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 size={32} className="animate-spin text-primary/40" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((item, idx) => (
+            <VideoCard
+              key={item.id}
+              item={item}
+              onClick={() => setLightboxIndex(idx)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 라이트박스 */}
+      <AnimatePresence>
+        {lightboxItem !== null && lightboxIndex !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+            onClick={() => setLightboxIndex(null)}
+          >
+            <button
+              className="absolute top-4 right-4 text-white/70 hover:text-white"
+              onClick={() => setLightboxIndex(null)}
+            >
+              <X size={28} />
+            </button>
+
+            {lightboxIndex > 0 && (
+              <button
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+                onClick={e => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
+              >
+                <ChevronLeft size={40} />
+              </button>
+            )}
+            {lightboxIndex < filtered.length - 1 && (
+              <button
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+                onClick={e => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
+              >
+                <ChevronRight size={40} />
+              </button>
+            )}
+
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="max-w-[90vw] flex flex-col items-center gap-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <VideoPlayer url={lightboxItem.url} />
+              <div className="text-center">
+                <p className="text-white font-bold text-base">{lightboxItem.title}</p>
+                {lightboxItem.description && (
+                  <p className="text-white/60 text-sm mt-1">{lightboxItem.description}</p>
+                )}
+                <p className="text-white/30 text-xs mt-2">
+                  {lightboxIndex + 1} / {filtered.length}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function VideoCard({ item, onClick }: { item: VideoGuideItem; onClick: () => void }) {
+  const info = parseVideoUrl(item.url);
+  const isYoutube = info?.platform === 'youtube';
+  const isDrive = info?.platform === 'drive';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="group cursor-pointer rounded-2xl overflow-hidden bg-white border border-on-surface/8 shadow-sm hover:shadow-lg transition-all duration-200"
+      onClick={onClick}
+    >
+      {/* 썸네일 영역 */}
+      <div className="relative aspect-video bg-surface-container-low overflow-hidden">
+        {isYoutube && info?.thumbnailUrl ? (
+          <>
+            <img
+              src={info.thumbnailUrl}
+              alt={item.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-full bg-red-600/90 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                <PlayCircle size={28} className="text-white fill-white" />
+              </div>
+            </div>
+            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-600/80 text-white text-[10px] font-bold flex items-center gap-1">
+              <Video size={10} /> YouTube
+            </div>
+          </>
+        ) : isDrive ? (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-50 to-blue-100">
+            <HardDrive size={36} className="text-blue-400" />
+            <span className="text-xs font-bold text-blue-600">구글 드라이브</span>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mt-10 group-hover:scale-110 transition-transform">
+                <PlayCircle size={22} className="text-blue-600" />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-gray-100 to-gray-200">
+            <ExternalLink size={32} className="text-gray-400" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-black/10 flex items-center justify-center mt-8 group-hover:scale-110 transition-transform">
+                <PlayCircle size={22} className="text-gray-600" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 카테고리 뱃지 */}
+        <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
+          {item.category}
+        </div>
+      </div>
+
+      {/* 텍스트 */}
+      <div className="p-4">
+        <p className="font-bold text-sm text-on-surface leading-snug line-clamp-2">{item.title}</p>
+        {item.description && (
+          <p className="text-xs text-on-surface-variant mt-1.5 line-clamp-2 leading-relaxed">
+            {item.description}
+          </p>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function VideoPlayer({ url }: { url: string }) {
+  const info = parseVideoUrl(url);
+  if (!info) return null;
+
+  if (info.platform === 'direct') {
+    return (
+      <video
+        src={info.embedUrl}
+        controls
+        autoPlay
+        className="max-w-full max-h-[70vh] rounded-xl"
+      />
+    );
+  }
+  return (
+    <iframe
+      src={info.embedUrl}
+      className="w-[80vw] max-w-[900px] aspect-video rounded-xl"
+      allow="autoplay; fullscreen; picture-in-picture"
+      allowFullScreen
+    />
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4 text-on-surface-variant">
+      <div className="text-on-surface/20">
+        <BookOpen size={48} />
+      </div>
+      <div className="text-center">
+        <p className="font-bold text-sm">아직 등록된 영상이 없습니다</p>
+        <p className="text-xs mt-1 opacity-70">관리자가 영상을 등록하면 여기에 표시됩니다</p>
+      </div>
+    </div>
+  );
+}

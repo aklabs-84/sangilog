@@ -41,6 +41,7 @@ import SetPassword from './pages/SetPassword';
 import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
 import Gallery from './pages/Gallery';
+import VideoGuide from './pages/VideoGuide';
 import Pricing from './pages/Pricing';
 import SchoolIntroPage from './pages/SchoolIntroPage';
 import InstallPromptBanner from './components/InstallPromptBanner';
@@ -260,6 +261,7 @@ function App() {
                 <Route path="activity-log" element={<ActivityLog />} />
                 <Route path="teaching-tools" element={<TeachingTools />} />
                 <Route path="gallery" element={<Gallery />} />
+                <Route path="video-guide" element={<VideoGuide />} />
                 <Route path="suggestions" element={<SuggestionsPage />} />
                 <Route path="settings" element={<Settings />} />
                 <Route path="help" element={<Help />} />

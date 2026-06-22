@@ -15,6 +15,7 @@ import {
   Images,
   School,
   Crown,
+  PlayCircle,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { motion } from 'framer-motion';
@@ -34,6 +35,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
     { icon: Users, label: '클래스룸', path: '/classroom', schoolHide: false },
     { icon: Wrench, label: '수업 도구', path: '/teaching-tools', schoolHide: true },
     { icon: Images, label: '수업 갤러리', path: '/gallery', schoolHide: false },
+    { icon: PlayCircle, label: '영상 가이드', path: '/video-guide', schoolHide: false },
     { icon: Sparkles, label: 'AI 어시스턴트', path: '/ai-assistant', schoolHide: true },
     { icon: Download, label: '데이터 내보내기', path: '/export', schoolHide: true },
     { icon: Archive, label: '아카이브', path: '/archive', schoolHide: true },
