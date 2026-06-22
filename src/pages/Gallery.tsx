@@ -65,7 +65,11 @@ export default function Gallery() {
       .then(({ data }) => {
         const list = data ?? [];
         setClasses(list);
-        if (list.length > 0) setSelectedClassId(list[0].id);
+        // 기존 선택이 목록에 여전히 유효하면 유지, 아니면 첫 번째로 초기화
+        setSelectedClassId(prev => {
+          if (prev && list.some(c => c.id === prev)) return prev;
+          return list[0]?.id ?? '';
+        });
       });
   }, [user]);
 
@@ -342,9 +346,14 @@ export default function Gallery() {
               <h3 className="font-black text-on-surface mb-1 flex items-center gap-2">
                 <Link size={18} className="text-primary" /> 영상 링크 추가
               </h3>
-              <p className="text-xs text-on-surface-variant mb-4">
+              <p className="text-xs text-on-surface-variant mb-1">
                 YouTube, 구글 드라이브 공유 링크, 직접 URL을 지원합니다
               </p>
+              {selectedClass && (
+                <p className="text-xs font-bold text-primary mb-3">
+                  추가 위치: {selectedClass.name}{selectedWeek != null ? ` · ${selectedWeek}주차` : ''}
+                </p>
+              )}
 
               <input
                 type="url"
@@ -536,8 +545,7 @@ function VideoPlayer({ fileUrl }: { fileUrl: string }) {
     <iframe
       src={info.embedUrl}
       className="w-[80vw] max-w-[900px] aspect-video rounded-xl"
-      allow="autoplay; fullscreen"
-      allowFullScreen
+      allow="autoplay; fullscreen; picture-in-picture"
     />
   );
 }
