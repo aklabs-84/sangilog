@@ -30,6 +30,7 @@ import {
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useNavigate, NavLink } from 'react-router-dom';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
+import QuickReviewPanel from '../components/classroom/QuickReviewPanel';
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
@@ -58,13 +59,50 @@ const Dashboard = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [movingClassId, setMovingClassId] = useState<string | null>(null); // 드롭다운 열린 클래스 ID
 
+  // 빠른 처리 큐
+  const [quickReviewOpen, setQuickReviewOpen] = useState(false);
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
+
   useEffect(() => {
     fetchDashboardData();
     fetchPendingInvitations();
     fetchMyProjects();
     fetchAssignedClasses();
     fetchFolders();
-  }, []);
+    if (user?.id) fetchPendingReviewCount();
+  }, [user?.id]);
+
+  const fetchPendingReviewCount = async () => {
+    if (!user?.id) return;
+    try {
+      const { data: classesData } = await supabase
+        .from('classes')
+        .select('id, students(id)')
+        .eq('teacher_id', user.id)
+        .eq('is_archived', false);
+
+      const studentIds: string[] = (classesData || []).flatMap(
+        (c: any) => (c.students || []).map((s: any) => s.id)
+      );
+      if (studentIds.length === 0) return;
+
+      const [{ count: obsCount }, { count: resultCount }] = await Promise.all([
+        supabase
+          .from('observations')
+          .select('*', { count: 'exact', head: true })
+          .in('student_id', studentIds)
+          .eq('is_student_record', true)
+          .eq('status', 'pending'),
+        supabase
+          .from('student_results')
+          .select('*', { count: 'exact', head: true })
+          .in('student_id', studentIds)
+          .is('teacher_feedback', null),
+      ]);
+
+      setPendingReviewCount((obsCount || 0) + (resultCount || 0));
+    } catch (_e) { /* 조용히 실패 */ }
+  };
 
   const fetchFolders = async () => {
     if (!user) return;
@@ -1152,6 +1190,32 @@ const Dashboard = () => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* 빠른 처리 큐 플로팅 버튼 */}
+      <AnimatePresence>
+        {pendingReviewCount > 0 && !quickReviewOpen && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            onClick={() => setQuickReviewOpen(true)}
+            className="fixed bottom-6 right-5 z-[500] flex items-center gap-2.5 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl shadow-lg font-black text-sm transition-colors active:scale-95"
+          >
+            <BellRing size={16} />
+            <span>미처리 {pendingReviewCount}건</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* 빠른 처리 패널 */}
+      <AnimatePresence>
+        {quickReviewOpen && (
+          <QuickReviewPanel
+            onClose={() => setQuickReviewOpen(false)}
+            onCountChange={(count) => setPendingReviewCount(count)}
+          />
         )}
       </AnimatePresence>
     </motion.div>

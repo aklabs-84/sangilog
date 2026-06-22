@@ -1,4 +1,4 @@
-import { Mail, School, Sparkles, Users, BookOpen, ClipboardList, FileText, Star, CheckCircle, Zap } from 'lucide-react';
+import { Mail, School, Sparkles, Users, BookOpen, ClipboardList, FileText, Star, CheckCircle } from 'lucide-react';
 
 const FEATURES = [
   {

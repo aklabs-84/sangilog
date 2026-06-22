@@ -246,6 +246,37 @@ export async function validateTeacherPrompt(
   }
 }
 
+export async function generateFeedbackDraft(
+  type: 'obs' | 'result',
+  title: string,
+  content: string,
+  classId?: string
+): Promise<string> {
+  const typeLabel = type === 'obs' ? '활동 기록' : '결과 제출물';
+  const prompt = `학생이 제출한 ${typeLabel}에 대한 선생님 피드백 초안을 작성해줘.
+
+[제출 내용]
+제목: ${title}
+내용: ${content}
+
+[작성 기준]
+- 학생의 노력과 성장을 인정하되, 개선 방향도 구체적으로 제시
+- 2~3문장으로 간결하게
+- 따뜻하고 교육적인 어조
+- 학생의 제출 내용에서 구체적인 요소를 언급
+- "~하면 좋겠습니다", "~가 인상적입니다" 등 완성형 어미 사용
+- 피드백 문장만 출력 (별도 설명, 제목, 따옴표 없이)`;
+
+  return callProxy({
+    mode: 'generate',
+    model: 'flash',
+    feature: 'feedback_draft',
+    systemInstruction: SYSTEM_INSTRUCTIONS.BASE + SYSTEM_INSTRUCTIONS.PRIVACY,
+    prompt,
+    ...(classId && { class_id: classId }),
+  });
+}
+
 export async function generateClassInsight(className: string, observations: any[], classId?: string) {
   // 실제 데이터 기반 통계 추출
   const total = observations.length;
