@@ -254,7 +254,7 @@ const NaissWorkstation = ({ classes }: Props) => {
 
       setRows(
         students
-          .sort((a: any, b: any) => (parseInt(a.student_number) || 999) - (parseInt(b.student_number) || 999))
+          .sort((a: any, b: any) => a.full_name.localeCompare(b.full_name, 'ko'))
           .map((s: any) => {
             const ev = evalMap[s.id];
             return {

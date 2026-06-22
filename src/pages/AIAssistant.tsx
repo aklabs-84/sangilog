@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { aiGenStore } from '../lib/aiGenerationStore';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -320,6 +321,7 @@ ${obsText}
       }
 
       setProgress({ current: 0, total: targetStudents.length });
+      aiGenStore.start(targetStudents.length);
       const results: StudentDraft[] = [];
 
       // 학생별 순차 생성
@@ -327,6 +329,7 @@ ${obsText}
         const student = targetStudents[i];
         setGeneratingName(student.full_name);
         setProgress({ current: i + 1, total: targetStudents.length });
+        aiGenStore.progress(i + 1, student.full_name);
 
         const content = await generateForStudent(
           student.full_name,
@@ -363,8 +366,10 @@ ${obsText}
         localAiCount += 1;
         setMonthAiCount(localAiCount);
       }
+      aiGenStore.complete(results.length);
     } catch (err) {
       console.error(err);
+      aiGenStore.error();
       alert('AI 초안 생성 중 오류가 발생했습니다.');
     } finally {
       setIsGenerating(false);
