@@ -9,7 +9,6 @@ import {
   Upload, ExternalLink, Megaphone, MessageSquare, Reply, Send,
   RotateCw, AlertCircle, AlertTriangle, BookMarked, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { studentAnalysisAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../lib/auth';
 import { downloadFile } from '../lib/fileUtils';
@@ -26,8 +25,6 @@ const StudentView = () => {
 
   // AI Report States
   const [aiInsight, setAiInsight] = useState<string | null>(null);
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  const [isSavingInsight, setIsSavingInsight] = useState(false);
   const [insightCopied, setInsightCopied] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
@@ -421,30 +418,6 @@ const StudentView = () => {
     }
   };
 
-  const saveInsight = async (text: string) => {
-    if (!id) return;
-    setIsSavingInsight(true);
-    try {
-      await supabase.from('students').update({ behavior_insight: text }).eq('id', id);
-      if (student?.classes?.class_type === 'homeroom' && user) {
-        await supabase.from('student_evaluations').upsert({
-          student_id: id,
-          class_id: student.class_id,
-          teacher_id: user.id,
-          academic_year: new Date().getFullYear(),
-          setech_content: text,
-          status: 'draft',
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'student_id,class_id,academic_year' });
-      }
-      showToast('행동특성 초안이 저장되었습니다. ✅');
-    } catch {
-      showToast('저장 중 오류가 발생했습니다.', 'error');
-    } finally {
-      setIsSavingInsight(false);
-    }
-  };
-
   const copyInsight = () => {
     if (!aiInsight) return;
     navigator.clipboard.writeText(aiInsight);
@@ -485,40 +458,7 @@ const StudentView = () => {
     }
   };
 
-  const generateAIInsight = async () => {
-    if (observations.length === 0) return;
-    setIsGeneratingAI(true);
-    try {
-      const activitiesContext = observations.map(obs =>
-        `[${obs.activity_name}] ${obs.content}`
-      ).join('\n---\n');
 
-      const prompt = `당신은 담임교사를 돕는 AI 교육 전문가입니다.
-다음은 "${student?.full_name}" 학생의 수업별 활동 기록입니다.
-
-${activitiesContext}
-
-위 내용을 바탕으로 아래 두 가지를 작성해 주세요.
-
-[학생 특성 요약] (3문장 이내)
-학생의 학습 태도, 주요 관심사, 핵심 역량을 간결하게 요약하세요.
-
-[행동특성 및 종합의견 초안] (2~3문단)
-생활기록부 "행동특성 및 종합의견"란에 담임교사가 입력할 수 있는 수준으로 작성하세요.
-학생의 인성, 학습 태도, 성장 가능성을 포함하며 전문적이고 긍정적인 어조로 작성하세요.
-(HTML 없이 순수 텍스트, 나이스 시스템에 바로 붙여넣기 가능한 형태)`;
-
-      const result = await studentAnalysisAI.generateContent(prompt, { class_id: student?.class_id });
-      const text = result.response.text();
-      setAiInsight(text);
-      await saveInsight(text);
-    } catch (error) {
-      console.error('Failed to generate AI Insight:', error);
-      setAiInsight('AI 분석 중 오류가 발생했습니다.');
-    } finally {
-      setIsGeneratingAI(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -619,22 +559,17 @@ ${activitiesContext}
             </div>
           </div>
 
-          {/* AI Insight — 행동특성 및 종합의견 */}
+          {/* AI Insight — 행동특성 및 종합의견 (읽기전용) */}
           <div className="surface-card p-8 shadow-ambient bg-gradient-to-br from-primary/5 via-white to-secondary/5 border-primary/10 relative overflow-hidden">
             <div className="absolute right-[-10%] top-[-10%] text-primary/5 rotate-12 pointer-events-none"><Sparkles size={120} /></div>
-            <div className="flex items-center justify-between gap-3 mb-2 relative z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-primary">
-                  <Sparkles size={20} />
-                </div>
-                <div>
-                  <h3 className="font-black text-base text-primary tracking-tight">행동특성 및 종합의견 초안</h3>
-                  <p className="text-[10px] font-bold text-on-surface-variant/50 mt-0.5">나이스 생기부 → 행동특성 및 종합의견란에 붙여넣기</p>
-                </div>
+            <div className="flex items-center gap-3 mb-2 relative z-10">
+              <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-primary">
+                <Sparkles size={20} />
               </div>
-              {isSavingInsight && (
-                <span className="text-[10px] font-bold text-primary/50 shrink-0">저장 중...</span>
-              )}
+              <div>
+                <h3 className="font-black text-base text-primary tracking-tight">행동특성 및 종합의견 초안</h3>
+                <p className="text-[10px] font-bold text-on-surface-variant/50 mt-0.5">나이스 생기부 → 행동특성 및 종합의견란에 붙여넣기</p>
+              </div>
             </div>
             <div className="relative z-10">
               {aiInsight ? (
@@ -653,7 +588,7 @@ ${activitiesContext}
                           li: ({ children }) => <li className="text-sm">{children}</li>,
                         }}
                       >
-                        {aiInsight!}
+                        {aiInsight}
                       </ReactMarkdown>
                     </div>
                   </div>
@@ -669,33 +604,24 @@ ${activitiesContext}
                       {insightCopied ? <><CheckCircle2 size={13} /> 복사됨!</> : <><CheckCircle2 size={13} /> 나이스 붙여넣기용 복사</>}
                     </button>
                     <button
-                      onClick={generateAIInsight}
-                      disabled={isGeneratingAI}
-                      className="text-[10px] font-black text-primary/40 hover:text-primary transition-colors underline underline-offset-4 disabled:opacity-50"
+                      onClick={() => navigate(`/ai-assistant`)}
+                      className="text-[10px] font-black text-primary/40 hover:text-primary transition-colors underline underline-offset-4"
                     >
-                      {isGeneratingAI ? '재생성 중...' : '다시 생성하기'}
+                      AI 초안 페이지에서 재생성 →
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+                <div className="flex flex-col items-center justify-center py-6 text-center space-y-3">
                   <p className="text-xs font-bold text-on-surface-variant/60">
-                    모든 수업 활동 기록을 종합하여<br />생기부 행동특성 및 종합의견 초안을 생성합니다.
+                    아직 생성된 초안이 없습니다.
                   </p>
                   <button
-                    onClick={generateAIInsight}
-                    disabled={isGeneratingAI || observations.length === 0}
-                    className="w-full py-3.5 btn-gradient rounded-xl font-black text-xs shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                    onClick={() => navigate(`/ai-assistant`)}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black border border-primary/20 bg-white text-primary hover:bg-primary/5 transition-colors"
                   >
-                    {isGeneratingAI ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <><Sparkles size={14} /> 행동특성 초안 생성</>
-                    )}
+                    <Sparkles size={13} /> AI 초안 페이지에서 생성하기
                   </button>
-                  {observations.length === 0 && (
-                    <p className="text-[10px] text-error/60 font-bold">기록이 최소 1개 이상 필요합니다.</p>
-                  )}
                 </div>
               )}
             </div>

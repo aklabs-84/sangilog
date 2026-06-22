@@ -586,6 +586,7 @@ ${obsText}
                   <div className="max-h-52 overflow-y-auto rounded-2xl border border-surface-container-high bg-surface-container-low custom-scrollbar">
                     {students
                       .filter(s => s.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .sort((a, b) => a.full_name.localeCompare(b.full_name, 'ko'))
                       .map((s, idx) => {
                         const isSelected = selectedStudentIds.includes(s.id);
                         return (
