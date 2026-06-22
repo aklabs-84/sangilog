@@ -21,11 +21,15 @@ const Navbar = () => {
   const [bugReportOpen, setBugReportOpen] = useState(false);
   const [showNavIOSGuide, setShowNavIOSGuide] = useState(false);
 
-  const canInstall = installState === 'available' || installState === 'ios';
+  // PWA로 이미 실행 중이거나 설치 완료된 경우에만 숨김
+  const isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as any).standalone === true;
+  const showInstallBtn = !isStandalone && installState !== 'installed';
 
   const handleNavInstall = () => {
     if (installState === 'available') triggerInstall();
-    else if (installState === 'ios') setShowNavIOSGuide(true);
+    else setShowNavIOSGuide(true); // iOS 또는 기타 브라우저: 가이드 표시
   };
 
   useEffect(() => {
@@ -152,7 +156,7 @@ const Navbar = () => {
       {/* 오른쪽: 액션 버튼 */}
       <div className="flex items-center gap-1.5 md:gap-2">
         {/* 앱 설치 — PC만, 설치 가능할 때만 */}
-        {canInstall && (
+        {showInstallBtn && (
           <button
             onClick={handleNavInstall}
             className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-primary/70 hover:text-primary hover:bg-primary/8 border border-primary/20 hover:border-primary/40 transition-all shrink-0"
@@ -362,7 +366,7 @@ const Navbar = () => {
                   <Settings size={16} /> 설정
                 </NavLink>
               </div>
-              {canInstall && (
+              {showInstallBtn && (
                 <button
                   onClick={() => { setMobileMenuOpen(false); handleNavInstall(); }}
                   className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl font-black text-sm border border-primary/20 text-primary/80 hover:bg-primary/5 transition-all"

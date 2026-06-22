@@ -47,7 +47,9 @@ export default function VideoGuide() {
   }, []);
 
   const categories = [ALL_LABEL, ...Array.from(new Set(items.map(i => i.category)))];
-  const filtered = activeCategory === ALL_LABEL ? items : items.filter(i => i.category === activeCategory);
+  const filtered = activeCategory === ALL_LABEL
+    ? [...items].sort((a, b) => a.order_num - b.order_num)
+    : items.filter(i => i.category === activeCategory);
   const lightboxItem = lightboxIndex !== null ? filtered[lightboxIndex] : null;
 
   return (
