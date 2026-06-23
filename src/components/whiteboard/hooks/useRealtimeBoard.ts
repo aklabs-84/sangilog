@@ -101,11 +101,12 @@ export function useRealtimeBoard(
     await supabase.from('whiteboard_sessions').delete()
       .eq('user_id', user.id).eq('board_id', boardId);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('whiteboard_sessions')
       .insert({ board_id: boardId, user_id: user.id, display_name: displayName, avatar_color: avatarColor })
       .select('id').single();
-    if (data) sessionIdRef.current = data.id;
+    if (error) console.error('[WB] registerSession INSERT 실패:', error.code, error.message);
+    if (data) { sessionIdRef.current = data.id; console.log('[WB] 세션 등록 완료 id=', data.id, 'user=', displayName); }
   }, [boardId, user.id, displayName, avatarColor]);
 
   const removeSession = useCallback(async () => {
@@ -116,10 +117,12 @@ export function useRealtimeBoard(
 
   const fetchMembers = useCallback(async () => {
     const cutoff = new Date(Date.now() - SESSION_EXPIRY_MS).toISOString();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('whiteboard_sessions').select('user_id, display_name, avatar_color, last_ping')
       .eq('board_id', boardId).gte('last_ping', cutoff);
+    if (error) { console.error('[WB] fetchMembers SELECT 실패:', error.code, error.message); return; }
     if (!data) return;
+    console.log('[WB] fetchMembers 결과:', data.length, '명', data.map(s => s.display_name));
     const map = new Map<string, SessionMember>();
     for (const s of data) {
       map.set(s.user_id, {
