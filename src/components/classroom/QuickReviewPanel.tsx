@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -59,16 +59,33 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
   const [draftLoading, setDraftLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
 
+  const draftTargetIdRef = useRef<string | null>(null);
+
   const x = useMotionValue(0);
   const cardRotate = useTransform(x, [-160, 0, 160], [-7, 0, 7]);
   const approveOpacity = useTransform(x, [30, 110], [0, 1]);
   const rejectOpacity = useTransform(x, [-110, -30], [1, 0]);
+  const cardRingShadow = useTransform(
+    x,
+    [-120, -20, 0, 20, 120],
+    [
+      '0 0 0 2.5px #ef4444',
+      '0 0 0 1.5px #fca5a5',
+      '0 1px 3px rgba(0,0,0,0.06)',
+      '0 0 0 1.5px #6ee7b7',
+      '0 0 0 2.5px #10b981',
+    ]
+  );
 
   const current = items[currentIdx] as ReviewItem | undefined;
   const remaining = Math.max(0, items.length - currentIdx);
 
   useEffect(() => { if (user?.id) fetchPendingItems(); }, [user?.id]);
-  useEffect(() => { setFeedback(''); }, [currentIdx]);
+  useEffect(() => {
+    setFeedback('');
+    setDraftLoading(false);
+    draftTargetIdRef.current = null;
+  }, [currentIdx]);
 
   const fetchPendingItems = async () => {
     setLoading(true);
@@ -232,14 +249,20 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
   const handleGenerateDraft = async () => {
     if (!current || draftLoading) return;
     setDraftLoading(true);
+    const targetId = current.id;
+    draftTargetIdRef.current = targetId;
     try {
       const contentForDraft = current.content || current.linkUrl || current.displayName || '';
       const draft = await generateFeedbackDraft(current.type, current.title, contentForDraft, current.classId);
-      setFeedback(draft.trim());
+      if (draftTargetIdRef.current === targetId) {
+        setFeedback(draft.trim());
+      }
     } catch (err) {
       console.error('Draft generation error:', err);
     } finally {
-      setDraftLoading(false);
+      if (draftTargetIdRef.current === targetId) {
+        setDraftLoading(false);
+      }
     }
   };
 
@@ -367,34 +390,13 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
 
               {/* Swipeable Card */}
               <div className="relative">
-                {/* Approve overlay */}
-                <motion.div
-                  style={{ opacity: approveOpacity }}
-                  className="absolute inset-0 bg-emerald-400/25 rounded-2xl flex items-center justify-end pr-6 z-10 pointer-events-none"
-                >
-                  <div className="flex items-center gap-1.5 text-emerald-700 font-black text-sm">
-                    <CheckCircle2 size={20} />
-                    승인
-                  </div>
-                </motion.div>
-                {/* Reject overlay */}
-                <motion.div
-                  style={{ opacity: rejectOpacity }}
-                  className="absolute inset-0 bg-red-400/25 rounded-2xl flex items-center pl-6 z-10 pointer-events-none"
-                >
-                  <div className="flex items-center gap-1.5 text-red-700 font-black text-sm">
-                    <XCircle size={20} />
-                    반려
-                  </div>
-                </motion.div>
-
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={current.id}
                     drag="x"
                     dragConstraints={{ left: -180, right: 180 }}
                     dragElastic={0.15}
-                    style={{ x, rotate: cardRotate }}
+                    style={{ x, rotate: cardRotate, boxShadow: cardRingShadow }}
                     onDragEnd={(_, info) => {
                       if (info.offset.x > 120 && current.type === 'obs') {
                         handleApprove();
@@ -406,8 +408,30 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
                     initial={{ opacity: 0, scale: 0.96 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
-                    className="bg-gray-50 rounded-2xl p-4 border border-gray-100 cursor-grab active:cursor-grabbing select-none touch-pan-y"
+                    className="bg-gray-50 rounded-2xl p-4 border border-transparent cursor-grab active:cursor-grabbing select-none touch-pan-y"
                   >
+                    {/* Swipe status indicator row */}
+                    <div className="relative h-6 mb-2">
+                      <motion.div
+                        style={{ opacity: approveOpacity }}
+                        className="absolute right-0 inset-y-0 flex items-center pointer-events-none"
+                      >
+                        <span className="inline-flex items-center gap-1 bg-emerald-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
+                          <CheckCircle2 size={12} />
+                          승인
+                        </span>
+                      </motion.div>
+                      <motion.div
+                        style={{ opacity: rejectOpacity }}
+                        className="absolute left-0 inset-y-0 flex items-center pointer-events-none"
+                      >
+                        <span className="inline-flex items-center gap-1 bg-red-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
+                          <XCircle size={12} />
+                          반려
+                        </span>
+                      </motion.div>
+                    </div>
+
                     {/* Badges */}
                     <div className="flex items-center gap-2 mb-3 flex-wrap">
                       <WaitBadge days={current.waitDays} />
