@@ -58,8 +58,10 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
   const [feedback, setFeedback] = useState('');
   const [draftLoading, setDraftLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
 
   const draftTargetIdRef = useRef<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const current = items[currentIdx] as ReviewItem | undefined;
   const remaining = Math.max(0, items.length - currentIdx);
@@ -70,6 +72,13 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
     setDraftLoading(false);
     draftTargetIdRef.current = null;
   }, [currentIdx]);
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); }, []);
+
+  const showToast = (message: string, ok = true) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, ok });
+    toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+  };
 
   const fetchPendingItems = async () => {
     setLoading(true);
@@ -186,30 +195,40 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
         type: 'approval',
         is_read: false,
       });
+      showToast(`승인 완료: ${current.studentName} · ${current.title}`);
       goNext();
     } catch (err) {
       console.error('Approve error:', err);
+      showToast('처리 중 오류가 발생했습니다', false);
     } finally {
       setProcessing(false);
     }
   };
 
   const handleReject = async () => {
-    if (!current || !feedback.trim() || processing) return;
+    if (!current || processing) return;
     setProcessing(true);
     try {
-      await supabase.from('observations').update({ status: 'rejected', teacher_feedback: feedback.trim() }).eq('id', current.id);
+      const feedbackText = feedback.trim();
+      await supabase.from('observations').update({
+        status: 'rejected',
+        teacher_feedback: feedbackText || null,
+      }).eq('id', current.id);
       await supabase.from('student_notifications').insert({
         student_id: current.studentId,
         class_id: current.classId,
         title: '활동 기록이 반려되었습니다',
-        content: `"${current.title}" — ${feedback.trim()}`,
+        content: feedbackText
+          ? `"${current.title}" — ${feedbackText}`
+          : `"${current.title}"이 반려되었습니다.`,
         type: 'rejection',
         is_read: false,
       });
+      showToast(`반려 완료: ${current.studentName} · ${current.title}`);
       goNext();
     } catch (err) {
       console.error('Reject error:', err);
+      showToast('처리 중 오류가 발생했습니다', false);
     } finally {
       setProcessing(false);
     }
@@ -220,9 +239,11 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
     setProcessing(true);
     try {
       await supabase.from('student_results').update({ teacher_feedback: feedback.trim() }).eq('id', current.id);
+      showToast(`피드백 저장 완료: ${current.studentName}`);
       goNext();
     } catch (err) {
       console.error('Save feedback error:', err);
+      showToast('처리 중 오류가 발생했습니다', false);
     } finally {
       setProcessing(false);
     }
@@ -349,7 +370,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
 
         {/* Progress bar */}
         {!loading && items.length > 0 && (
-          <div className="px-5 pb-3">
+          <div className="px-5 pb-2">
             <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <motion.div
                 className="h-full bg-gradient-to-r from-primary to-secondary rounded-full"
@@ -360,8 +381,32 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
           </div>
         )}
 
+        {/* Toast */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              key="toast"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className={`mx-5 mb-1 px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 ${
+                toast.ok
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}
+            >
+              {toast.ok
+                ? <CheckCircle2 size={14} className="shrink-0" />
+                : <AlertTriangle size={14} className="shrink-0" />
+              }
+              {toast.message}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Scrollable content */}
-        <div className="overflow-y-auto px-5 pb-10" style={{ maxHeight: 'calc(92dvh - 110px)' }}>
+        <div className="overflow-y-auto px-5 pb-10" style={{ maxHeight: 'calc(92dvh - 120px)' }}>
           {loading ? (
             <div className="flex items-center justify-center py-16 gap-3 text-gray-400">
               <Loader2 size={20} className="animate-spin" />
@@ -427,13 +472,19 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
               <div>
                 <label className="text-xs font-black text-gray-400 mb-1.5 block">
                   피드백
-                  {current.type === 'obs' && <span className="text-red-400 ml-1">(반려 시 필수)</span>}
+                  <span className="text-gray-300 ml-1 font-medium">
+                    {current.type === 'obs' ? '(선택 — 반려 사유 입력 시 학생에게 전달)' : '(필수)'}
+                  </span>
                 </label>
                 <textarea
                   id="qr-feedback-input"
                   value={feedback}
                   onChange={e => setFeedback(e.target.value)}
-                  placeholder="학생에게 전달할 피드백을 입력하세요..."
+                  placeholder={
+                    current.type === 'obs'
+                      ? '반려 사유 또는 피드백을 입력하세요 (선택)...'
+                      : '학생에게 전달할 피드백을 입력하세요...'
+                  }
                   rows={3}
                   className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white leading-relaxed"
                 />
@@ -454,7 +505,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
                   <>
                     <button
                       onClick={handleReject}
-                      disabled={!feedback.trim() || processing}
+                      disabled={processing}
                       className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-black text-sm transition-all active:scale-95 disabled:opacity-40"
                     >
                       {processing
