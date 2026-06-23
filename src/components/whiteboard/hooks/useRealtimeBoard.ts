@@ -97,10 +97,8 @@ export function useRealtimeBoard(
   }, []);
 
   const registerSession = useCallback(async () => {
-    // 이 보드에서 이 사용자의 기존 세션만 제거 (다른 보드 세션은 유지)
-    await supabase.from('whiteboard_sessions').delete()
-      .eq('user_id', user.id).eq('board_id', boardId);
-
+    // DELETE 제거: user_id 기반 삭제는 같은 브라우저의 다른 학생 세션까지 지우는 버그 발생
+    // 정리는 removeSession(퇴장 시 id로 삭제)과 last_ping 만료(45s)에 위임
     const { data, error } = await supabase
       .from('whiteboard_sessions')
       .insert({ board_id: boardId, user_id: user.id, display_name: displayName, avatar_color: avatarColor })
@@ -119,18 +117,22 @@ export function useRealtimeBoard(
     const cutoff = new Date(Date.now() - SESSION_EXPIRY_MS).toISOString();
     const { data, error } = await supabase
       .from('whiteboard_sessions').select('user_id, display_name, avatar_color, last_ping')
-      .eq('board_id', boardId).gte('last_ping', cutoff);
+      .eq('board_id', boardId).gte('last_ping', cutoff)
+      .order('last_ping', { ascending: false });
     if (error) { console.error('[WB] fetchMembers SELECT 실패:', error.code, error.message); return; }
     if (!data) return;
-    console.log('[WB] fetchMembers 결과:', data.length, '명', data.map(s => s.display_name));
+    console.log('[WB] fetchMembers 결과:', data.length, '행', data.map(s => s.display_name));
     const map = new Map<string, SessionMember>();
     for (const s of data) {
-      map.set(s.user_id, {
-        userId: s.user_id,
-        displayName: s.display_name ?? s.user_id.slice(0, 6),
-        avatarColor: s.avatar_color ?? '#6B7280',
-        lastPing: s.last_ping,
-      });
+      // last_ping DESC 정렬이므로 먼저 나온 것이 최신 → 이미 있으면 덮어쓰지 않음
+      if (!map.has(s.user_id)) {
+        map.set(s.user_id, {
+          userId: s.user_id,
+          displayName: s.display_name ?? s.user_id.slice(0, 6),
+          avatarColor: s.avatar_color ?? '#6B7280',
+          lastPing: s.last_ping,
+        });
+      }
     }
     setMembers(Array.from(map.values()));
   }, [boardId]);
