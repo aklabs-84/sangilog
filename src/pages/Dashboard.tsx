@@ -108,7 +108,7 @@ const Dashboard = () => {
           .from('student_results')
           .select('*', { count: 'exact', head: true })
           .in('student_id', studentIds)
-          .is('teacher_feedback', null),
+          .or('status.is.null,status.eq.submitted'),
       ]);
 
       setPendingReviewCount((obsCount || 0) + (resultCount || 0));
@@ -1226,7 +1226,7 @@ const Dashboard = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
             onClick={() => setQuickReviewOpen(true)}
-            className="fixed bottom-6 right-5 z-[500] flex items-center gap-2.5 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl shadow-lg font-black text-sm transition-colors active:scale-95"
+            className="fixed bottom-20 right-4 z-[500] flex items-center gap-2.5 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl shadow-lg font-black text-sm transition-colors active:scale-95"
           >
             <BellRing size={16} />
             <span>미처리 {pendingReviewCount}건</span>
