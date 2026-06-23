@@ -5,7 +5,8 @@ import type { BoardObject, SessionMember, ConnectionStatus, RemoteCursor } from 
 
 const AVATAR_COLORS = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899', '#06B6D4'];
 const MAX_EDITORS = 200; // class_board_sessions.group_size 미설정 시 사실상 무제한
-const HEARTBEAT_MS = 15_000;
+const HEARTBEAT_MS = 10_000;  // Realtime 상태와 무관하게 항상 실행
+const SESSION_EXPIRY_MS = 45_000;  // fetchMembers 컷오프: 45초
 const CURSOR_FADE_MS = 5_000;
 const POLLING_MS = 3_000;
 const CURSOR_THROTTLE_MS = 50;
@@ -60,6 +61,8 @@ export function useRealtimeBoard(
   const authTokenRef = useRef<string | null>(null);
   const isViewerRef = useRef(false);
   const lastCursorEmit = useRef(0);
+  // Realtime 연결 상태와 무관하게 항상 동작하는 세션 유지 인터벌
+  const sessionPingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const avatarColor = getAvatarColor(user.id);
   const displayName = getDisplayName(user);
@@ -89,9 +92,14 @@ export function useRealtimeBoard(
     }, POLLING_MS);
   }, [boardId, onPollSync]);
 
+  const stopSessionPing = useCallback(() => {
+    if (sessionPingRef.current) { clearInterval(sessionPingRef.current); sessionPingRef.current = null; }
+  }, []);
+
   const registerSession = useCallback(async () => {
-    // 이 사용자의 모든 기존 세션 제거 — 테스트/이탈 시 남은 stale 세션 방지
-    await supabase.from('whiteboard_sessions').delete().eq('user_id', user.id);
+    // 이 보드에서 이 사용자의 기존 세션만 제거 (다른 보드 세션은 유지)
+    await supabase.from('whiteboard_sessions').delete()
+      .eq('user_id', user.id).eq('board_id', boardId);
 
     const { data } = await supabase
       .from('whiteboard_sessions')
@@ -107,7 +115,7 @@ export function useRealtimeBoard(
   }, []);
 
   const fetchMembers = useCallback(async () => {
-    const cutoff = new Date(Date.now() - 30_000).toISOString();
+    const cutoff = new Date(Date.now() - SESSION_EXPIRY_MS).toISOString();
     const { data } = await supabase
       .from('whiteboard_sessions').select('user_id, display_name, avatar_color, last_ping')
       .eq('board_id', boardId).gte('last_ping', cutoff);
@@ -172,28 +180,18 @@ export function useRealtimeBoard(
           if (!asViewer) {
             channel.send({ type: 'broadcast', event: 'member:join',
               payload: { userId: user.id, displayName, avatarColor, lastPing: new Date().toISOString() } });
-            heartbeatRef.current = setInterval(async () => {
-              if (sessionIdRef.current) {
-                await supabase.from('whiteboard_sessions')
-                  .update({ last_ping: new Date().toISOString() }).eq('id', sessionIdRef.current);
-              }
-              // DB 기준으로 멤버 목록 재동기화 — 비정상 종료로 leave 브로드캐스트 없이
-              // 사라진 멤버를 주기적으로 제거
-              await fetchMembers();
-            }, HEARTBEAT_MS);
           }
         } else if (['CLOSED', 'CHANNEL_ERROR', 'TIMED_OUT'].includes(status)) {
           setConnectionStatus('polling');
           startPolling();
-          if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
-          // 30초 후 재연결 시도
+          // 10초 후 재연결 시도 (기존 30초 → 10초로 단축)
           setTimeout(() => {
             if (channelRef.current) {
               supabase.removeChannel(channelRef.current);
               channelRef.current = null;
             }
             subscribe(asViewer);
-          }, 30_000);
+          }, 10_000);
         }
       });
 
@@ -223,7 +221,7 @@ export function useRealtimeBoard(
         if (sess?.group_size) maxEditors = sess.group_size;
       }
 
-      const cutoff = new Date(Date.now() - 30_000).toISOString();
+      const cutoff = new Date(Date.now() - SESSION_EXPIRY_MS).toISOString();
       let query = supabase
         .from('whiteboard_sessions').select('user_id')
         .eq('board_id', boardId).neq('user_id', user.id).gte('last_ping', cutoff);
@@ -243,7 +241,18 @@ export function useRealtimeBoard(
 
     await registerSession();
     subscribe(false);
-  }, [boardId, user.id, registerSession, subscribe]);
+
+    // Realtime 연결 상태와 무관하게 last_ping 업데이트 + 멤버 목록 동기화
+    // 이 인터벌이 핵심: 채널이 CLOSED 되어도 세션이 만료되지 않음
+    stopSessionPing();
+    sessionPingRef.current = setInterval(async () => {
+      if (sessionIdRef.current) {
+        await supabase.from('whiteboard_sessions')
+          .update({ last_ping: new Date().toISOString() }).eq('id', sessionIdRef.current);
+      }
+      await fetchMembers();
+    }, HEARTBEAT_MS);
+  }, [boardId, user.id, registerSession, subscribe, stopSessionPing, fetchMembers]);
 
   useEffect(() => {
     // boardId가 '__none__'이면 보드가 아직 준비 안 됨 → 연결 안 함
@@ -276,6 +285,7 @@ export function useRealtimeBoard(
       channelRef.current?.send({ type: 'broadcast', event: 'member:leave', payload: { userId: user.id } });
       if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
       stopPolling();
+      stopSessionPing();
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
       Object.values(cursorTimers.current).forEach(clearTimeout);
       removeSession();
