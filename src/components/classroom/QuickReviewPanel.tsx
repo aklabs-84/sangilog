@@ -429,42 +429,121 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
           ) : current ? (
             <div className="space-y-4">
 
-              {/* Swipeable Card / Confirmation */}
+              {/* Swipeable Card */}
               <div className="relative">
+                {/* 카드 - 항목 전환 시에만 AnimatePresence 사용 */}
                 <AnimatePresence mode="wait">
-                  {confirmPending ? (
+                  <motion.div
+                    key={current.id}
+                    drag={confirmPending ? false : "x"}
+                    dragConstraints={{ left: -180, right: 180 }}
+                    dragElastic={0.15}
+                    style={{ x, rotate: cardRotate, boxShadow: cardRingShadow }}
+                    onDragEnd={(_, info) => {
+                      if (current.type === 'obs') {
+                        const isRight = info.offset.x > 60 || info.velocity.x > 400;
+                        const isLeft  = info.offset.x < -60 || info.velocity.x < -400;
+                        if (isRight) setConfirmPending('approve');
+                        else if (isLeft) setConfirmPending('reject');
+                      }
+                      x.set(0);
+                    }}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    className="bg-gray-50 rounded-2xl p-4 border border-transparent select-none touch-pan-y"
+                    style={{ x, rotate: cardRotate, boxShadow: cardRingShadow, cursor: confirmPending ? 'default' : 'grab' } as any}
+                  >
+                    {/* Swipe status indicator row */}
+                    <div className="relative h-6 mb-2">
+                      <motion.div
+                        style={{ opacity: approveOpacity }}
+                        className="absolute right-0 inset-y-0 flex items-center pointer-events-none"
+                      >
+                        <span className="inline-flex items-center gap-1 bg-emerald-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
+                          <CheckCircle2 size={12} />
+                          승인
+                        </span>
+                      </motion.div>
+                      <motion.div
+                        style={{ opacity: rejectOpacity }}
+                        className="absolute left-0 inset-y-0 flex items-center pointer-events-none"
+                      >
+                        <span className="inline-flex items-center gap-1 bg-red-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
+                          <XCircle size={12} />
+                          반려
+                        </span>
+                      </motion.div>
+                    </div>
+
+                    {/* Badges */}
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <WaitBadge days={current.waitDays} />
+                      <span className={`text-[11px] font-black px-2 py-1 rounded-lg border ${
+                        current.type === 'obs'
+                          ? 'text-blue-600 bg-blue-50 border-blue-200'
+                          : 'text-violet-600 bg-violet-50 border-violet-200'
+                      }`}>
+                        {current.type === 'obs' ? '활동기록' : '결과제출'}
+                      </span>
+                      {current.aiConcern && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border text-red-600 bg-red-50 border-red-200">
+                          <AlertTriangle size={10} />
+                          AI 주의
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Student */}
+                    <p className="text-[11px] text-gray-400 mb-1">
+                      {current.className} · {current.studentNumber}번 {current.studentName}
+                    </p>
+
+                    {/* Title */}
+                    <h3 className="font-black text-gray-900 text-sm mb-2 leading-tight">{current.title}</h3>
+
+                    {/* Content */}
+                    {renderContentPreview(current)}
+                  </motion.div>
+                </AnimatePresence>
+
+                {/* 확인 오버레이 - 카드 위에 즉시 표시 (exit 대기 없음) */}
+                <AnimatePresence>
+                  {confirmPending && (
                     <motion.div
-                      key={`confirm-${current.id}-${confirmPending}`}
-                      initial={{ opacity: 0, scale: 0.95 }}
+                      key={`confirm-${confirmPending}`}
+                      initial={{ opacity: 0, scale: 0.96 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.15 }}
-                      className={`rounded-2xl p-5 border-2 ${
+                      exit={{ opacity: 0, scale: 0.96 }}
+                      transition={{ duration: 0.12 }}
+                      className={`absolute inset-0 rounded-2xl p-5 border-2 z-10 flex flex-col justify-between ${
                         confirmPending === 'approve'
                           ? 'bg-emerald-50 border-emerald-200'
                           : 'bg-red-50 border-red-200'
                       }`}
                     >
-                      <div className="flex items-center gap-2 mb-1.5">
-                        {confirmPending === 'approve'
-                          ? <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
-                          : <XCircle size={20} className="text-red-600 shrink-0" />
-                        }
-                        <p className={`font-black text-base ${
-                          confirmPending === 'approve' ? 'text-emerald-800' : 'text-red-800'
-                        }`}>
-                          {confirmPending === 'approve' ? '승인하시겠습니까?' : '반려하시겠습니까?'}
-                        </p>
-                      </div>
-                      <p className="text-xs text-gray-500 mb-4 pl-7">
-                        {current.studentNumber}번 {current.studentName} · {current.title}
-                      </p>
-                      {confirmPending === 'reject' && feedback.trim() && (
-                        <div className="mb-4 px-3 py-2 bg-white rounded-xl border border-red-100 text-xs text-gray-600 leading-relaxed">
-                          <span className="font-black text-gray-400 block mb-0.5">반려 사유</span>
-                          {feedback.trim()}
+                      <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          {confirmPending === 'approve'
+                            ? <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+                            : <XCircle size={20} className="text-red-600 shrink-0" />
+                          }
+                          <p className={`font-black text-base ${
+                            confirmPending === 'approve' ? 'text-emerald-800' : 'text-red-800'
+                          }`}>
+                            {confirmPending === 'approve' ? '승인하시겠습니까?' : '반려하시겠습니까?'}
+                          </p>
                         </div>
-                      )}
+                        <p className="text-xs text-gray-500 mb-3 pl-7">
+                          {current.studentNumber}번 {current.studentName} · {current.title}
+                        </p>
+                        {confirmPending === 'reject' && feedback.trim() && (
+                          <div className="mb-3 px-3 py-2 bg-white rounded-xl border border-red-100 text-xs text-gray-600 leading-relaxed">
+                            <span className="font-black text-gray-400 block mb-0.5">반려 사유</span>
+                            {feedback.trim()}
+                          </div>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <button
                           onClick={handleCancelConfirm}
@@ -488,79 +567,6 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
                           }
                         </button>
                       </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key={current.id}
-                      drag="x"
-                      dragConstraints={{ left: -180, right: 180 }}
-                      dragElastic={0.15}
-                      style={{ x, rotate: cardRotate, boxShadow: cardRingShadow }}
-                      onDragEnd={(_, info) => {
-                        if (current.type === 'obs') {
-                          if (info.offset.x > 120) {
-                            setConfirmPending('approve');
-                          } else if (info.offset.x < -120) {
-                            setConfirmPending('reject');
-                          }
-                        }
-                        x.set(0);
-                      }}
-                      initial={{ opacity: 0, scale: 0.96 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.96 }}
-                      className="bg-gray-50 rounded-2xl p-4 border border-transparent cursor-grab active:cursor-grabbing select-none touch-pan-y"
-                    >
-                      {/* Swipe status indicator row */}
-                      <div className="relative h-6 mb-2">
-                        <motion.div
-                          style={{ opacity: approveOpacity }}
-                          className="absolute right-0 inset-y-0 flex items-center pointer-events-none"
-                        >
-                          <span className="inline-flex items-center gap-1 bg-emerald-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
-                            <CheckCircle2 size={12} />
-                            승인
-                          </span>
-                        </motion.div>
-                        <motion.div
-                          style={{ opacity: rejectOpacity }}
-                          className="absolute left-0 inset-y-0 flex items-center pointer-events-none"
-                        >
-                          <span className="inline-flex items-center gap-1 bg-red-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
-                            <XCircle size={12} />
-                            반려
-                          </span>
-                        </motion.div>
-                      </div>
-
-                      {/* Badges */}
-                      <div className="flex items-center gap-2 mb-3 flex-wrap">
-                        <WaitBadge days={current.waitDays} />
-                        <span className={`text-[11px] font-black px-2 py-1 rounded-lg border ${
-                          current.type === 'obs'
-                            ? 'text-blue-600 bg-blue-50 border-blue-200'
-                            : 'text-violet-600 bg-violet-50 border-violet-200'
-                        }`}>
-                          {current.type === 'obs' ? '활동기록' : '결과제출'}
-                        </span>
-                        {current.aiConcern && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border text-red-600 bg-red-50 border-red-200">
-                            <AlertTriangle size={10} />
-                            AI 주의
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Student */}
-                      <p className="text-[11px] text-gray-400 mb-1">
-                        {current.className} · {current.studentNumber}번 {current.studentName}
-                      </p>
-
-                      {/* Title */}
-                      <h3 className="font-black text-gray-900 text-sm mb-2 leading-tight">{current.title}</h3>
-
-                      {/* Content */}
-                      {renderContentPreview(current)}
                     </motion.div>
                   )}
                 </AnimatePresence>
