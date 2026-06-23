@@ -104,7 +104,7 @@ export function useRealtimeBoard(
       .insert({ board_id: boardId, user_id: user.id, display_name: displayName, avatar_color: avatarColor })
       .select('id').single();
     if (error) console.error('[WB] registerSession INSERT 실패:', error.code, error.message);
-    if (data) { sessionIdRef.current = data.id; console.log('[WB] 세션 등록 완료 id=', data.id, 'user=', displayName); }
+    if (data) { sessionIdRef.current = data.id; console.log('[WB] 세션 등록 완료 id=', data.id, 'user=', displayName, 'user_id=', user.id); }
   }, [boardId, user.id, displayName, avatarColor]);
 
   const removeSession = useCallback(async () => {
