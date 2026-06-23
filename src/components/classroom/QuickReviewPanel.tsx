@@ -58,6 +58,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
   const [feedback, setFeedback] = useState('');
   const [draftLoading, setDraftLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [confirmPending, setConfirmPending] = useState<'approve' | 'reject' | null>(null);
 
   const draftTargetIdRef = useRef<string | null>(null);
 
@@ -84,6 +85,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
   useEffect(() => {
     setFeedback('');
     setDraftLoading(false);
+    setConfirmPending(null);
     draftTargetIdRef.current = null;
   }, [currentIdx]);
 
@@ -246,6 +248,45 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
     }
   };
 
+  const handleRejectSwipe = async () => {
+    if (!current || processing) return;
+    setProcessing(true);
+    try {
+      const feedbackText = feedback.trim();
+      await supabase.from('observations').update({
+        status: 'rejected',
+        teacher_feedback: feedbackText || null,
+      }).eq('id', current.id);
+      await supabase.from('student_notifications').insert({
+        student_id: current.studentId,
+        class_id: current.classId,
+        title: '활동 기록이 반려되었습니다',
+        content: feedbackText
+          ? `"${current.title}" — ${feedbackText}`
+          : `"${current.title}"이 반려되었습니다.`,
+        type: 'rejection',
+        is_read: false,
+      });
+      goNext();
+    } catch (err) {
+      console.error('Reject swipe error:', err);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!confirmPending || processing) return;
+    setConfirmPending(null);
+    if (confirmPending === 'approve') {
+      await handleApprove();
+    } else {
+      await handleRejectSwipe();
+    }
+  };
+
+  const handleCancelConfirm = () => setConfirmPending(null);
+
   const handleGenerateDraft = async () => {
     if (!current || draftLoading) return;
     setDraftLoading(true);
@@ -388,88 +429,151 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
           ) : current ? (
             <div className="space-y-4">
 
-              {/* Swipeable Card */}
+              {/* Swipeable Card / Confirmation */}
               <div className="relative">
                 <AnimatePresence mode="wait">
-                  <motion.div
-                    key={current.id}
-                    drag="x"
-                    dragConstraints={{ left: -180, right: 180 }}
-                    dragElastic={0.15}
-                    style={{ x, rotate: cardRotate, boxShadow: cardRingShadow }}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.x > 120 && current.type === 'obs') {
-                        handleApprove();
-                      } else if (info.offset.x < -120) {
-                        document.getElementById('qr-feedback-input')?.focus();
-                      }
-                      x.set(0);
-                    }}
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
-                    className="bg-gray-50 rounded-2xl p-4 border border-transparent cursor-grab active:cursor-grabbing select-none touch-pan-y"
-                  >
-                    {/* Swipe status indicator row */}
-                    <div className="relative h-6 mb-2">
-                      <motion.div
-                        style={{ opacity: approveOpacity }}
-                        className="absolute right-0 inset-y-0 flex items-center pointer-events-none"
-                      >
-                        <span className="inline-flex items-center gap-1 bg-emerald-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
-                          <CheckCircle2 size={12} />
-                          승인
-                        </span>
-                      </motion.div>
-                      <motion.div
-                        style={{ opacity: rejectOpacity }}
-                        className="absolute left-0 inset-y-0 flex items-center pointer-events-none"
-                      >
-                        <span className="inline-flex items-center gap-1 bg-red-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
-                          <XCircle size={12} />
-                          반려
-                        </span>
-                      </motion.div>
-                    </div>
-
-                    {/* Badges */}
-                    <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <WaitBadge days={current.waitDays} />
-                      <span className={`text-[11px] font-black px-2 py-1 rounded-lg border ${
-                        current.type === 'obs'
-                          ? 'text-blue-600 bg-blue-50 border-blue-200'
-                          : 'text-violet-600 bg-violet-50 border-violet-200'
-                      }`}>
-                        {current.type === 'obs' ? '활동기록' : '결과제출'}
-                      </span>
-                      {current.aiConcern && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border text-red-600 bg-red-50 border-red-200">
-                          <AlertTriangle size={10} />
-                          AI 주의
-                        </span>
+                  {confirmPending ? (
+                    <motion.div
+                      key={`confirm-${current.id}-${confirmPending}`}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className={`rounded-2xl p-5 border-2 ${
+                        confirmPending === 'approve'
+                          ? 'bg-emerald-50 border-emerald-200'
+                          : 'bg-red-50 border-red-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        {confirmPending === 'approve'
+                          ? <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+                          : <XCircle size={20} className="text-red-600 shrink-0" />
+                        }
+                        <p className={`font-black text-base ${
+                          confirmPending === 'approve' ? 'text-emerald-800' : 'text-red-800'
+                        }`}>
+                          {confirmPending === 'approve' ? '승인하시겠습니까?' : '반려하시겠습니까?'}
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-4 pl-7">
+                        {current.studentNumber}번 {current.studentName} · {current.title}
+                      </p>
+                      {confirmPending === 'reject' && feedback.trim() && (
+                        <div className="mb-4 px-3 py-2 bg-white rounded-xl border border-red-100 text-xs text-gray-600 leading-relaxed">
+                          <span className="font-black text-gray-400 block mb-0.5">반려 사유</span>
+                          {feedback.trim()}
+                        </div>
                       )}
-                    </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCancelConfirm}
+                          disabled={processing}
+                          className="flex-1 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 font-black text-sm active:scale-95 transition-transform disabled:opacity-50"
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={handleConfirm}
+                          disabled={processing}
+                          className={`flex-1 py-2.5 rounded-xl text-white font-black text-sm active:scale-95 transition-transform disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                            confirmPending === 'approve' ? 'bg-emerald-500' : 'bg-red-500'
+                          }`}
+                        >
+                          {processing
+                            ? <Loader2 size={14} className="animate-spin" />
+                            : confirmPending === 'approve'
+                              ? <><CheckCircle2 size={14} /> 승인하기</>
+                              : <><XCircle size={14} /> 반려하기</>
+                          }
+                        </button>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key={current.id}
+                      drag="x"
+                      dragConstraints={{ left: -180, right: 180 }}
+                      dragElastic={0.15}
+                      style={{ x, rotate: cardRotate, boxShadow: cardRingShadow }}
+                      onDragEnd={(_, info) => {
+                        if (current.type === 'obs') {
+                          if (info.offset.x > 120) {
+                            setConfirmPending('approve');
+                          } else if (info.offset.x < -120) {
+                            setConfirmPending('reject');
+                          }
+                        }
+                        x.set(0);
+                      }}
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.96 }}
+                      className="bg-gray-50 rounded-2xl p-4 border border-transparent cursor-grab active:cursor-grabbing select-none touch-pan-y"
+                    >
+                      {/* Swipe status indicator row */}
+                      <div className="relative h-6 mb-2">
+                        <motion.div
+                          style={{ opacity: approveOpacity }}
+                          className="absolute right-0 inset-y-0 flex items-center pointer-events-none"
+                        >
+                          <span className="inline-flex items-center gap-1 bg-emerald-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
+                            <CheckCircle2 size={12} />
+                            승인
+                          </span>
+                        </motion.div>
+                        <motion.div
+                          style={{ opacity: rejectOpacity }}
+                          className="absolute left-0 inset-y-0 flex items-center pointer-events-none"
+                        >
+                          <span className="inline-flex items-center gap-1 bg-red-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
+                            <XCircle size={12} />
+                            반려
+                          </span>
+                        </motion.div>
+                      </div>
 
-                    {/* Student */}
-                    <p className="text-[11px] text-gray-400 mb-1">
-                      {current.className} · {current.studentNumber}번 {current.studentName}
-                    </p>
+                      {/* Badges */}
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
+                        <WaitBadge days={current.waitDays} />
+                        <span className={`text-[11px] font-black px-2 py-1 rounded-lg border ${
+                          current.type === 'obs'
+                            ? 'text-blue-600 bg-blue-50 border-blue-200'
+                            : 'text-violet-600 bg-violet-50 border-violet-200'
+                        }`}>
+                          {current.type === 'obs' ? '활동기록' : '결과제출'}
+                        </span>
+                        {current.aiConcern && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border text-red-600 bg-red-50 border-red-200">
+                            <AlertTriangle size={10} />
+                            AI 주의
+                          </span>
+                        )}
+                      </div>
 
-                    {/* Title */}
-                    <h3 className="font-black text-gray-900 text-sm mb-2 leading-tight">{current.title}</h3>
+                      {/* Student */}
+                      <p className="text-[11px] text-gray-400 mb-1">
+                        {current.className} · {current.studentNumber}번 {current.studentName}
+                      </p>
 
-                    {/* Content */}
-                    {renderContentPreview(current)}
-                  </motion.div>
+                      {/* Title */}
+                      <h3 className="font-black text-gray-900 text-sm mb-2 leading-tight">{current.title}</h3>
+
+                      {/* Content */}
+                      {renderContentPreview(current)}
+                    </motion.div>
+                  )}
                 </AnimatePresence>
               </div>
 
               {/* Swipe hint */}
-              <p className="text-[11px] text-center text-gray-300">
-                {current.type === 'obs'
-                  ? '← 왼쪽으로 반려 포커스 · 오른쪽으로 즉시 승인 →'
-                  : '아래 버튼으로 피드백을 작성하거나 다음으로 넘기세요'}
-              </p>
+              {!confirmPending && (
+                <p className="text-[11px] text-center text-gray-300">
+                  {current.type === 'obs'
+                    ? '← 왼쪽으로 반려 확인 · 오른쪽으로 승인 확인 →'
+                    : '아래 버튼으로 피드백을 작성하거나 다음으로 넘기세요'}
+                </p>
+              )}
 
               {/* AI Draft button */}
               <button
