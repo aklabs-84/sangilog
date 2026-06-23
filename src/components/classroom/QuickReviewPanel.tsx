@@ -58,7 +58,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
   const [feedback, setFeedback] = useState('');
   const [draftLoading, setDraftLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [confirmPending, setConfirmPending] = useState<'approve' | 'reject' | null>(null);
+  const [confirmPending, setConfirmPending] = useState<'approve' | 'reject' | 'save' | 'skip' | null>(null);
 
   const draftTargetIdRef = useRef<string | null>(null);
 
@@ -280,8 +280,12 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
     setConfirmPending(null);
     if (confirmPending === 'approve') {
       await handleApprove();
-    } else {
+    } else if (confirmPending === 'reject') {
       await handleRejectSwipe();
+    } else if (confirmPending === 'save') {
+      await handleSaveFeedback();
+    } else if (confirmPending === 'skip') {
+      goNext();
     }
   };
 
@@ -440,11 +444,14 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
                     dragElastic={0.15}
                     style={{ x, rotate: cardRotate, boxShadow: cardRingShadow }}
                     onDragEnd={(_, info) => {
+                      const isRight = info.offset.x > 60 || info.velocity.x > 400;
+                      const isLeft  = info.offset.x < -60 || info.velocity.x < -400;
                       if (current.type === 'obs') {
-                        const isRight = info.offset.x > 60 || info.velocity.x > 400;
-                        const isLeft  = info.offset.x < -60 || info.velocity.x < -400;
                         if (isRight) setConfirmPending('approve');
                         else if (isLeft) setConfirmPending('reject');
+                      } else {
+                        if (isRight) setConfirmPending(feedback.trim() ? 'save' : 'skip');
+                        else if (isLeft) setConfirmPending('skip');
                       }
                       x.set(0);
                     }}
@@ -517,29 +524,40 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
                       exit={{ opacity: 0, scale: 0.96 }}
                       transition={{ duration: 0.12 }}
                       className={`absolute inset-0 rounded-2xl p-5 border-2 z-10 flex flex-col justify-between ${
-                        confirmPending === 'approve'
-                          ? 'bg-emerald-50 border-emerald-200'
-                          : 'bg-red-50 border-red-200'
+                        confirmPending === 'approve' ? 'bg-emerald-50 border-emerald-200' :
+                        confirmPending === 'reject'  ? 'bg-red-50 border-red-200' :
+                        confirmPending === 'save'    ? 'bg-violet-50 border-violet-200' :
+                                                       'bg-gray-50 border-gray-200'
                       }`}
                     >
                       <div>
                         <div className="flex items-center gap-2 mb-1.5">
-                          {confirmPending === 'approve'
-                            ? <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
-                            : <XCircle size={20} className="text-red-600 shrink-0" />
-                          }
+                          {confirmPending === 'approve' && <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />}
+                          {confirmPending === 'reject'  && <XCircle size={20} className="text-red-600 shrink-0" />}
+                          {confirmPending === 'save'    && <MessageSquare size={20} className="text-violet-600 shrink-0" />}
+                          {confirmPending === 'skip'    && <SkipForward size={20} className="text-gray-500 shrink-0" />}
                           <p className={`font-black text-base ${
-                            confirmPending === 'approve' ? 'text-emerald-800' : 'text-red-800'
+                            confirmPending === 'approve' ? 'text-emerald-800' :
+                            confirmPending === 'reject'  ? 'text-red-800' :
+                            confirmPending === 'save'    ? 'text-violet-800' :
+                                                           'text-gray-700'
                           }`}>
-                            {confirmPending === 'approve' ? '승인하시겠습니까?' : '반려하시겠습니까?'}
+                            {confirmPending === 'approve' ? '승인하시겠습니까?' :
+                             confirmPending === 'reject'  ? '반려하시겠습니까?' :
+                             confirmPending === 'save'    ? '피드백을 저장하시겠습니까?' :
+                                                           '건너뛰시겠습니까?'}
                           </p>
                         </div>
                         <p className="text-xs text-gray-500 mb-3 pl-7">
                           {current.studentNumber}번 {current.studentName} · {current.title}
                         </p>
-                        {confirmPending === 'reject' && feedback.trim() && (
-                          <div className="mb-3 px-3 py-2 bg-white rounded-xl border border-red-100 text-xs text-gray-600 leading-relaxed">
-                            <span className="font-black text-gray-400 block mb-0.5">반려 사유</span>
+                        {(confirmPending === 'reject' || confirmPending === 'save') && feedback.trim() && (
+                          <div className={`mb-3 px-3 py-2 bg-white rounded-xl border text-xs text-gray-600 leading-relaxed ${
+                            confirmPending === 'reject' ? 'border-red-100' : 'border-violet-100'
+                          }`}>
+                            <span className="font-black text-gray-400 block mb-0.5">
+                              {confirmPending === 'reject' ? '반려 사유' : '피드백 내용'}
+                            </span>
                             {feedback.trim()}
                           </div>
                         )}
@@ -556,14 +574,17 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
                           onClick={handleConfirm}
                           disabled={processing}
                           className={`flex-1 py-2.5 rounded-xl text-white font-black text-sm active:scale-95 transition-transform disabled:opacity-50 flex items-center justify-center gap-1.5 ${
-                            confirmPending === 'approve' ? 'bg-emerald-500' : 'bg-red-500'
+                            confirmPending === 'approve' ? 'bg-emerald-500' :
+                            confirmPending === 'reject'  ? 'bg-red-500' :
+                            confirmPending === 'save'    ? 'bg-violet-500' :
+                                                           'bg-gray-500'
                           }`}
                         >
-                          {processing
-                            ? <Loader2 size={14} className="animate-spin" />
-                            : confirmPending === 'approve'
-                              ? <><CheckCircle2 size={14} /> 승인하기</>
-                              : <><XCircle size={14} /> 반려하기</>
+                          {processing ? <Loader2 size={14} className="animate-spin" /> :
+                           confirmPending === 'approve' ? <><CheckCircle2 size={14} /> 승인하기</> :
+                           confirmPending === 'reject'  ? <><XCircle size={14} /> 반려하기</> :
+                           confirmPending === 'save'    ? <><MessageSquare size={14} /> 저장하기</> :
+                                                          <><SkipForward size={14} /> 건너뛰기</>
                           }
                         </button>
                       </div>
@@ -577,7 +598,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
                 <p className="text-[11px] text-center text-gray-300">
                   {current.type === 'obs'
                     ? '← 왼쪽으로 반려 확인 · 오른쪽으로 승인 확인 →'
-                    : '아래 버튼으로 피드백을 작성하거나 다음으로 넘기세요'}
+                    : '← 왼쪽으로 건너뛰기 · 오른쪽으로 피드백 저장 →'}
                 </p>
               )}
 
