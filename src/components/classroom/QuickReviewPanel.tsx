@@ -5,7 +5,7 @@ import { useAuth } from '../../lib/auth';
 import { generateFeedbackDraft } from '../../lib/gemini';
 import {
   X, Sparkles, CheckCircle2, XCircle, Clock,
-  AlertTriangle, Loader2, MessageSquare, SkipForward, Link2, Paperclip,
+  AlertTriangle, Loader2, SkipForward, Link2, Paperclip,
 } from 'lucide-react';
 
 interface ReviewItem {
@@ -21,6 +21,7 @@ interface ReviewItem {
   resultType?: string;
   linkUrl?: string;
   displayName?: string;
+  submissionGroup?: string;
   createdAt: string;
   waitDays: number;
   aiConcern: boolean;
@@ -116,9 +117,9 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
           .limit(50),
         supabase
           .from('student_results')
-          .select('id, title, text_content, result_type, link_url, display_name, created_at, student_id')
+          .select('id, title, text_content, result_type, link_url, display_name, created_at, student_id, submission_group')
           .in('student_id', studentIds)
-          .is('teacher_feedback', null)
+          .or('status.is.null,status.eq.submitted')
           .order('created_at', { ascending: true })
           .limit(50),
       ]);
@@ -151,6 +152,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
         resultType: r.result_type,
         linkUrl: r.link_url,
         displayName: r.display_name,
+        submissionGroup: r.submission_group || undefined,
         createdAt: r.created_at,
         waitDays: getWaitDays(r.created_at),
         aiConcern: false,
@@ -234,15 +236,56 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
     }
   };
 
-  const handleSaveFeedback = async () => {
-    if (!current || !feedback.trim() || processing) return;
+  const handleApproveResult = async () => {
+    if (!current || processing) return;
     setProcessing(true);
     try {
-      await supabase.from('student_results').update({ teacher_feedback: feedback.trim() }).eq('id', current.id);
-      showToast(`피드백 저장 완료: ${current.studentName}`);
+      const col = current.submissionGroup ? 'submission_group' : 'id';
+      const val = current.submissionGroup || current.id;
+      await supabase.from('student_results').update({ status: 'approved' }).eq(col, val);
+      await supabase.from('student_notifications').insert({
+        student_id: current.studentId,
+        class_id: current.classId,
+        title: '제출 결과가 확인되었습니다 ✅',
+        content: `"${current.title}"이 선생님께 확인되었습니다.`,
+        type: 'approval',
+        is_read: false,
+      });
+      showToast(`승인 완료: ${current.studentName} · ${current.title}`);
       goNext();
     } catch (err) {
-      console.error('Save feedback error:', err);
+      console.error('ApproveResult error:', err);
+      showToast('처리 중 오류가 발생했습니다', false);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleRejectResult = async () => {
+    if (!current || processing) return;
+    setProcessing(true);
+    try {
+      const feedbackText = feedback.trim();
+      const col = current.submissionGroup ? 'submission_group' : 'id';
+      const val = current.submissionGroup || current.id;
+      await supabase.from('student_results').update({
+        status: 'rejected',
+        rejection_feedback: feedbackText || null,
+      }).eq(col, val);
+      await supabase.from('student_notifications').insert({
+        student_id: current.studentId,
+        class_id: current.classId,
+        title: '제출 결과가 반려되었습니다',
+        content: feedbackText
+          ? `"${current.title}" — ${feedbackText}`
+          : `"${current.title}"이 반려되었습니다. 수정 후 재제출하세요.`,
+        type: 'rejection',
+        is_read: false,
+      });
+      showToast(`반려 완료: ${current.studentName} · ${current.title}`);
+      goNext();
+    } catch (err) {
+      console.error('RejectResult error:', err);
       showToast('처리 중 오류가 발생했습니다', false);
     } finally {
       setProcessing(false);
@@ -473,18 +516,14 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
                 <label className="text-xs font-black text-gray-400 mb-1.5 block">
                   피드백
                   <span className="text-gray-300 ml-1 font-medium">
-                    {current.type === 'obs' ? '(선택 — 반려 사유 입력 시 학생에게 전달)' : '(필수)'}
+                    (선택 — 반려 시 학생에게 전달)
                   </span>
                 </label>
                 <textarea
                   id="qr-feedback-input"
                   value={feedback}
                   onChange={e => setFeedback(e.target.value)}
-                  placeholder={
-                    current.type === 'obs'
-                      ? '반려 사유 또는 피드백을 입력하세요 (선택)...'
-                      : '학생에게 전달할 피드백을 입력하세요...'
-                  }
+                  placeholder="반려 사유 또는 피드백을 입력하세요 (선택)..."
                   rows={3}
                   className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white leading-relaxed"
                 />
@@ -527,17 +566,30 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={handleSaveFeedback}
-                    disabled={!feedback.trim() || processing}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-sm transition-all active:scale-95 disabled:opacity-40"
-                  >
-                    {processing
-                      ? <Loader2 size={14} className="animate-spin" />
-                      : <MessageSquare size={14} />
-                    }
-                    피드백 저장
-                  </button>
+                  <>
+                    <button
+                      onClick={handleRejectResult}
+                      disabled={processing}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-black text-sm transition-all active:scale-95 disabled:opacity-40"
+                    >
+                      {processing
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : <XCircle size={14} />
+                      }
+                      반려
+                    </button>
+                    <button
+                      onClick={handleApproveResult}
+                      disabled={processing}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm transition-all active:scale-95 disabled:opacity-40"
+                    >
+                      {processing
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : <CheckCircle2 size={14} />
+                      }
+                      승인
+                    </button>
+                  </>
                 )}
               </div>
             </div>
