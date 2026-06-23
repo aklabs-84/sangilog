@@ -584,6 +584,11 @@ const Classroom = () => {
 
       if (error) throw error;
 
+      // 클래스명이 바뀌었으면 협업보드 세션 class_name도 동기화
+      await supabase.from('class_board_sessions')
+        .update({ class_name: updateClassData.name })
+        .eq('class_id', updateClassData.id);
+
       // 학교 프로젝트 부모 클래스이면 하위 클래스 전체에 공통 설정 cascade
       if (updateClassData.school_project_id && !updateClassData.parent_class_id) {
         await supabase.from('classes').update(sharedSettings).eq('parent_class_id', updateClassData.id);

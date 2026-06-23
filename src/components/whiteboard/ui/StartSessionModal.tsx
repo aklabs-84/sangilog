@@ -46,7 +46,7 @@ export default function StartSessionModal({ onClose, onCreated }: Props) {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('classes').select('id, name, subject').eq('teacher_id', user.id).order('name')
+    supabase.from('classes').select('id, name, subject').eq('teacher_id', user.id).eq('is_archived', false).order('name')
       .then(({ data }) => setClasses(data || []));
   }, [user]);
 
