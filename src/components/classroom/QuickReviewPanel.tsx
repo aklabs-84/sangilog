@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { generateFeedbackDraft } from '../../lib/gemini';
@@ -58,25 +58,8 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
   const [feedback, setFeedback] = useState('');
   const [draftLoading, setDraftLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [confirmPending, setConfirmPending] = useState<'approve' | 'reject' | 'save' | 'skip' | null>(null);
 
   const draftTargetIdRef = useRef<string | null>(null);
-
-  const x = useMotionValue(0);
-  const cardRotate = useTransform(x, [-160, 0, 160], [-7, 0, 7]);
-  const approveOpacity = useTransform(x, [30, 110], [0, 1]);
-  const rejectOpacity = useTransform(x, [-110, -30], [1, 0]);
-  const cardRingShadow = useTransform(
-    x,
-    [-120, -20, 0, 20, 120],
-    [
-      '0 0 0 2.5px #ef4444',
-      '0 0 0 1.5px #fca5a5',
-      '0 1px 3px rgba(0,0,0,0.06)',
-      '0 0 0 1.5px #6ee7b7',
-      '0 0 0 2.5px #10b981',
-    ]
-  );
 
   const current = items[currentIdx] as ReviewItem | undefined;
   const remaining = Math.max(0, items.length - currentIdx);
@@ -85,7 +68,6 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
   useEffect(() => {
     setFeedback('');
     setDraftLoading(false);
-    setConfirmPending(null);
     draftTargetIdRef.current = null;
   }, [currentIdx]);
 
@@ -181,11 +163,9 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
   };
 
   const goNext = () => {
-    x.set(0);
     setFeedback('');
     const next = currentIdx + 1;
-    const leftover = items.length - next;
-    onCountChange(Math.max(0, leftover));
+    onCountChange(Math.max(0, items.length - next));
     if (next >= items.length) {
       onClose();
     } else {
@@ -247,49 +227,6 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
       setProcessing(false);
     }
   };
-
-  const handleRejectSwipe = async () => {
-    if (!current || processing) return;
-    setProcessing(true);
-    try {
-      const feedbackText = feedback.trim();
-      await supabase.from('observations').update({
-        status: 'rejected',
-        teacher_feedback: feedbackText || null,
-      }).eq('id', current.id);
-      await supabase.from('student_notifications').insert({
-        student_id: current.studentId,
-        class_id: current.classId,
-        title: '활동 기록이 반려되었습니다',
-        content: feedbackText
-          ? `"${current.title}" — ${feedbackText}`
-          : `"${current.title}"이 반려되었습니다.`,
-        type: 'rejection',
-        is_read: false,
-      });
-      goNext();
-    } catch (err) {
-      console.error('Reject swipe error:', err);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (!confirmPending || processing) return;
-    setConfirmPending(null);
-    if (confirmPending === 'approve') {
-      await handleApprove();
-    } else if (confirmPending === 'reject') {
-      await handleRejectSwipe();
-    } else if (confirmPending === 'save') {
-      await handleSaveFeedback();
-    } else if (confirmPending === 'skip') {
-      goNext();
-    }
-  };
-
-  const handleCancelConfirm = () => setConfirmPending(null);
 
   const handleGenerateDraft = async () => {
     if (!current || draftLoading) return;
@@ -433,174 +370,46 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
           ) : current ? (
             <div className="space-y-4">
 
-              {/* Swipeable Card */}
-              <div className="relative">
-                {/* 카드 - 항목 전환 시에만 AnimatePresence 사용 */}
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={current.id}
-                    drag={confirmPending ? false : "x"}
-                    dragConstraints={{ left: -180, right: 180 }}
-                    dragElastic={0.15}
-                    style={{ x, rotate: cardRotate, boxShadow: cardRingShadow }}
-                    onDragEnd={(_, info) => {
-                      const isRight = info.offset.x > 60 || info.velocity.x > 400;
-                      const isLeft  = info.offset.x < -60 || info.velocity.x < -400;
-                      if (current.type === 'obs') {
-                        if (isRight) setConfirmPending('approve');
-                        else if (isLeft) setConfirmPending('reject');
-                      } else {
-                        if (isRight) setConfirmPending(feedback.trim() ? 'save' : 'skip');
-                        else if (isLeft) setConfirmPending('skip');
-                      }
-                      x.set(0);
-                    }}
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
-                    className="bg-gray-50 rounded-2xl p-4 border border-transparent select-none touch-pan-y"
-                    style={{ x, rotate: cardRotate, boxShadow: cardRingShadow, cursor: confirmPending ? 'default' : 'grab' } as any}
-                  >
-                    {/* Swipe status indicator row */}
-                    <div className="relative h-6 mb-2">
-                      <motion.div
-                        style={{ opacity: approveOpacity }}
-                        className="absolute right-0 inset-y-0 flex items-center pointer-events-none"
-                      >
-                        <span className="inline-flex items-center gap-1 bg-emerald-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
-                          <CheckCircle2 size={12} />
-                          승인
-                        </span>
-                      </motion.div>
-                      <motion.div
-                        style={{ opacity: rejectOpacity }}
-                        className="absolute left-0 inset-y-0 flex items-center pointer-events-none"
-                      >
-                        <span className="inline-flex items-center gap-1 bg-red-500 text-white text-[11px] font-black px-2.5 py-1 rounded-lg">
-                          <XCircle size={12} />
-                          반려
-                        </span>
-                      </motion.div>
-                    </div>
-
-                    {/* Badges */}
-                    <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <WaitBadge days={current.waitDays} />
-                      <span className={`text-[11px] font-black px-2 py-1 rounded-lg border ${
-                        current.type === 'obs'
-                          ? 'text-blue-600 bg-blue-50 border-blue-200'
-                          : 'text-violet-600 bg-violet-50 border-violet-200'
-                      }`}>
-                        {current.type === 'obs' ? '활동기록' : '결과제출'}
+              {/* Card */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={current.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.15 }}
+                  className="bg-gray-50 rounded-2xl p-4 border border-gray-100"
+                >
+                  {/* Badges */}
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <WaitBadge days={current.waitDays} />
+                    <span className={`text-[11px] font-black px-2 py-1 rounded-lg border ${
+                      current.type === 'obs'
+                        ? 'text-blue-600 bg-blue-50 border-blue-200'
+                        : 'text-violet-600 bg-violet-50 border-violet-200'
+                    }`}>
+                      {current.type === 'obs' ? '활동기록' : '결과제출'}
+                    </span>
+                    {current.aiConcern && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border text-red-600 bg-red-50 border-red-200">
+                        <AlertTriangle size={10} />
+                        AI 주의
                       </span>
-                      {current.aiConcern && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border text-red-600 bg-red-50 border-red-200">
-                          <AlertTriangle size={10} />
-                          AI 주의
-                        </span>
-                      )}
-                    </div>
+                    )}
+                  </div>
 
-                    {/* Student */}
-                    <p className="text-[11px] text-gray-400 mb-1">
-                      {current.className} · {current.studentNumber}번 {current.studentName}
-                    </p>
+                  {/* Student */}
+                  <p className="text-[11px] text-gray-400 mb-1">
+                    {current.className} · {current.studentNumber}번 {current.studentName}
+                  </p>
 
-                    {/* Title */}
-                    <h3 className="font-black text-gray-900 text-sm mb-2 leading-tight">{current.title}</h3>
+                  {/* Title */}
+                  <h3 className="font-black text-gray-900 text-sm mb-2 leading-tight">{current.title}</h3>
 
-                    {/* Content */}
-                    {renderContentPreview(current)}
-                  </motion.div>
-                </AnimatePresence>
-
-                {/* 확인 오버레이 - 카드 위에 즉시 표시 (exit 대기 없음) */}
-                <AnimatePresence>
-                  {confirmPending && (
-                    <motion.div
-                      key={`confirm-${confirmPending}`}
-                      initial={{ opacity: 0, scale: 0.96 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.96 }}
-                      transition={{ duration: 0.12 }}
-                      className={`absolute inset-0 rounded-2xl p-5 border-2 z-10 flex flex-col justify-between ${
-                        confirmPending === 'approve' ? 'bg-emerald-50 border-emerald-200' :
-                        confirmPending === 'reject'  ? 'bg-red-50 border-red-200' :
-                        confirmPending === 'save'    ? 'bg-violet-50 border-violet-200' :
-                                                       'bg-gray-50 border-gray-200'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          {confirmPending === 'approve' && <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />}
-                          {confirmPending === 'reject'  && <XCircle size={20} className="text-red-600 shrink-0" />}
-                          {confirmPending === 'save'    && <MessageSquare size={20} className="text-violet-600 shrink-0" />}
-                          {confirmPending === 'skip'    && <SkipForward size={20} className="text-gray-500 shrink-0" />}
-                          <p className={`font-black text-base ${
-                            confirmPending === 'approve' ? 'text-emerald-800' :
-                            confirmPending === 'reject'  ? 'text-red-800' :
-                            confirmPending === 'save'    ? 'text-violet-800' :
-                                                           'text-gray-700'
-                          }`}>
-                            {confirmPending === 'approve' ? '승인하시겠습니까?' :
-                             confirmPending === 'reject'  ? '반려하시겠습니까?' :
-                             confirmPending === 'save'    ? '피드백을 저장하시겠습니까?' :
-                                                           '건너뛰시겠습니까?'}
-                          </p>
-                        </div>
-                        <p className="text-xs text-gray-500 mb-3 pl-7">
-                          {current.studentNumber}번 {current.studentName} · {current.title}
-                        </p>
-                        {(confirmPending === 'reject' || confirmPending === 'save') && feedback.trim() && (
-                          <div className={`mb-3 px-3 py-2 bg-white rounded-xl border text-xs text-gray-600 leading-relaxed ${
-                            confirmPending === 'reject' ? 'border-red-100' : 'border-violet-100'
-                          }`}>
-                            <span className="font-black text-gray-400 block mb-0.5">
-                              {confirmPending === 'reject' ? '반려 사유' : '피드백 내용'}
-                            </span>
-                            {feedback.trim()}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleCancelConfirm}
-                          disabled={processing}
-                          className="flex-1 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 font-black text-sm active:scale-95 transition-transform disabled:opacity-50"
-                        >
-                          취소
-                        </button>
-                        <button
-                          onClick={handleConfirm}
-                          disabled={processing}
-                          className={`flex-1 py-2.5 rounded-xl text-white font-black text-sm active:scale-95 transition-transform disabled:opacity-50 flex items-center justify-center gap-1.5 ${
-                            confirmPending === 'approve' ? 'bg-emerald-500' :
-                            confirmPending === 'reject'  ? 'bg-red-500' :
-                            confirmPending === 'save'    ? 'bg-violet-500' :
-                                                           'bg-gray-500'
-                          }`}
-                        >
-                          {processing ? <Loader2 size={14} className="animate-spin" /> :
-                           confirmPending === 'approve' ? <><CheckCircle2 size={14} /> 승인하기</> :
-                           confirmPending === 'reject'  ? <><XCircle size={14} /> 반려하기</> :
-                           confirmPending === 'save'    ? <><MessageSquare size={14} /> 저장하기</> :
-                                                          <><SkipForward size={14} /> 건너뛰기</>
-                          }
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Swipe hint */}
-              {!confirmPending && (
-                <p className="text-[11px] text-center text-gray-300">
-                  {current.type === 'obs'
-                    ? '← 왼쪽으로 반려 확인 · 오른쪽으로 승인 확인 →'
-                    : '← 왼쪽으로 건너뛰기 · 오른쪽으로 피드백 저장 →'}
-                </p>
-              )}
+                  {/* Content */}
+                  {renderContentPreview(current)}
+                </motion.div>
+              </AnimatePresence>
 
               {/* AI Draft button */}
               <button
@@ -633,12 +442,7 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
               {/* Action buttons */}
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    x.set(0);
-                    setFeedback('');
-                    if (currentIdx >= items.length - 1) onClose();
-                    else setCurrentIdx(prev => prev + 1);
-                  }}
+                  onClick={goNext}
                   disabled={processing}
                   className="flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-black text-sm transition-all active:scale-95 disabled:opacity-50 shrink-0"
                 >
