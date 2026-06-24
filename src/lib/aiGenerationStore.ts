@@ -8,6 +8,9 @@ export type AiGenState = {
   completedCount: number;
   hasError: boolean;
   justCompleted: boolean; // true → 완료 알림 표시용 (짧게 유지)
+  isRefining: boolean;
+  refineStudentName: string;
+  refineLabel: string;
 };
 
 const initialState: AiGenState = {
@@ -18,6 +21,9 @@ const initialState: AiGenState = {
   completedCount: 0,
   hasError: false,
   justCompleted: false,
+  isRefining: false,
+  refineStudentName: '',
+  refineLabel: '',
 };
 
 let state: AiGenState = { ...initialState };
@@ -57,6 +63,20 @@ export const aiGenStore = {
       state = { ...state, justCompleted: false, hasError: false };
       notify();
     }, 4000);
+  },
+
+  startRefine: (studentName: string, refineLabel: string) => {
+    state = { ...state, isRefining: true, refineStudentName: studentName, refineLabel, justCompleted: false, hasError: false };
+    notify();
+  },
+
+  endRefine: (hasError = false) => {
+    state = { ...state, isRefining: false, refineStudentName: '', refineLabel: '', hasError, justCompleted: true };
+    notify();
+    setTimeout(() => {
+      state = { ...state, justCompleted: false, hasError: false };
+      notify();
+    }, 3000);
   },
 
   subscribe: (fn: () => void) => {

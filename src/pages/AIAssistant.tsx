@@ -19,6 +19,7 @@ import {
   Crown,
   AlertTriangle,
   Square,
+  Send,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth, checkIsPro, getAiMonthlyLimit } from '../lib/auth';
@@ -33,6 +34,9 @@ interface StudentDraft {
   isExpanded: boolean;
   isCopied: boolean;
   isDeleting?: boolean;
+  isDirty?: boolean;    // 다듬기 후 미저장 상태
+  isApplying?: boolean; // 나이스 반영 중
+  applyDone?: boolean;  // 나이스 반영 완료 표시
 }
 
 const AIAssistant = () => {
@@ -401,18 +405,29 @@ ${obsText}
     }
   };
 
+  const REFINE_DISPLAY_LABELS: Record<string, string> = {
+    '어문 규범에 맞게 교정하고 더 자연스럽게 수정': '부드럽게 교정',
+    '핵심만 50% 분량으로 축소': '내용 축소',
+    '명사형 종결어미(~함, ~임)를 사용하고 객관적 관찰자 시점의 전문적인 어조로 수정': '전문적인 어조',
+    '더 구체적인 사례와 역량 중심으로 보완': '구체화',
+  };
+
   const applyRefineForStudent = async (index: number, refineType: string) => {
     const draft = draftResults[index];
     if (!draft) return;
+    const displayLabel = REFINE_DISPLAY_LABELS[refineType] || '다듬기';
     setIsGenerating(true);
+    aiGenStore.startRefine(draft.name, displayLabel);
     try {
       const prompt = `다음 학생 기록 초안을 "${refineType}" 해주세요. 결과물 텍스트만 출력하세요.\n\n원본:\n${draft.content}`;
       const result = await seatukRefineAI.generateContent(prompt);
       const updated = [...draftResults];
-      updated[index] = { ...draft, content: result.response.text().trim() };
+      updated[index] = { ...draft, content: result.response.text().trim(), isDirty: true, applyDone: false };
       setDraftResults(updated);
+      aiGenStore.endRefine(false);
     } catch (err) {
       console.error(err);
+      aiGenStore.endRefine(true);
     } finally {
       setIsGenerating(false);
     }
@@ -428,6 +443,36 @@ ${obsText}
       reset[index] = { ...reset[index], isCopied: false };
       setDraftResults(reset);
     }, 1500);
+  };
+
+  const handleApplyToNaiss = async (index: number) => {
+    const draft = draftResults[index];
+    if (!draft || !draft.studentId) return;
+    const updated = [...draftResults];
+    updated[index] = { ...draft, isApplying: true };
+    setDraftResults(updated);
+    try {
+      await supabase.from('student_evaluations').upsert({
+        student_id: draft.studentId,
+        class_id: selectedClassId,
+        teacher_id: user?.id,
+        academic_year: new Date().getFullYear(),
+        setech_content: draft.content,
+        status: 'draft',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'student_id,class_id,academic_year' });
+      const done = [...draftResults];
+      done[index] = { ...draft, isApplying: false, isDirty: false, applyDone: true };
+      setDraftResults(done);
+      setTimeout(() => {
+        setDraftResults(prev => prev.map((d, i) => i === index ? { ...d, applyDone: false } : d));
+      }, 3000);
+    } catch (err) {
+      console.error(err);
+      const reset = [...draftResults];
+      reset[index] = { ...draft, isApplying: false };
+      setDraftResults(reset);
+    }
   };
 
   const handleDeleteDraft = async (index: number) => {
@@ -984,7 +1029,7 @@ ${obsText}
                           </div>
 
                           {/* 다듬기 툴바 */}
-                          <div className="px-5 pb-4 pt-2 flex items-center gap-2 flex-wrap">
+                          <div className="px-5 pb-2 pt-2 flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest mr-1">다듬기</span>
                             {[
                               { label: '부드럽게 교정', cmd: '어문 규범에 맞게 교정하고 더 자연스럽게 수정' },
@@ -1004,6 +1049,35 @@ ${obsText}
                               구체화
                             </button>
                           </div>
+
+                          {/* 나이스 제출 반영 버튼 */}
+                          {(draft.isDirty || draft.applyDone) && (
+                            <div className="px-5 pb-4">
+                              <div className={`flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border transition-all ${
+                                draft.applyDone
+                                  ? 'bg-emerald-50 border-emerald-200'
+                                  : 'bg-primary/5 border-primary/20'
+                              }`}>
+                                <p className={`text-[11px] font-bold ${draft.applyDone ? 'text-emerald-700' : 'text-primary/80'}`}>
+                                  {draft.applyDone
+                                    ? '✓ 나이스 제출에 반영 완료'
+                                    : '다듬은 내용을 나이스 제출에 반영할까요?'}
+                                </p>
+                                {!draft.applyDone && (
+                                  <button
+                                    onClick={() => handleApplyToNaiss(originalIndex)}
+                                    disabled={draft.isApplying}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-white text-[11px] font-black transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-50 shrink-0"
+                                  >
+                                    {draft.isApplying
+                                      ? <RotateCw size={12} className="animate-spin" />
+                                      : <Send size={12} />}
+                                    {draft.isApplying ? '반영 중...' : '나이스에 반영'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
