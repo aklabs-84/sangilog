@@ -61,7 +61,6 @@ const AIAssistant = () => {
   const [upgradeReason, setUpgradeReason] = useState<'ai_bulk' | 'ai_limit' | 'ai_free_block'>('ai_bulk');
   const [monthAiCount, setMonthAiCount] = useState(0);
   const [reportMode, setReportMode] = useState<'school' | 'academy'>('school');
-  const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [availableWeeks, setAvailableWeeks] = useState<number[]>([]);
   const [weekFilterMode, setWeekFilterMode] = useState<'all' | 'select'>('all');
@@ -70,6 +69,7 @@ const AIAssistant = () => {
   const [showOnlyPending, setShowOnlyPending] = useState(false);
   const [isStopped, setIsStopped] = useState(false);
   const abortRef = useRef(false);
+  const generatingRef = useRef(false); // 생성 중 loadSavedDrafts 덮어쓰기 방지
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isHomeroom = selectedClass?.class_type === 'homeroom';
@@ -94,8 +94,7 @@ const AIAssistant = () => {
           fetchStudents(classesData[0].id);
         }
       }
-      const { data: drafts } = await supabase.from('ai_drafts').select('*').eq('teacher_id', user?.id).order('created_at', { ascending: false }).limit(3);
-      if (drafts) setSavedDrafts(drafts);
+      // ai_drafts 테이블 미사용
     } catch (error) {
       console.error('Error fetching initial data:', error);
     } finally {
@@ -112,7 +111,9 @@ const AIAssistant = () => {
       if (data) {
         setStudents(data);
         setSelectedStudentIds(data.map((s: any) => s.id));
-        await loadSavedDrafts(classId, data);
+        if (!generatingRef.current) {
+          await loadSavedDrafts(classId, data);
+        }
       }
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -296,6 +297,7 @@ ${obsText}
     setIsGenerating(true);
     setIsStopped(false);
     abortRef.current = false;
+    generatingRef.current = true;
     setShowDraft(false);
     setDraftResults([]);
     setProgress({ current: 0, total: 0 });
@@ -415,6 +417,7 @@ ${obsText}
     } finally {
       setIsGenerating(false);
       setGeneratingName('');
+      generatingRef.current = false;
     }
   };
 
@@ -1201,28 +1204,6 @@ ${obsText}
         </div>
       </div>
 
-      {/* 최근 저장 초안 */}
-      {savedDrafts.length > 0 && (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-bold font-manrope px-2">최근 AI 초안</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {savedDrafts.map((item) => (
-              <div key={item.id}
-                onClick={() => {
-                  setDraftResults([{ studentId: '', name: '불러온 초안', content: item.content, isExpanded: true, isCopied: false }]);
-                  setShowDraft(true);
-                }}
-                className="p-6 surface-card shadow-ambient hover:translate-y-[-4px] transition-all cursor-pointer border-t-4 border-primary/20 hover:border-primary">
-                <div className="flex items-center gap-2 mb-3">
-                  <ArrowRight size={16} className="text-primary" />
-                  <span className="text-xs font-bold text-primary">{item.class_name || '저장된 초안'}</span>
-                </div>
-                <p className="text-sm font-medium text-on-surface-variant/70 line-clamp-4 leading-relaxed">{item.content}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <UpgradeModal
         isOpen={upgradeOpen}
