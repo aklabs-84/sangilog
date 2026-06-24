@@ -96,6 +96,8 @@ const Classroom = () => {
     min_obs_chars: 0,
     blocked_keywords: [] as string[],
     ai_review_enabled: true,
+    start_date: '',
+    end_date: '',
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -488,6 +490,7 @@ const Classroom = () => {
     e.preventDefault();
     const isSubjectRequired = newClassData.class_type === 'subject';
     if (!newClassData.name || (isSubjectRequired && !newClassData.subject) || !user) return;
+    if (!newClassData.start_date || !newClassData.end_date) return;
 
     // School 플랜 클래스 생성 차단
     if (profile?.plan === 'school') {
@@ -526,7 +529,9 @@ const Classroom = () => {
           blocked_keywords: newClassData.blocked_keywords || [],
           ai_review_enabled: newClassData.ai_review_enabled ?? true,
           weekly_plan: newClassData.weekly_plan.filter((item: any) => item.topic.trim()),
-          entry_code: entryCode
+          entry_code: entryCode,
+          start_date: newClassData.start_date || null,
+          end_date: newClassData.end_date || null
         })
         .select()
         .single();
@@ -544,6 +549,8 @@ const Classroom = () => {
         min_obs_chars: 0,
         blocked_keywords: [],
         ai_review_enabled: true,
+        start_date: '',
+        end_date: '',
       });
       await fetchClasses();
       if (data) setActiveClassId(data.id);
@@ -1901,6 +1908,35 @@ const Classroom = () => {
                   <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest">학급 명칭</label>
                   <input type="text" placeholder="예: 2학년 3반" value={newClassData.name} onChange={e => setNewClassData({...newClassData, name: e.target.value})} className="w-full px-5 py-3.5 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-neutral-900 transition-all outline-none placeholder:text-neutral-400" required />
                 </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
+                    <CalendarDays size={13} /> 수업 기간 <span className="text-error">*</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 space-y-1">
+                      <p className="text-[10px] font-black text-neutral-400 ml-1">시작일</p>
+                      <input
+                        type="date"
+                        value={newClassData.start_date}
+                        onChange={e => setNewClassData({...newClassData, start_date: e.target.value})}
+                        className={`w-full px-4 py-3 bg-neutral-100 border-2 rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none ${!newClassData.start_date ? 'border-error/40 bg-error/5' : 'border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white'}`}
+                        required
+                      />
+                    </div>
+                    <span className="text-neutral-400 font-black text-sm mt-5">~</span>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-[10px] font-black text-neutral-400 ml-1">종료일</p>
+                      <input
+                        type="date"
+                        value={newClassData.end_date}
+                        onChange={e => setNewClassData({...newClassData, end_date: e.target.value})}
+                        className={`w-full px-4 py-3 bg-neutral-100 border-2 rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none ${!newClassData.end_date ? 'border-error/40 bg-error/5' : 'border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white'}`}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-neutral-400 font-bold ml-1">종료일이 지나면 학생의 활동기록·결과 제출이 자동으로 차단됩니다.</p>
+                </div>
                 {newClassData.class_type === 'subject' && (
                   <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest">담당 과목</label>
@@ -2058,7 +2094,11 @@ const Classroom = () => {
 
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-4 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 rounded-2xl font-black text-neutral-700 transition-all">취소</button>
-                  <button type="submit" className="flex-1 py-4 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95">생성하기</button>
+                  <button
+                    type="submit"
+                    disabled={!newClassData.start_date || !newClassData.end_date}
+                    className="flex-1 py-4 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
+                  >생성하기</button>
                 </div>
               </form>
             </motion.div>
