@@ -27,6 +27,8 @@ import { seatukDraftAI, seatukRefineAI, SYSTEM_INSTRUCTIONS } from '../lib/gemin
 import UpgradeModal from '../components/UpgradeModal';
 
 
+type HistoryEntry = { label: string; content: string; createdAt: string };
+
 interface StudentDraft {
   studentId: string;
   name: string;
@@ -34,9 +36,11 @@ interface StudentDraft {
   isExpanded: boolean;
   isCopied: boolean;
   isDeleting?: boolean;
-  isDirty?: boolean;    // 다듬기 후 미저장 상태
-  isApplying?: boolean; // 나이스 반영 중
-  applyDone?: boolean;  // 나이스 반영 완료 표시
+  isDirty?: boolean;
+  isApplying?: boolean;
+  applyDone?: boolean;
+  history: HistoryEntry[];
+  showHistory?: boolean;
 }
 
 const AIAssistant = () => {
@@ -120,7 +124,7 @@ const AIAssistant = () => {
       const ids = studentList.map((s: any) => s.id);
       const { data: evals } = await supabase
         .from('student_evaluations')
-        .select('student_id, setech_content, status')
+        .select('student_id, setech_content, status, refine_history')
         .in('student_id', ids)
         .eq('class_id', classId)
         .eq('academic_year', new Date().getFullYear())
@@ -130,7 +134,14 @@ const AIAssistant = () => {
           .filter(e => e.setech_content)
           .map(e => {
             const stu = studentList.find((s: any) => s.id === e.student_id);
-            return { studentId: e.student_id, name: stu?.full_name || '알 수 없음', content: e.setech_content, isExpanded: false, isCopied: false };
+            return {
+              studentId: e.student_id,
+              name: stu?.full_name || '알 수 없음',
+              content: e.setech_content,
+              isExpanded: false,
+              isCopied: false,
+              history: Array.isArray(e.refine_history) ? e.refine_history : [],
+            };
           });
         if (drafts.length > 0) {
           setDraftResults(drafts);
@@ -360,7 +371,8 @@ ${obsText}
           teacherPrompt,
           reportMode
         );
-        results.push({ studentId: student.id, name: student.full_name, content, isExpanded: true, isCopied: false });
+        const originEntry: HistoryEntry = { label: '원본', content, createdAt: new Date().toISOString() };
+        results.push({ studentId: student.id, name: student.full_name, content, isExpanded: true, isCopied: false, history: [originEntry] });
         setDraftResults([...results]);
         setShowDraft(true);
 
@@ -372,6 +384,7 @@ ${obsText}
             teacher_id: user?.id,
             academic_year: new Date().getFullYear(),
             setech_content: content,
+            refine_history: [originEntry],
             status: 'draft',
             updated_at: new Date().toISOString(),
           }, { onConflict: 'student_id,class_id,academic_year' });
@@ -421,9 +434,20 @@ ${obsText}
     try {
       const prompt = `다음 학생 기록 초안을 "${refineType}" 해주세요. 결과물 텍스트만 출력하세요.\n\n원본:\n${draft.content}`;
       const result = await seatukRefineAI.generateContent(prompt);
+      const refinedContent = result.response.text().trim();
+      const newEntry: HistoryEntry = { label: displayLabel, content: refinedContent, createdAt: new Date().toISOString() };
+      const newHistory = [...(draft.history || []), newEntry].slice(-20);
       const updated = [...draftResults];
-      updated[index] = { ...draft, content: result.response.text().trim(), isDirty: true, applyDone: false };
+      updated[index] = { ...draft, content: refinedContent, history: newHistory, isDirty: true, applyDone: false };
       setDraftResults(updated);
+      // 히스토리 DB 저장
+      if (draft.studentId) {
+        supabase.from('student_evaluations').update({
+          refine_history: newHistory,
+          updated_at: new Date().toISOString(),
+        }).eq('student_id', draft.studentId).eq('class_id', selectedClassId).eq('academic_year', new Date().getFullYear())
+          .then(() => {}).catch(console.error);
+      }
       aiGenStore.endRefine(false);
     } catch (err) {
       console.error(err);
@@ -499,6 +523,20 @@ ${obsText}
   const toggleExpand = (index: number) => {
     const updated = [...draftResults];
     updated[index] = { ...updated[index], isExpanded: !updated[index].isExpanded };
+    setDraftResults(updated);
+  };
+
+  const toggleHistory = (index: number) => {
+    const updated = [...draftResults];
+    updated[index] = { ...updated[index], showHistory: !updated[index].showHistory };
+    setDraftResults(updated);
+  };
+
+  const applyHistoryVersion = (index: number, historyIndex: number) => {
+    const draft = draftResults[index];
+    if (!draft?.history?.[historyIndex]) return;
+    const updated = [...draftResults];
+    updated[index] = { ...draft, content: draft.history[historyIndex].content, isDirty: true, applyDone: false };
     setDraftResults(updated);
   };
 
@@ -1049,6 +1087,55 @@ ${obsText}
                               구체화
                             </button>
                           </div>
+
+                          {/* 히스토리 패널 */}
+                          {draft.history && draft.history.length > 0 && (
+                            <div className="px-5 pb-2">
+                              <button
+                                onClick={() => toggleHistory(originalIndex)}
+                                className="flex items-center gap-1.5 text-[11px] font-black text-on-surface-variant/60 hover:text-on-surface-variant transition-colors"
+                              >
+                                <RotateCw size={11} />
+                                히스토리 ({draft.history.length}개)
+                                {draft.showHistory ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                              </button>
+                              {draft.showHistory && (
+                                <div className="mt-2 space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar">
+                                  {draft.history.map((h, hIdx) => {
+                                    const isCurrent = draft.content === h.content;
+                                    const timeStr = new Date(h.createdAt).toLocaleString('ko', {
+                                      month: 'numeric', day: 'numeric',
+                                      hour: '2-digit', minute: '2-digit',
+                                    });
+                                    return (
+                                      <div key={hIdx} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
+                                        isCurrent
+                                          ? 'bg-primary/5 border-primary/20'
+                                          : 'bg-surface-container border-surface-container-high hover:bg-surface-container-high'
+                                      }`}>
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <span className={`text-[11px] font-black shrink-0 ${isCurrent ? 'text-primary' : 'text-on-surface-variant'}`}>
+                                            {h.label}
+                                          </span>
+                                          <span className="text-[10px] text-on-surface-variant/40 truncate">{timeStr}</span>
+                                        </div>
+                                        {isCurrent ? (
+                                          <span className="text-[10px] font-black text-primary shrink-0">현재</span>
+                                        ) : (
+                                          <button
+                                            onClick={() => applyHistoryVersion(originalIndex, hIdx)}
+                                            className="text-[10px] font-black text-on-surface-variant/60 hover:text-primary hover:bg-primary/10 px-2 py-0.5 rounded-lg transition-all shrink-0"
+                                          >
+                                            적용
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* 나이스 제출 반영 버튼 */}
                           {(draft.isDirty || draft.applyDone) && (
