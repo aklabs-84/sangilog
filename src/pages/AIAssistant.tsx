@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   Square,
   Send,
+  X,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth, checkIsPro, getAiMonthlyLimit } from '../lib/auth';
@@ -541,6 +542,30 @@ ${obsText}
     const updated = [...draftResults];
     updated[index] = { ...draft, content: draft.history[historyIndex].content, isDirty: true, applyDone: false };
     setDraftResults(updated);
+  };
+
+  const handleDeleteHistoryEntry = async (draftIndex: number, historyIndex: number) => {
+    const draft = draftResults[draftIndex];
+    if (!draft?.history) return;
+    const deletedEntry = draft.history[historyIndex];
+    const newHistory = draft.history.filter((_, i) => i !== historyIndex);
+    // 현재 보고 있던 버전 삭제 시 → 바로 이전 항목으로 복귀
+    let newContent = draft.content;
+    if (deletedEntry.content === draft.content) {
+      const fallback = newHistory[historyIndex - 1] ?? newHistory[newHistory.length - 1];
+      if (fallback) newContent = fallback.content;
+    }
+    const updated = [...draftResults];
+    updated[draftIndex] = { ...draft, history: newHistory, content: newContent };
+    setDraftResults(updated);
+    if (draft.studentId) {
+      supabase.from('student_evaluations').update({
+        refine_history: newHistory,
+        setech_content: newContent,
+        updated_at: new Date().toISOString(),
+      }).eq('student_id', draft.studentId).eq('class_id', selectedClassId).eq('academic_year', new Date().getFullYear())
+        .then(() => {}).catch(console.error);
+    }
   };
 
   const updateContent = (index: number, content: string) => {
@@ -1103,7 +1128,7 @@ ${obsText}
                                 {draft.showHistory ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                               </button>
                               {draft.showHistory && (
-                                <div className="mt-2 space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar">
+                                <div className="mt-2 space-y-1 max-h-52 overflow-y-auto custom-scrollbar">
                                   {draft.history.map((h, hIdx) => {
                                     const isCurrent = draft.content === h.content;
                                     const timeStr = new Date(h.createdAt).toLocaleString('ko', {
@@ -1111,27 +1136,41 @@ ${obsText}
                                       hour: '2-digit', minute: '2-digit',
                                     });
                                     return (
-                                      <div key={hIdx} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
-                                        isCurrent
-                                          ? 'bg-primary/5 border-primary/20'
-                                          : 'bg-surface-container border-surface-container-high hover:bg-surface-container-high'
-                                      }`}>
-                                        <div className="flex items-center gap-2 min-w-0">
+                                      <div
+                                        key={hIdx}
+                                        onClick={() => !isCurrent && applyHistoryVersion(originalIndex, hIdx)}
+                                        className={`group flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all ${
+                                          isCurrent
+                                            ? 'bg-primary/5 border-primary/20'
+                                            : 'bg-surface-container border-surface-container-high hover:bg-primary/3 hover:border-primary/20 cursor-pointer'
+                                        }`}
+                                      >
+                                        {/* 라디오 점 */}
+                                        <div className={`w-3 h-3 rounded-full border-2 shrink-0 transition-all ${
+                                          isCurrent
+                                            ? 'bg-primary border-primary'
+                                            : 'border-on-surface-variant/30 group-hover:border-primary/50'
+                                        }`} />
+                                        {/* 라벨 + 시간 */}
+                                        <div className="flex-1 flex items-center gap-1.5 min-w-0">
                                           <span className={`text-[11px] font-black shrink-0 ${isCurrent ? 'text-primary' : 'text-on-surface-variant'}`}>
                                             {h.label}
                                           </span>
                                           <span className="text-[10px] text-on-surface-variant/40 truncate">{timeStr}</span>
                                         </div>
-                                        {isCurrent ? (
-                                          <span className="text-[10px] font-black text-primary shrink-0">현재</span>
-                                        ) : (
+                                        {/* 현재 뱃지 + 삭제 */}
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          {isCurrent && (
+                                            <span className="text-[10px] font-black text-primary">현재</span>
+                                          )}
                                           <button
-                                            onClick={() => applyHistoryVersion(originalIndex, hIdx)}
-                                            className="text-[10px] font-black text-on-surface-variant/60 hover:text-primary hover:bg-primary/10 px-2 py-0.5 rounded-lg transition-all shrink-0"
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteHistoryEntry(originalIndex, hIdx); }}
+                                            className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-100 hover:text-red-500 text-on-surface-variant/40 transition-all"
+                                            title="이 버전 삭제"
                                           >
-                                            적용
+                                            <X size={11} />
                                           </button>
-                                        )}
+                                        </div>
                                       </div>
                                     );
                                   })}
