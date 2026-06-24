@@ -136,13 +136,14 @@ export default function WhiteboardList() {
     sessionStorage.setItem('wb_selected_class_id', selectedClassId);
   }, [selectedClassId]);
 
-  // 선택된 클래스 탭이 비어지면 전체로 이동
+  // 선택된 클래스 탭이 비어지면 전체로 이동 (로딩 완료 후에만 실행)
   useEffect(() => {
+    if (loading) return;
     if (selectedClassId !== ALL_TAB && selectedClassId !== NO_CLASS_TAB) {
       const hasBoards = boards.some(b => b.class_id === selectedClassId);
       if (!hasBoards) setSelectedClassId(ALL_TAB);
     }
-  }, [boards, selectedClassId]);
+  }, [boards, selectedClassId, loading]);
 
   const handleCreate = () => {
     const isBasicOnly = checkIsBasicOrAbove(profile) && !checkIsPro(profile);
