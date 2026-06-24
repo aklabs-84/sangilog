@@ -47,7 +47,9 @@ export default function WhiteboardList() {
   const [boards, setBoards] = useState<BoardMeta[]>([]);
   const [classInfos, setClassInfos] = useState<ClassInfo[]>([]);
   const [classSessions, setClassSessions] = useState<Record<string, ClassSession>>({});
-  const [selectedClassId, setSelectedClassId] = useState<string>(ALL_TAB);
+  const [selectedClassId, setSelectedClassId] = useState<string>(
+    () => sessionStorage.getItem('wb_selected_class_id') ?? ALL_TAB
+  );
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -128,6 +130,11 @@ export default function WhiteboardList() {
   }, [user?.id]);
 
   useEffect(() => { loadBoards(); }, [loadBoards]);
+
+  // selectedClassId 변경 시 sessionStorage에 저장 (페이지 이동 후 복원용)
+  useEffect(() => {
+    sessionStorage.setItem('wb_selected_class_id', selectedClassId);
+  }, [selectedClassId]);
 
   // 선택된 클래스 탭이 비어지면 전체로 이동
   useEffect(() => {
