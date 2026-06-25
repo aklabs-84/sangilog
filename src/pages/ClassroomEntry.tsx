@@ -180,7 +180,8 @@ const ClassroomEntry = () => {
       student_name: selectedStudent!.full_name,
       class_id: targetClass!.id,
       class_name: targetClass!.name,
-      subject: targetClass!.subject
+      subject: targetClass!.subject,
+      is_fresh_entry: true
     }));
     navigate('/student-log');
   };
