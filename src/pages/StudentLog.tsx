@@ -50,6 +50,7 @@ import {
   NotebookPen,
   ChevronDown,
   ChevronUp,
+  Plus,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { observationReviewAI } from '../lib/gemini';
@@ -145,6 +146,17 @@ const MATERIAL_MD_COMPONENTS = {
     </summary>
   ),
 };
+
+interface NoteItem {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+const notePreview = (content: string) =>
+  content.replace(/[#*_`>\[\]()\-!]/g, '').replace(/\n+/g, ' ').trim().slice(0, 65);
 
 const StudentLog = () => {
   const navigate = useNavigate();
@@ -287,11 +299,18 @@ const StudentLog = () => {
   const [surveyLoading, setSurveyLoading] = useState(false);
 
   // Notes Tab States
+  const [noteList, setNoteList] = useState<NoteItem[]>([]);
+  const [noteListLoading, setNoteListLoading] = useState(false);
+  const [selectedNote, setSelectedNote] = useState<NoteItem | null>(null);
   const [noteContent, setNoteContent] = useState('');
+  const [noteTitleInput, setNoteTitleInput] = useState('');
   const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [noteEditorKey, setNoteEditorKey] = useState(0);
   const [noteGuideOpen, setNoteGuideOpen] = useState(false);
+  const [noteCreating, setNoteCreating] = useState(false);
+  const [noteDeleteId, setNoteDeleteId] = useState<string | null>(null);
   const noteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteTitleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Board Tab States
   const [activeBoardSessions, setActiveBoardSessions] = useState<any[]>([]);
@@ -1701,31 +1720,71 @@ const StudentLog = () => {
     }
   };
 
-  const fetchNote = async () => {
+  const fetchNotes = async () => {
     if (!session?.student_id || !session?.class_id) return;
+    setNoteListLoading(true);
     try {
       const { data } = await supabase
         .from('student_notes')
-        .select('content')
+        .select('id, title, content, created_at, updated_at')
         .eq('student_id', session.student_id)
         .eq('class_id', session.class_id)
-        .maybeSingle();
-      setNoteContent(data?.content ?? '');
-      setNoteEditorKey(k => k + 1);
+        .order('created_at', { ascending: false });
+      setNoteList(data ?? []);
     } catch {
-      // 노트 없으면 빈 상태로 시작
+      // 조용히 실패
+    } finally {
+      setNoteListLoading(false);
     }
   };
 
-  const saveNote = async (content: string) => {
+  const createNote = async () => {
     if (!session?.student_id || !session?.class_id) return;
+    setNoteCreating(true);
+    try {
+      const { data, error } = await supabase
+        .from('student_notes')
+        .insert({ student_id: session.student_id, class_id: session.class_id, title: '제목 없음', content: '' })
+        .select('id, title, content, created_at, updated_at')
+        .single();
+      if (error) throw error;
+      setNoteList(prev => [data, ...prev]);
+      setSelectedNote(data);
+      setNoteContent('');
+      setNoteTitleInput('제목 없음');
+      setNoteEditorKey(k => k + 1);
+      setNoteSaveStatus('idle');
+    } catch {
+      showToast('노트 생성에 실패했습니다.');
+    } finally {
+      setNoteCreating(false);
+    }
+  };
+
+  const selectNote = (note: NoteItem) => {
+    setSelectedNote(note);
+    setNoteContent(note.content);
+    setNoteTitleInput(note.title);
+    setNoteEditorKey(k => k + 1);
+    setNoteSaveStatus('idle');
+  };
+
+  const backToNoteList = () => {
+    if (noteDebounceRef.current) { clearTimeout(noteDebounceRef.current); noteDebounceRef.current = null; }
+    if (noteTitleDebounceRef.current) { clearTimeout(noteTitleDebounceRef.current); noteTitleDebounceRef.current = null; }
+    setSelectedNote(null);
+    setNoteContent('');
+    setNoteTitleInput('');
+    setNoteSaveStatus('idle');
+    fetchNotes();
+  };
+
+  const saveNote = async (id: string, content: string, title: string) => {
     try {
       await supabase
         .from('student_notes')
-        .upsert(
-          { student_id: session.student_id, class_id: session.class_id, content, updated_at: new Date().toISOString() },
-          { onConflict: 'student_id,class_id' }
-        );
+        .update({ content, title, updated_at: new Date().toISOString() })
+        .eq('id', id);
       setNoteSaveStatus('saved');
       setTimeout(() => setNoteSaveStatus('idle'), 2500);
     } catch {
@@ -1737,7 +1796,29 @@ const StudentLog = () => {
     setNoteContent(content);
     setNoteSaveStatus('saving');
     if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
-    noteDebounceRef.current = setTimeout(() => saveNote(content), 2000);
+    noteDebounceRef.current = setTimeout(() => {
+      if (selectedNote) saveNote(selectedNote.id, content, noteTitleInput);
+    }, 2000);
+  };
+
+  const handleNoteTitleChange = (title: string) => {
+    setNoteTitleInput(title);
+    setNoteSaveStatus('saving');
+    if (noteTitleDebounceRef.current) clearTimeout(noteTitleDebounceRef.current);
+    noteTitleDebounceRef.current = setTimeout(() => {
+      if (selectedNote) saveNote(selectedNote.id, noteContent, title);
+    }, 1500);
+  };
+
+  const deleteNote = async (id: string) => {
+    try {
+      await supabase.from('student_notes').delete().eq('id', id);
+      setNoteList(prev => prev.filter(n => n.id !== id));
+      setNoteDeleteId(null);
+      showToast('노트가 삭제되었습니다.');
+    } catch {
+      showToast('삭제에 실패했습니다.');
+    }
   };
 
   const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes') => {
@@ -1751,7 +1832,7 @@ const StudentLog = () => {
     if (tab === 'quiz') { fetchActiveQuizSessions(); fetchQuizHistory(); }
     if (tab === 'survey') fetchActiveSurveyForms();
     if (tab === 'board') { fetchBoard(); fetchActiveBoardSessions(); }
-    if (tab === 'notes') fetchNote();
+    if (tab === 'notes') { setSelectedNote(null); fetchNotes(); }
   };
 
   const formatRelativeTime = (dateStr: string) => {
@@ -4435,82 +4516,197 @@ ${guidePrompt}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="flex flex-col"
+                className="flex flex-col min-h-[400px]"
               >
-                {/* 헤더 */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 sticky top-0 bg-white z-10">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
-                      <NotebookPen size={16} className="text-emerald-600" />
+                {/* ── 에디터 뷰 ─────────────────── */}
+                {selectedNote ? (
+                  <>
+                    {/* 에디터 헤더 */}
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 sticky top-0 bg-white z-10">
+                      <button
+                        onClick={backToNoteList}
+                        className="flex items-center gap-1 text-xs font-black text-neutral-500 hover:text-emerald-600 transition-colors shrink-0 mr-1"
+                      >
+                        <ArrowLeft size={14} /> 목록
+                      </button>
+                      <div className="w-px h-4 bg-neutral-200 shrink-0" />
+                      {/* 제목 인라인 편집 */}
+                      <input
+                        value={noteTitleInput}
+                        onChange={e => handleNoteTitleChange(e.target.value)}
+                        placeholder="제목 없음"
+                        className="flex-1 text-sm font-black text-on-surface bg-transparent outline-none placeholder:text-neutral-300 truncate"
+                      />
+                      {/* 저장 상태 */}
+                      <div className="shrink-0 flex items-center gap-1">
+                        {noteSaveStatus === 'saving' && <Loader2 size={11} className="animate-spin text-neutral-400" />}
+                        {noteSaveStatus === 'saved' && <CheckCircle2 size={11} className="text-emerald-500" />}
+                        {noteSaveStatus === 'error' && <AlertCircle size={11} className="text-red-400" />}
+                      </div>
+                      {/* 삭제 */}
+                      <button
+                        onClick={() => setNoteDeleteId(selectedNote.id)}
+                        className="shrink-0 p-1.5 rounded-lg text-neutral-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <div>
-                      <h2 className="text-base font-black leading-tight">나의 노트</h2>
-                      <p className="text-[10px] font-bold text-on-surface-variant/60">수업 내용을 자유롭게 기록하세요</p>
-                    </div>
-                  </div>
-                  {/* 저장 상태 */}
-                  <div className="flex items-center gap-2">
-                    {noteSaveStatus === 'saving' && (
-                      <span className="flex items-center gap-1 text-[11px] font-bold text-neutral-400">
-                        <Loader2 size={11} className="animate-spin" /> 저장 중...
-                      </span>
-                    )}
-                    {noteSaveStatus === 'saved' && (
-                      <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-500">
-                        <CheckCircle2 size={11} /> 저장됨
-                      </span>
-                    )}
-                    {noteSaveStatus === 'error' && (
-                      <span className="flex items-center gap-1 text-[11px] font-bold text-red-500">
-                        <AlertCircle size={11} /> 저장 실패
-                      </span>
-                    )}
-                  </div>
-                </div>
 
-                {/* 사용법 가이드 (접이식) */}
-                <div className="mx-4 mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 overflow-hidden">
-                  <button
-                    onClick={() => setNoteGuideOpen(v => !v)}
-                    className="w-full flex items-center justify-between px-4 py-3 text-left"
-                  >
-                    <span className="flex items-center gap-2 text-xs font-black text-emerald-700">
-                      💡 사용 방법 보기
-                    </span>
-                    {noteGuideOpen
-                      ? <ChevronUp size={14} className="text-emerald-500" />
-                      : <ChevronDown size={14} className="text-emerald-500" />
-                    }
-                  </button>
-                  {noteGuideOpen && (
-                    <div className="px-4 pb-4 space-y-2.5 border-t border-emerald-100">
-                      {[
-                        { icon: '/', title: '슬래시 명령어', desc: '/ 를 입력하면 제목, 목록, 코드블록, 인용구 등 블록을 삽입할 수 있어요.' },
-                        { icon: 'B', title: '서식 툴바', desc: '텍스트를 드래그하면 굵게·기울임·링크·이미지 등 서식 도구가 나타나요.' },
-                        { icon: '💾', title: '자동 저장', desc: '입력이 멈추면 2초 후 자동으로 저장돼요. 별도 저장 버튼 없이 편하게 작성하세요.' },
-                        { icon: '📅', title: '영구 보존', desc: '노트는 수업이 끝나도 사라지지 않아요. 언제든 다시 와서 확인하고 수정할 수 있어요.' },
-                      ].map(item => (
-                        <div key={item.title} className="flex items-start gap-3">
-                          <span className="w-7 h-7 rounded-lg bg-emerald-200 text-emerald-800 flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">{item.icon}</span>
-                          <div>
-                            <p className="text-xs font-black text-emerald-800">{item.title}</p>
-                            <p className="text-[11px] font-bold text-emerald-600/80">{item.desc}</p>
-                          </div>
+                    {/* 삭제 확인 배너 */}
+                    {noteDeleteId === selectedNote.id && (
+                      <div className="mx-4 mt-3 px-4 py-3 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-between gap-3">
+                        <p className="text-xs font-black text-red-600">이 노트를 삭제할까요?</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => setNoteDeleteId(null)} className="px-3 py-1.5 rounded-xl text-xs font-black text-neutral-500 bg-white border border-neutral-200">취소</button>
+                          <button
+                            onClick={async () => { await deleteNote(selectedNote.id); setSelectedNote(null); fetchNotes(); }}
+                            className="px-3 py-1.5 rounded-xl text-xs font-black text-white bg-red-500 hover:bg-red-600"
+                          >삭제</button>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    )}
 
-                {/* 에디터 영역 */}
-                <div className="mx-4 mt-3 mb-6 rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm">
-                  <RichEditor
-                    key={noteEditorKey}
-                    value={noteContent}
-                    onChange={handleNoteChange}
-                    minHeight="420px"
-                  />
-                </div>
+                    {/* 에디터 */}
+                    <div className="mx-4 mt-3 mb-6 rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm">
+                      <RichEditor
+                        key={noteEditorKey}
+                        value={noteContent}
+                        onChange={handleNoteChange}
+                        minHeight="420px"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  /* ── 목록 뷰 ─────────────────── */
+                  <>
+                    {/* 목록 헤더 */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+                          <NotebookPen size={16} className="text-emerald-600" />
+                        </div>
+                        <div>
+                          <h2 className="text-base font-black leading-tight">나의 노트</h2>
+                          <p className="text-[10px] font-bold text-on-surface-variant/60">
+                            {noteList.length > 0 ? `총 ${noteList.length}개의 노트` : '수업 내용을 자유롭게 기록하세요'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={createNote}
+                        disabled={noteCreating}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black disabled:opacity-50 transition-all active:scale-95"
+                      >
+                        {noteCreating ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                        새 노트
+                      </button>
+                    </div>
+
+                    {/* 사용법 가이드 */}
+                    <div className="mx-4 mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 overflow-hidden">
+                      <button
+                        onClick={() => setNoteGuideOpen(v => !v)}
+                        className="w-full flex items-center justify-between px-4 py-3 text-left"
+                      >
+                        <span className="text-xs font-black text-emerald-700">💡 사용 방법 보기</span>
+                        {noteGuideOpen ? <ChevronUp size={14} className="text-emerald-500" /> : <ChevronDown size={14} className="text-emerald-500" />}
+                      </button>
+                      {noteGuideOpen && (
+                        <div className="px-4 pb-4 space-y-2.5 border-t border-emerald-100">
+                          {[
+                            { icon: '+', title: '새 노트 만들기', desc: '오른쪽 위 "새 노트" 버튼을 눌러 노트를 추가하세요. 노트마다 제목을 붙일 수 있어요.' },
+                            { icon: '/', title: '슬래시 명령어', desc: '/ 를 입력하면 제목, 목록, 코드블록, 인용구 등 블록을 삽입할 수 있어요.' },
+                            { icon: 'B', title: '서식 툴바', desc: '텍스트를 드래그하면 굵게·기울임·링크 등 서식 도구가 나타나요.' },
+                            { icon: '💾', title: '자동 저장', desc: '입력이 멈추면 2초 후 자동 저장돼요. 따로 저장 버튼을 누르지 않아도 돼요.' },
+                          ].map(item => (
+                            <div key={item.title} className="flex items-start gap-3">
+                              <span className="w-7 h-7 rounded-lg bg-emerald-200 text-emerald-800 flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">{item.icon}</span>
+                              <div>
+                                <p className="text-xs font-black text-emerald-800">{item.title}</p>
+                                <p className="text-[11px] font-bold text-emerald-600/80">{item.desc}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 노트 목록 */}
+                    <div className="px-4 mt-4 mb-6 space-y-3">
+                      {noteListLoading ? (
+                        <div className="flex justify-center py-10">
+                          <Loader2 size={24} className="animate-spin text-emerald-400" />
+                        </div>
+                      ) : noteList.length === 0 ? (
+                        <div className="flex flex-col items-center gap-4 py-12 text-center">
+                          <div className="w-16 h-16 rounded-3xl bg-emerald-50 flex items-center justify-center">
+                            <NotebookPen size={28} className="text-emerald-300" />
+                          </div>
+                          <div>
+                            <p className="font-black text-on-surface/60">아직 작성한 노트가 없어요</p>
+                            <p className="text-sm font-bold text-on-surface-variant/40 mt-1">수업 내용을 자유롭게 메모해 보세요</p>
+                          </div>
+                          <button
+                            onClick={createNote}
+                            disabled={noteCreating}
+                            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-sm disabled:opacity-50 transition-all active:scale-95 shadow-sm shadow-emerald-200"
+                          >
+                            {noteCreating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                            첫 노트 작성하기
+                          </button>
+                        </div>
+                      ) : (
+                        noteList.map(note => (
+                          <div key={note.id} className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+                            {/* 삭제 확인 */}
+                            {noteDeleteId === note.id ? (
+                              <div className="px-4 py-3 bg-red-50 flex items-center justify-between gap-3">
+                                <p className="text-xs font-black text-red-600">이 노트를 삭제할까요?</p>
+                                <div className="flex gap-2">
+                                  <button onClick={() => setNoteDeleteId(null)} className="px-3 py-1.5 rounded-xl text-xs font-black text-neutral-500 bg-white border border-neutral-200">취소</button>
+                                  <button onClick={() => deleteNote(note.id)} className="px-3 py-1.5 rounded-xl text-xs font-black text-white bg-red-500">삭제</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => selectNote(note)}
+                                className="w-full text-left px-4 py-4 hover:bg-neutral-50 transition-colors group"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <NotebookPen size={13} className="text-emerald-400 shrink-0" />
+                                      <p className="text-sm font-black text-on-surface truncate">
+                                        {note.title || '제목 없음'}
+                                      </p>
+                                    </div>
+                                    {notePreview(note.content) && (
+                                      <p className="text-xs text-on-surface-variant/60 font-bold line-clamp-2 ml-5">
+                                        {notePreview(note.content)}
+                                      </p>
+                                    )}
+                                    <p className="text-[10px] font-bold text-neutral-300 mt-1.5 ml-5">
+                                      {formatRelativeTime(note.updated_at)}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setNoteDeleteId(note.id); }}
+                                      className="p-1.5 rounded-lg text-neutral-200 hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                    <ArrowRight size={14} className="text-neutral-300 group-hover:text-emerald-400 transition-colors" />
+                                  </div>
+                                </div>
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
