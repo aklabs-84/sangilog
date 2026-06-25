@@ -148,6 +148,7 @@ const ClassroomEntry = () => {
     setPinConfirmDigits(['', '', '', '']);
     setPinError('');
     setLoading(false);
+    setShowEntryModal(false);
     setStep(3);
   };
 
