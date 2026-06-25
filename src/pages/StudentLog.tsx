@@ -47,15 +47,19 @@ import {
   BarChart2,
   Maximize2,
   Eye,
+  NotebookPen,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { observationReviewAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import CodeBlock from '../components/CodeBlock';
-import TourGuide from '../components/TourGuide';
+import TourGuide, { type TourStep } from '../components/TourGuide';
+import RichEditor from '../components/RichEditor';
 
-const TOUR_STEPS = [
+const TOUR_STEPS: TourStep[] = [
   {
     emoji: '👋',
     title: '생기로그 사용 방법 안내',
@@ -93,7 +97,7 @@ const TOUR_STEPS = [
     targetId: 'tour-tab-more',
     emoji: '⋯',
     title: '더보기',
-    description: '퀴즈, 설문, 수업 자료, 나의 기록, 단원 마무리, 건의사항 등 더 많은 메뉴가 있어요.',
+    description: '퀴즈, 설문, 수업 자료, 나의 기록, 나의 노트, 단원 마무리, 건의사항 등 더 많은 메뉴가 있어요.',
     placement: 'top',
   },
   {
@@ -149,7 +153,7 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes'>('home');
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const [selectedHomeWeek, setSelectedHomeWeek] = useState<number | null>(null);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'obs' | 'result'>('all');
@@ -281,6 +285,13 @@ const StudentLog = () => {
   // Survey Tab States
   const [activeSurveyForms, setActiveSurveyForms] = useState<any[]>([]);
   const [surveyLoading, setSurveyLoading] = useState(false);
+
+  // Notes Tab States
+  const [noteContent, setNoteContent] = useState('');
+  const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [noteEditorKey, setNoteEditorKey] = useState(0);
+  const [noteGuideOpen, setNoteGuideOpen] = useState(false);
+  const noteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Board Tab States
   const [activeBoardSessions, setActiveBoardSessions] = useState<any[]>([]);
@@ -1690,7 +1701,46 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board') => {
+  const fetchNote = async () => {
+    if (!session?.student_id || !session?.class_id) return;
+    try {
+      const { data } = await supabase
+        .from('student_notes')
+        .select('content')
+        .eq('student_id', session.student_id)
+        .eq('class_id', session.class_id)
+        .maybeSingle();
+      setNoteContent(data?.content ?? '');
+      setNoteEditorKey(k => k + 1);
+    } catch {
+      // 노트 없으면 빈 상태로 시작
+    }
+  };
+
+  const saveNote = async (content: string) => {
+    if (!session?.student_id || !session?.class_id) return;
+    try {
+      await supabase
+        .from('student_notes')
+        .upsert(
+          { student_id: session.student_id, class_id: session.class_id, content, updated_at: new Date().toISOString() },
+          { onConflict: 'student_id,class_id' }
+        );
+      setNoteSaveStatus('saved');
+      setTimeout(() => setNoteSaveStatus('idle'), 2500);
+    } catch {
+      setNoteSaveStatus('error');
+    }
+  };
+
+  const handleNoteChange = (content: string) => {
+    setNoteContent(content);
+    setNoteSaveStatus('saving');
+    if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
+    noteDebounceRef.current = setTimeout(() => saveNote(content), 2000);
+  };
+
+  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes') => {
     setActiveTab(tab);
     setIsMoreSheetOpen(false);
     if (tab === 'history') { fetchHistory(); fetchResults(); }
@@ -1701,6 +1751,7 @@ const StudentLog = () => {
     if (tab === 'quiz') { fetchActiveQuizSessions(); fetchQuizHistory(); }
     if (tab === 'survey') fetchActiveSurveyForms();
     if (tab === 'board') { fetchBoard(); fetchActiveBoardSessions(); }
+    if (tab === 'notes') fetchNote();
   };
 
   const formatRelativeTime = (dateStr: string) => {
@@ -4376,6 +4427,92 @@ ${guidePrompt}
                 })()}
               </motion.div>
             )}
+
+            {/* ─── NOTES 탭 ─── */}
+            {activeTab === 'notes' && (
+              <motion.div
+                key="notes"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex flex-col"
+              >
+                {/* 헤더 */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 sticky top-0 bg-white z-10">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+                      <NotebookPen size={16} className="text-emerald-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-black leading-tight">나의 노트</h2>
+                      <p className="text-[10px] font-bold text-on-surface-variant/60">수업 내용을 자유롭게 기록하세요</p>
+                    </div>
+                  </div>
+                  {/* 저장 상태 */}
+                  <div className="flex items-center gap-2">
+                    {noteSaveStatus === 'saving' && (
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-neutral-400">
+                        <Loader2 size={11} className="animate-spin" /> 저장 중...
+                      </span>
+                    )}
+                    {noteSaveStatus === 'saved' && (
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-500">
+                        <CheckCircle2 size={11} /> 저장됨
+                      </span>
+                    )}
+                    {noteSaveStatus === 'error' && (
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-red-500">
+                        <AlertCircle size={11} /> 저장 실패
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 사용법 가이드 (접이식) */}
+                <div className="mx-4 mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 overflow-hidden">
+                  <button
+                    onClick={() => setNoteGuideOpen(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left"
+                  >
+                    <span className="flex items-center gap-2 text-xs font-black text-emerald-700">
+                      💡 사용 방법 보기
+                    </span>
+                    {noteGuideOpen
+                      ? <ChevronUp size={14} className="text-emerald-500" />
+                      : <ChevronDown size={14} className="text-emerald-500" />
+                    }
+                  </button>
+                  {noteGuideOpen && (
+                    <div className="px-4 pb-4 space-y-2.5 border-t border-emerald-100">
+                      {[
+                        { icon: '/', title: '슬래시 명령어', desc: '/ 를 입력하면 제목, 목록, 코드블록, 인용구 등 블록을 삽입할 수 있어요.' },
+                        { icon: 'B', title: '서식 툴바', desc: '텍스트를 드래그하면 굵게·기울임·링크·이미지 등 서식 도구가 나타나요.' },
+                        { icon: '💾', title: '자동 저장', desc: '입력이 멈추면 2초 후 자동으로 저장돼요. 별도 저장 버튼 없이 편하게 작성하세요.' },
+                        { icon: '📅', title: '영구 보존', desc: '노트는 수업이 끝나도 사라지지 않아요. 언제든 다시 와서 확인하고 수정할 수 있어요.' },
+                      ].map(item => (
+                        <div key={item.title} className="flex items-start gap-3">
+                          <span className="w-7 h-7 rounded-lg bg-emerald-200 text-emerald-800 flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">{item.icon}</span>
+                          <div>
+                            <p className="text-xs font-black text-emerald-800">{item.title}</p>
+                            <p className="text-[11px] font-bold text-emerald-600/80">{item.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 에디터 영역 */}
+                <div className="mx-4 mt-3 mb-6 rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm">
+                  <RichEditor
+                    key={noteEditorKey}
+                    value={noteContent}
+                    onChange={handleNoteChange}
+                    minHeight="420px"
+                  />
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </motion.div>
 
@@ -4481,6 +4618,7 @@ ${guidePrompt}
                 {[
                   { key: 'materials' as const, icon: BookOpen,    label: '수업 자료', color: 'text-cyan-600',   activeBg: 'bg-cyan-50'   },
                   { key: 'history' as const,   icon: History,     label: '나의 기록', color: 'text-blue-600',   activeBg: 'bg-blue-50'   },
+                  { key: 'notes' as const,     icon: NotebookPen, label: '나의 노트', color: 'text-emerald-600', activeBg: 'bg-emerald-50' },
                   { key: 'quiz' as const,      icon: Gamepad2,    label: '퀴즈',      color: 'text-purple-600', activeBg: 'bg-purple-50' },
                   { key: 'survey' as const,    icon: BarChart2,   label: '설문',      color: 'text-teal-600',   activeBg: 'bg-teal-50' },
                   { key: 'unit' as const,      icon: ClipboardList, label: '단원마무리', color: 'text-amber-600', activeBg: 'bg-amber-50', badge: unitPendingCount },
