@@ -53,9 +53,9 @@ import { observationReviewAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import CodeBlock from '../components/CodeBlock';
-import TourGuide, { TourStep } from '../components/TourGuide';
+import TourGuide from '../components/TourGuide';
 
-const TOUR_STEPS: TourStep[] = [
+const TOUR_STEPS = [
   {
     emoji: '👋',
     title: '생기로그 사용 방법 안내',
