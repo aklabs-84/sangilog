@@ -4456,6 +4456,21 @@ ${guidePrompt}
                   );
                 })}
               </div>
+
+              {/* 사용 방법 보기 */}
+              <div className="px-4 pb-5">
+                <button
+                  onClick={() => {
+                    setIsMoreSheetOpen(false);
+                    setDontShowToday(false);
+                    setShowGuideModal(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 transition-all"
+                >
+                  <BookOpen size={16} className="text-slate-500" />
+                  <span className="text-[12px] font-black text-slate-500">사용 방법 보기</span>
+                </button>
+              </div>
             </motion.div>
           </>
         )}
