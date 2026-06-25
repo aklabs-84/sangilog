@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect } from 'react';
-import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, CheckCircle2, Key, ShieldCheck, KeyRound } from 'lucide-react';
+import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, Key, ShieldCheck, KeyRound } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -17,6 +17,7 @@ const ClassroomEntry = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [searchName, setSearchName] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [showEntryModal, setShowEntryModal] = useState(false);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -125,6 +126,12 @@ const ClassroomEntry = () => {
 
   const handleStudentSelect = (student: any) => {
     setSelectedStudent(student);
+    setShowEntryModal(true);
+  };
+
+  const handleModalClose = () => {
+    setShowEntryModal(false);
+    setSelectedStudent(null);
   };
 
   const handleFinalEnter = async () => {
@@ -335,17 +342,13 @@ const ClassroomEntry = () => {
                   <button
                     key={s.id}
                     onClick={() => handleStudentSelect(s)}
-                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left ${
-                      selectedStudent?.id === s.id 
-                        ? 'border-primary bg-primary/5 shadow-md scale-[1.02]' 
-                        : 'border-transparent bg-surface-container-low hover:bg-surface-container'
-                    }`}
+                    className="flex items-center gap-3 p-4 rounded-2xl border-2 border-transparent bg-surface-container-low hover:bg-surface-container hover:border-primary/20 hover:scale-[1.02] transition-all text-left active:scale-95"
                   >
                     <div className="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center text-primary shrink-0">
-                      {selectedStudent?.id === s.id ? <CheckCircle2 size={24} /> : <User size={20} />}
+                      <User size={20} />
                     </div>
                     <div className="overflow-hidden">
-                      <p className={`font-black text-sm truncate ${selectedStudent?.id === s.id ? 'text-primary' : ''}`}>{s.full_name}</p>
+                      <p className="font-black text-sm truncate">{s.full_name}</p>
                       <p className="text-[10px] text-on-surface-variant font-bold">{s.student_number || '학번 없음'}</p>
                     </div>
                   </button>
@@ -353,22 +356,12 @@ const ClassroomEntry = () => {
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <button
-                onClick={() => setStep(1)}
-                className="flex-1 py-5 bg-surface-container rounded-2xl font-black text-on-surface-variant hover:bg-surface-container-high transition-all"
-              >
-                뒤로가기
-              </button>
-              <button
-                onClick={handleFinalEnter}
-                disabled={!selectedStudent || loading}
-                className="flex-[2] btn-gradient py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
-              >
-                <span>학습 기록하기</span>
-                <ArrowRight size={24} />
-              </button>
-            </div>
+            <button
+              onClick={() => setStep(1)}
+              className="w-full py-4 bg-surface-container rounded-2xl font-black text-on-surface-variant hover:bg-surface-container-high transition-all"
+            >
+              뒤로가기
+            </button>
           </motion.div>
         ) : (
           /* ── Step 3: PIN 설정 / 확인 ── */
@@ -467,6 +460,59 @@ const ClassroomEntry = () => {
                 )}
               </button>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 입장 확인 모달 */}
+      <AnimatePresence>
+        {showEntryModal && selectedStudent && (
+          <motion.div
+            key="entry-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-6"
+            onClick={handleModalClose}
+          >
+            <motion.div
+              key="entry-modal-card"
+              initial={{ scale: 0.85, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-[2rem] p-10 max-w-sm w-full shadow-2xl space-y-6 text-center"
+            >
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto text-primary">
+                <User size={32} />
+              </div>
+              <div className="space-y-2">
+                <p className="text-[11px] font-black text-primary uppercase tracking-[0.3em]">본인 확인</p>
+                <h3 className="text-2xl font-black font-manrope">{selectedStudent.full_name}</h3>
+                <p className="text-on-surface-variant font-medium text-sm">내 이름이 맞으면 입장해주세요.</p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleModalClose}
+                  className="flex-1 py-4 bg-surface-container rounded-2xl font-black text-on-surface-variant hover:bg-surface-container-high transition-all"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleFinalEnter}
+                  disabled={loading}
+                  className="flex-[2] btn-gradient py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="animate-spin" size={20} /> : (
+                    <>
+                      <span>입장하기</span>
+                      <ArrowRight size={20} />
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
