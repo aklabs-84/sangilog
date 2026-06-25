@@ -53,6 +53,55 @@ import { observationReviewAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import CodeBlock from '../components/CodeBlock';
+import TourGuide, { TourStep } from '../components/TourGuide';
+
+const TOUR_STEPS: TourStep[] = [
+  {
+    emoji: '👋',
+    title: '생기로그 사용 방법 안내',
+    description: '수업 활동을 기록하고 선생님과 소통하는 앱이에요. 주요 메뉴를 하나씩 살펴볼게요!',
+  },
+  {
+    targetId: 'tour-tab-home',
+    emoji: '🏠',
+    title: '홈',
+    description: '이번 주 수업 주제와 일정을 확인하고, 활동 기록·결과 제출로 빠르게 이동할 수 있어요.',
+    placement: 'top',
+  },
+  {
+    targetId: 'tour-tab-record',
+    emoji: '✏️',
+    title: '활동 기록',
+    description: '수업에서 배운 내용과 활동을 기록해요. 구체적으로 쓸수록 생활기록부에 도움이 돼요!',
+    placement: 'top',
+  },
+  {
+    targetId: 'tour-tab-results',
+    emoji: '📁',
+    title: '결과 제출',
+    description: '만든 결과물(링크·이미지·파일·텍스트)을 선생님께 주차별로 제출하는 곳이에요.',
+    placement: 'top',
+  },
+  {
+    targetId: 'tour-tab-board',
+    emoji: '🎨',
+    title: '보드',
+    description: '선생님이 열어주신 화이트보드 세션에 실시간으로 참여할 수 있어요.',
+    placement: 'top',
+  },
+  {
+    targetId: 'tour-tab-more',
+    emoji: '⋯',
+    title: '더보기',
+    description: '퀴즈, 설문, 수업 자료, 나의 기록, 단원 마무리, 건의사항 등 더 많은 메뉴가 있어요.',
+    placement: 'top',
+  },
+  {
+    emoji: '🎉',
+    title: '준비 완료!',
+    description: '이제 직접 사용해 보세요. 나중에 더보기 → "사용 방법 보기"를 누르면 다시 볼 수 있어요.',
+  },
+];
 
 // 모듈 레벨로 고정 — 매 렌더마다 새 참조가 생기면 ReactMarkdown이 details DOM을 리마운트해서 토글 상태가 초기화됨
 const MATERIAL_MD_COMPONENTS = {
@@ -178,10 +227,8 @@ const StudentLog = () => {
   const [filterWeek, setFilterWeek] = useState<number | null>(null);
   const [detailItem, setDetailItem] = useState<any>(null);
 
-  // 가이드 모달 State
+  // 가이드 투어 State
   const [showGuideModal, setShowGuideModal] = useState(false);
-  const [guideTab, setGuideTab] = useState<'obs' | 'result'>('obs');
-  const [dontShowToday, setDontShowToday] = useState(false);
 
   // Toast State
   const [toasts, setToasts] = useState<{id: string; msg: string; type: 'success' | 'error'}[]>([]);
@@ -192,7 +239,7 @@ const StudentLog = () => {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
   };
 
-  const handleCloseGuide = () => {
+  const handleCloseGuide = (dontShowToday: boolean) => {
     if (dontShowToday && session?.student_id) {
       const today = new Date().toISOString().slice(0, 10);
       localStorage.setItem(`guide_hidden_${session.student_id}`, today);
@@ -4354,6 +4401,7 @@ ${guidePrompt}
             const isLocked = isClassClosed && (tab.key === 'record' || tab.key === 'results');
             return (
               <button
+                id={`tour-tab-${tab.key}`}
                 key={tab.key}
                 onClick={() => {
                   if (isLocked) {
@@ -4383,6 +4431,7 @@ ${guidePrompt}
 
           {/* 더보기 버튼 */}
           <button
+            id="tour-tab-more"
             onClick={() => setIsMoreSheetOpen(prev => !prev)}
             className="flex-1 flex flex-col items-center gap-1.5 py-3.5 transition-all"
           >
@@ -4469,7 +4518,6 @@ ${guidePrompt}
                 <button
                   onClick={() => {
                     setIsMoreSheetOpen(false);
-                    setDontShowToday(false);
                     setShowGuideModal(true);
                   }}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 transition-all"
@@ -4483,171 +4531,13 @@ ${guidePrompt}
         )}
       </AnimatePresence>
 
-      {/* 가이드 모달 */}
-      <AnimatePresence>
-        {showGuideModal && (
-          <div className="fixed inset-0 z-[1200] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-slate-900/70 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, y: 60 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 60 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-2xl bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl flex flex-col max-h-[92vh] overflow-hidden"
-            >
-              {/* 헤더 */}
-              <div className="px-8 pt-8 pb-6 border-b border-surface-container shrink-0">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">시작 가이드</p>
-                    <h2 className="text-2xl font-black">어떻게 사용하나요?</h2>
-                    <p className="text-sm text-on-surface-variant font-bold mt-1">활동 기록과 결과 제출 방법을 확인해 보세요!</p>
-                  </div>
-                  <button onClick={handleCloseGuide} className="w-9 h-9 rounded-xl bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant transition-all shrink-0">
-                    <X size={16} />
-                  </button>
-                </div>
-
-                {/* 탭 */}
-                <div className="flex gap-2 mt-5">
-                  <button
-                    onClick={() => setGuideTab('obs')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all ${guideTab === 'obs' ? 'bg-violet-600 text-white shadow-md' : 'bg-surface-container text-on-surface-variant hover:bg-violet-50 hover:text-violet-600'}`}
-                  >
-                    📝 활동 기록
-                  </button>
-                  <button
-                    onClick={() => setGuideTab('result')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all ${guideTab === 'result' ? 'bg-emerald-600 text-white shadow-md' : 'bg-surface-container text-on-surface-variant hover:bg-emerald-50 hover:text-emerald-600'}`}
-                  >
-                    📁 결과 제출
-                  </button>
-                </div>
-              </div>
-
-              {/* 본문 */}
-              <div className="overflow-y-auto flex-1 px-8 py-6">
-                <AnimatePresence mode="wait">
-                  {guideTab === 'obs' ? (
-                    <motion.div key="obs" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-5">
-                      {/* 방법 */}
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-black text-violet-600 uppercase tracking-widest">📌 입력 방법</h3>
-                        <div className="space-y-2">
-                          {[
-                            { step: '1', text: '상단 탭에서 "활동 기록" 클릭' },
-                            { step: '2', text: '오늘 배운 활동의 주차를 선택 (예: 2주차)' },
-                            { step: '3', text: '활동 제목을 입력하거나 주차를 선택하면 자동 입력됩니다' },
-                            { step: '4', text: '오늘 수업에서 무엇을 했는지, 느낀 점을 자유롭게 작성' },
-                            { step: '5', text: '"제출하기" 버튼을 눌러 저장' },
-                          ].map(({ step, text }) => (
-                            <div key={step} className="flex items-start gap-3">
-                              <span className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">{step}</span>
-                              <p className="text-sm font-bold text-on-surface leading-relaxed">{text}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 예시 */}
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-black text-violet-600 uppercase tracking-widest">✏️ 작성 예시</h3>
-                        <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 space-y-3">
-                          <div>
-                            <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest mb-1">활동 제목</p>
-                            <p className="text-sm font-black text-violet-900">앱 만들기 실습 1</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest mb-1">활동 내용</p>
-                            <p className="text-sm font-bold text-violet-800 leading-relaxed">
-                              오늘 수업에서 피그마를 이용해 앱 화면을 처음으로 설계해봤다. 버튼 배치가 생각보다 어려웠지만 선생님이 알려주신 그리드 방법을 따라 하니 훨씬 쉬웠다. 다음 시간에는 색상 팔레트도 직접 만들어보고 싶다.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                          <p className="text-xs font-black text-amber-600 mb-1">💡 잘 쓰는 팁</p>
-                          <p className="text-xs font-bold text-amber-700 leading-relaxed">무엇을 했는지 + 어려웠던 점 + 배운 점 순서로 쓰면 선생님께 잘 보여요!</p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div key="result" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-5">
-                      {/* 방법 */}
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-black text-emerald-600 uppercase tracking-widest">📌 입력 방법</h3>
-                        <div className="space-y-2">
-                          {[
-                            { step: '1', text: '상단 탭에서 "결과 제출" 클릭' },
-                            { step: '2', text: '제출할 주차 선택 (예: 2주차)' },
-                            { step: '3', text: '결과물 종류 선택: 텍스트 · 링크 · 이미지 · 파일 중 해당하는 것 작성' },
-                            { step: '4', text: '제목을 입력하고 내용을 채운 후 "제출하기" 클릭' },
-                          ].map(({ step, text }) => (
-                            <div key={step} className="flex items-start gap-3">
-                              <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">{step}</span>
-                              <p className="text-sm font-bold text-on-surface leading-relaxed">{text}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 제출 유형 */}
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-black text-emerald-600 uppercase tracking-widest">📂 제출 유형</h3>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { icon: '📝', label: '텍스트', desc: '글로 작성한 보고서, 소감문' },
-                            { icon: '🔗', label: '링크', desc: '구글 슬라이드, 유튜브, 웹사이트 URL' },
-                            { icon: '🖼️', label: '이미지', desc: '스크린샷, 사진, 작품 이미지' },
-                            { icon: '📎', label: '파일', desc: 'PDF, 한글, 워드 등 파일 첨부' },
-                          ].map(({ icon, label, desc }) => (
-                            <div key={label} className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 space-y-1">
-                              <p className="text-base">{icon} <span className="text-sm font-black text-emerald-700">{label}</span></p>
-                              <p className="text-[11px] font-bold text-emerald-600/70">{desc}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 예시 */}
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-black text-emerald-600 uppercase tracking-widest">✏️ 작성 예시</h3>
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 space-y-3">
-                          <div>
-                            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">제목</p>
-                            <p className="text-sm font-black text-emerald-900">2주차 앱 기획서 최종본</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">링크 예시</p>
-                            <p className="text-sm font-bold text-blue-600 underline">https://docs.google.com/presentation/d/...</p>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* 하단 */}
-              <div className="px-8 py-6 border-t border-surface-container shrink-0 space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <div
-                    onClick={() => setDontShowToday(prev => !prev)}
-                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${dontShowToday ? 'bg-primary border-primary' : 'border-neutral-300 group-hover:border-primary/50'}`}
-                  >
-                    {dontShowToday && <Check size={12} className="text-white" strokeWidth={4} />}
-                  </div>
-                  <span className="text-sm font-bold text-on-surface-variant group-hover:text-on-surface transition-colors">오늘 하루 보지 않기</span>
-                </label>
-                <button
-                  onClick={handleCloseGuide}
-                  className="w-full py-4 rounded-2xl bg-primary text-white font-black text-sm hover:bg-primary/80 active:scale-[0.99] transition-all shadow-lg shadow-primary/20"
-                >
-                  확인했어요!
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* 인터랙티브 가이드 투어 */}
+      {showGuideModal && (
+        <TourGuide
+          steps={TOUR_STEPS}
+          onClose={handleCloseGuide}
+        />
+      )}
 
       {/* Toast Notifications */}
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[2000] flex flex-col gap-3 items-center pointer-events-none">
