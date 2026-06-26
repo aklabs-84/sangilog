@@ -8,8 +8,10 @@ import {
   Check, X, FolderOpen, AlignLeft, Link2, ImageIcon, File,
   Upload, ExternalLink, Megaphone, MessageSquare, Reply, Send,
   RotateCw, AlertCircle, AlertTriangle, BookMarked, ChevronDown, ChevronUp,
+  NotebookPen,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../lib/auth';
 import { downloadFile } from '../lib/fileUtils';
 
@@ -50,6 +52,11 @@ const StudentView = () => {
 
   // 타임라인 탭
   const [timelineTab, setTimelineTab] = useState<'all' | 'teacher' | 'student'>('all');
+
+  // Student Notes (read-only for teacher)
+  const [studentNotes, setStudentNotes] = useState<any[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
   // Reply States
   const [replyingId, setReplyingId] = useState<string | null>(null);
@@ -183,7 +190,8 @@ const StudentView = () => {
       .single();
     const classId = classInfo?.class_id;
 
-    const [resResult, sugResult, unitSubResult, allUnitsResult] = await Promise.all([
+    setNotesLoading(true);
+    const [resResult, sugResult, unitSubResult, allUnitsResult, notesResult] = await Promise.all([
       supabase.from('student_results').select('*').eq('student_id', id).order('created_at', { ascending: false }),
       supabase.from('student_suggestions').select('*').eq('student_id', id).order('created_at', { ascending: false }),
       supabase.from('unit_submissions')
@@ -193,7 +201,13 @@ const StudentView = () => {
       classId
         ? supabase.from('units').select('id, title, form_config, status, created_at').eq('class_id', classId).eq('status', 'completed').order('created_at', { ascending: false })
         : Promise.resolve({ data: [], error: null }),
+      classId
+        ? supabase.from('student_notes').select('id, title, content, created_at, updated_at').eq('student_id', id).eq('class_id', classId).order('created_at', { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
     ]);
+
+    if (!notesResult.error) setStudentNotes((notesResult as any).data || []);
+    setNotesLoading(false);
 
     if (!resResult.error && resResult.data) {
       setResults(resResult.data);
@@ -1362,6 +1376,86 @@ const StudentView = () => {
                             )}
                           </div>
                         </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ─── 나의 노트 (선생님 읽기 전용) ─── */}
+      <div className="surface-card p-8 shadow-ambient border border-white/60">
+        <div className="flex items-center justify-between mb-6 pb-5 border-b border-surface-container">
+          <h2 className="text-xl font-black flex items-center gap-3">
+            <NotebookPen size={22} className="text-emerald-500" />
+            나의 노트
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black border border-emerald-100">
+              읽기 전용
+            </span>
+            <span className="px-3 py-1.5 bg-neutral-100 rounded-lg text-xs font-bold text-neutral-500">
+              총 {studentNotes.length}개
+            </span>
+          </div>
+        </div>
+
+        {notesLoading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={28} className="animate-spin text-emerald-400" />
+          </div>
+        ) : studentNotes.length === 0 ? (
+          <div className="flex flex-col items-center py-12 space-y-3 opacity-30">
+            <NotebookPen size={48} />
+            <p className="font-black">작성된 노트가 없습니다.</p>
+            <p className="text-xs font-bold text-center">학생이 수업 중 노트를 작성하면 여기에 표시됩니다.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {studentNotes.map(note => {
+              const isExpanded = expandedNoteId === note.id;
+              const preview = note.content
+                .replace(/[#*_`>\[\]()\-!]/g, '')
+                .replace(/\n+/g, ' ')
+                .trim()
+                .slice(0, 80);
+              return (
+                <div key={note.id} className="rounded-2xl border border-surface-container bg-surface-container-low/50 overflow-hidden transition-all hover:border-emerald-200">
+                  <button
+                    onClick={() => setExpandedNoteId(isExpanded ? null : note.id)}
+                    className="w-full flex items-start justify-between gap-4 p-5 text-left"
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 mt-0.5">
+                        <NotebookPen size={14} className="text-emerald-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-sm text-on-surface truncate">{note.title || '제목 없음'}</p>
+                        {!isExpanded && preview && (
+                          <p className="text-xs text-on-surface-variant/60 font-medium mt-0.5 line-clamp-1">{preview}</p>
+                        )}
+                        <p className="text-[10px] font-bold text-on-surface-variant/40 mt-1 flex items-center gap-1">
+                          <Clock size={10} />
+                          {formatRelativeTime(note.updated_at)} 수정
+                        </p>
+                      </div>
+                    </div>
+                    {isExpanded
+                      ? <ChevronUp size={16} className="text-emerald-400 shrink-0 mt-1" />
+                      : <ChevronDown size={16} className="text-neutral-300 shrink-0 mt-1" />
+                    }
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t border-surface-container px-5 py-5">
+                      {note.content.trim() ? (
+                        <div className="prose prose-sm max-w-none text-on-surface">
+                          <ReactMarkdown rehypePlugins={[rehypeRaw]}>{note.content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-bold text-on-surface-variant/40 text-center py-4">내용이 없습니다.</p>
                       )}
                     </div>
                   )}

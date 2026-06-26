@@ -4587,8 +4587,8 @@ ${guidePrompt}
                         </div>
                         <div>
                           <h2 className="text-base font-black leading-tight">나의 노트</h2>
-                          <p className="text-[10px] font-bold text-on-surface-variant/60">
-                            {noteList.length > 0 ? `총 ${noteList.length}개의 노트` : '수업 내용을 자유롭게 기록하세요'}
+                          <p className="text-[10px] font-bold text-emerald-500/80">
+                            📢 담당 선생님에게 공개됩니다
                           </p>
                         </div>
                       </div>
