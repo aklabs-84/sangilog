@@ -4522,10 +4522,10 @@ ${guidePrompt}
                 {selectedNote ? (
                   <>
                     {/* 에디터 헤더 */}
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 sticky top-0 bg-white z-10">
+                    <div className="flex items-center gap-3 px-5 py-4 border-b border-neutral-100 sticky top-0 bg-white z-10">
                       <button
                         onClick={backToNoteList}
-                        className="flex items-center gap-1 text-xs font-black text-neutral-500 hover:text-emerald-600 transition-colors shrink-0 mr-1"
+                        className="flex items-center gap-1.5 text-xs font-black text-neutral-500 hover:text-emerald-600 transition-colors shrink-0"
                       >
                         <ArrowLeft size={14} /> 목록
                       </button>
@@ -4554,7 +4554,7 @@ ${guidePrompt}
 
                     {/* 삭제 확인 배너 */}
                     {noteDeleteId === selectedNote.id && (
-                      <div className="mx-4 mt-3 px-4 py-3 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-between gap-3">
+                      <div className="mx-5 mt-3 px-4 py-3 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-between gap-3">
                         <p className="text-xs font-black text-red-600">이 노트를 삭제할까요?</p>
                         <div className="flex gap-2">
                           <button onClick={() => setNoteDeleteId(null)} className="px-3 py-1.5 rounded-xl text-xs font-black text-neutral-500 bg-white border border-neutral-200">취소</button>
@@ -4567,7 +4567,7 @@ ${guidePrompt}
                     )}
 
                     {/* 에디터 */}
-                    <div className="mx-4 mt-3 mb-6 rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm">
+                    <div className="mx-5 mt-4 mb-6 rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm">
                       <RichEditor
                         key={noteEditorKey}
                         value={noteContent}
