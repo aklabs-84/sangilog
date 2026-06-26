@@ -56,7 +56,7 @@ const StudentView = () => {
   // Student Notes (read-only for teacher)
   const [studentNotes, setStudentNotes] = useState<any[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
-  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
+  const [selectedNoteModal, setSelectedNoteModal] = useState<any | null>(null);
 
   // Reply States
   const [replyingId, setReplyingId] = useState<string | null>(null);
@@ -124,13 +124,14 @@ const StudentView = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (selectedNoteModal) { setSelectedNoteModal(null); return; }
       if (selectedResult) setSelectedResult(null);
       else if (obsRejectModal) { setObsRejectModal(null); setObsRejectFeedback(''); }
       else if (rejectModal) { setRejectModal(null); setRejectFeedback(''); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedResult, obsRejectModal, rejectModal]);
+  }, [selectedNoteModal, selectedResult, obsRejectModal, rejectModal]);
 
   const fetchStudentData = async () => {
     if (!id) return;
@@ -1416,55 +1417,129 @@ const StudentView = () => {
         ) : (
           <div className="space-y-3">
             {studentNotes.map(note => {
-              const isExpanded = expandedNoteId === note.id;
               const preview = note.content
                 .replace(/[#*_`>\[\]()\-!]/g, '')
                 .replace(/\n+/g, ' ')
                 .trim()
-                .slice(0, 80);
+                .slice(0, 100);
               return (
-                <div key={note.id} className="rounded-2xl border border-surface-container bg-surface-container-low/50 overflow-hidden transition-all hover:border-emerald-200">
-                  <button
-                    onClick={() => setExpandedNoteId(isExpanded ? null : note.id)}
-                    className="w-full flex items-start justify-between gap-4 p-5 text-left"
-                  >
+                <button
+                  key={note.id}
+                  onClick={() => setSelectedNoteModal(note)}
+                  className="w-full text-left rounded-2xl border border-surface-container bg-surface-container-low/50 p-5 transition-all hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-sm group"
+                >
+                  <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 mt-0.5">
-                        <NotebookPen size={14} className="text-emerald-500" />
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-emerald-100 transition-colors">
+                        <NotebookPen size={15} className="text-emerald-500" />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-black text-sm text-on-surface truncate">{note.title || '제목 없음'}</p>
-                        {!isExpanded && preview && (
-                          <p className="text-xs text-on-surface-variant/60 font-medium mt-0.5 line-clamp-1">{preview}</p>
+                        <p className="font-black text-sm text-on-surface truncate group-hover:text-emerald-700 transition-colors">
+                          {note.title || '제목 없음'}
+                        </p>
+                        {preview && (
+                          <p className="text-xs text-on-surface-variant/60 font-medium mt-1 line-clamp-2 leading-relaxed">
+                            {preview}
+                          </p>
                         )}
-                        <p className="text-[10px] font-bold text-on-surface-variant/40 mt-1 flex items-center gap-1">
+                        <p className="text-[10px] font-bold text-on-surface-variant/40 mt-2 flex items-center gap-1">
                           <Clock size={10} />
                           {formatRelativeTime(note.updated_at)} 수정
                         </p>
                       </div>
                     </div>
-                    {isExpanded
-                      ? <ChevronUp size={16} className="text-emerald-400 shrink-0 mt-1" />
-                      : <ChevronDown size={16} className="text-neutral-300 shrink-0 mt-1" />
-                    }
-                  </button>
-                  {isExpanded && (
-                    <div className="border-t border-surface-container px-5 py-5">
-                      {note.content.trim() ? (
-                        <div className="prose prose-sm max-w-none text-on-surface">
-                          <ReactMarkdown rehypePlugins={[rehypeRaw]}>{note.content}</ReactMarkdown>
-                        </div>
-                      ) : (
-                        <p className="text-sm font-bold text-on-surface-variant/40 text-center py-4">내용이 없습니다.</p>
-                      )}
-                    </div>
-                  )}
-                </div>
+                    <span className="shrink-0 mt-1 px-2.5 py-1 rounded-lg bg-white border border-emerald-100 text-[10px] font-black text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                      열기 →
+                    </span>
+                  </div>
+                </button>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* ─── 노트 상세 모달 ─── */}
+      <AnimatePresence>
+        {selectedNoteModal && (
+          <div
+            className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => setSelectedNoteModal(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              transition={{ duration: 0.18 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-2xl max-h-[85vh] bg-white rounded-[2rem] shadow-2xl flex flex-col overflow-hidden"
+            >
+              {/* 모달 헤더 */}
+              <div className="flex items-start justify-between gap-4 px-8 pt-8 pb-5 border-b border-neutral-100 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
+                    <NotebookPen size={18} className="text-emerald-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-black text-on-surface leading-snug truncate">
+                      {selectedNoteModal.title || '제목 없음'}
+                    </h2>
+                    <p className="text-[11px] font-bold text-on-surface-variant/50 mt-0.5 flex items-center gap-1">
+                      <Clock size={10} />
+                      {formatRelativeTime(selectedNoteModal.updated_at)} 수정
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedNoteModal(null)}
+                  className="shrink-0 w-8 h-8 rounded-xl bg-surface-container flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* 본문 스크롤 영역 */}
+              <div className="flex-1 overflow-y-auto px-8 py-6">
+                {selectedNoteModal.content.trim() ? (
+                  <div className="prose prose-neutral max-w-none
+                    prose-headings:font-black prose-headings:text-on-surface
+                    prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
+                    prose-p:text-[15px] prose-p:leading-relaxed prose-p:text-on-surface
+                    prose-li:text-[15px] prose-li:text-on-surface
+                    prose-strong:font-black prose-strong:text-on-surface
+                    prose-blockquote:border-emerald-400 prose-blockquote:text-on-surface-variant
+                    prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm
+                    prose-pre:bg-surface-container-low prose-pre:rounded-2xl
+                    prose-a:text-emerald-600 prose-a:no-underline hover:prose-a:underline"
+                  >
+                    <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                      {selectedNoteModal.content}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 opacity-30">
+                    <NotebookPen size={40} />
+                    <p className="font-black mt-3">내용이 없습니다.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 모달 푸터 */}
+              <div className="shrink-0 px-8 py-4 border-t border-neutral-100 flex items-center justify-between">
+                <span className="text-[11px] font-bold text-on-surface-variant/40">
+                  읽기 전용 · 학생이 작성한 노트입니다
+                </span>
+                <button
+                  onClick={() => setSelectedNoteModal(null)}
+                  className="px-4 py-2 rounded-xl bg-surface-container text-xs font-black text-on-surface-variant hover:bg-surface-container-high transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ─── 결과 상세 모달 ─── */}
       <AnimatePresence>
