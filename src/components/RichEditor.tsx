@@ -8,6 +8,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockExt from '@tiptap/extension-code-block';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Node, Extension, mergeAttributes } from '@tiptap/core';
+import TextStyle from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
 import Suggestion from '@tiptap/suggestion';
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import type { Ref } from 'react';
@@ -439,7 +441,7 @@ const CustomCodeBlock = CodeBlockExt.extend({
   },
 });
 
-// ── 표 색상 프리셋 ────────────────────────────────────────────────────────────
+// ── 색상 프리셋 ───────────────────────────────────────────────────────────────
 const TABLE_COLORS = [
   { label: '기본', hex: null },
   { label: '파랑', hex: '#dbeafe' },
@@ -451,6 +453,19 @@ const TABLE_COLORS = [
   { label: '주황', hex: '#ffedd5' },
   { label: '노랑', hex: '#fef9c3' },
   { label: '회색', hex: '#f3f4f6' },
+];
+
+const TEXT_COLORS = [
+  { label: '기본', hex: null },
+  { label: '빨강', hex: '#ef4444' },
+  { label: '주황', hex: '#f97316' },
+  { label: '노랑', hex: '#ca8a04' },
+  { label: '초록', hex: '#16a34a' },
+  { label: '하늘', hex: '#0284c7' },
+  { label: '파랑', hex: '#2563eb' },
+  { label: '보라', hex: '#7c3aed' },
+  { label: '분홍', hex: '#db2777' },
+  { label: '회색', hex: '#6b7280' },
 ];
 
 // ── 셀 → HTML 텍스트 변환 (색상 보존 직렬화용) ────────────────────────────────
@@ -559,14 +574,18 @@ const ColorableTableHeader = TableHeader.extend({
 // ── 표 색상 피커 팝오버 ───────────────────────────────────────────────────────
 const TableColorModal = ({
   title,
+  presets = TABLE_COLORS,
+  defaultHex = '#dbeafe',
   onSelect,
   onClose,
 }: {
   title: string;
+  presets?: { label: string; hex: string | null }[];
+  defaultHex?: string;
   onSelect: (color: string | null) => void;
   onClose: () => void;
 }) => {
-  const [customHex, setCustomHex] = useState('#dbeafe');
+  const [customHex, setCustomHex] = useState(defaultHex);
   const [preview, setPreview] = useState<string | null>(null);
 
   const applyColor = (color: string | null) => {
@@ -598,7 +617,7 @@ const TableColorModal = ({
         <div>
           <p className="text-[11px] font-black text-neutral-400 mb-3">프리셋 색상</p>
           <div className="grid grid-cols-5 gap-2">
-            {TABLE_COLORS.map(color => (
+            {presets.map(color => (
               <button
                 key={color.label ?? 'default'}
                 title={color.label}
@@ -911,7 +930,8 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const [isDragging, setIsDragging] = useState(false);
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [isInTable, setIsInTable] = useState(false);
-  const [colorModalType, setColorModalType] = useState<'header' | 'cell' | null>(null);
+  const [colorModalType, setColorModalType] = useState<'header' | 'cell' | 'text' | null>(null);
+  const savedTablePosRef = useRef<number>(-1); // 모달 열기 전 테이블 내 커서 위치 저장
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
   const [embedUrlInput, setEmbedUrlInput] = useState('');
   const [embedPreview, setEmbedPreview] = useState<EmbedInfo | null>(null);
@@ -942,6 +962,8 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       TableRow,
       ColorableTableHeader,
       ColorableTableCell,
+      TextStyle,
+      Color,
       EmbedExtension,
       Placeholder.configure({
         placeholder: '내용을 입력하세요...',
@@ -1130,6 +1152,20 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       <div className="flex flex-wrap items-center gap-0.5 px-4 py-2 border-b border-surface-container bg-surface-container-low/30">
         <button onClick={() => editor.chain().focus().toggleBold().run()} title="굵게 (Ctrl+B)" className={btnCls(isActive('bold'))}><Bold size={15} /></button>
         <button onClick={() => editor.chain().focus().toggleItalic().run()} title="기울임 (Ctrl+I)" className={btnCls(isActive('italic'))}><Italic size={15} /></button>
+        {/* 글자색 버튼 */}
+        <button
+          onClick={() => setColorModalType('text')}
+          title="글자 색상"
+          className={btnCls(false) + ' relative'}
+        >
+          <span className="flex flex-col items-center gap-0 leading-none">
+            <span className="text-[11px] font-black" style={{ color: editor.getAttributes('textStyle').color || 'currentColor' }}>A</span>
+            <span
+              className="block h-[3px] w-[14px] rounded-full mt-[1px]"
+              style={{ backgroundColor: editor.getAttributes('textStyle').color || '#1e293b' }}
+            />
+          </span>
+        </button>
         {sep}
         <button onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="제목 1" className={textBtnCls(isActive('heading', { level: 1 }))}>H1</button>
         <button onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="제목 2" className={textBtnCls(isActive('heading', { level: 2 }))}>H2</button>
@@ -1205,7 +1241,10 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           <div className="w-px h-4 bg-primary/20 mx-0.5" />
           {/* 헤더 색상 */}
           <button
-            onClick={() => setColorModalType('header')}
+            onClick={() => {
+              if (editor) savedTablePosRef.current = editor.state.selection.$from.pos;
+              setColorModalType('header');
+            }}
             className={tableBtnCls}
             title="헤더 전체 배경색 변경"
           >
@@ -1213,7 +1252,10 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           </button>
           {/* 셀 색상 */}
           <button
-            onClick={() => setColorModalType('cell')}
+            onClick={() => {
+              if (editor) savedTablePosRef.current = editor.state.selection.$from.pos;
+              setColorModalType('cell');
+            }}
             className={tableBtnCls}
             title="현재 셀 배경색 변경"
           >
@@ -1350,21 +1392,74 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
         </div>
       )}
 
-      {/* ── 표 색상 모달 ── */}
+      {/* ── 표 헤더 색상 모달 ── */}
       {colorModalType === 'header' && (
         <TableColorModal
           title="헤더 배경색"
+          presets={TABLE_COLORS}
           onSelect={(color) => {
-            editor?.chain().focus().updateAttributes('table', { headerBgColor: color }).run();
+            if (!editor) return;
+            // 모달 열기 전 저장한 커서 위치로 테이블 노드 탐색
+            const savedPos = savedTablePosRef.current;
+            const $pos = savedPos >= 0
+              ? editor.state.doc.resolve(Math.min(savedPos, editor.state.doc.content.size - 1))
+              : editor.state.selection.$from;
+
+            let tableDepth = -1;
+            for (let d = $pos.depth; d > 0; d--) {
+              if ($pos.node(d).type.name === 'table') { tableDepth = d; break; }
+            }
+            if (tableDepth === -1) return;
+
+            const tableFrom = $pos.before(tableDepth);
+            const tableTo = $pos.after(tableDepth);
+            const tr = editor.state.tr;
+
+            editor.state.doc.nodesBetween(tableFrom, tableTo, (node, nodePos) => {
+              if (node.type.name === 'tableHeader') {
+                tr.setNodeMarkup(nodePos, undefined, { ...node.attrs, backgroundColor: color });
+                return false;
+              }
+              return true;
+            });
+            editor.view.dispatch(tr);
           }}
           onClose={() => setColorModalType(null)}
         />
       )}
+      {/* ── 표 셀 색상 모달 ── */}
       {colorModalType === 'cell' && (
         <TableColorModal
           title="셀 배경색"
+          presets={TABLE_COLORS}
           onSelect={(color) => {
-            editor?.chain().focus().setCellAttribute('backgroundColor', color).run();
+            if (!editor) return;
+            const savedPos = savedTablePosRef.current;
+            if (savedPos >= 0) {
+              // 저장된 위치로 선택 복원 후 적용
+              const $pos = editor.state.doc.resolve(Math.min(savedPos, editor.state.doc.content.size - 1));
+              const tr = editor.state.tr.setSelection(
+                editor.state.selection.constructor.near($pos) as any
+              );
+              editor.view.dispatch(tr);
+            }
+            editor.chain().focus().setCellAttribute('backgroundColor', color).run();
+          }}
+          onClose={() => setColorModalType(null)}
+        />
+      )}
+      {/* ── 글자 색상 모달 ── */}
+      {colorModalType === 'text' && (
+        <TableColorModal
+          title="글자 색상"
+          presets={TEXT_COLORS}
+          defaultHex="#ef4444"
+          onSelect={(color) => {
+            if (color) {
+              editor?.chain().focus().setColor(color).run();
+            } else {
+              editor?.chain().focus().unsetColor().run();
+            }
           }}
           onClose={() => setColorModalType(null)}
         />
