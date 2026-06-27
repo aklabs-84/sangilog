@@ -311,6 +311,8 @@ const StudentLog = () => {
   const [noteDeleteId, setNoteDeleteId] = useState<string | null>(null);
   const noteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteTitleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isNoteImageUploadingRef = useRef(false); // 이미지 업로드 중 여부 (ref로 stale closure 방지)
+  const latestNoteContentRef = useRef('');       // 최신 노트 내용 (이미지 URL 교체 후 값)
 
   // Board Tab States
   const [activeBoardSessions, setActiveBoardSessions] = useState<any[]>([]);
@@ -1780,6 +1782,8 @@ const StudentLog = () => {
   };
 
   const saveNote = async (id: string, content: string, title: string) => {
+    // base64 이미지가 남아있으면 저장 건너뜀 (업로드 완료 후 재시도)
+    if (content.includes('data:image/')) return;
     try {
       await supabase
         .from('student_notes')
@@ -1792,11 +1796,58 @@ const StudentLog = () => {
     }
   };
 
+  // 노트 이미지 업로드 (WebP 변환 후 Supabase Storage 저장)
+  const handleNoteImageUpload = async (file: File): Promise<string> => {
+    if (!session?.student_id) throw new Error('세션 없음');
+    // 간단한 WebP 변환
+    const compressed = await new Promise<File>(resolve => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        let { width, height } = img;
+        const MAX = 1280;
+        if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(blob => {
+          resolve(blob
+            ? new File([blob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' })
+            : file);
+        }, 'image/webp', 0.85);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+    const path = `notes/${session.student_id}/${Date.now()}.webp`;
+    const { error } = await supabase.storage.from('student-attachments').upload(path, compressed);
+    if (error) throw error;
+    const { data } = supabase.storage.from('student-attachments').getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  // 이미지 업로드 상태 변화 콜백 (RichEditor → StudentLog)
+  const handleNoteImageUploadingChange = (uploading: boolean) => {
+    isNoteImageUploadingRef.current = uploading;
+    if (!uploading && selectedNote) {
+      // 업로드 완료 → 최신 내용(URL 교체된 버전)으로 즉시 저장
+      if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
+      saveNote(selectedNote.id, latestNoteContentRef.current, noteTitleInput);
+    }
+  };
+
   const handleNoteChange = (content: string) => {
     setNoteContent(content);
+    latestNoteContentRef.current = content; // 항상 최신 내용 유지
     setNoteSaveStatus('saving');
     if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
+    if (isNoteImageUploadingRef.current) {
+      // 업로드 중 → 타이머 예약 안 함, 업로드 완료 시 handleNoteImageUploadingChange가 저장
+      return;
+    }
     noteDebounceRef.current = setTimeout(() => {
+      if (isNoteImageUploadingRef.current) return; // 타이머 실행 시점에 다시 확인
       if (selectedNote) saveNote(selectedNote.id, content, noteTitleInput);
     }, 2000);
   };
@@ -4572,6 +4623,8 @@ ${guidePrompt}
                         key={noteEditorKey}
                         value={noteContent}
                         onChange={handleNoteChange}
+                        onUploadImage={handleNoteImageUpload}
+                        onUploadingChange={handleNoteImageUploadingChange}
                         minHeight="420px"
                       />
                     </div>

@@ -848,11 +848,12 @@ const MaterialEditor = () => {
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || uploading}
+              title={uploading ? '이미지 업로드 완료 후 저장 가능합니다' : undefined}
               className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
             >
-              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              {editingMaterial ? '수정 완료' : '저장'}
+              {saving ? <Loader2 size={15} className="animate-spin" /> : uploading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {uploading ? '이미지 업로드 중...' : editingMaterial ? '수정 완료' : '저장'}
             </button>
           </div>
         </div>

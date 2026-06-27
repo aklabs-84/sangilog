@@ -474,16 +474,26 @@ const TableGridPicker = ({ onSelect, onClose }: { onSelect: (rows: number, cols:
   );
 };
 
+// ── File → base64 변환 헬퍼 ──────────────────────────────────────────────────
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
 // ── RichEditor ────────────────────────────────────────────────────────────────
 interface RichEditorProps {
   value: string;
   onChange: (markdown: string) => void;
   onUploadImage?: (file: File) => Promise<string>;
+  onUploadingChange?: (uploading: boolean) => void;
   uploading?: boolean;
   minHeight?: string;
 }
 
-const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '440px' }: RichEditorProps) => {
+const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploading, minHeight = '440px' }: RichEditorProps) => {
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkText, setLinkText] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -497,6 +507,9 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
   const lastMarkdownRef = useRef(value);
   const uploadFnRef = useRef<((file: File) => Promise<void>) | null>(null);
   const tablePickerRef = useRef<HTMLDivElement>(null);
+  const pendingUploadsRef = useRef(0); // 진행 중인 업로드 수
+  const onUploadingChangeRef = useRef(onUploadingChange);
+  useEffect(() => { onUploadingChangeRef.current = onUploadingChange; }, [onUploadingChange]);
 
   const editor = useEditor({
     extensions: [
@@ -552,13 +565,51 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
 
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) { alert('이미지 파일만 업로드 가능합니다.'); return; }
+
+    // ① base64로 즉시 표시 (업로드 전 미리보기)
+    const base64 = await fileToBase64(file);
+    const tempAlt = `__uploading_${Date.now()}_${Math.random().toString(36).slice(2)}__`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    editor?.chain().focus().setImage({ src: base64, alt: tempAlt } as any).run();
+
     if (!onUploadImage) return;
+
+    // ② 업로드 카운터 증가 → 부모에게 업로드 시작 알림
+    pendingUploadsRef.current += 1;
+    if (pendingUploadsRef.current === 1) onUploadingChangeRef.current?.(true);
+
     try {
       const url = await onUploadImage(file);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      editor?.chain().focus().setImage({ src: url, alt: file.name.replace(/\.[^.]+$/, '') } as any).run();
+
+      // ③ 업로드 완료 → 에디터에서 base64를 실제 URL로 교체
+      if (editor) {
+        let found = false;
+        editor.state.doc.descendants((node, pos) => {
+          if (!found && node.type.name === 'image' && node.attrs.alt === tempAlt) {
+            found = true;
+            editor.view.dispatch(
+              editor.state.tr.setNodeMarkup(pos, undefined, {
+                ...node.attrs,
+                src: url,
+                alt: file.name.replace(/\.[^.]+$/, ''),
+              })
+            );
+          }
+        });
+      }
     } catch {
-      // 오류는 MaterialEditor에서 처리
+      // 업로드 실패 시 임시 이미지 제거
+      if (editor) {
+        editor.state.doc.descendants((node, pos) => {
+          if (node.type.name === 'image' && node.attrs.alt === tempAlt) {
+            editor.view.dispatch(editor.state.tr.delete(pos, pos + node.nodeSize));
+          }
+        });
+      }
+    } finally {
+      // ④ 업로드 카운터 감소 → 0이면 부모에게 완료 알림
+      pendingUploadsRef.current -= 1;
+      if (pendingUploadsRef.current === 0) onUploadingChangeRef.current?.(false);
     }
   };
 
