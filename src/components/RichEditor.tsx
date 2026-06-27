@@ -15,6 +15,7 @@ import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
   Copy, Check, Table2, Plus, Trash2, ArrowRightToLine, ArrowDownToLine,
+  MonitorPlay,
 } from 'lucide-react';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ const SLASH_COMMANDS = [
   { icon: '—',  title: '구분선',    description: '슬라이드 구분선',   command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).setHorizontalRule().run() },
   { icon: '▶',  title: '토글 블록', description: '접을 수 있는 내용', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'details', attrs: { summary: '토글 제목' }, content: [{ type: 'paragraph' }] }).run() },
   { icon: '⊞',  title: '표',       description: '표 삽입 (3×3)',     command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { icon: '▶',  title: '영상 임베드', description: 'YouTube 등 영상 삽입', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).run(); (window as any).__openEmbedDialog?.(); } },
 ] as const;
 
 type SlashItem = { icon: string; title: string; description: string; command: (p: any) => void };
@@ -474,6 +476,135 @@ const TableGridPicker = ({ onSelect, onClose }: { onSelect: (rows: number, cols:
   );
 };
 
+// ── 임베드 URL 자동 변환 ─────────────────────────────────────────────────────
+interface EmbedInfo { embedUrl: string; label: string }
+
+const EMBED_RULES: Array<{ pattern: RegExp; toEmbed: (m: RegExpMatchArray) => string; label: string }> = [
+  {
+    pattern: /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+    toEmbed: m => `https://www.youtube.com/embed/${m[1]}?rel=0`,
+    label: 'YouTube',
+  },
+  {
+    pattern: /docs\.google\.com\/presentation\/d\/([^/?\s]+)/,
+    toEmbed: m => `https://docs.google.com/presentation/d/${m[1]}/embed?start=false&loop=false&delayms=3000`,
+    label: 'Google 슬라이드',
+  },
+  {
+    pattern: /docs\.google\.com\/document\/d\/([^/?\s]+)/,
+    toEmbed: m => `https://docs.google.com/document/d/${m[1]}/pub?embedded=true`,
+    label: 'Google 문서',
+  },
+  {
+    pattern: /docs\.google\.com\/spreadsheets\/d\/([^/?\s]+)/,
+    toEmbed: m => `https://docs.google.com/spreadsheets/d/${m[1]}/htmlview?widget=true`,
+    label: 'Google 스프레드시트',
+  },
+  {
+    pattern: /docs\.google\.com\/forms\/d\/([^/?\s]+)/,
+    toEmbed: m => `https://docs.google.com/forms/d/${m[1]}/viewform?embedded=true`,
+    label: 'Google 설문',
+  },
+];
+
+const parseEmbedUrl = (raw: string): EmbedInfo => {
+  const url = raw.trim();
+  for (const { pattern, toEmbed, label } of EMBED_RULES) {
+    const m = url.match(pattern);
+    if (m) return { embedUrl: toEmbed(m), label };
+  }
+  return { embedUrl: url, label: '임베드' };
+};
+
+// ── EmbedNodeView ─────────────────────────────────────────────────────────────
+const EmbedNodeView = ({ node, selected, editor, getPos }: NodeViewProps) => {
+  const { src, label } = node.attrs as { src: string; label: string };
+  return (
+    <NodeViewWrapper className="my-4">
+      <div className={`relative rounded-2xl overflow-hidden border-2 transition-colors bg-black/5 ${selected ? 'border-primary' : 'border-surface-container'}`}>
+        {/* 헤더 */}
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low border-b border-surface-container">
+          <MonitorPlay size={13} className="text-primary shrink-0" />
+          <span className="text-[11px] font-black text-on-surface-variant flex-1">{label || '임베드'}</span>
+          {selected && (
+            <button
+              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
+              className="p-1 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors"
+              title="임베드 삭제"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        {/* iframe 16:9 */}
+        <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+          <iframe
+            src={src}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowFullScreen
+            loading="lazy"
+          />
+        </div>
+      </div>
+    </NodeViewWrapper>
+  );
+};
+
+// ── EmbedExtension ────────────────────────────────────────────────────────────
+const EmbedExtension = Node.create({
+  name: 'embed',
+  group: 'block',
+  atom: true,
+
+  addAttributes() {
+    return {
+      src:   { default: '' },
+      label: { default: '임베드' },
+    };
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'div[data-embed]',
+        getAttrs: el => {
+          const iframe = (el as HTMLElement).querySelector('iframe');
+          return {
+            src:   iframe?.getAttribute('src') || '',
+            label: (el as HTMLElement).getAttribute('data-label') || '임베드',
+          };
+        },
+      },
+    ];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes({ 'data-embed': true, 'data-label': HTMLAttributes.label }),
+      ['iframe', { src: HTMLAttributes.src, allowfullscreen: true, style: 'width:100%;aspect-ratio:16/9;border:0' }]];
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any, node: any) {
+          const { src, label } = node.attrs;
+          state.write(
+            `<div data-embed data-label="${label}">\n` +
+            `<iframe src="${src}" allowfullscreen style="width:100%;aspect-ratio:16/9;border:0" loading="lazy"></iframe>\n` +
+            `</div>\n\n`
+          );
+        },
+        parse: {},
+      },
+    };
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(EmbedNodeView);
+  },
+});
+
 // ── File → base64 변환 헬퍼 ──────────────────────────────────────────────────
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -503,6 +634,9 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const [isDragging, setIsDragging] = useState(false);
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [isInTable, setIsInTable] = useState(false);
+  const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
+  const [embedUrlInput, setEmbedUrlInput] = useState('');
+  const [embedPreview, setEmbedPreview] = useState<EmbedInfo | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastMarkdownRef = useRef(value);
   const uploadFnRef = useRef<((file: File) => Promise<void>) | null>(null);
@@ -530,6 +664,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       TableRow,
       TableHeader,
       TableCell,
+      EmbedExtension,
       Placeholder.configure({
         placeholder: '내용을 입력하세요...',
       }),
@@ -623,16 +758,23 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
     }
   }, [value, editor]);
 
+  // 슬래시 명령어에서 임베드 다이얼로그 열기
+  useEffect(() => {
+    (window as any).__openEmbedDialog = () => setEmbedDialogOpen(true);
+    return () => { delete (window as any).__openEmbedDialog; };
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (linkDialogOpen) { setLinkDialogOpen(false); setLinkText(''); setLinkUrl(''); }
       else if (imageUrlDialogOpen) { setImageUrlDialogOpen(false); setImageUrlInput(''); setImageAltInput(''); }
       else if (tablePickerOpen) { setTablePickerOpen(false); }
+      else if (embedDialogOpen) { setEmbedDialogOpen(false); setEmbedUrlInput(''); setEmbedPreview(null); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [linkDialogOpen, imageUrlDialogOpen, tablePickerOpen]);
+  }, [linkDialogOpen, imageUrlDialogOpen, tablePickerOpen, embedDialogOpen]);
 
   // 표 피커 외부 클릭 닫기
   useEffect(() => {
@@ -671,6 +813,27 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const handleInsertTable = (rows: number, cols: number) => {
     if (!editor) return;
     editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+  };
+
+  const handleEmbedUrlChange = (url: string) => {
+    setEmbedUrlInput(url);
+    if (url.trim()) {
+      setEmbedPreview(parseEmbedUrl(url));
+    } else {
+      setEmbedPreview(null);
+    }
+  };
+
+  const handleInsertEmbed = () => {
+    if (!editor || !embedUrlInput.trim()) return;
+    const { embedUrl, label } = parseEmbedUrl(embedUrlInput);
+    editor.chain().focus().insertContent({
+      type: 'embed',
+      attrs: { src: embedUrl, label },
+    }).run();
+    setEmbedDialogOpen(false);
+    setEmbedUrlInput('');
+    setEmbedPreview(null);
   };
 
   if (!editor) return null;
@@ -728,6 +891,14 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
             />
           )}
         </div>
+        {/* 임베드 버튼 */}
+        <button
+          onClick={() => setEmbedDialogOpen(true)}
+          title="영상·슬라이드 임베드 (YouTube, Google 슬라이드 등)"
+          className={btnCls(isActive('embed'))}
+        >
+          <MonitorPlay size={15} />
+        </button>
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) { handleImageFile(f); e.target.value = ''; } }} />
         <span className="ml-auto text-[10px] text-on-surface-variant font-bold opacity-60">/ 입력 → 블록 삽입</span>
@@ -831,6 +1002,54 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
             <div className="flex gap-2">
               <button onClick={() => { setImageUrlDialogOpen(false); setImageUrlInput(''); setImageAltInput(''); }} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors">취소</button>
               <button onClick={handleInsertImageUrl} className="flex-1 py-2.5 btn-gradient rounded-xl font-black text-sm text-white">삽입</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 임베드 다이얼로그 ── */}
+      {embedDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => { setEmbedDialogOpen(false); setEmbedUrlInput(''); setEmbedPreview(null); }}>
+          <div className="bg-white rounded-3xl p-6 shadow-2xl w-[480px] space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <MonitorPlay size={18} className="text-primary" />
+              <h3 className="font-black text-base">영상 · 슬라이드 임베드</h3>
+            </div>
+            <p className="text-xs text-on-surface-variant font-bold leading-relaxed">
+              URL을 붙여넣으면 자동으로 변환됩니다.<br />
+              YouTube · Google 슬라이드 · Google 문서 · Google 설문 지원
+            </p>
+            <input
+              type="url"
+              value={embedUrlInput}
+              onChange={e => handleEmbedUrlChange(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="w-full px-4 py-2.5 bg-surface-container rounded-xl text-sm font-bold focus:outline-none"
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && handleInsertEmbed()}
+            />
+            {/* 변환 결과 미리보기 */}
+            {embedPreview && (
+              <div className="bg-primary/5 rounded-xl px-4 py-3 space-y-1">
+                <p className="text-[11px] font-black text-primary">{embedPreview.label} 감지됨</p>
+                <p className="text-[10px] text-on-surface-variant break-all font-mono">{embedPreview.embedUrl}</p>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setEmbedDialogOpen(false); setEmbedUrlInput(''); setEmbedPreview(null); }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleInsertEmbed}
+                disabled={!embedUrlInput.trim()}
+                className="flex-1 py-2.5 btn-gradient rounded-xl font-black text-sm text-white disabled:opacity-50"
+              >
+                삽입
+              </button>
             </div>
           </div>
         </div>
