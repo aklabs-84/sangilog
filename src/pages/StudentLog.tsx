@@ -1816,8 +1816,10 @@ const StudentLog = () => {
   // 노트 이미지 업로드 (WebP 변환 후 Supabase Storage 저장)
   const handleNoteImageUpload = async (file: File): Promise<string> => {
     if (!session?.student_id) throw new Error('세션 없음');
-    // 간단한 WebP 변환
-    const compressed = await new Promise<File>(resolve => {
+    // canvas.toBlob 콜백 안에서 new File() 사용 시 Vite 8 / Rolldown 번들러가 생성자를
+    // 잘못 최적화하여 'zl is not a constructor' 오류 발생 + Promise hang 유발.
+    // new File() 대신 Blob 그대로 업로드 (Supabase storage.upload은 Blob 허용).
+    const compressed = await new Promise<Blob>((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
@@ -1828,13 +1830,13 @@ const StudentLog = () => {
         canvas.width = width; canvas.height = height;
         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
         URL.revokeObjectURL(url);
-        canvas.toBlob(blob => {
-          resolve(blob
-            ? new File([blob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' })
-            : file);
-        }, 'image/webp', 0.85);
+        canvas.toBlob(
+          blob => (blob ? resolve(blob) : resolve(file)),
+          'image/webp',
+          0.85
+        );
       };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지 로드 실패')); };
       img.src = url;
     });
     const path = `notes/${session.student_id}/${Date.now()}.webp`;
