@@ -245,3 +245,74 @@
 
 .rich-editor-content strong { font-weight: 900; }
 .rich-editor-content em { font-style: italic; }
+
+/* ── 표 스타일 ── */
+.rich-editor-content table.rich-table,
+.rich-editor-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1.5px solid var(--color-surface-container);
+}
+
+.rich-editor-content table th,
+.rich-editor-content table td {
+  border: 1px solid var(--color-surface-container);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  min-width: 60px;
+  position: relative;
+}
+
+.rich-editor-content table th {
+  background-color: var(--color-surface-container-low, #f5f5f5);
+  font-weight: 900;
+  color: var(--color-on-surface);
+  border-bottom: 2px solid var(--color-surface-container);
+}
+
+.rich-editor-content table td p,
+.rich-editor-content table th p {
+  margin: 0;
+}
+
+/* 선택된 셀 */
+.rich-editor-content .selectedCell {
+  background-color: var(--color-primary, #6750a4);
+  opacity: 0.12;
+}
+.rich-editor-content .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--color-primary, #6750a4);
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+/* 열 너비 리사이즈 핸들 */
+.rich-editor-content .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: var(--color-primary, #6750a4);
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.rich-editor-content table:hover .column-resize-handle {
+  opacity: 0.4;
+}
+.rich-editor-content .column-resize-handle:hover,
+.rich-editor-content .resize-cursor .column-resize-handle {
+  opacity: 1;
+}
+
+/* 리사이즈 커서 */
+.resize-cursor { cursor: col-resize; }

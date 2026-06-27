@@ -6,6 +6,7 @@ import LinkExtension from '@tiptap/extension-link';
 import ImageExtension from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockExt from '@tiptap/extension-code-block';
+import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Node, Extension, mergeAttributes } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
@@ -13,7 +14,7 @@ import type { Ref } from 'react';
 import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
-  Copy, Check,
+  Copy, Check, Table2, Plus, Trash2, ArrowRightToLine, ArrowDownToLine,
 } from 'lucide-react';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ const SLASH_COMMANDS = [
   { icon: '</>', title: '코드 블록', description: '코드 스니펫',      command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run() },
   { icon: '—',  title: '구분선',    description: '슬라이드 구분선',   command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).setHorizontalRule().run() },
   { icon: '▶',  title: '토글 블록', description: '접을 수 있는 내용', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'details', attrs: { summary: '토글 제목' }, content: [{ type: 'paragraph' }] }).run() },
+  { icon: '⊞',  title: '표',       description: '표 삽입 (3×3)',     command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
 ] as const;
 
 type SlashItem = { icon: string; title: string; description: string; command: (p: any) => void };
@@ -117,7 +119,6 @@ const SlashCommandExtension = Extension.create({
             if (!rect) return;
             const top = rect.bottom + 4;
             const left = rect.left;
-            // 화면 하단 넘침 방지
             const menuH = 300;
             container.style.top = top + menuH > window.innerHeight
               ? `${rect.top - menuH - 4}px`
@@ -204,7 +205,6 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
       />
       {selected && (
         <>
-          {/* 삭제 버튼 */}
           <button
             onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
             className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center z-10 transition-colors"
@@ -212,7 +212,6 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
           >
             <X size={12} />
           </button>
-          {/* 리사이즈 핸들 */}
           <div
             className="absolute bottom-0 right-0 w-5 h-5 bg-primary rounded-tl-lg cursor-se-resize z-10 flex items-center justify-center"
             onMouseDown={onResizeStart}
@@ -293,9 +292,7 @@ const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeV
   return (
     <NodeViewWrapper>
       <div className={`my-2 rounded-xl border-2 overflow-hidden transition-colors ${selected ? 'border-primary' : 'border-surface-container'}`}>
-        {/* 토글 헤더 */}
         <div className={`flex items-center gap-2 px-4 py-2.5 bg-surface-container-low transition-colors ${open ? 'border-b border-surface-container' : ''}`}>
-          {/* 접기/펼치기 화살표 */}
           <button
             onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
             onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
@@ -322,7 +319,6 @@ const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeV
             placeholder="토글 제목"
           />
           <span className="text-[10px] text-on-surface-variant/40 font-bold shrink-0">TOGGLE</span>
-          {/* 삭제 버튼 */}
           <button
             onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
             className="p-1 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
@@ -331,7 +327,6 @@ const DetailsView = ({ node, updateAttributes, selected, editor, getPos }: NodeV
             <X size={13} />
           </button>
         </div>
-        {/* 내용: open 상태에 따라 표시/숨김 (NodeViewContent는 DOM에 유지) */}
         <div className={open ? '' : 'hidden'}>
           <NodeViewContent className="px-4 py-3 min-h-[2.5rem] text-sm" />
         </div>
@@ -442,6 +437,43 @@ const CustomCodeBlock = CodeBlockExt.extend({
   },
 });
 
+// ── 표 삽입 그리드 피커 ───────────────────────────────────────────────────────
+const TableGridPicker = ({ onSelect, onClose }: { onSelect: (rows: number, cols: number) => void; onClose: () => void }) => {
+  const [hovered, setHovered] = useState<[number, number]>([0, 0]);
+  const MAX = 6;
+
+  return (
+    <div
+      className="absolute top-full left-0 mt-1 z-50 bg-white rounded-2xl shadow-xl border border-surface-container p-3"
+      onMouseLeave={() => setHovered([0, 0])}
+    >
+      <p className="text-[10px] font-black text-on-surface-variant mb-2 text-center">
+        {hovered[0] > 0 ? `${hovered[0]} × ${hovered[1]} 표` : '표 크기 선택'}
+      </p>
+      <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${MAX}, 1.5rem)` }}>
+        {Array.from({ length: MAX * MAX }, (_, i) => {
+          const r = Math.floor(i / MAX) + 1;
+          const c = (i % MAX) + 1;
+          const active = r <= hovered[0] && c <= hovered[1];
+          return (
+            <button
+              key={i}
+              className={`w-6 h-6 rounded transition-colors border ${
+                active
+                  ? 'bg-primary/20 border-primary'
+                  : 'bg-surface-container-low border-surface-container hover:bg-surface-container'
+              }`}
+              onMouseEnter={() => setHovered([r, c])}
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => { onSelect(r, c); onClose(); }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ── RichEditor ────────────────────────────────────────────────────────────────
 interface RichEditorProps {
   value: string;
@@ -459,11 +491,12 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [imageAltInput, setImageAltInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [tablePickerOpen, setTablePickerOpen] = useState(false);
+  const [isInTable, setIsInTable] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastMarkdownRef = useRef(value);
-
-  // handleImageFile을 useEditor 내부 handlePaste에서 참조하기 위한 ref
   const uploadFnRef = useRef<((file: File) => Promise<void>) | null>(null);
+  const tablePickerRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -471,7 +504,7 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
       CustomCodeBlock,
       SlashCommandExtension,
       Markdown.configure({
-        html: true,  // <details> HTML 파싱을 위해 활성화
+        html: true,
         tightLists: true,
         bulletListMarker: '-',
         transformPastedText: true,
@@ -480,6 +513,10 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
       LinkExtension.configure({ openOnClick: false }),
       ResizableImage,
       DetailsExtension,
+      Table.configure({ resizable: true, HTMLAttributes: { class: 'rich-table' } }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Placeholder.configure({
         placeholder: '내용을 입력하세요...',
       }),
@@ -490,6 +527,9 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
       const md = (editor.storage as any).markdown.getMarkdown();
       lastMarkdownRef.current = md;
       onChange(md);
+    },
+    onSelectionUpdate: ({ editor }) => {
+      setIsInTable(editor.isActive('table'));
     },
     editorProps: {
       attributes: { class: 'rich-editor-content outline-none' },
@@ -504,12 +544,12 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
           }
           return true;
         }
+        // HTML 붙여넣기(엑셀/구글시트 표 포함)는 TipTap 기본 처리에 위임
         return false;
       },
     },
   });
 
-  // 이미지 파일 업로드 + 에디터 삽입
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) { alert('이미지 파일만 업로드 가능합니다.'); return; }
     if (!onUploadImage) return;
@@ -522,7 +562,6 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
     }
   };
 
-  // 최신 uploadFn을 ref에 동기화
   uploadFnRef.current = handleImageFile;
 
   useEffect(() => {
@@ -538,10 +577,23 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
       if (e.key !== 'Escape') return;
       if (linkDialogOpen) { setLinkDialogOpen(false); setLinkText(''); setLinkUrl(''); }
       else if (imageUrlDialogOpen) { setImageUrlDialogOpen(false); setImageUrlInput(''); setImageAltInput(''); }
+      else if (tablePickerOpen) { setTablePickerOpen(false); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [linkDialogOpen, imageUrlDialogOpen]);
+  }, [linkDialogOpen, imageUrlDialogOpen, tablePickerOpen]);
+
+  // 표 피커 외부 클릭 닫기
+  useEffect(() => {
+    if (!tablePickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (tablePickerRef.current && !tablePickerRef.current.contains(e.target as Node)) {
+        setTablePickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [tablePickerOpen]);
 
   const handleInsertLink = () => {
     if (!editor || !linkUrl.trim()) return;
@@ -565,6 +617,11 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
     }).run();
   };
 
+  const handleInsertTable = (rows: number, cols: number) => {
+    if (!editor) return;
+    editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+  };
+
   if (!editor) return null;
 
   const isActive = (name: string, attrs?: object) => editor.isActive(name, attrs);
@@ -573,6 +630,7 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
   const textBtnCls = (active: boolean) =>
     `px-2 py-1 rounded-lg text-xs font-black transition-colors ${active ? 'bg-primary text-white' : 'text-on-surface-variant hover:bg-surface-container hover:text-primary'}`;
   const sep = <div className="w-px h-4 bg-surface-container mx-1" />;
+  const tableBtnCls = 'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors';
 
   return (
     <div className="relative">
@@ -602,10 +660,72 @@ const RichEditor = ({ value, onChange, onUploadImage, uploading, minHeight = '44
         <button onClick={handleInsertToggle} title="토글 블록 삽입" className={btnCls(isActive('details'))}>
           <ChevronRight size={15} />
         </button>
+        {sep}
+        {/* 표 삽입 버튼 */}
+        <div className="relative" ref={tablePickerRef}>
+          <button
+            onClick={() => setTablePickerOpen(o => !o)}
+            title="표 삽입"
+            className={btnCls(isActive('table') || tablePickerOpen)}
+          >
+            <Table2 size={15} />
+          </button>
+          {tablePickerOpen && (
+            <TableGridPicker
+              onSelect={handleInsertTable}
+              onClose={() => setTablePickerOpen(false)}
+            />
+          )}
+        </div>
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) { handleImageFile(f); e.target.value = ''; } }} />
         <span className="ml-auto text-[10px] text-on-surface-variant font-bold opacity-60">/ 입력 → 블록 삽입</span>
       </div>
+
+      {/* ── 표 편집 툴바 (커서가 표 안에 있을 때) ── */}
+      {isInTable && (
+        <div className="flex flex-wrap items-center gap-1 px-4 py-1.5 border-b border-primary/20 bg-primary/5">
+          <span className="text-[10px] font-black text-primary mr-1">표 편집</span>
+          <button onClick={() => editor.chain().focus().addRowBefore().run()} className={tableBtnCls} title="위에 행 추가">
+            <Plus size={11} /><ArrowDownToLine size={11} className="rotate-180" />위 행
+          </button>
+          <button onClick={() => editor.chain().focus().addRowAfter().run()} className={tableBtnCls} title="아래에 행 추가">
+            <Plus size={11} /><ArrowDownToLine size={11} />아래 행
+          </button>
+          <button onClick={() => editor.chain().focus().addColumnBefore().run()} className={tableBtnCls} title="왼쪽에 열 추가">
+            <Plus size={11} /><ArrowRightToLine size={11} className="rotate-180" />왼쪽 열
+          </button>
+          <button onClick={() => editor.chain().focus().addColumnAfter().run()} className={tableBtnCls} title="오른쪽에 열 추가">
+            <Plus size={11} /><ArrowRightToLine size={11} />오른쪽 열
+          </button>
+          <div className="w-px h-4 bg-primary/20 mx-0.5" />
+          <button onClick={() => editor.chain().focus().toggleHeaderRow().run()} className={tableBtnCls} title="헤더 행 토글">
+            헤더
+          </button>
+          <div className="w-px h-4 bg-primary/20 mx-0.5" />
+          <button
+            onClick={() => editor.chain().focus().deleteRow().run()}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-500 hover:bg-red-50 transition-colors"
+            title="현재 행 삭제"
+          >
+            <Trash2 size={11} />행 삭제
+          </button>
+          <button
+            onClick={() => editor.chain().focus().deleteColumn().run()}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-500 hover:bg-red-50 transition-colors"
+            title="현재 열 삭제"
+          >
+            <Trash2 size={11} />열 삭제
+          </button>
+          <button
+            onClick={() => editor.chain().focus().deleteTable().run()}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-600 hover:bg-red-50 transition-colors ml-1"
+            title="표 전체 삭제"
+          >
+            <Trash2 size={11} />표 삭제
+          </button>
+        </div>
+      )}
 
       {/* ── 에디터 본문 ── */}
       <div
