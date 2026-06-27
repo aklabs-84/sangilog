@@ -813,35 +813,118 @@ const parseEmbedUrl = (raw: string): EmbedInfo => {
 };
 
 // ── EmbedNodeView ─────────────────────────────────────────────────────────────
+const EMBED_SIZE_PRESETS = [
+  { label: '소', pct: 35 },
+  { label: '중', pct: 55 },
+  { label: '대', pct: 75 },
+  { label: '전체', pct: 100 },
+];
+
 const EmbedNodeView = ({ node, selected, editor, getPos }: NodeViewProps) => {
-  const { src, label } = node.attrs as { src: string; label: string };
+  const { src, label, widthPercent } = node.attrs as { src: string; label: string; widthPercent: number };
+  const [dragging, setDragging] = useState(false);
+  const [liveWidth, setLiveWidth] = useState<number | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const currentWidth = liveWidth ?? widthPercent ?? 70;
+
+  const commitWidth = (pct: number) => {
+    const pos = typeof getPos === 'function' ? getPos() : undefined;
+    if (pos === undefined || pos === null) return;
+    const tr = editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, widthPercent: Math.round(pct) });
+    editor.view.dispatch(tr);
+  };
+
+  const onResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startPct = currentWidth;
+    setDragging(true);
+
+    const onMove = (ev: MouseEvent) => {
+      const parentW = wrapperRef.current?.parentElement?.offsetWidth ?? 600;
+      const dx = ev.clientX - startX;
+      const newPct = Math.min(100, Math.max(20, startPct + (dx / parentW) * 100));
+      setLiveWidth(newPct);
+    };
+    const onUp = (ev: MouseEvent) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setDragging(false);
+      const parentW = wrapperRef.current?.parentElement?.offsetWidth ?? 600;
+      const dx = ev.clientX - startX;
+      const newPct = Math.min(100, Math.max(20, startPct + (dx / parentW) * 100));
+      setLiveWidth(null);
+      commitWidth(newPct);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
   return (
     <NodeViewWrapper className="my-4">
-      <div className={`relative rounded-2xl overflow-hidden border-2 transition-colors bg-black/5 ${selected ? 'border-primary' : 'border-surface-container'}`}>
-        {/* 헤더 */}
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low border-b border-surface-container">
-          <MonitorPlay size={13} className="text-primary shrink-0" />
-          <span className="text-[11px] font-black text-on-surface-variant flex-1">{label || '임베드'}</span>
-          {selected && (
-            <button
-              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
-              className="p-1 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors"
-              title="임베드 삭제"
-            >
-              <X size={13} />
-            </button>
-          )}
+      <div
+        ref={wrapperRef}
+        style={{ width: `${currentWidth}%`, transition: dragging ? 'none' : 'width 0.15s' }}
+        className="relative"
+      >
+        <div className={`rounded-2xl overflow-hidden border-2 transition-colors bg-black/5 ${selected ? 'border-primary' : 'border-surface-container'}`}>
+          {/* 헤더 */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low border-b border-surface-container">
+            <MonitorPlay size={13} className="text-primary shrink-0" />
+            <span className="text-[11px] font-black text-on-surface-variant flex-1 truncate">{label || '임베드'}</span>
+            {selected && (
+              <>
+                {/* 사이즈 프리셋 */}
+                <div className="flex items-center gap-0.5 ml-1">
+                  {EMBED_SIZE_PRESETS.map(p => (
+                    <button
+                      key={p.label}
+                      onMouseDown={e => { e.preventDefault(); e.stopPropagation(); commitWidth(p.pct); }}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-black transition-colors ${
+                        Math.abs(currentWidth - p.pct) < 5
+                          ? 'bg-primary text-white'
+                          : 'text-on-surface-variant hover:bg-surface-container'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[10px] font-mono text-on-surface-variant/60 mx-1">{Math.round(currentWidth)}%</span>
+                <button
+                  onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
+                  className="p-1 rounded-lg text-on-surface-variant/50 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  title="임베드 삭제"
+                >
+                  <X size={13} />
+                </button>
+              </>
+            )}
+          </div>
+          {/* iframe 16:9 */}
+          <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+            <iframe
+              src={src}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+              allowFullScreen
+              loading="lazy"
+            />
+          </div>
         </div>
-        {/* iframe 16:9 */}
-        <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
-          <iframe
-            src={src}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-            allowFullScreen
-            loading="lazy"
-          />
-        </div>
+
+        {/* 우측 드래그 핸들 */}
+        {selected && (
+          <div
+            onMouseDown={onResizeStart}
+            className="absolute right-0 top-0 bottom-0 w-3 flex items-center justify-center cursor-col-resize z-10 translate-x-1.5"
+            title="드래그하여 크기 조절"
+          >
+            <div className={`w-1 h-10 rounded-full transition-colors ${dragging ? 'bg-primary' : 'bg-primary/50 hover:bg-primary'}`} />
+          </div>
+        )}
       </div>
     </NodeViewWrapper>
   );
@@ -855,8 +938,9 @@ const EmbedExtension = Node.create({
 
   addAttributes() {
     return {
-      src:   { default: '' },
-      label: { default: '임베드' },
+      src:          { default: '' },
+      label:        { default: '임베드' },
+      widthPercent: { default: 70 },
     };
   },
 
@@ -866,9 +950,12 @@ const EmbedExtension = Node.create({
         tag: 'div[data-embed]',
         getAttrs: el => {
           const iframe = (el as HTMLElement).querySelector('iframe');
+          const styleW = (el as HTMLElement).style.width;
+          const parsed = styleW ? parseInt(styleW) : NaN;
           return {
-            src:   iframe?.getAttribute('src') || '',
-            label: (el as HTMLElement).getAttribute('data-label') || '임베드',
+            src:          iframe?.getAttribute('src') || '',
+            label:        (el as HTMLElement).getAttribute('data-label') || '임베드',
+            widthPercent: isNaN(parsed) ? 70 : parsed,
           };
         },
       },
@@ -876,7 +963,8 @@ const EmbedExtension = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes({ 'data-embed': true, 'data-label': HTMLAttributes.label }),
+    const w = HTMLAttributes.widthPercent ?? 70;
+    return ['div', mergeAttributes({ 'data-embed': true, 'data-label': HTMLAttributes.label, style: `width:${w}%` }),
       ['iframe', { src: HTMLAttributes.src, allowfullscreen: true, style: 'width:100%;aspect-ratio:16/9;border:0' }]];
   },
 
@@ -884,9 +972,10 @@ const EmbedExtension = Node.create({
     return {
       markdown: {
         serialize(state: any, node: any) {
-          const { src, label } = node.attrs;
+          const { src, label, widthPercent } = node.attrs;
+          const w = widthPercent ?? 70;
           state.write(
-            `<div data-embed data-label="${label}">\n` +
+            `<div data-embed data-label="${label}" style="width:${w}%">\n` +
             `<iframe src="${src}" allowfullscreen style="width:100%;aspect-ratio:16/9;border:0" loading="lazy"></iframe>\n` +
             `</div>\n\n`
           );
