@@ -557,36 +557,164 @@ const ColorableTableHeader = TableHeader.extend({
 });
 
 // ── 표 색상 피커 팝오버 ───────────────────────────────────────────────────────
-const TableColorPopover = ({
+const TableColorModal = ({
   title,
   onSelect,
+  onClose,
 }: {
   title: string;
   onSelect: (color: string | null) => void;
-}) => (
-  <div
-    data-color-popover="true"
-    className="absolute top-full left-0 mt-1 z-50 bg-white rounded-2xl shadow-xl border border-neutral-200 p-3"
-  >
-    <p className="text-[10px] font-black text-neutral-400 mb-2">{title}</p>
-    <div className="grid grid-cols-5 gap-1.5">
-      {TABLE_COLORS.map(color => (
-        <button
-          key={color.label ?? 'default'}
-          title={color.label}
-          onClick={() => onSelect(color.hex)}
-          className={[
-            'w-7 h-7 rounded-lg hover:scale-110 transition-transform border',
-            color.hex
-              ? 'border-neutral-200'
-              : 'border-dashed border-neutral-300 bg-white',
-          ].join(' ')}
-          style={color.hex ? { backgroundColor: color.hex } : {}}
-        />
-      ))}
+  onClose: () => void;
+}) => {
+  const [customHex, setCustomHex] = useState('#dbeafe');
+  const [preview, setPreview] = useState<string | null>(null);
+
+  const applyColor = (color: string | null) => {
+    onSelect(color);
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-[420px] p-6 space-y-5"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Palette size={18} className="text-primary" />
+            <h3 className="font-black text-base">{title}</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-neutral-100 text-neutral-400 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* 프리셋 색상 */}
+        <div>
+          <p className="text-[11px] font-black text-neutral-400 mb-3">프리셋 색상</p>
+          <div className="grid grid-cols-5 gap-2">
+            {TABLE_COLORS.map(color => (
+              <button
+                key={color.label ?? 'default'}
+                title={color.label}
+                onClick={() => {
+                  if (color.hex) {
+                    setCustomHex(color.hex);
+                    setPreview(color.hex);
+                  } else {
+                    setPreview(null);
+                  }
+                }}
+                className={[
+                  'group relative h-10 rounded-xl border-2 transition-all hover:scale-105 hover:shadow-md',
+                  preview === color.hex || (!color.hex && preview === null)
+                    ? 'border-primary ring-2 ring-primary/30 scale-105'
+                    : 'border-neutral-200',
+                  !color.hex ? 'bg-white' : '',
+                ].join(' ')}
+                style={color.hex ? { backgroundColor: color.hex } : {}}
+              >
+                {!color.hex && (
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" className="text-neutral-300">
+                      <line x1="4" y1="4" x2="20" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <line x1="20" y1="4" x2="4" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                )}
+                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-black text-neutral-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                  {color.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 직접 입력 */}
+        <div>
+          <p className="text-[11px] font-black text-neutral-400 mb-3">직접 입력</p>
+          <div className="flex items-center gap-3">
+            <label className="relative cursor-pointer shrink-0">
+              <input
+                type="color"
+                value={customHex}
+                onChange={e => { setCustomHex(e.target.value); setPreview(e.target.value); }}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+              <div
+                className="w-10 h-10 rounded-xl border-2 border-neutral-200 shadow-sm"
+                style={{ backgroundColor: customHex }}
+              />
+            </label>
+            <div className="flex-1 relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-neutral-400">#</span>
+              <input
+                type="text"
+                value={customHex.replace('#', '')}
+                maxLength={6}
+                onChange={e => {
+                  const raw = e.target.value.replace(/[^0-9a-fA-F]/g, '');
+                  const full = `#${raw}`;
+                  setCustomHex(full);
+                  if (raw.length === 6) setPreview(full);
+                }}
+                placeholder="dbeafe"
+                className="w-full pl-7 pr-3 py-2.5 bg-neutral-50 rounded-xl text-sm font-black focus:outline-none focus:ring-2 focus:ring-primary/30 border border-neutral-200 font-mono"
+              />
+            </div>
+            <button
+              onClick={() => { setPreview(customHex); }}
+              className="shrink-0 px-4 py-2.5 rounded-xl bg-neutral-100 text-xs font-black text-neutral-600 hover:bg-neutral-200 transition-colors"
+            >
+              미리보기
+            </button>
+          </div>
+        </div>
+
+        {/* 미리보기 바 */}
+        <div>
+          <p className="text-[11px] font-black text-neutral-400 mb-2">미리보기</p>
+          <div
+            className="w-full h-12 rounded-xl border border-neutral-200 flex items-center justify-center transition-all duration-200"
+            style={{ backgroundColor: preview ?? '#ffffff' }}
+          >
+            <span className="text-xs font-black text-neutral-500 mix-blend-multiply">
+              {preview ? '선택된 색상' : '색 없음 (기본)'}
+            </span>
+          </div>
+        </div>
+
+        {/* 버튼 */}
+        <div className="flex gap-3 pt-1">
+          <button
+            onClick={() => applyColor(null)}
+            className="px-4 py-2.5 rounded-xl font-bold text-sm text-neutral-500 hover:bg-neutral-100 transition-colors border border-neutral-200"
+          >
+            색 지우기
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl font-bold text-sm text-neutral-500 hover:bg-neutral-100 transition-colors"
+          >
+            취소
+          </button>
+          <button
+            onClick={() => applyColor(preview)}
+            className="px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white"
+          >
+            적용
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ── 표 삽입 그리드 피커 ───────────────────────────────────────────────────────
 const TableGridPicker = ({ onSelect, onClose }: { onSelect: (rows: number, cols: number) => void; onClose: () => void }) => {
@@ -783,8 +911,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const [isDragging, setIsDragging] = useState(false);
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [isInTable, setIsInTable] = useState(false);
-  const [headerColorOpen, setHeaderColorOpen] = useState(false);
-  const [cellColorOpen, setCellColorOpen] = useState(false);
+  const [colorModalType, setColorModalType] = useState<'header' | 'cell' | null>(null);
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
   const [embedUrlInput, setEmbedUrlInput] = useState('');
   const [embedPreview, setEmbedPreview] = useState<EmbedInfo | null>(null);
@@ -795,19 +922,6 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const pendingUploadsRef = useRef(0); // 진행 중인 업로드 수
   const onUploadingChangeRef = useRef(onUploadingChange);
   useEffect(() => { onUploadingChangeRef.current = onUploadingChange; }, [onUploadingChange]);
-
-  // 색상 팝오버 외부 클릭 시 닫기
-  useEffect(() => {
-    if (!headerColorOpen && !cellColorOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('[data-color-popover]')) {
-        setHeaderColorOpen(false);
-        setCellColorOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [headerColorOpen, cellColorOpen]);
 
   const editor = useEditor({
     extensions: [
@@ -1090,43 +1204,21 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           </button>
           <div className="w-px h-4 bg-primary/20 mx-0.5" />
           {/* 헤더 색상 */}
-          <div className="relative" data-color-popover="true">
-            <button
-              onClick={() => { setHeaderColorOpen(o => !o); setCellColorOpen(false); }}
-              className={tableBtnCls}
-              title="헤더 배경색 변경"
-            >
-              <Palette size={11} />헤더색
-            </button>
-            {headerColorOpen && (
-              <TableColorPopover
-                title="헤더 배경색"
-                onSelect={(color) => {
-                  editor.chain().focus().updateAttributes('table', { headerBgColor: color }).run();
-                  setHeaderColorOpen(false);
-                }}
-              />
-            )}
-          </div>
+          <button
+            onClick={() => setColorModalType('header')}
+            className={tableBtnCls}
+            title="헤더 전체 배경색 변경"
+          >
+            <Palette size={11} />헤더색
+          </button>
           {/* 셀 색상 */}
-          <div className="relative" data-color-popover="true">
-            <button
-              onClick={() => { setCellColorOpen(o => !o); setHeaderColorOpen(false); }}
-              className={tableBtnCls}
-              title="현재 셀 배경색 변경"
-            >
-              <Palette size={11} />셀색
-            </button>
-            {cellColorOpen && (
-              <TableColorPopover
-                title="셀 배경색"
-                onSelect={(color) => {
-                  editor.chain().focus().setCellAttribute('backgroundColor', color).run();
-                  setCellColorOpen(false);
-                }}
-              />
-            )}
-          </div>
+          <button
+            onClick={() => setColorModalType('cell')}
+            className={tableBtnCls}
+            title="현재 셀 배경색 변경"
+          >
+            <Palette size={11} />셀색
+          </button>
           <div className="w-px h-4 bg-primary/20 mx-0.5" />
           <button
             onClick={() => editor.chain().focus().deleteRow().run()}
@@ -1256,6 +1348,26 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── 표 색상 모달 ── */}
+      {colorModalType === 'header' && (
+        <TableColorModal
+          title="헤더 배경색"
+          onSelect={(color) => {
+            editor?.chain().focus().updateAttributes('table', { headerBgColor: color }).run();
+          }}
+          onClose={() => setColorModalType(null)}
+        />
+      )}
+      {colorModalType === 'cell' && (
+        <TableColorModal
+          title="셀 배경색"
+          onSelect={(color) => {
+            editor?.chain().focus().setCellAttribute('backgroundColor', color).run();
+          }}
+          onClose={() => setColorModalType(null)}
+        />
       )}
     </div>
   );
