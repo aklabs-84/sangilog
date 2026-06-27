@@ -4588,12 +4588,36 @@ ${guidePrompt}
                         placeholder="제목 없음"
                         className="flex-1 text-sm font-black text-on-surface bg-transparent outline-none placeholder:text-neutral-300 truncate"
                       />
-                      {/* 저장 상태 */}
-                      <div className="shrink-0 flex items-center gap-1">
-                        {noteSaveStatus === 'saving' && <Loader2 size={11} className="animate-spin text-neutral-400" />}
-                        {noteSaveStatus === 'saved' && <CheckCircle2 size={11} className="text-emerald-500" />}
-                        {noteSaveStatus === 'error' && <AlertCircle size={11} className="text-red-400" />}
-                      </div>
+                      {/* 저장 상태 뱃지 */}
+                      <AnimatePresence mode="wait">
+                        {noteSaveStatus === 'saving' && (
+                          <motion.div key="saving"
+                            initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
+                            className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200"
+                          >
+                            <Loader2 size={12} className="animate-spin text-amber-500" />
+                            <span className="text-[11px] font-black text-amber-600">저장 중</span>
+                          </motion.div>
+                        )}
+                        {noteSaveStatus === 'saved' && (
+                          <motion.div key="saved"
+                            initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
+                            className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200"
+                          >
+                            <CheckCircle2 size={12} className="text-emerald-500" />
+                            <span className="text-[11px] font-black text-emerald-600">저장됨</span>
+                          </motion.div>
+                        )}
+                        {noteSaveStatus === 'error' && (
+                          <motion.div key="error"
+                            initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
+                            className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-200"
+                          >
+                            <AlertCircle size={12} className="text-red-500" />
+                            <span className="text-[11px] font-black text-red-600">오류</span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                       {/* 삭제 */}
                       <button
                         onClick={() => setNoteDeleteId(selectedNote.id)}
@@ -4618,7 +4642,7 @@ ${guidePrompt}
                     )}
 
                     {/* 에디터 */}
-                    <div className="mx-5 mt-4 mb-6 rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm">
+                    <div className="relative mx-5 mt-4 mb-6 rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-sm">
                       <RichEditor
                         key={noteEditorKey}
                         value={noteContent}
@@ -4627,6 +4651,49 @@ ${guidePrompt}
                         onUploadingChange={handleNoteImageUploadingChange}
                         minHeight="420px"
                       />
+
+                      {/* ── 플로팅 저장 상태 바 ── */}
+                      <AnimatePresence>
+                        {noteSaveStatus === 'saving' && (
+                          <motion.div
+                            key="float-saving"
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 16 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-6 py-3 rounded-2xl bg-neutral-900/90 backdrop-blur-sm shadow-2xl"
+                          >
+                            <Loader2 size={18} className="animate-spin text-amber-400 shrink-0" />
+                            <span className="text-sm font-black text-white whitespace-nowrap">저장 중...</span>
+                          </motion.div>
+                        )}
+                        {noteSaveStatus === 'saved' && (
+                          <motion.div
+                            key="float-saved"
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 16 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-6 py-3 rounded-2xl bg-emerald-600/90 backdrop-blur-sm shadow-2xl"
+                          >
+                            <CheckCircle2 size={18} className="text-white shrink-0" />
+                            <span className="text-sm font-black text-white whitespace-nowrap">저장됨</span>
+                          </motion.div>
+                        )}
+                        {noteSaveStatus === 'error' && (
+                          <motion.div
+                            key="float-error"
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 16 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-6 py-3 rounded-2xl bg-red-600/90 backdrop-blur-sm shadow-2xl"
+                          >
+                            <AlertCircle size={18} className="text-white shrink-0" />
+                            <span className="text-sm font-black text-white whitespace-nowrap">저장 오류 — 다시 시도합니다</span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </>
                 ) : (
