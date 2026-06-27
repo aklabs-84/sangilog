@@ -304,13 +304,15 @@ const StudentLog = () => {
   const [selectedNote, setSelectedNote] = useState<NoteItem | null>(null);
   const [noteContent, setNoteContent] = useState('');
   const [noteTitleInput, setNoteTitleInput] = useState('');
-  const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [noteSaveStatus, setNoteSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteHasUnsavedChanges, setNoteHasUnsavedChanges] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [isNoteImageUploading, setIsNoteImageUploading] = useState(false);
   const [noteEditorKey, setNoteEditorKey] = useState(0);
   const [noteGuideOpen, setNoteGuideOpen] = useState(false);
   const [noteCreating, setNoteCreating] = useState(false);
   const [noteDeleteId, setNoteDeleteId] = useState<string | null>(null);
-  const noteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const noteTitleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isNoteImageUploadingRef = useRef(false); // 이미지 업로드 중 여부 (ref로 stale closure 방지)
   const latestNoteContentRef = useRef('');       // 최신 노트 내용 (이미지 URL 교체 후 값)
 
@@ -1756,6 +1758,7 @@ const StudentLog = () => {
       setNoteTitleInput('제목 없음');
       setNoteEditorKey(k => k + 1);
       setNoteSaveStatus('idle');
+      setNoteHasUnsavedChanges(false);
     } catch {
       showToast('노트 생성에 실패했습니다.');
     } finally {
@@ -1769,30 +1772,44 @@ const StudentLog = () => {
     setNoteTitleInput(note.title);
     setNoteEditorKey(k => k + 1);
     setNoteSaveStatus('idle');
+    setNoteHasUnsavedChanges(false);
   };
 
-  const backToNoteList = () => {
-    if (noteDebounceRef.current) { clearTimeout(noteDebounceRef.current); noteDebounceRef.current = null; }
-    if (noteTitleDebounceRef.current) { clearTimeout(noteTitleDebounceRef.current); noteTitleDebounceRef.current = null; }
+  const navigateToNoteList = () => {
     setSelectedNote(null);
     setNoteContent('');
     setNoteTitleInput('');
     setNoteSaveStatus('idle');
+    setNoteHasUnsavedChanges(false);
+    setShowUnsavedModal(false);
     fetchNotes();
   };
 
-  const saveNote = async (id: string, content: string, title: string) => {
-    // base64 이미지가 남아있으면 저장 건너뜀 (업로드 완료 후 재시도)
+  const backToNoteList = () => {
+    if (noteHasUnsavedChanges) {
+      setShowUnsavedModal(true);
+      return;
+    }
+    navigateToNoteList();
+  };
+
+  const handleManualSave = async () => {
+    if (!selectedNote || isNoteImageUploadingRef.current || noteSaving) return;
+    const content = latestNoteContentRef.current;
     if (content.includes('data:image/')) return;
+    setNoteSaving(true);
     try {
       await supabase
         .from('student_notes')
-        .update({ content, title, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .update({ content, title: noteTitleInput, updated_at: new Date().toISOString() })
+        .eq('id', selectedNote.id);
+      setNoteHasUnsavedChanges(false);
       setNoteSaveStatus('saved');
       setTimeout(() => setNoteSaveStatus('idle'), 2500);
     } catch {
       setNoteSaveStatus('error');
+    } finally {
+      setNoteSaving(false);
     }
   };
 
@@ -1830,35 +1847,19 @@ const StudentLog = () => {
   // 이미지 업로드 상태 변화 콜백 (RichEditor → StudentLog)
   const handleNoteImageUploadingChange = (uploading: boolean) => {
     isNoteImageUploadingRef.current = uploading;
-    if (!uploading && selectedNote) {
-      // 업로드 완료 → 최신 내용(URL 교체된 버전)으로 즉시 저장
-      if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
-      saveNote(selectedNote.id, latestNoteContentRef.current, noteTitleInput);
-    }
+    setIsNoteImageUploading(uploading);
+    // 업로드 완료 시 content는 handleNoteChange에서 이미 최신화됨 (URL 교체 → onUpdate 발생)
   };
 
   const handleNoteChange = (content: string) => {
     setNoteContent(content);
-    latestNoteContentRef.current = content; // 항상 최신 내용 유지
-    setNoteSaveStatus('saving');
-    if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
-    if (isNoteImageUploadingRef.current) {
-      // 업로드 중 → 타이머 예약 안 함, 업로드 완료 시 handleNoteImageUploadingChange가 저장
-      return;
-    }
-    noteDebounceRef.current = setTimeout(() => {
-      if (isNoteImageUploadingRef.current) return; // 타이머 실행 시점에 다시 확인
-      if (selectedNote) saveNote(selectedNote.id, content, noteTitleInput);
-    }, 2000);
+    latestNoteContentRef.current = content;
+    setNoteHasUnsavedChanges(true);
   };
 
   const handleNoteTitleChange = (title: string) => {
     setNoteTitleInput(title);
-    setNoteSaveStatus('saving');
-    if (noteTitleDebounceRef.current) clearTimeout(noteTitleDebounceRef.current);
-    noteTitleDebounceRef.current = setTimeout(() => {
-      if (selectedNote) saveNote(selectedNote.id, noteContent, title);
-    }, 1500);
+    setNoteHasUnsavedChanges(true);
   };
 
   const deleteNote = async (id: string) => {
@@ -4560,6 +4561,44 @@ ${guidePrompt}
               </motion.div>
             )}
 
+            {/* ─── 미저장 확인 모달 ─── */}
+            {showUnsavedModal && (
+              <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+                  className="bg-white rounded-3xl shadow-2xl p-7 w-80 mx-4"
+                >
+                  <div className="flex flex-col items-center gap-2 mb-5">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center mb-1">
+                      <AlertCircle size={24} className="text-amber-500" />
+                    </div>
+                    <h3 className="text-base font-black text-center">저장하지 않고 나가기</h3>
+                    <p className="text-sm text-neutral-500 text-center">변경 내용이 저장되지 않았습니다.</p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={async () => { await handleManualSave(); navigateToNoteList(); }}
+                      className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-black transition-colors"
+                    >
+                      저장 후 나가기
+                    </button>
+                    <button
+                      onClick={navigateToNoteList}
+                      className="w-full py-3 rounded-2xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-sm font-black transition-colors"
+                    >
+                      저장 안 함
+                    </button>
+                    <button
+                      onClick={() => setShowUnsavedModal(false)}
+                      className="w-full py-2.5 text-neutral-400 hover:text-neutral-600 text-sm font-bold transition-colors"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+
             {/* ─── NOTES 탭 ─── */}
             {activeTab === 'notes' && (
               <motion.div
@@ -4573,10 +4612,10 @@ ${guidePrompt}
                 {selectedNote ? (
                   <>
                     {/* 에디터 헤더 */}
-                    <div className="flex items-center gap-3 px-5 py-4 border-b border-neutral-100 sticky top-0 bg-white z-10">
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100 sticky top-0 bg-white z-10">
                       <button
                         onClick={backToNoteList}
-                        className="flex items-center gap-1.5 text-xs font-black text-neutral-500 hover:text-emerald-600 transition-colors shrink-0"
+                        className="flex items-center gap-1.5 text-xs font-black text-neutral-500 hover:text-neutral-800 transition-colors shrink-0"
                       >
                         <ArrowLeft size={14} /> 목록
                       </button>
@@ -4586,25 +4625,23 @@ ${guidePrompt}
                         value={noteTitleInput}
                         onChange={e => handleNoteTitleChange(e.target.value)}
                         placeholder="제목 없음"
-                        className="flex-1 text-sm font-black text-on-surface bg-transparent outline-none placeholder:text-neutral-300 truncate"
+                        className="flex-1 text-sm font-black text-on-surface bg-transparent outline-none placeholder:text-neutral-300 truncate min-w-0"
                       />
-                      {/* 저장 상태 뱃지 */}
+                      {/* 업로드 중 표시 */}
+                      {isNoteImageUploading && (
+                        <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200">
+                          <Loader2 size={11} className="animate-spin text-amber-500" />
+                          <span className="text-[11px] font-black text-amber-600">업로드 중</span>
+                        </div>
+                      )}
+                      {/* 저장됨 피드백 */}
                       <AnimatePresence mode="wait">
-                        {noteSaveStatus === 'saving' && (
-                          <motion.div key="saving"
-                            initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
-                            className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200"
-                          >
-                            <Loader2 size={12} className="animate-spin text-amber-500" />
-                            <span className="text-[11px] font-black text-amber-600">저장 중</span>
-                          </motion.div>
-                        )}
                         {noteSaveStatus === 'saved' && (
                           <motion.div key="saved"
                             initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
                             className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200"
                           >
-                            <CheckCircle2 size={12} className="text-emerald-500" />
+                            <CheckCircle2 size={11} className="text-emerald-500" />
                             <span className="text-[11px] font-black text-emerald-600">저장됨</span>
                           </motion.div>
                         )}
@@ -4613,17 +4650,28 @@ ${guidePrompt}
                             initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
                             className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-200"
                           >
-                            <AlertCircle size={12} className="text-red-500" />
-                            <span className="text-[11px] font-black text-red-600">오류</span>
+                            <AlertCircle size={11} className="text-red-500" />
+                            <span className="text-[11px] font-black text-red-600">저장 오류</span>
                           </motion.div>
                         )}
                       </AnimatePresence>
-                      {/* 삭제 */}
+                      {/* 저장 버튼 */}
+                      <button
+                        onClick={handleManualSave}
+                        disabled={noteSaving || isNoteImageUploading || !noteHasUnsavedChanges}
+                        className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-sm font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {noteSaving
+                          ? <Loader2 size={15} className="animate-spin" />
+                          : <Save size={15} />}
+                        저장
+                      </button>
+                      {/* 삭제 버튼 */}
                       <button
                         onClick={() => setNoteDeleteId(selectedNote.id)}
-                        className="shrink-0 p-1.5 rounded-lg text-neutral-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                        className="shrink-0 p-2 rounded-xl text-neutral-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={18} />
                       </button>
                     </div>
 
@@ -4652,48 +4700,6 @@ ${guidePrompt}
                         minHeight="420px"
                       />
 
-                      {/* ── 플로팅 저장 상태 바 ── */}
-                      <AnimatePresence>
-                        {noteSaveStatus === 'saving' && (
-                          <motion.div
-                            key="float-saving"
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 16 }}
-                            transition={{ duration: 0.2 }}
-                            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-6 py-3 rounded-2xl bg-neutral-900/90 backdrop-blur-sm shadow-2xl"
-                          >
-                            <Loader2 size={18} className="animate-spin text-amber-400 shrink-0" />
-                            <span className="text-sm font-black text-white whitespace-nowrap">저장 중...</span>
-                          </motion.div>
-                        )}
-                        {noteSaveStatus === 'saved' && (
-                          <motion.div
-                            key="float-saved"
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 16 }}
-                            transition={{ duration: 0.2 }}
-                            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-6 py-3 rounded-2xl bg-emerald-600/90 backdrop-blur-sm shadow-2xl"
-                          >
-                            <CheckCircle2 size={18} className="text-white shrink-0" />
-                            <span className="text-sm font-black text-white whitespace-nowrap">저장됨</span>
-                          </motion.div>
-                        )}
-                        {noteSaveStatus === 'error' && (
-                          <motion.div
-                            key="float-error"
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 16 }}
-                            transition={{ duration: 0.2 }}
-                            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-6 py-3 rounded-2xl bg-red-600/90 backdrop-blur-sm shadow-2xl"
-                          >
-                            <AlertCircle size={18} className="text-white shrink-0" />
-                            <span className="text-sm font-black text-white whitespace-nowrap">저장 오류 — 다시 시도합니다</span>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
                     </div>
                   </>
                 ) : (
@@ -4737,7 +4743,7 @@ ${guidePrompt}
                             { icon: '+', title: '새 노트 만들기', desc: '오른쪽 위 "새 노트" 버튼을 눌러 노트를 추가하세요. 노트마다 제목을 붙일 수 있어요.' },
                             { icon: '/', title: '슬래시 명령어', desc: '/ 를 입력하면 제목, 목록, 코드블록, 인용구 등 블록을 삽입할 수 있어요.' },
                             { icon: 'B', title: '서식 툴바', desc: '텍스트를 드래그하면 굵게·기울임·링크 등 서식 도구가 나타나요.' },
-                            { icon: '💾', title: '자동 저장', desc: '입력이 멈추면 2초 후 자동 저장돼요. 따로 저장 버튼을 누르지 않아도 돼요.' },
+                            { icon: '💾', title: '저장', desc: '오른쪽 위 "저장" 버튼을 눌러 노트를 저장하세요. 이미지 업로드 중에는 완료 후 저장이 가능해요.' },
                           ].map(item => (
                             <div key={item.title} className="flex items-start gap-3">
                               <span className="w-7 h-7 rounded-lg bg-emerald-200 text-emerald-800 flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">{item.icon}</span>

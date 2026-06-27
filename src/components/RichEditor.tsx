@@ -1109,29 +1109,45 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       const url = await onUploadImage(file);
 
       // ③ 업로드 완료 → 에디터에서 base64를 실제 URL로 교체
+      // descendants 콜백 내부에서 dispatch하면 iteration 중 ProseMirror 상태가 변경되어
+      // Selection 생성자가 잘못된 position을 받는 오류가 발생하므로 루프 밖에서 dispatch
       if (editor) {
-        let found = false;
+        let imgPos = -1;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let imgAttrs: any = null;
         editor.state.doc.descendants((node, pos) => {
-          if (!found && node.type.name === 'image' && node.attrs.alt === tempAlt) {
-            found = true;
-            editor.view.dispatch(
-              editor.state.tr.setNodeMarkup(pos, undefined, {
-                ...node.attrs,
-                src: url,
-                alt: file.name.replace(/\.[^.]+$/, ''),
-              })
-            );
+          if (imgPos === -1 && node.type.name === 'image' && node.attrs.alt === tempAlt) {
+            imgPos = pos;
+            imgAttrs = node.attrs;
+            return false;
           }
+          return true;
         });
+        if (imgPos !== -1 && imgAttrs) {
+          editor.view.dispatch(
+            editor.state.tr.setNodeMarkup(imgPos, undefined, {
+              ...imgAttrs,
+              src: url,
+              alt: file.name.replace(/\.[^.]+$/, ''),
+            })
+          );
+        }
       }
     } catch {
-      // 업로드 실패 시 임시 이미지 제거
+      // 업로드 실패 시 임시 이미지 제거 (루프 밖에서 dispatch)
       if (editor) {
+        let deleteFrom = -1, deleteTo = -1;
         editor.state.doc.descendants((node, pos) => {
-          if (node.type.name === 'image' && node.attrs.alt === tempAlt) {
-            editor.view.dispatch(editor.state.tr.delete(pos, pos + node.nodeSize));
+          if (deleteFrom === -1 && node.type.name === 'image' && node.attrs.alt === tempAlt) {
+            deleteFrom = pos;
+            deleteTo = pos + node.nodeSize;
+            return false;
           }
+          return true;
         });
+        if (deleteFrom !== -1) {
+          editor.view.dispatch(editor.state.tr.delete(deleteFrom, deleteTo));
+        }
       }
     } finally {
       // ④ 업로드 카운터 감소 → 0이면 부모에게 완료 알림
