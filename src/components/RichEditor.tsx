@@ -15,7 +15,7 @@ import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
   Copy, Check, Table2, Plus, Trash2, ArrowRightToLine, ArrowDownToLine,
-  MonitorPlay,
+  MonitorPlay, Palette,
 } from 'lucide-react';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
@@ -439,6 +439,155 @@ const CustomCodeBlock = CodeBlockExt.extend({
   },
 });
 
+// ── 표 색상 프리셋 ────────────────────────────────────────────────────────────
+const TABLE_COLORS = [
+  { label: '기본', hex: null },
+  { label: '파랑', hex: '#dbeafe' },
+  { label: '하늘', hex: '#e0f2fe' },
+  { label: '초록', hex: '#dcfce7' },
+  { label: '민트', hex: '#ccfbf1' },
+  { label: '보라', hex: '#ede9fe' },
+  { label: '분홍', hex: '#fce7f3' },
+  { label: '주황', hex: '#ffedd5' },
+  { label: '노랑', hex: '#fef9c3' },
+  { label: '회색', hex: '#f3f4f6' },
+];
+
+// ── 셀 → HTML 텍스트 변환 (색상 보존 직렬화용) ────────────────────────────────
+const cellToHtml = (cellNode: any): string => {
+  const renderInline = (node: any): string => {
+    if (node.type.name === 'text') {
+      let t = (node.text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      for (const mark of (node.marks || [])) {
+        if (mark.type.name === 'bold') t = `<strong>${t}</strong>`;
+        else if (mark.type.name === 'italic') t = `<em>${t}</em>`;
+        else if (mark.type.name === 'code') t = `<code>${t}</code>`;
+        else if (mark.type.name === 'link') t = `<a href="${mark.attrs.href}">${t}</a>`;
+      }
+      return t;
+    }
+    if (node.type.name === 'hardBreak') return '<br>';
+    let s = '';
+    node.forEach?.((child: any) => { s += renderInline(child); });
+    return s;
+  };
+  let html = '';
+  cellNode.forEach((block: any) => {
+    if (block.type.name === 'paragraph') {
+      block.forEach((inline: any) => { html += renderInline(inline); });
+    }
+  });
+  return html;
+};
+
+// ── 색상 지원 표 확장 ─────────────────────────────────────────────────────────
+const ColorableTable = Table.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      headerBgColor: {
+        default: null,
+        parseHTML: (el) => {
+          const m = (el.getAttribute('style') || '').match(/--table-header-bg:\s*([^;]+)/);
+          return m ? m[1].trim() : null;
+        },
+        renderHTML: (attrs) => attrs.headerBgColor
+          ? { style: `--table-header-bg:${attrs.headerBgColor}` }
+          : {},
+      },
+    };
+  },
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any, node: any) {
+          const { headerBgColor } = node.attrs;
+          const tableStyle = headerBgColor ? ` style="--table-header-bg:${headerBgColor}"` : '';
+          state.write(`<table${tableStyle}>\n<tbody>\n`);
+          node.forEach((row: any) => {
+            state.write('<tr>');
+            row.forEach((cell: any) => {
+              const isHeader = cell.type.name === 'tableHeader';
+              const tag = isHeader ? 'th' : 'td';
+              const bg: string | null = cell.attrs?.backgroundColor ?? null;
+              const cellStyle = bg ? ` style="background-color:${bg}"` : '';
+              state.write(`<${tag}${cellStyle}>${cellToHtml(cell)}</${tag}>`);
+            });
+            state.write('</tr>\n');
+          });
+          state.write('</tbody>\n</table>\n\n');
+        },
+        parse: {},
+      },
+    };
+  },
+});
+
+const ColorableTableCell = TableCell.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      backgroundColor: {
+        default: null,
+        parseHTML: (el) => el.style.backgroundColor || null,
+        renderHTML: (attrs) => attrs.backgroundColor
+          ? { style: `background-color:${attrs.backgroundColor}` }
+          : {},
+      },
+    };
+  },
+});
+
+const ColorableTableHeader = TableHeader.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      backgroundColor: {
+        default: null,
+        parseHTML: (el) => el.style.backgroundColor || null,
+        renderHTML: (attrs) => attrs.backgroundColor
+          ? { style: `background-color:${attrs.backgroundColor}` }
+          : {},
+      },
+    };
+  },
+});
+
+// ── 표 색상 피커 팝오버 ───────────────────────────────────────────────────────
+const TableColorPopover = ({
+  title,
+  onSelect,
+}: {
+  title: string;
+  onSelect: (color: string | null) => void;
+}) => (
+  <div
+    data-color-popover="true"
+    className="absolute top-full left-0 mt-1 z-50 bg-white rounded-2xl shadow-xl border border-neutral-200 p-3"
+  >
+    <p className="text-[10px] font-black text-neutral-400 mb-2">{title}</p>
+    <div className="grid grid-cols-5 gap-1.5">
+      {TABLE_COLORS.map(color => (
+        <button
+          key={color.label ?? 'default'}
+          title={color.label}
+          onClick={() => onSelect(color.hex)}
+          className={[
+            'w-7 h-7 rounded-lg hover:scale-110 transition-transform border',
+            color.hex
+              ? 'border-neutral-200'
+              : 'border-dashed border-neutral-300 bg-white',
+          ].join(' ')}
+          style={color.hex ? { backgroundColor: color.hex } : {}}
+        />
+      ))}
+    </div>
+  </div>
+);
+
 // ── 표 삽입 그리드 피커 ───────────────────────────────────────────────────────
 const TableGridPicker = ({ onSelect, onClose }: { onSelect: (rows: number, cols: number) => void; onClose: () => void }) => {
   const [hovered, setHovered] = useState<[number, number]>([0, 0]);
@@ -634,6 +783,8 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const [isDragging, setIsDragging] = useState(false);
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [isInTable, setIsInTable] = useState(false);
+  const [headerColorOpen, setHeaderColorOpen] = useState(false);
+  const [cellColorOpen, setCellColorOpen] = useState(false);
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
   const [embedUrlInput, setEmbedUrlInput] = useState('');
   const [embedPreview, setEmbedPreview] = useState<EmbedInfo | null>(null);
@@ -644,6 +795,19 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const pendingUploadsRef = useRef(0); // 진행 중인 업로드 수
   const onUploadingChangeRef = useRef(onUploadingChange);
   useEffect(() => { onUploadingChangeRef.current = onUploadingChange; }, [onUploadingChange]);
+
+  // 색상 팝오버 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!headerColorOpen && !cellColorOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-color-popover]')) {
+        setHeaderColorOpen(false);
+        setCellColorOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [headerColorOpen, cellColorOpen]);
 
   const editor = useEditor({
     extensions: [
@@ -660,10 +824,10 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       LinkExtension.configure({ openOnClick: false }),
       ResizableImage,
       DetailsExtension,
-      Table.configure({ resizable: true, HTMLAttributes: { class: 'rich-table' } }),
+      ColorableTable.configure({ resizable: true, HTMLAttributes: { class: 'rich-table' } }),
       TableRow,
-      TableHeader,
-      TableCell,
+      ColorableTableHeader,
+      ColorableTableCell,
       EmbedExtension,
       Placeholder.configure({
         placeholder: '내용을 입력하세요...',
@@ -924,6 +1088,45 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           <button onClick={() => editor.chain().focus().toggleHeaderRow().run()} className={tableBtnCls} title="헤더 행 토글">
             헤더
           </button>
+          <div className="w-px h-4 bg-primary/20 mx-0.5" />
+          {/* 헤더 색상 */}
+          <div className="relative" data-color-popover="true">
+            <button
+              onClick={() => { setHeaderColorOpen(o => !o); setCellColorOpen(false); }}
+              className={tableBtnCls}
+              title="헤더 배경색 변경"
+            >
+              <Palette size={11} />헤더색
+            </button>
+            {headerColorOpen && (
+              <TableColorPopover
+                title="헤더 배경색"
+                onSelect={(color) => {
+                  editor.chain().focus().updateAttributes('table', { headerBgColor: color }).run();
+                  setHeaderColorOpen(false);
+                }}
+              />
+            )}
+          </div>
+          {/* 셀 색상 */}
+          <div className="relative" data-color-popover="true">
+            <button
+              onClick={() => { setCellColorOpen(o => !o); setHeaderColorOpen(false); }}
+              className={tableBtnCls}
+              title="현재 셀 배경색 변경"
+            >
+              <Palette size={11} />셀색
+            </button>
+            {cellColorOpen && (
+              <TableColorPopover
+                title="셀 배경색"
+                onSelect={(color) => {
+                  editor.chain().focus().setCellAttribute('backgroundColor', color).run();
+                  setCellColorOpen(false);
+                }}
+              />
+            )}
+          </div>
           <div className="w-px h-4 bg-primary/20 mx-0.5" />
           <button
             onClick={() => editor.chain().focus().deleteRow().run()}
