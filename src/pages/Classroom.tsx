@@ -523,7 +523,7 @@ const Classroom = () => {
           name: newClassData.name,
           subject: newClassData.class_type === 'homeroom' ? '담임' : newClassData.subject,
           class_type: newClassData.class_type,
-          student_guide_prompt: newClassData.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 단답형이나 단순 감상평은 지양해 주세요.',
+          student_guide_prompt: newClassData.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 단답형이나 단순 감상평은 지양해 주세요. 의미없이 반복되는 문장이나 맥락상 전혀 이해 할 수 없는 아무 의미없는 내용을 작성하는 것도 지양해 주세요.',
           teacher_report_prompt: newClassData.teacher_report_prompt || '교육부 기재 요령을 준수하여 사실 기반의 객관적인 문체(~함, ~임)로 작성해줘. 학생의 개별적인 성취가 잘 드러나야 해.',
           min_obs_chars: newClassData.min_obs_chars || 0,
           blocked_keywords: newClassData.blocked_keywords || [],
