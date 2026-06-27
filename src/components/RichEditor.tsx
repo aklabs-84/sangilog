@@ -1020,7 +1020,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [isInTable, setIsInTable] = useState(false);
   const [colorModalType, setColorModalType] = useState<'header' | 'cell' | 'text' | null>(null);
-  const savedTablePosRef = useRef<number>(-1); // 모달 열기 전 테이블 내 커서 위치 저장
+  const lastInTablePosRef = useRef<number>(-1); // 표 안에 커서가 있을 때 실시간으로 갱신
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
   const [embedUrlInput, setEmbedUrlInput] = useState('');
   const [embedPreview, setEmbedPreview] = useState<EmbedInfo | null>(null);
@@ -1034,7 +1034,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
+      StarterKit.configure({ codeBlock: false, link: false }),
       CustomCodeBlock,
       SlashCommandExtension,
       Markdown.configure({
@@ -1066,7 +1066,11 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       onChange(md);
     },
     onSelectionUpdate: ({ editor }) => {
-      setIsInTable(editor.isActive('table'));
+      const inTable = editor.isActive('table');
+      setIsInTable(inTable);
+      if (inTable) {
+        lastInTablePosRef.current = editor.state.selection.from;
+      }
     },
     editorProps: {
       attributes: { class: 'rich-editor-content outline-none' },
@@ -1330,10 +1334,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           <div className="w-px h-4 bg-primary/20 mx-0.5" />
           {/* 헤더 색상 */}
           <button
-            onClick={() => {
-              if (editor) savedTablePosRef.current = editor.state.selection.$from.pos;
-              setColorModalType('header');
-            }}
+            onClick={() => setColorModalType('header')}
             className={tableBtnCls}
             title="헤더 전체 배경색 변경"
           >
@@ -1341,10 +1342,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           </button>
           {/* 셀 색상 */}
           <button
-            onClick={() => {
-              if (editor) savedTablePosRef.current = editor.state.selection.$from.pos;
-              setColorModalType('cell');
-            }}
+            onClick={() => setColorModalType('cell')}
             className={tableBtnCls}
             title="현재 셀 배경색 변경"
           >
@@ -1488,30 +1486,41 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           presets={TABLE_COLORS}
           onSelect={(color) => {
             if (!editor) return;
-            // 모달 열기 전 저장한 커서 위치로 테이블 노드 탐색
-            const savedPos = savedTablePosRef.current;
-            const $pos = savedPos >= 0
-              ? editor.state.doc.resolve(Math.min(savedPos, editor.state.doc.content.size - 1))
-              : editor.state.selection.$from;
+            const refPos = lastInTablePosRef.current;
+            if (refPos < 0) return;
 
-            let tableDepth = -1;
-            for (let d = $pos.depth; d > 0; d--) {
-              if ($pos.node(d).type.name === 'table') { tableDepth = d; break; }
-            }
-            if (tableDepth === -1) return;
+            editor.chain().command(({ tr, state }) => {
+              // refPos를 포함하는 table 노드를 doc에서 탐색
+              let tableAbsPos = -1;
+              let tableNode: any = null;
+              state.doc.nodesBetween(0, state.doc.content.size, (n: any, pos: number) => {
+                if (tableAbsPos >= 0) return false;
+                if (n.type.name === 'table') {
+                  if (pos <= refPos && pos + n.nodeSize > refPos) {
+                    tableAbsPos = pos;
+                    tableNode = n;
+                  }
+                  return false; // table 안을 재귀 탐색하지 않음
+                }
+                return true;
+              });
+              if (tableAbsPos < 0 || !tableNode) return false;
 
-            const tableFrom = $pos.before(tableDepth);
-            const tableTo = $pos.after(tableDepth);
-            const tr = editor.state.tr;
-
-            editor.state.doc.nodesBetween(tableFrom, tableTo, (node, nodePos) => {
-              if (node.type.name === 'tableHeader') {
-                tr.setNodeMarkup(nodePos, undefined, { ...node.attrs, backgroundColor: color });
-                return false;
-              }
+              // table content start = tableAbsPos + 1 (table 열림 토큰 이후)
+              const contentStart = tableAbsPos + 1;
+              // tableNode.descendants에서 relPos = 노드의 table content 내 오프셋
+              tableNode.descendants((n: any, relPos: number) => {
+                if (n.type.name === 'tableHeader') {
+                  tr.setNodeMarkup(contentStart + relPos, undefined, {
+                    ...n.attrs,
+                    backgroundColor: color,
+                  });
+                  return false; // header 내부는 재귀 불필요
+                }
+                return true;
+              });
               return true;
-            });
-            editor.view.dispatch(tr);
+            }).run();
           }}
           onClose={() => setColorModalType(null)}
         />
@@ -1523,16 +1532,27 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           presets={TABLE_COLORS}
           onSelect={(color) => {
             if (!editor) return;
-            const savedPos = savedTablePosRef.current;
-            if (savedPos >= 0) {
-              // 저장된 위치로 선택 복원 후 적용
-              const $pos = editor.state.doc.resolve(Math.min(savedPos, editor.state.doc.content.size - 1));
-              const tr = editor.state.tr.setSelection(
-                editor.state.selection.constructor.near($pos) as any
-              );
-              editor.view.dispatch(tr);
-            }
-            editor.chain().focus().setCellAttribute('backgroundColor', color).run();
+            const refPos = lastInTablePosRef.current;
+            if (refPos < 0) return;
+
+            editor.chain().command(({ tr, state }) => {
+              // 셀 색상은 현재 셀에만 적용 — refPos 기준 셀 찾기
+              let cellAbsPos = -1;
+              let cellNode: any = null;
+              state.doc.nodesBetween(0, state.doc.content.size, (n: any, pos: number) => {
+                if (cellAbsPos >= 0) return false;
+                if ((n.type.name === 'tableCell' || n.type.name === 'tableHeader') &&
+                    pos <= refPos && pos + n.nodeSize > refPos) {
+                  cellAbsPos = pos;
+                  cellNode = n;
+                  return false;
+                }
+                return true;
+              });
+              if (cellAbsPos < 0 || !cellNode) return false;
+              tr.setNodeMarkup(cellAbsPos, undefined, { ...cellNode.attrs, backgroundColor: color });
+              return true;
+            }).run();
           }}
           onClose={() => setColorModalType(null)}
         />
