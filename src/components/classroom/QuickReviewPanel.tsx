@@ -139,24 +139,32 @@ export default function QuickReviewPanel({ onClose, onCountChange }: QuickReview
         aiConcern: Boolean(o.ai_concern),
       }));
 
-      const resultItems: ReviewItem[] = (resultsRes.data || []).map(r => ({
-        id: r.id,
-        type: 'result' as const,
-        studentId: r.student_id,
-        studentName: studentMap[r.student_id]?.name || '학생',
-        studentNumber: studentMap[r.student_id]?.number || '',
-        classId: studentMap[r.student_id]?.classId || '',
-        className: studentMap[r.student_id]?.className || '',
-        title: r.title || '결과 제출물',
-        content: r.text_content || '',
-        resultType: r.result_type,
-        linkUrl: r.link_url,
-        displayName: r.display_name,
-        submissionGroup: r.submission_group || undefined,
-        createdAt: r.created_at,
-        waitDays: getWaitDays(r.created_at),
-        aiConcern: false,
-      }));
+      // submission_group이 있는 row는 그룹의 첫 번째 row만 사용 (중복 카운트 방지)
+      const seenResultGroups = new Set<string>();
+      const resultItems: ReviewItem[] = [];
+      for (const r of (resultsRes.data || [])) {
+        const key = r.submission_group || r.id;
+        if (seenResultGroups.has(key)) continue;
+        seenResultGroups.add(key);
+        resultItems.push({
+          id: r.id,
+          type: 'result' as const,
+          studentId: r.student_id,
+          studentName: studentMap[r.student_id]?.name || '학생',
+          studentNumber: studentMap[r.student_id]?.number || '',
+          classId: studentMap[r.student_id]?.classId || '',
+          className: studentMap[r.student_id]?.className || '',
+          title: r.title || '결과 제출물',
+          content: r.text_content || '',
+          resultType: r.result_type,
+          linkUrl: r.link_url,
+          displayName: r.display_name,
+          submissionGroup: r.submission_group || undefined,
+          createdAt: r.created_at,
+          waitDays: getWaitDays(r.created_at),
+          aiConcern: false,
+        });
+      }
 
       const merged = [...obsItems, ...resultItems].sort((a, b) => {
         if (a.aiConcern && !b.aiConcern) return -1;

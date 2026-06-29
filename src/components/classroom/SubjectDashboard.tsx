@@ -1568,9 +1568,9 @@ const SubjectDashboard = ({
                             onClick={async () => {
                               setResultProcessingGroupId(g.groupId);
                               const col = g.items[0]?.submission_group ? 'submission_group' : 'id';
-                              await supabase.from('student_results').update({ status: 'submitted', rejection_feedback: null }).eq(col, g.groupId);
+                              await supabase.from('student_results').update({ status: 'approved', rejection_feedback: null }).eq(col, g.groupId);
                               setResultDetailItems(prev => prev.map((r: any) =>
-                                (r.submission_group || r.id) === g.groupId ? { ...r, status: 'submitted', rejection_feedback: null } : r
+                                (r.submission_group || r.id) === g.groupId ? { ...r, status: 'approved', rejection_feedback: null } : r
                               ));
                               setResultProcessingGroupId(null);
                             }}

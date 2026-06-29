@@ -1104,10 +1104,10 @@ const StudentLog = () => {
           await supabase.from('student_results').update({ title: base.title }).eq('id', existingFile.id);
         }
 
-        // 반려 상태였으면 제출 상태로 초기화 — student_id 필터로 본인 행만 처리
+        // 반려 상태였으면 승인 상태로 초기화 — student_id 필터로 본인 행만 처리
         if (editingResult.submission_group) {
           await supabase.from('student_results')
-            .update({ status: 'submitted', rejection_feedback: null })
+            .update({ status: 'approved', rejection_feedback: null })
             .eq('submission_group', editingResult.submission_group)
             .eq('student_id', session!.student_id);
         }
@@ -1144,7 +1144,7 @@ const StudentLog = () => {
     setResultSubmitting(true);
     try {
       const groupId = crypto.randomUUID();
-      const base = { student_id: session.student_id, class_id: session.class_id, week_number: selectedWeek, submission_group: groupId, title: resultTitle.trim() || null };
+      const base = { student_id: session.student_id, class_id: session.class_id, week_number: selectedWeek, submission_group: groupId, title: resultTitle.trim() || null, status: 'approved' };
       const rows: any[] = [];
 
       if (hasText) rows.push({ ...base, result_type: 'text', text_content: resultText.trim() });

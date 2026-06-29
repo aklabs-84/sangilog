@@ -1093,11 +1093,11 @@ const StudentView = () => {
                             e.stopPropagation();
                             setResults((prev: any[]) => prev.map((item: any) =>
                               (item.submission_group || item.id) === groupId
-                                ? { ...item, status: 'submitted', rejection_feedback: null }
+                                ? { ...item, status: 'approved', rejection_feedback: null }
                                 : item
                             ));
                             await supabase.from('student_results')
-                              .update({ status: 'submitted', rejection_feedback: null })
+                              .update({ status: 'approved', rejection_feedback: null })
                               .eq(firstItem.submission_group ? 'submission_group' : 'id', groupId);
                           }}
                           disabled={isProcessing}
@@ -1769,13 +1769,13 @@ const StudentView = () => {
                     onClick={async () => {
                       const gId = selectedResult.groupId || selectedResult.submission_group || selectedResult.id;
                       await supabase.from('student_results')
-                        .update({ status: 'submitted', rejection_feedback: null })
+                        .update({ status: 'approved', rejection_feedback: null })
                         .eq(selectedResult.submission_group ? 'submission_group' : 'id', gId);
                       setResults((prev: any[]) => prev.map((r: any) =>
                         (r.submission_group || r.id) === gId
-                          ? { ...r, status: 'submitted', rejection_feedback: null } : r
+                          ? { ...r, status: 'approved', rejection_feedback: null } : r
                       ));
-                      setSelectedResult((prev: any) => prev ? { ...prev, status: 'submitted', rejection_feedback: null } : null);
+                      setSelectedResult((prev: any) => prev ? { ...prev, status: 'approved', rejection_feedback: null } : null);
                       showToast('반려를 취소했습니다.');
                     }}
                     disabled={!!processingGroupId}

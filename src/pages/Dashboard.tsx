@@ -97,7 +97,7 @@ const Dashboard = () => {
       );
       if (studentIds.length === 0) return;
 
-      const [{ count: obsCount }, { count: resultCount }] = await Promise.all([
+      const [{ count: obsCount }, resultsRes] = await Promise.all([
         supabase
           .from('observations')
           .select('*', { count: 'exact', head: true })
@@ -106,12 +106,21 @@ const Dashboard = () => {
           .eq('status', 'pending'),
         supabase
           .from('student_results')
-          .select('*', { count: 'exact', head: true })
+          .select('id, submission_group')
           .in('student_id', studentIds)
-          .or('status.is.null,status.eq.submitted'),
+          .or('status.is.null,status.eq.submitted')
+          .limit(200),
       ]);
 
-      setPendingReviewCount((obsCount || 0) + (resultCount || 0));
+      // submission_group이 있는 경우 그룹 단위로 중복 제거
+      const seenGroups = new Set<string>();
+      let resultCount = 0;
+      for (const r of (resultsRes.data || [])) {
+        const key = r.submission_group || r.id;
+        if (!seenGroups.has(key)) { seenGroups.add(key); resultCount++; }
+      }
+
+      setPendingReviewCount((obsCount || 0) + resultCount);
     } catch (_e) { /* 조용히 실패 */ }
   };
 
@@ -1238,7 +1247,7 @@ const Dashboard = () => {
       <AnimatePresence>
         {quickReviewOpen && (
           <QuickReviewPanel
-            onClose={() => setQuickReviewOpen(false)}
+            onClose={() => { setQuickReviewOpen(false); fetchPendingReviewCount(); }}
             onCountChange={(count) => setPendingReviewCount(count)}
           />
         )}
