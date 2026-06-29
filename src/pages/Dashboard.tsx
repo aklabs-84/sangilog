@@ -26,7 +26,8 @@ import {
   FolderPlus,
   ChevronDown,
   Crown,
-  Zap
+  Zap,
+  Archive
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { useNavigate, NavLink } from 'react-router-dom';
@@ -652,12 +653,21 @@ const Dashboard = () => {
               <h2 className="text-xl md:text-2xl font-bold font-manrope">나의 학급</h2>
               <p className="text-xs text-on-surface-variant/60 mt-0.5">폴더로 묶어 내 화면에서만 정리할 수 있어요</p>
             </div>
-            <button
-              onClick={() => navigate('/classroom')}
-              className="text-xs font-bold text-primary flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
-            >
-              전체 보기 <ArrowRight size={14} />
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/archive')}
+                className="text-xs font-bold text-on-surface-variant/60 flex items-center gap-1 hover:text-on-surface-variant transition-colors"
+              >
+                <Archive size={13} />
+                종료된 학급
+              </button>
+              <button
+                onClick={() => navigate('/classroom')}
+                className="text-xs font-bold text-primary flex items-center gap-1 hover:underline underline-offset-4 decoration-2"
+              >
+                전체 보기 <ArrowRight size={14} />
+              </button>
+            </div>
           </div>
 
           {/* 폴더 탭 */}
