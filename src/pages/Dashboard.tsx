@@ -300,11 +300,15 @@ const Dashboard = () => {
           });
         }
 
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         setClasses(rawClassesData.map(c => {
           const targetId = c.linked_class_id || c.id;
           const classStudents = studentMap[targetId] || [];
           const observedCount = classProgressMap[targetId] || 0;
           const progressPercent = classStudents.length > 0 ? Math.round((observedCount / classStudents.length) * 100) : 0;
+          const isEffectivelyClosed = c.is_closed || (c.end_date ? new Date(c.end_date) < today : false);
 
           return {
             id: c.id,
@@ -315,7 +319,7 @@ const Dashboard = () => {
             progress: progressPercent,
             color: c.color_hex || 'bg-surface-container-high',
             folder_id: c.folder_id || null,
-            is_closed: c.is_closed || false
+            is_closed: isEffectivelyClosed
           };
         }));
 
