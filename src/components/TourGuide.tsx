@@ -127,7 +127,7 @@ export default function TourGuide({ steps, onClose }: Props) {
 
               <div className="flex items-center justify-between pt-1">
                 <button
-                  onClick={() => onClose(false)}
+                  onClick={() => onClose(true)}
                   className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   건너뛰기
