@@ -65,6 +65,15 @@ const Dashboard = () => {
   const [quickReviewOpen, setQuickReviewOpen] = useState(false);
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
 
+  // 학교 프로젝트 참여
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joinSearching, setJoinSearching] = useState(false);
+  const [joinProject, setJoinProject] = useState<any>(null);
+  const [joinSubClasses, setJoinSubClasses] = useState<any[]>([]);
+  const [joiningClassId, setJoiningClassId] = useState<string | null>(null);
+  const [joinDone, setJoinDone] = useState(false);
+
   useEffect(() => {
     fetchDashboardData();
     fetchPendingInvitations();
@@ -207,6 +216,53 @@ const Dashboard = () => {
         school_project_id: c.school_project_id,
       })));
     } catch (_e) { /* assigned_teacher_id 컬럼 미존재 시 무시 */ }
+  };
+
+  const handleSearchJoinProject = async () => {
+    if (!joinCode.trim()) return;
+    setJoinSearching(true);
+    setJoinProject(null);
+    setJoinSubClasses([]);
+    try {
+      const { data } = await supabase
+        .from('school_projects')
+        .select(`id, name, school_name, share_token, classes!school_project_id(id, name, assigned_teacher_id, parent_class_id)`)
+        .eq('share_token', joinCode.trim())
+        .single();
+      if (!data) { alert('코드를 다시 확인해주세요.'); return; }
+      const unassigned = (data.classes || []).filter(
+        (c: any) => c.parent_class_id !== null && !c.assigned_teacher_id
+      );
+      setJoinProject(data);
+      setJoinSubClasses(unassigned);
+    } finally {
+      setJoinSearching(false);
+    }
+  };
+
+  const handleJoinSubClass = async (classId: string) => {
+    if (!user || !joinProject) return;
+    setJoiningClassId(classId);
+    try {
+      const { error } = await supabase.rpc('assign_teacher_to_subclass', {
+        p_class_id: classId,
+        p_teacher_id: user.id,
+        p_project_id: joinProject.id,
+      });
+      if (!error) {
+        setJoinDone(true);
+        fetchAssignedClasses();
+        setTimeout(() => {
+          setJoinModalOpen(false);
+          setJoinCode('');
+          setJoinProject(null);
+          setJoinSubClasses([]);
+          setJoinDone(false);
+        }, 1500);
+      }
+    } finally {
+      setJoiningClassId(null);
+    }
   };
 
   const handleDeleteProject = async () => {
@@ -863,10 +919,18 @@ const Dashboard = () => {
         {/* 담당 학급 섹션 (학교 프로젝트에서 초대받은 클래스) */}
         {assignedClasses.length > 0 && (
           <div className="col-span-12 space-y-4">
-            <div className="flex items-center gap-2 px-2">
-              <School size={18} className="text-violet-500" />
-              <h2 className="text-xl font-bold font-manrope">담당 학급</h2>
-              <span className="text-[10px] font-black bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full">학교 프로젝트</span>
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <School size={18} className="text-violet-500" />
+                <h2 className="text-xl font-bold font-manrope">담당 학급</h2>
+                <span className="text-[10px] font-black bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full">학교 프로젝트</span>
+              </div>
+              <button
+                onClick={() => { setJoinModalOpen(true); setJoinCode(''); setJoinProject(null); setJoinSubClasses([]); setJoinDone(false); }}
+                className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-all"
+              >
+                <Plus size={13} /> 프로젝트 참여
+              </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
               {assignedClasses.map(cls => (
@@ -898,6 +962,25 @@ const Dashboard = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* 학교 프로젝트 참여 — 담당 학급이 없는 선생님용 */}
+        {assignedClasses.length === 0 && (
+          <div className="col-span-12">
+            <button
+              onClick={() => { setJoinModalOpen(true); setJoinCode(''); setJoinProject(null); setJoinSubClasses([]); setJoinDone(false); }}
+              className="w-full flex items-center gap-3 px-5 py-4 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-2xl transition-all group"
+            >
+              <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <School size={18} className="text-indigo-500" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-black text-indigo-700">학교 프로젝트 참여</p>
+                <p className="text-xs text-indigo-400">담임 선생님에게 받은 코드로 담당 반에 참여하세요</p>
+              </div>
+              <ArrowRight size={16} className="text-indigo-400 ml-auto group-hover:translate-x-1 transition-transform" />
+            </button>
           </div>
         )}
 
@@ -1210,6 +1293,110 @@ const Dashboard = () => {
         onSaved={() => fetchMyProjects()}
         editProject={editingProject}
       />
+
+      {/* 학교 프로젝트 참여 모달 */}
+      <AnimatePresence>
+        {joinModalOpen && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setJoinModalOpen(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="bg-gradient-to-r from-indigo-500 to-violet-600 px-8 py-6 text-white flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <School size={20} />
+                    <h2 className="text-xl font-black">학교 프로젝트 참여</h2>
+                  </div>
+                  <p className="text-sm text-white/70">담임 선생님에게 받은 코드를 입력하세요</p>
+                </div>
+                <button onClick={() => setJoinModalOpen(false)} className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-5">
+                {joinDone ? (
+                  <div className="text-center py-6 space-y-3">
+                    <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto">
+                      <Check size={28} className="text-green-500" />
+                    </div>
+                    <p className="font-black text-lg">참여 완료!</p>
+                    <p className="text-sm text-gray-500">담당 학급이 대시보드에 추가됩니다.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">참여 코드</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="ex) abc123xyz"
+                          value={joinCode}
+                          onChange={e => { setJoinCode(e.target.value); setJoinProject(null); setJoinSubClasses([]); }}
+                          onKeyDown={e => e.key === 'Enter' && handleSearchJoinProject()}
+                          className="flex-1 px-4 py-3.5 bg-gray-50 rounded-2xl text-sm font-bold border-2 border-transparent focus:border-indigo-300 focus:bg-white outline-none transition-all font-mono"
+                        />
+                        <button
+                          onClick={handleSearchJoinProject}
+                          disabled={!joinCode.trim() || joinSearching}
+                          className="px-5 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl font-black text-sm disabled:opacity-40 active:scale-95 transition-all"
+                        >
+                          {joinSearching ? '검색 중...' : '확인'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {joinProject && (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                          <p className="font-black text-indigo-900">{joinProject.name}</p>
+                          {joinProject.school_name && <p className="text-xs text-indigo-500 mt-0.5">{joinProject.school_name}</p>}
+                        </div>
+
+                        {joinSubClasses.length === 0 ? (
+                          <div className="text-center py-6 text-gray-400">
+                            <GraduationCap size={28} className="mx-auto mb-2 opacity-40" />
+                            <p className="text-sm font-bold">배정 가능한 반이 없습니다</p>
+                            <p className="text-xs mt-1">담임 선생님에게 문의해주세요</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-xs font-black text-gray-500 uppercase tracking-widest">담당할 반을 선택하세요</p>
+                            {joinSubClasses.map((cls: any) => (
+                              <button
+                                key={cls.id}
+                                onClick={() => handleJoinSubClass(cls.id)}
+                                disabled={joiningClassId === cls.id}
+                                className="w-full flex items-center gap-4 p-4 bg-gray-50 hover:bg-indigo-50 border-2 border-transparent hover:border-indigo-200 rounded-2xl text-left transition-all active:scale-[0.99] group"
+                              >
+                                <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center group-hover:bg-indigo-200 transition-colors shrink-0">
+                                  <GraduationCap size={18} className="text-indigo-600" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-black">{cls.name}</p>
+                                  <p className="text-xs text-gray-400">담당 선생님 없음 · 참여 가능</p>
+                                </div>
+                                {joiningClassId === cls.id
+                                  ? <span className="text-xs text-indigo-400 font-bold">참여 중...</span>
+                                  : <ArrowRight size={16} className="text-gray-300 group-hover:text-indigo-400 transition-colors" />
+                                }
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* 학교 프로젝트 삭제 확인 모달 */}
       <AnimatePresence>

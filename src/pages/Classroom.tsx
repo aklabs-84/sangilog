@@ -55,6 +55,7 @@ import CodeBlock from '../components/CodeBlock';
 import ClassSelector from '../components/classroom/ClassSelector';
 import BriefingModal from '../components/classroom/BriefingModal';
 import SubjectDashboard from '../components/classroom/SubjectDashboard';
+import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
 import AIInsightBanner from '../components/classroom/AIInsightBanner';
 import AIReportModal from '../components/classroom/AIReportModal';
 import AIChatModal from '../components/classroom/AIChatModal';
@@ -128,6 +129,9 @@ const Classroom = () => {
   // 학교 프로젝트 모달
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<any>(null);
+
+  // 담임반 연동 과목 클래스 목록
+  const [linkedClasses, setLinkedClasses] = useState<any[]>([]);
 
   // 학교 그룹 관련 상태
   const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
@@ -409,6 +413,22 @@ const Classroom = () => {
 
     handleClassActivation();
   }, [activeClassId, classes]);
+
+  // 담임반 → 연동 과목 클래스 fetch
+  useEffect(() => {
+    if (!classInfo?.id || classInfo.class_type !== 'homeroom' || !classInfo.school_project_id) {
+      setLinkedClasses([]);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from('classes')
+        .select('id, name, subject, teacher_id, assigned_teacher_id')
+        .eq('school_project_id', classInfo.school_project_id)
+        .not('parent_class_id', 'is', null);
+      setLinkedClasses(data || []);
+    })();
+  }, [classInfo?.id, classInfo?.school_project_id]);
 
   // 실시간 모니터링 구독
   useEffect(() => {
@@ -2168,40 +2188,86 @@ const Classroom = () => {
               })()}
 
               {activeTab === 'list' && (
-                <SubjectDashboard
-                  classInfo={classInfo}
-                  students={sortedStudents}
-                  viewMode={viewMode}
-                  setViewMode={setViewMode}
-                  searchQuery={searchQuery}
-                  setSearchQuery={setSearchQuery}
-                  onOpenQR={() => setIsQRModalOpen(true)}
-                  onOpenResources={() => {
-                    if (activeClassId) fetchResources(activeClassId);
-                    setIsResourceModalOpen(true);
-                  }}
-                  onExport={handleExportCSV}
-                  onAddStudent={() => setIsStudentModalOpen(true)}
-                  onEditStudent={handleEditStudent}
-                  onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
-                  onNavigateAI={(id) => {
-                    setDetailedStudentId(id);
-                    setIsDrawerOpen(true);
-                  }}
-                  onSort={handleSort}
-                  sortConfig={sortConfig}
-                  onCopyLink={handleCopyLink}
-                  copySuccess={copySuccess}
-                  onShareTeacher={handleShareTeacher}
-                  shareTeacherSuccess={shareTeacherSuccess}
-                  selectedIds={selectedStudentIds}
-                  onSelectStudent={handleSelectStudent}
-                  onSelectAll={handleSelectAll}
-                  onBulkApprove={handleBulkApprove}
-                  onResetPin={handleResetPin}
-                  groupMap={groupMap}
-                  statsRefreshKey={statsRefreshKey}
-                />
+                classInfo?.class_type === 'homeroom' ? (
+                  <HomeroomDashboard
+                    classInfo={classInfo}
+                    students={sortedStudents}
+                    onInviteTeachers={async () => {
+                      if (classInfo?.school_project_id) {
+                        const { data } = await supabase
+                          .from('school_projects')
+                          .select('*')
+                          .eq('id', classInfo.school_project_id)
+                          .single();
+                        setEditingProject(data || null);
+                        setIsProjectModalOpen(true);
+                      } else {
+                        setUpgradeModalReason('teacher_invite');
+                      }
+                    }}
+                    onSelectStudent={(id) => {
+                      setDetailedStudentId(id);
+                      setIsDrawerOpen(true);
+                    }}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    copySuccess={copySuccess}
+                    onCopyCode={handleCopyLink}
+                    onShareTeacher={handleShareTeacher}
+                    shareTeacherSuccess={shareTeacherSuccess}
+                    selectedIds={selectedStudentIds}
+                    onSelectStudentToggle={handleSelectStudent}
+                    onSelectAll={handleSelectAll}
+                    onAddStudent={() => setIsStudentModalOpen(true)}
+                    linkedClasses={linkedClasses}
+                    onSelectClass={(id) => setActiveClassId(id)}
+                    onEditStudent={handleEditStudent}
+                    onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
+                    onBulkApprove={handleBulkApprove}
+                    onResetPin={handleResetPin}
+                    onOpenResources={() => {
+                      if (activeClassId) fetchResources(activeClassId);
+                      setIsResourceModalOpen(true);
+                    }}
+                    onCopyLink={handleCopyLink}
+                    groupMap={groupMap}
+                  />
+                ) : (
+                  <SubjectDashboard
+                    classInfo={classInfo}
+                    students={sortedStudents}
+                    viewMode={viewMode}
+                    setViewMode={setViewMode}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    onOpenQR={() => setIsQRModalOpen(true)}
+                    onOpenResources={() => {
+                      if (activeClassId) fetchResources(activeClassId);
+                      setIsResourceModalOpen(true);
+                    }}
+                    onExport={handleExportCSV}
+                    onAddStudent={() => setIsStudentModalOpen(true)}
+                    onEditStudent={handleEditStudent}
+                    onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
+                    onNavigateAI={(id) => {
+                      setDetailedStudentId(id);
+                      setIsDrawerOpen(true);
+                    }}
+                    onSort={handleSort}
+                    sortConfig={sortConfig}
+                    onCopyLink={handleCopyLink}
+                    copySuccess={copySuccess}
+                    onShareTeacher={handleShareTeacher}
+                    shareTeacherSuccess={shareTeacherSuccess}
+                    selectedIds={selectedStudentIds}
+                    onSelectStudent={handleSelectStudent}
+                    onSelectAll={handleSelectAll}
+                    onBulkApprove={handleBulkApprove}
+                    onResetPin={handleResetPin}
+                    groupMap={groupMap}
+                    statsRefreshKey={statsRefreshKey}
+                  />
+                )
               )}
             </>
           )}

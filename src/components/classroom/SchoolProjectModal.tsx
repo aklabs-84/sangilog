@@ -633,6 +633,35 @@ const SchoolProjectModal = ({ isOpen, onClose, onSaved, editProject }: SchoolPro
               {/* ── STEP 3: 초대 확인 ── */}
               {step === 'teachers' && (
                 <div className="space-y-6">
+
+                  {/* 선생님 참여 코드 */}
+                  {shareToken && (
+                    <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-200 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <UserPlus size={15} className="text-indigo-500" />
+                        <p className="text-xs font-black text-indigo-700 uppercase tracking-widest">선생님 참여 코드</p>
+                      </div>
+                      <p className="text-[11px] text-indigo-500">
+                        과목 선생님이 대시보드에서 이 코드를 입력하면 담당 반을 직접 선택할 수 있습니다.
+                      </p>
+                      <div className="flex gap-2 items-center">
+                        <div className="flex-1 px-4 py-3 bg-white rounded-xl text-sm font-black font-mono text-indigo-700 border-2 border-indigo-200 tracking-widest text-center">
+                          {shareToken}
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(shareToken);
+                            setCopiedShareUrl(true);
+                            setTimeout(() => setCopiedShareUrl(false), 2000);
+                          }}
+                          className="px-4 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+                        >
+                          {copiedShareUrl ? <><Check size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="p-6 bg-violet-50 rounded-2xl border border-violet-100 space-y-4">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-violet-200 rounded-2xl flex items-center justify-center text-violet-700">
