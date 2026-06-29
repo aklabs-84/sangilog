@@ -15,8 +15,13 @@ import {
   KeyRound,
   PenLine,
   School,
+  Play,
+  PlayCircle,
+  ChevronRight,
+  Video,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { parseVideoUrl } from '../lib/gallery';
 
 const ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
@@ -56,6 +61,18 @@ const Landing = () => {
     supabase.rpc('get_public_stats').then(({ data }) => {
       if (data) setPubStats(data);
     });
+  }, []);
+
+  // 영상 가이드 (최대 3개 미리보기)
+  const [videoGuides, setVideoGuides] = useState<any[]>([]);
+  useEffect(() => {
+    supabase
+      .from('video_guides')
+      .select('id, title, description, url, category')
+      .eq('is_active', true)
+      .order('order_num')
+      .limit(3)
+      .then(({ data }) => setVideoGuides(data ?? []));
   }, []);
 
   const fmt = (n: number) => n > 0 ? n.toLocaleString('ko-KR') : '—';
@@ -216,16 +233,17 @@ const Landing = () => {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                onClick={() => document.getElementById('request-section')?.scrollIntoView({ behavior: 'smooth' })}
+                onClick={() => navigate('/demo')}
                 className="px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl text-base transition-all shadow-lg hover:shadow-amber-200 hover:scale-105 flex items-center justify-center gap-2"
               >
-                사용 신청하기 <ArrowRight size={18} strokeWidth={3} />
+                <Play size={18} strokeWidth={3} />
+                지금 바로 체험하기
               </button>
               <button
-                onClick={() => navigate('/login')}
-                className="px-8 py-4 bg-white hover:bg-amber-50 text-amber-700 font-bold rounded-2xl text-base transition-all border border-amber-200 shadow-sm"
+                onClick={() => document.getElementById('request-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="px-8 py-4 bg-white hover:bg-amber-50 text-amber-700 font-bold rounded-2xl text-base transition-all border border-amber-200 shadow-sm flex items-center justify-center gap-2"
               >
-                기존 사용자 로그인
+                사용 신청하기 <ArrowRight size={18} strokeWidth={3} />
               </button>
             </div>
             <a
@@ -634,6 +652,137 @@ const Landing = () => {
           >
             플랜 변경 및 문의: aklabs84@naver.com · 연 결제 시 2개월 무료
           </motion.p>
+        </div>
+      </section>
+
+      {/* ── Video Guide Section ── */}
+      <section className="py-20 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-violet-100 text-violet-700 text-xs font-bold rounded-full mb-4">
+              <PlayCircle size={12} /> 영상 가이드
+            </span>
+            <h2 className="text-3xl font-black text-amber-900 mb-3">눈으로 먼저 확인하세요</h2>
+            <p className="text-amber-700/70 text-sm">기능별 짧은 영상으로 생기로그 AI를 미리 경험해보세요</p>
+          </motion.div>
+
+          {videoGuides.length > 0 ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+                {videoGuides.map((item, i) => {
+                  const info = parseVideoUrl(item.url);
+                  const isYoutube = info?.platform === 'youtube';
+                  return (
+                    <motion.a
+                      key={item.id}
+                      href="/video-guide"
+                      initial={{ opacity: 0, y: 16 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: i * 0.08 }}
+                      className="group rounded-2xl overflow-hidden bg-white border border-amber-100 shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer"
+                      onClick={e => { e.preventDefault(); navigate('/video-guide'); }}
+                    >
+                      <div className="relative aspect-video bg-amber-50 overflow-hidden">
+                        {isYoutube && info?.thumbnailUrl ? (
+                          <>
+                            <img
+                              src={info.thumbnailUrl}
+                              alt={item.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-14 h-14 rounded-full bg-red-600/90 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                                <PlayCircle size={28} className="text-white fill-white" />
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-violet-100 to-purple-100">
+                            <div className="w-14 h-14 rounded-full bg-violet-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <PlayCircle size={28} className="text-violet-600" />
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
+                          {item.category}
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <p className="font-bold text-sm text-amber-900 leading-snug line-clamp-2">{item.title}</p>
+                        {item.description && (
+                          <p className="text-xs text-amber-700/60 mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
+                        )}
+                      </div>
+                    </motion.a>
+                  );
+                })}
+              </div>
+              <div className="text-center">
+                <button
+                  onClick={() => navigate('/video-guide')}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 font-black rounded-2xl text-sm transition-all"
+                >
+                  <Video size={16} />
+                  전체 영상 가이드 보기
+                  <ChevronRight size={16} strokeWidth={2.5} />
+                </button>
+              </div>
+            </>
+          ) : (
+            /* 영상 없을 때: 준비 중 카드 + 바로가기 */
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="max-w-3xl mx-auto"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                {[
+                  { emoji: '🎬', title: '전체 사용 흐름', desc: '학급 생성부터 세특 완성까지 전 과정을 한 번에' },
+                  { emoji: '⚡', title: 'AI 세특 생성', desc: '클릭 한 번으로 세특 초안이 만들어지는 과정' },
+                  { emoji: '📤', title: '나이스 내보내기', desc: '세특을 나이스 엑셀 형식으로 바로 내보내기' },
+                ].map((card, i) => (
+                  <motion.div
+                    key={card.title}
+                    initial={{ opacity: 0, y: 12 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.1 }}
+                    className="rounded-2xl border border-amber-100 bg-amber-50/50 overflow-hidden"
+                  >
+                    <div className="aspect-video flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-amber-100/60 to-orange-100/60 relative">
+                      <span className="text-4xl">{card.emoji}</span>
+                      <span className="text-[10px] font-bold text-amber-600/70 px-2 py-0.5 bg-amber-100 rounded-full">
+                        영상 준비 중
+                      </span>
+                    </div>
+                    <div className="p-4">
+                      <p className="font-bold text-sm text-amber-900">{card.title}</p>
+                      <p className="text-xs text-amber-700/60 mt-1 leading-relaxed">{card.desc}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+              <div className="text-center">
+                <button
+                  onClick={() => navigate('/video-guide')}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-700 font-black rounded-2xl text-sm transition-all"
+                >
+                  <PlayCircle size={16} className="text-violet-500" />
+                  영상 가이드 페이지 바로가기
+                  <ChevronRight size={16} strokeWidth={2.5} />
+                </button>
+              </div>
+            </motion.div>
+          )}
         </div>
       </section>
 

@@ -44,6 +44,7 @@ import Gallery from './pages/Gallery';
 import VideoGuide from './pages/VideoGuide';
 import Pricing from './pages/Pricing';
 import SchoolIntroPage from './pages/SchoolIntroPage';
+import Demo from './pages/Demo';
 import InstallPromptBanner from './components/InstallPromptBanner';
 
 // 선생님 전용 라우트 가드
@@ -225,6 +226,7 @@ function App() {
               <Route path="/school-share/:schoolId" element={<SchoolShareView />} />
               <Route path="/school-project/:shareToken" element={<SchoolProjectShareView />} />
               <Route path="/school-intro" element={<SchoolIntroPage />} />
+              <Route path="/demo" element={<Demo />} />
 
               {/* 관리자 라우트 */}
               <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />

@@ -130,11 +130,11 @@ const Navbar = () => {
           </div>
           <h2 className="text-base font-black tracking-tightest leading-none gradient-text">생기로그</h2>
         </div>
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden lg:flex items-center gap-1">
           {navItems.map((tab) => (
             <NavLink key={tab.path} to={tab.path} end={tab.path === '/'}
               className={({ isActive }) => `
-                px-3 lg:px-4 py-2 rounded-xl text-[12px] lg:text-[13px] font-black transition-all relative
+                px-3 xl:px-4 py-2 rounded-xl text-[12px] xl:text-[13px] font-black transition-all relative
                 ${isActive ? 'text-primary bg-primary/5' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-white/60'}
               `}
             >
@@ -143,7 +143,7 @@ const Navbar = () => {
                   {tab.label}
                   {isActive && (
                     <motion.div layoutId="activeTabGlow"
-                      className="absolute bottom-1 left-3 right-3 lg:left-4 lg:right-4 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(var(--primary-rgb),0.4)]"
+                      className="absolute bottom-1 left-3 right-3 xl:left-4 xl:right-4 h-0.5 bg-primary rounded-full shadow-[0_0_8px_rgba(var(--primary-rgb),0.4)]"
                     />
                   )}
                 </>
@@ -159,7 +159,7 @@ const Navbar = () => {
         {showInstallBtn && (
           <button
             onClick={handleNavInstall}
-            className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-primary/70 hover:text-primary hover:bg-primary/8 border border-primary/20 hover:border-primary/40 transition-all shrink-0"
+            className="hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black text-primary/70 hover:text-primary hover:bg-primary/8 border border-primary/20 hover:border-primary/40 transition-all shrink-0"
           >
             <Download size={13} strokeWidth={2.5} /> 앱 설치
           </button>
@@ -167,12 +167,12 @@ const Navbar = () => {
 
         {/* 관찰 기록 — PC만 */}
         <NavLink to="/activity-log"
-          className="hidden md:flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-xl font-black text-xs shadow-md shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all"
+          className="hidden lg:flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-xl font-black text-xs shadow-md shadow-primary/20 hover:scale-[1.03] active:scale-95 transition-all"
         >
           <Plus size={15} strokeWidth={3} /> 교사 메모
         </NavLink>
 
-        <div className="hidden md:block w-px h-6 bg-on-surface/5" />
+        <div className="hidden lg:block w-px h-6 bg-on-surface/5" />
 
         {/* 알림 */}
         <div className="relative">
@@ -247,21 +247,21 @@ const Navbar = () => {
         <button
           onClick={() => setBugReportOpen(true)}
           title="버그 신고"
-          className="hidden md:flex w-9 h-9 rounded-xl hover:bg-red-50 hover:shadow-soft transition-all text-on-surface-variant/30 hover:text-red-400 items-center justify-center"
+          className="hidden lg:flex w-9 h-9 rounded-xl hover:bg-red-50 hover:shadow-soft transition-all text-on-surface-variant/30 hover:text-red-400 items-center justify-center"
         >
           <Bug size={16} />
         </button>
 
         {/* 설정 아이콘 — PC만 */}
         <NavLink to="/settings"
-          className="hidden md:flex w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary items-center justify-center"
+          className="hidden lg:flex w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all text-on-surface-variant/40 hover:text-primary items-center justify-center"
         >
           <Settings size={18} />
         </NavLink>
 
         {/* 아바타 */}
         <NavLink to="/settings"
-          className="flex items-center gap-2 pl-1.5 md:pl-3 md:border-l border-on-surface/5 hover:bg-white hover:shadow-soft transition-all p-1.5 rounded-xl group active:scale-95"
+          className="flex items-center gap-2 pl-1.5 lg:pl-3 lg:border-l border-on-surface/5 hover:bg-white hover:shadow-soft transition-all p-1.5 rounded-xl group active:scale-95"
         >
           <div className="text-right hidden lg:block">
             <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] group-hover:text-secondary transition-colors leading-none mb-0.5">
@@ -282,10 +282,10 @@ const Navbar = () => {
           </div>
         </NavLink>
 
-        {/* 햄버거 버튼 — 모바일만, 알림 뱃지 포함 */}
+        {/* 햄버거 버튼 — 모바일 + 태블릿 */}
         <button
           onClick={() => { setMobileMenuOpen(prev => !prev); setShowNotifications(false); }}
-          className="md:hidden relative w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all flex items-center justify-center text-on-surface-variant/60"
+          className="lg:hidden relative w-9 h-9 rounded-xl hover:bg-white hover:shadow-soft transition-all flex items-center justify-center text-on-surface-variant/60"
         >
           {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -300,7 +300,7 @@ const Navbar = () => {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden fixed inset-0 top-16 z-30 bg-black/10"
+            className="lg:hidden fixed inset-0 top-16 z-30 bg-black/10"
           />
 
           <motion.div
@@ -308,7 +308,7 @@ const Navbar = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="md:hidden fixed top-16 left-0 right-0 z-40 glass border-b border-white/40 shadow-elevated overflow-hidden"
+            className="lg:hidden fixed top-16 left-0 right-0 z-40 glass border-b border-white/40 shadow-elevated overflow-hidden"
           >
             {/* 사용자 정보 */}
             <div className="flex items-center gap-3 px-4 py-3.5 border-b border-on-surface/5">
