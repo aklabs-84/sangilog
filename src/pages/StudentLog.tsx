@@ -213,6 +213,10 @@ const StudentLog = () => {
   const isFirstQuizPoll = useRef(true);
   const seenQuizSessionIds = useRef(new Set<string>());
   
+  // 공지사항
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [expandedAnnouncementId, setExpandedAnnouncementId] = useState<string | null>(null);
+
   // Resources State (weekly_plan + class_materials + general)
   const [classResources, setClassResources] = useState<any[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(false);
@@ -372,6 +376,7 @@ const StudentLog = () => {
         // 검증 통과 — 세션 활성화
         setSession(parsed);
         fetchClassDetails(parsed.class_id);
+        fetchAnnouncements(parsed.class_id);
         fetchUnreadReplyCount(parsed.student_id, parsed.class_id);
         fetchMyGroup(parsed.student_id, parsed.class_id);
         fetchStudentNotifs(parsed.student_id);
@@ -836,6 +841,21 @@ const StudentLog = () => {
       console.error('Error fetching teacher info:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAnnouncements = async (classId: string) => {
+    try {
+      const { data } = await supabase
+        .from('class_announcements')
+        .select('*')
+        .eq('class_id', classId)
+        .order('is_pinned', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setAnnouncements(data || []);
+    } catch (err) {
+      console.error('fetchAnnouncements error:', err);
     }
   };
 
@@ -2345,6 +2365,46 @@ ${guidePrompt}
                     <p className="text-sm font-bold text-on-surface-variant/60">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} · {session?.class_name}</p>
                     <h2 className="text-2xl font-black mt-0.5">안녕하세요, {session?.student_name}님! 👋</h2>
                   </div>
+
+                  {/* 공지사항 */}
+                  {announcements.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-black text-on-surface-variant/50 uppercase tracking-widest flex items-center gap-1.5">
+                        <Megaphone size={11} /> 공지사항
+                      </p>
+                      {announcements.map(a => (
+                        <div key={a.id}
+                          className={`rounded-2xl border-2 overflow-hidden ${a.is_pinned ? 'border-amber-400 bg-amber-50' : 'border-surface-container-high bg-white'}`}>
+                          <button
+                            onClick={() => setExpandedAnnouncementId(prev => prev === a.id ? null : a.id)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${a.is_pinned ? 'bg-amber-200' : 'bg-amber-100'}`}>
+                              <Megaphone size={14} className="text-amber-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                {a.is_pinned && <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-200 text-amber-800 rounded-full">📌 고정</span>}
+                                <p className="text-sm font-black truncate">{a.title}</p>
+                              </div>
+                              <p className="text-[10px] text-on-surface-variant/50 font-bold mt-0.5">
+                                {new Date(a.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
+                              </p>
+                            </div>
+                            {a.content && (
+                              <ChevronDown size={14} className={`text-on-surface-variant/40 shrink-0 transition-transform ${expandedAnnouncementId === a.id ? 'rotate-180' : ''}`} />
+                            )}
+                          </button>
+                          {expandedAnnouncementId === a.id && a.content && (
+                            <div className="px-4 pb-4">
+                              <p className="text-sm font-bold text-on-surface-variant leading-relaxed whitespace-pre-wrap p-3 bg-white/60 rounded-xl border border-amber-100">
+                                {a.content}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* 퀴즈 배지 카드 (기록이 있을 때만 표시) */}
                   {quizHistory.length > 0 && (() => {

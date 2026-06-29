@@ -41,6 +41,9 @@ import {
   CalendarDays,
   School,
   Copy,
+  Megaphone,
+  Pin,
+  NotebookPen,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
@@ -101,8 +104,8 @@ const Classroom = () => {
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups'>(
-    (searchParams.get('tab') as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups') || 'list'
+  const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials'>(
+    (searchParams.get('tab') as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials') || 'list'
   );
   // 보드 탭 state
   const [boardPosts, setBoardPosts] = useState<any[]>([]);
@@ -177,6 +180,24 @@ const Classroom = () => {
   const [generalMatForm, setGeneralMatForm] = useState<{ title: string; type: 'link' | 'file'; url: string; file: File | null }>({ title: '', type: 'link', url: '', file: null });
   const [generalMatUploading, setGeneralMatUploading] = useState(false);
   const [deletingGeneralMatId, setDeletingGeneralMatId] = useState<string | null>(null);
+
+  // 공지사항 상태
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [announcementLoading, setAnnouncementLoading] = useState(false);
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
+  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false);
+  const [deletingAnnouncementId, setDeletingAnnouncementId] = useState<string | null>(null);
+  const [pinningAnnouncementId, setPinningAnnouncementId] = useState<string | null>(null);
+
+  // 선생님 전용 자료 상태
+  const [privateMatList, setPrivateMatList] = useState<any[]>([]);
+  const [privateMatLoading, setPrivateMatLoading] = useState(false);
+  const [privateMatForm, setPrivateMatForm] = useState({ title: '', content: '', type: 'note' as 'note' | 'link', url: '' });
+  const [showPrivateMatForm, setShowPrivateMatForm] = useState(false);
+  const [savingPrivateMat, setSavingPrivateMat] = useState(false);
+  const [deletingPrivateMatId, setDeletingPrivateMatId] = useState<string | null>(null);
+  const [selectedPrivateMat, setSelectedPrivateMat] = useState<any | null>(null);
 
   // 학생 선택 및 드로어 상태
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -1218,6 +1239,130 @@ const Classroom = () => {
     }
   };
 
+  const fetchAnnouncements = async (classId: string) => {
+    setAnnouncementLoading(true);
+    try {
+      const { data } = await supabase
+        .from('class_announcements')
+        .select('*')
+        .eq('class_id', classId)
+        .order('is_pinned', { ascending: false })
+        .order('created_at', { ascending: false });
+      setAnnouncements(data || []);
+    } catch (err) {
+      console.error('fetchAnnouncements error:', err);
+    } finally {
+      setAnnouncementLoading(false);
+    }
+  };
+
+  const handleAddAnnouncement = async () => {
+    if (!activeClassId || !user) return;
+    if (!announcementForm.title.trim()) { showToast('제목을 입력해주세요.'); return; }
+    setSavingAnnouncement(true);
+    try {
+      const { error } = await supabase.from('class_announcements').insert({
+        class_id: activeClassId,
+        teacher_id: user.id,
+        title: announcementForm.title.trim(),
+        content: announcementForm.content.trim(),
+        is_pinned: false,
+      });
+      if (error) throw error;
+      setAnnouncementForm({ title: '', content: '' });
+      setShowAnnouncementForm(false);
+      await fetchAnnouncements(activeClassId);
+      showToast('공지사항이 등록되었습니다.');
+    } catch (err) {
+      console.error('handleAddAnnouncement error:', err);
+      showToast('등록 중 오류가 발생했습니다.');
+    } finally {
+      setSavingAnnouncement(false);
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id: string) => {
+    if (!activeClassId) return;
+    setDeletingAnnouncementId(id);
+    try {
+      await supabase.from('class_announcements').delete().eq('id', id);
+      setAnnouncements(prev => prev.filter(a => a.id !== id));
+      showToast('공지사항이 삭제되었습니다.');
+    } catch {
+      showToast('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingAnnouncementId(null);
+    }
+  };
+
+  const handleTogglePin = async (id: string, currentPinned: boolean) => {
+    setPinningAnnouncementId(id);
+    try {
+      await supabase.from('class_announcements').update({ is_pinned: !currentPinned }).eq('id', id);
+      if (activeClassId) await fetchAnnouncements(activeClassId);
+    } catch {
+      showToast('핀 변경 중 오류가 발생했습니다.');
+    } finally {
+      setPinningAnnouncementId(null);
+    }
+  };
+
+  const fetchPrivateMaterials = async (classId: string) => {
+    setPrivateMatLoading(true);
+    try {
+      const { data } = await supabase
+        .from('teacher_private_materials')
+        .select('*')
+        .eq('class_id', classId)
+        .order('created_at', { ascending: false });
+      setPrivateMatList(data || []);
+    } catch (err) {
+      console.error('fetchPrivateMaterials error:', err);
+    } finally {
+      setPrivateMatLoading(false);
+    }
+  };
+
+  const handleAddPrivateMat = async () => {
+    if (!activeClassId || !user) return;
+    if (!privateMatForm.title.trim()) { showToast('제목을 입력해주세요.'); return; }
+    if (privateMatForm.type === 'link' && !privateMatForm.url.trim()) { showToast('링크 URL을 입력해주세요.'); return; }
+    setSavingPrivateMat(true);
+    try {
+      const { error } = await supabase.from('teacher_private_materials').insert({
+        class_id: activeClassId,
+        teacher_id: user.id,
+        title: privateMatForm.title.trim(),
+        content: privateMatForm.type === 'note' ? privateMatForm.content.trim() : '',
+        type: privateMatForm.type,
+        url: privateMatForm.type === 'link' ? privateMatForm.url.trim() : null,
+      });
+      if (error) throw error;
+      setPrivateMatForm({ title: '', content: '', type: 'note', url: '' });
+      setShowPrivateMatForm(false);
+      await fetchPrivateMaterials(activeClassId);
+      showToast('자료가 등록되었습니다.');
+    } catch (err) {
+      console.error('handleAddPrivateMat error:', err);
+      showToast('등록 중 오류가 발생했습니다.');
+    } finally {
+      setSavingPrivateMat(false);
+    }
+  };
+
+  const handleDeletePrivateMat = async (id: string) => {
+    setDeletingPrivateMatId(id);
+    try {
+      await supabase.from('teacher_private_materials').delete().eq('id', id);
+      setPrivateMatList(prev => prev.filter(m => m.id !== id));
+      showToast('자료가 삭제되었습니다.');
+    } catch {
+      showToast('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingPrivateMatId(null);
+    }
+  };
+
   const handleAddGeneralMat = async () => {
     if (!activeClassId || !user) return;
     if (!generalMatForm.title.trim()) { showToast('제목을 입력해주세요.'); return; }
@@ -1498,6 +1643,8 @@ const Classroom = () => {
                 { id: 'attendance', label: '출석 체크', icon: ClipboardList },
                 { id: 'groups', label: '조 편성', icon: Layers },
                 { id: 'board', label: '우리반 보드', icon: Users2 },
+                { id: 'notice', label: '공지사항', icon: Megaphone },
+                { id: 'teacher_materials', label: '선생님 자료', icon: Lock },
                 { id: 'ai', label: 'AI 분석 인사이트', icon: Sparkles }
               ].map((tab) => {
                 const isActive = activeTab === tab.id;
@@ -1505,8 +1652,10 @@ const Classroom = () => {
                   <button
                     key={tab.id}
                     onClick={() => {
-                      setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups');
+                      setActiveTab(tab.id as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials');
                       if (tab.id === 'board' && activeClassId) fetchBoard(activeClassId);
+                      if (tab.id === 'notice' && activeClassId) fetchAnnouncements(activeClassId);
+                      if (tab.id === 'teacher_materials' && activeClassId) fetchPrivateMaterials(activeClassId);
                     }}
                     className={`
                       relative z-10 flex items-center gap-1.5 md:gap-3 px-4 md:px-8 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] font-black text-xs md:text-sm transition-all duration-500 whitespace-nowrap shrink-0
@@ -1744,6 +1893,244 @@ const Classroom = () => {
                       </div>
                     );
                   })()}
+                </div>
+              )}
+
+              {/* ─── 공지사항 탭 ─── */}
+              {activeTab === 'notice' && activeClassId && (
+                <div className="max-w-2xl mx-auto space-y-6">
+                  {/* 헤더 */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-100 flex items-center justify-center">
+                        <Megaphone size={20} className="text-amber-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black">공지사항</h2>
+                        <p className="text-xs text-on-surface-variant/70 font-bold">학생에게 전달할 공지를 작성하세요</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowAnnouncementForm(v => !v)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-2xl text-sm font-black hover:bg-amber-600 transition-all active:scale-95 shadow-sm"
+                    >
+                      <Plus size={16} /> 공지 작성
+                    </button>
+                  </div>
+
+                  {/* 작성 폼 */}
+                  {showAnnouncementForm && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                      className="p-5 bg-amber-50 border border-amber-200 rounded-3xl space-y-3">
+                      <input
+                        value={announcementForm.title}
+                        onChange={e => setAnnouncementForm(f => ({ ...f, title: e.target.value }))}
+                        placeholder="공지 제목"
+                        className="w-full px-4 py-3 rounded-2xl border border-amber-200 bg-white text-sm font-black focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:font-normal"
+                      />
+                      <textarea
+                        value={announcementForm.content}
+                        onChange={e => setAnnouncementForm(f => ({ ...f, content: e.target.value }))}
+                        placeholder="공지 내용 (선택사항)"
+                        rows={4}
+                        className="w-full px-4 py-3 rounded-2xl border border-amber-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:font-normal resize-none"
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => { setShowAnnouncementForm(false); setAnnouncementForm({ title: '', content: '' }); }}
+                          className="px-4 py-2 rounded-xl text-sm font-black text-on-surface-variant hover:bg-amber-100 transition-all">취소</button>
+                        <button onClick={handleAddAnnouncement} disabled={savingAnnouncement}
+                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-amber-500 text-white text-sm font-black hover:bg-amber-600 transition-all disabled:opacity-50">
+                          {savingAnnouncement ? <Loader2 size={14} className="animate-spin" /> : null}
+                          등록
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* 목록 */}
+                  {announcementLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 size={24} className="animate-spin text-amber-500" />
+                    </div>
+                  ) : announcements.length === 0 ? (
+                    <div className="text-center py-16 text-on-surface-variant/40">
+                      <Megaphone size={40} className="mx-auto mb-3 opacity-20" />
+                      <p className="text-sm font-black">아직 공지사항이 없습니다</p>
+                      <p className="text-xs mt-1">위 버튼으로 첫 공지를 작성해보세요</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {announcements.map(a => (
+                        <motion.div key={a.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                          className={`p-5 rounded-3xl border-2 ${a.is_pinned ? 'border-amber-400 bg-amber-50' : 'border-surface-container bg-white'}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                {a.is_pinned && (
+                                  <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 bg-amber-200 text-amber-800 rounded-full">
+                                    <Pin size={9} /> 고정
+                                  </span>
+                                )}
+                                <p className="text-sm font-black">{a.title}</p>
+                              </div>
+                              {a.content && (
+                                <p className="text-xs font-bold text-on-surface-variant/70 mt-1 leading-relaxed whitespace-pre-wrap">{a.content}</p>
+                              )}
+                              <p className="text-[10px] text-on-surface-variant/40 font-bold mt-2">
+                                {new Date(a.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => handleTogglePin(a.id, a.is_pinned)}
+                                disabled={pinningAnnouncementId === a.id}
+                                className={`p-2 rounded-xl transition-all ${a.is_pinned ? 'bg-amber-200 text-amber-700 hover:bg-amber-300' : 'bg-surface-container text-on-surface-variant/50 hover:bg-amber-100 hover:text-amber-600'}`}
+                                title={a.is_pinned ? '핀 해제' : '상단 고정'}
+                              >
+                                {pinningAnnouncementId === a.id ? <Loader2 size={13} className="animate-spin" /> : <Pin size={13} />}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAnnouncement(a.id)}
+                                disabled={deletingAnnouncementId === a.id}
+                                className="p-2 rounded-xl bg-surface-container text-on-surface-variant/40 hover:bg-red-100 hover:text-red-500 transition-all"
+                                title="삭제"
+                              >
+                                {deletingAnnouncementId === a.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ─── 선생님 전용 자료 탭 ─── */}
+              {activeTab === 'teacher_materials' && activeClassId && (
+                <div className="max-w-2xl mx-auto space-y-6">
+                  {/* 헤더 */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-violet-100 flex items-center justify-center">
+                        <Lock size={20} className="text-violet-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black">선생님 전용 자료</h2>
+                        <p className="text-xs text-on-surface-variant/70 font-bold">학생에게 보이지 않는 교사 전용 노트 · 링크</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowPrivateMatForm(v => !v)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-2xl text-sm font-black hover:bg-violet-700 transition-all active:scale-95 shadow-sm"
+                    >
+                      <Plus size={16} /> 자료 추가
+                    </button>
+                  </div>
+
+                  {/* 작성 폼 */}
+                  {showPrivateMatForm && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                      className="p-5 bg-violet-50 border border-violet-200 rounded-3xl space-y-3">
+                      <div className="flex gap-2">
+                        {(['note', 'link'] as const).map(t => (
+                          <button key={t} onClick={() => setPrivateMatForm(f => ({ ...f, type: t }))}
+                            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${privateMatForm.type === t ? 'bg-violet-600 text-white' : 'bg-white text-on-surface-variant border border-violet-200 hover:bg-violet-100'}`}>
+                            {t === 'note' ? '📝 노트' : '🔗 링크'}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        value={privateMatForm.title}
+                        onChange={e => setPrivateMatForm(f => ({ ...f, title: e.target.value }))}
+                        placeholder="제목"
+                        className="w-full px-4 py-3 rounded-2xl border border-violet-200 bg-white text-sm font-black focus:outline-none focus:ring-2 focus:ring-violet-400 placeholder:font-normal"
+                      />
+                      {privateMatForm.type === 'note' ? (
+                        <textarea
+                          value={privateMatForm.content}
+                          onChange={e => setPrivateMatForm(f => ({ ...f, content: e.target.value }))}
+                          placeholder="노트 내용"
+                          rows={5}
+                          className="w-full px-4 py-3 rounded-2xl border border-violet-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-400 placeholder:font-normal resize-none"
+                        />
+                      ) : (
+                        <input
+                          value={privateMatForm.url}
+                          onChange={e => setPrivateMatForm(f => ({ ...f, url: e.target.value }))}
+                          placeholder="https://..."
+                          className="w-full px-4 py-3 rounded-2xl border border-violet-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-400 placeholder:font-normal"
+                        />
+                      )}
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => { setShowPrivateMatForm(false); setPrivateMatForm({ title: '', content: '', type: 'note', url: '' }); }}
+                          className="px-4 py-2 rounded-xl text-sm font-black text-on-surface-variant hover:bg-violet-100 transition-all">취소</button>
+                        <button onClick={handleAddPrivateMat} disabled={savingPrivateMat}
+                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-violet-600 text-white text-sm font-black hover:bg-violet-700 transition-all disabled:opacity-50">
+                          {savingPrivateMat ? <Loader2 size={14} className="animate-spin" /> : null}
+                          저장
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* 목록 */}
+                  {privateMatLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 size={24} className="animate-spin text-violet-500" />
+                    </div>
+                  ) : privateMatList.length === 0 ? (
+                    <div className="text-center py-16 text-on-surface-variant/40">
+                      <NotebookPen size={40} className="mx-auto mb-3 opacity-20" />
+                      <p className="text-sm font-black">아직 자료가 없습니다</p>
+                      <p className="text-xs mt-1">위 버튼으로 첫 번째 전용 자료를 추가해보세요</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {privateMatList.map(m => (
+                        <motion.div key={m.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                          className="p-5 rounded-3xl border border-violet-200 bg-white">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${m.type === 'link' ? 'bg-blue-100' : 'bg-violet-100'}`}>
+                                {m.type === 'link' ? <Link2 size={16} className="text-blue-600" /> : <NotebookPen size={16} className="text-violet-600" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black">{m.title}</p>
+                                {m.type === 'link' && m.url && (
+                                  <a href={m.url} target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline mt-1 truncate">
+                                    <ExternalLink size={11} />{m.url}
+                                  </a>
+                                )}
+                                {m.type === 'note' && m.content && (
+                                  <button
+                                    onClick={() => setSelectedPrivateMat(selectedPrivateMat?.id === m.id ? null : m)}
+                                    className="text-xs font-bold text-on-surface-variant/60 hover:text-violet-600 mt-1 transition-colors text-left">
+                                    {selectedPrivateMat?.id === m.id ? '접기 ▲' : '내용 보기 ▼'}
+                                  </button>
+                                )}
+                                {selectedPrivateMat?.id === m.id && m.type === 'note' && (
+                                  <p className="text-xs font-bold text-on-surface-variant mt-2 leading-relaxed whitespace-pre-wrap p-3 bg-violet-50 rounded-xl border border-violet-100">
+                                    {m.content}
+                                  </p>
+                                )}
+                                <p className="text-[10px] text-on-surface-variant/40 font-bold mt-2">
+                                  {new Date(m.created_at).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleDeletePrivateMat(m.id)}
+                              disabled={deletingPrivateMatId === m.id}
+                              className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-red-100 hover:text-red-500 transition-all shrink-0">
+                              {deletingPrivateMatId === m.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
