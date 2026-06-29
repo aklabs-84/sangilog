@@ -19,6 +19,15 @@ import {
   PlayCircle,
   ChevronRight,
   Video,
+  Mic,
+  Shuffle,
+  Timer,
+  ClipboardCheck,
+  LayoutPanelTop,
+  BarChart2,
+  LayoutGrid,
+  Archive,
+  Images,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { parseVideoUrl } from '../lib/gallery';
@@ -29,27 +38,46 @@ const features = [
   {
     icon: BookOpen,
     color: 'bg-amber-100 text-amber-600',
-    title: '활동 기록 수집',
-    desc: '학생이 참여 코드로 직접 제출. 선생님은 승인만 하면 됩니다.',
+    title: '학생 활동 기록 관리',
+    desc: '참여 코드 하나로 학생이 직접 제출. 승인·반려·피드백·파일 첨부까지 한 화면에서.',
   },
   {
     icon: Sparkles,
     color: 'bg-violet-100 text-violet-600',
-    title: 'AI 세특 초안',
-    desc: 'Gemini AI가 활동 기록을 분석해 세특 초안을 자동 생성합니다.',
+    title: 'AI 세특 자동 생성',
+    desc: '쌓인 관찰기록을 Gemini AI가 분석해 학생별 세특 초안을 한 번에 완성합니다.',
   },
   {
     icon: FileDown,
     color: 'bg-emerald-100 text-emerald-600',
     title: '나이스 바로 제출',
-    desc: '500자 맞춤 편집 후 나이스 엑셀로 한 번에 내보냅니다.',
+    desc: '500자 편집 후 나이스 엑셀로 내보내기. 행동특성·종합의견도 AI가 초안을 씁니다.',
+  },
+  {
+    icon: LayoutGrid,
+    color: 'bg-blue-100 text-blue-600',
+    title: '7가지 수업 도구',
+    desc: '퀴즈·설문·화이트보드·타이머·조 뽑기·수업 자료·음성 전사 — 수업에 필요한 모든 것.',
+  },
+  {
+    icon: Users,
+    color: 'bg-rose-100 text-rose-600',
+    title: '학급·학생 통합 관리',
+    desc: '교과반·담임반 분리, 단원 관리, 출석, 갤러리, 폴더 정리 모두 한 곳에서.',
+  },
+  {
+    icon: Mic,
+    color: 'bg-teal-100 text-teal-600',
+    title: '수업 전사 + AI 분석',
+    desc: '수업 음성을 텍스트로 전사하고, AI가 학생별 관찰 기록을 자동으로 정리합니다.',
   },
 ];
 
 const steps = [
-  { num: '01', title: '학급 생성', desc: '학급 코드를 만들면 학생들이 바로 참여합니다.' },
-  { num: '02', title: '기록 쌓기', desc: '학생이 제출한 활동 기록을 승인하며 포트폴리오를 쌓습니다.' },
-  { num: '03', title: '세특 완성', desc: 'AI 초안을 확인·수정하고 나이스 엑셀로 제출합니다.' },
+  { num: '01', title: '학급 생성', desc: '교과반·담임반 구분해서 학급을 만들면 학생들이 코드로 바로 참여합니다.' },
+  { num: '02', title: '틈틈이 기록', desc: '학생이 직접 제출하거나, 선생님이 수업 중 메모를 남깁니다. 기록이 쌓일수록 세특이 정확해집니다.' },
+  { num: '03', title: 'AI 세특 생성', desc: 'AI가 기록을 분석해 학생별 세특 초안을 자동 완성. 수정 후 저장합니다.' },
+  { num: '04', title: '나이스 제출', desc: '500자 맞춤 편집 후 나이스 엑셀로 바로 내보냅니다.' },
 ];
 
 const Landing = () => {
@@ -309,18 +337,21 @@ const Landing = () => {
       <section className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-black text-amber-900 mb-3">핵심 기능 3가지</h2>
-            <p className="text-amber-700/60 text-base">이 세 가지만으로 세특 작성이 끝납니다</p>
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full mb-4">
+              ✨ 생기로그 AI가 하는 일
+            </span>
+            <h2 className="text-3xl font-black text-amber-900 mb-3">기록하면, AI가 세특을 씁니다</h2>
+            <p className="text-amber-700/60 text-base">활동 기록부터 나이스 제출까지 — 선생님의 모든 반복 업무를 대신합니다</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-3 gap-6">
             {features.map(({ icon: Icon, color, title, desc }, i) => (
               <motion.div
                 key={title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-[#FFFBF5] rounded-3xl p-8 border border-amber-100 hover:border-amber-200 hover:shadow-lg transition-all"
+                transition={{ delay: i * 0.08 }}
+                className="bg-[#FFFBF5] rounded-3xl p-7 border border-amber-100 hover:border-amber-200 hover:shadow-lg transition-all"
               >
                 <div className={`w-12 h-12 rounded-2xl ${color} flex items-center justify-center mb-5`}>
                   <Icon size={24} strokeWidth={2} />
@@ -333,21 +364,132 @@ const Landing = () => {
         </div>
       </section>
 
+      {/* ── Teaching Tools ── */}
+      <section className="py-20 bg-[#FFFBF5]">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full mb-4">
+              🛠 수업 도구
+            </span>
+            <h2 className="text-3xl font-black text-amber-900 mb-3">수업에 필요한 모든 도구, 하나로</h2>
+            <p className="text-amber-700/60 text-base">별도 앱 없이 생기로그 AI 하나로 수업 전반을 운영할 수 있습니다</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {[
+              { icon: Shuffle,       color: 'bg-orange-100 text-orange-600', border: 'border-orange-100', title: '랜덤 조 뽑기',    desc: '애니메이션과 함께 랜덤 조 편성',       badge: '무료' },
+              { icon: Timer,         color: 'bg-amber-100 text-amber-600',   border: 'border-amber-100',  title: '수업 타이머',    desc: '전체화면 발표 모드 · 플로팅 버튼',    badge: '무료' },
+              { icon: ClipboardCheck,color: 'bg-red-100 text-red-600',       border: 'border-red-100',    title: '실시간 퀴즈',   desc: 'AI 문항 자동 생성 · PIN 참여',         badge: 'Pro' },
+              { icon: BookOpen,      color: 'bg-indigo-100 text-indigo-600', border: 'border-indigo-100', title: '수업 자료 에디터', desc: '마크다운 작성 · 슬라이드 발표',    badge: 'Basic↑' },
+              { icon: Mic,           color: 'bg-teal-100 text-teal-600',     border: 'border-teal-100',   title: '수업 전사',      desc: 'Web Speech / Groq Whisper · AI 분석', badge: 'Basic↑' },
+              { icon: LayoutPanelTop,color: 'bg-violet-100 text-violet-600', border: 'border-violet-100', title: '협업 화이트보드', desc: '실시간 조별 협업 · 6종 오브젝트',   badge: 'Pro' },
+              { icon: BarChart2,     color: 'bg-blue-100 text-blue-600',     border: 'border-blue-100',   title: '실시간 설문',    desc: '6가지 문항 유형 · AI 응답 분석',      badge: 'Basic↑' },
+              { icon: Images,        color: 'bg-pink-100 text-pink-600',     border: 'border-pink-100',   title: '수업 갤러리',    desc: '사진·영상 주차별 보관 · 학급 공유',   badge: '무료' },
+            ].map(({ icon: Icon, color, border, title, desc, badge }, i) => (
+              <motion.div
+                key={title}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.06 }}
+                className={`bg-white rounded-2xl p-5 border ${border} hover:shadow-md transition-all`}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center shrink-0`}>
+                    <Icon size={20} strokeWidth={2} />
+                  </div>
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0 ${
+                    badge === '무료' ? 'bg-gray-100 text-gray-500' :
+                    badge === 'Pro' ? 'bg-amber-100 text-amber-700' :
+                    'bg-blue-100 text-blue-700'
+                  }`}>{badge}</span>
+                </div>
+                <p className="text-sm font-black text-gray-800 mb-1">{title}</p>
+                <p className="text-xs text-gray-400 leading-relaxed">{desc}</p>
+              </motion.div>
+            ))}
+          </div>
+          <div className="text-center">
+            <button
+              onClick={() => navigate('/demo')}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-black rounded-2xl text-sm transition-all"
+            >
+              <Play size={14} strokeWidth={3} />
+              수업 도구 직접 체험하기
+              <ChevronRight size={16} strokeWidth={2.5} />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Use Cases ── */}
+      <section className="py-20 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-14">
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full mb-4">
+              🌏 수업이 있는 모든 곳에서
+            </span>
+            <h2 className="text-3xl font-black text-amber-900 mb-3">생기부가 없어도 됩니다</h2>
+            <p className="text-amber-700/60 text-base">
+              학생을 가르치고, 기록하고, 성장을 나눠야 하는 곳이라면<br className="hidden sm:block" />
+              어디서든 생기로그 AI가 함께합니다
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-5 mb-10">
+            {[
+              { emoji: '🏫', title: '고등학교', desc: '세특·행동특성·종합의견 AI 초안 생성, 나이스 엑셀 일괄 제출', tag: '세특 자동화', color: 'bg-amber-50 border-amber-100' },
+              { emoji: '🏫', title: '중학교', desc: '학교생활기록부 기재용 활동 기록 수집·관리', tag: '생기부 기록', color: 'bg-blue-50 border-blue-100' },
+              { emoji: '🏢', title: '학원·교습소', desc: '수강생 관찰 기록 → AI 학부모 성장 보고서 자동 생성', tag: '학부모 보고서', color: 'bg-violet-50 border-violet-100' },
+              { emoji: '🎸', title: '음악·예체능 레슨', desc: '레슨별 성취도·관찰 기록, 수강생 포트폴리오 구축', tag: '레슨 기록', color: 'bg-rose-50 border-rose-100' },
+              { emoji: '💻', title: '코딩·방과후 교실', desc: '프로젝트별 활동 기록, 결과물 제출, AI 성취 분석', tag: '프로젝트 관리', color: 'bg-teal-50 border-teal-100' },
+              { emoji: '🌱', title: '대안학교·홈스쿨', desc: '정형화되지 않은 수업도 체계적으로 기록하고 관리', tag: '자유로운 기록', color: 'bg-green-50 border-green-100' },
+            ].map(({ emoji, title, desc, tag, color }, i) => (
+              <motion.div
+                key={title}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.07 }}
+                className={`rounded-2xl p-6 border ${color}`}
+              >
+                <span className="text-3xl mb-3 block">{emoji}</span>
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <h3 className="font-black text-gray-900 text-sm">{title}</h3>
+                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-white/80 border border-gray-200 rounded-full text-gray-400 shrink-0">{tag}</span>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
+              </motion.div>
+            ))}
+          </div>
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-2xl px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <p className="font-black text-amber-900 text-base mb-1">지금 어떤 수업을 가르치고 계신가요?</p>
+              <p className="text-sm text-amber-700/70">어떤 과목·기관이든 생기로그 AI는 선생님 편입니다. 무료로 먼저 체험해 보세요.</p>
+            </div>
+            <button
+              onClick={() => document.getElementById('request-section')?.scrollIntoView({ behavior: 'smooth' })}
+              className="shrink-0 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl text-sm transition-all shadow-md flex items-center gap-2"
+            >
+              무료 사용 신청 <ArrowRight size={16} strokeWidth={3} />
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* ── How it works ── */}
       <section className="py-20 bg-amber-50">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-black text-amber-900 mb-3">이렇게 사용해요</h2>
-            <p className="text-amber-700/60 text-base">세 단계면 충분합니다</p>
+            <p className="text-amber-700/60 text-base">기록만 하면 AI가 나머지를 합니다</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 relative">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 relative">
             {steps.map(({ num, title, desc }, i) => (
               <motion.div
                 key={num}
                 initial={{ opacity: 0, x: -10 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.15 }}
+                transition={{ delay: i * 0.12 }}
                 className="flex flex-col items-center text-center"
               >
                 <div className="w-14 h-14 bg-amber-500 text-white rounded-full flex items-center justify-center font-black text-lg mb-5 shadow-md shadow-amber-200">
