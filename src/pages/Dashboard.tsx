@@ -314,7 +314,8 @@ const Dashboard = () => {
             avatars: classStudents.slice(0, 3).map((s: any) => s.avatar),
             progress: progressPercent,
             color: c.color_hex || 'bg-surface-container-high',
-            folder_id: c.folder_id || null
+            folder_id: c.folder_id || null,
+            is_closed: c.is_closed || false
           };
         }));
 
@@ -655,8 +656,8 @@ const Dashboard = () => {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => navigate('/archive')}
-                className="text-xs font-bold text-on-surface-variant/60 flex items-center gap-1 hover:text-on-surface-variant transition-colors"
+                onClick={() => setActiveFolderId(activeFolderId === '__closed__' ? null : '__closed__')}
+                className={`text-xs font-bold flex items-center gap-1 transition-colors ${activeFolderId === '__closed__' ? 'text-on-surface' : 'text-on-surface-variant/60 hover:text-on-surface-variant'}`}
               >
                 <Archive size={13} />
                 종료된 학급
@@ -713,6 +714,21 @@ const Dashboard = () => {
               </div>
             ))}
 
+            {/* 종료된 학습 탭 */}
+            {classes.some(c => c.is_closed) && (
+              <button
+                onClick={() => setActiveFolderId(activeFolderId === '__closed__' ? null : '__closed__')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  activeFolderId === '__closed__'
+                    ? 'bg-neutral-700 text-white shadow-sm'
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                <Archive size={13} />
+                종료된 학습 ({classes.filter(c => c.is_closed).length})
+              </button>
+            )}
+
             {/* 폴더 만들기 버튼 */}
             {!showCreateFolder ? (
               <button
@@ -749,14 +765,16 @@ const Dashboard = () => {
             {loading ? (
               [1, 2].map(i => <div key={i} className="h-[160px] md:h-[200px] surface-card animate-pulse" />)
             ) : (() => {
-              const filteredClasses = activeFolderId === null
-                ? classes
-                : classes.filter(c => c.folder_id === activeFolderId);
+              const filteredClasses = activeFolderId === '__closed__'
+                ? classes.filter(c => c.is_closed)
+                : activeFolderId === null
+                  ? classes.filter(c => !c.is_closed)
+                  : classes.filter(c => c.folder_id === activeFolderId && !c.is_closed);
 
               if (filteredClasses.length === 0) {
                 return (
                   <div className="col-span-2 surface-zone p-10 text-center text-on-surface-variant">
-                    {activeFolderId ? '이 폴더에 학급이 없습니다. 학급 카드의 폴더 버튼으로 이동하세요.' : '등록된 학급이 없습니다. 학급을 먼저 추가해주세요.'}
+                    {activeFolderId === '__closed__' ? '종료된 학급이 없습니다.' : activeFolderId ? '이 폴더에 학급이 없습니다. 학급 카드의 폴더 버튼으로 이동하세요.' : '등록된 학급이 없습니다. 학급을 먼저 추가해주세요.'}
                   </div>
                 );
               }
