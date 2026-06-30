@@ -3436,6 +3436,25 @@ const Classroom = () => {
                                   {mat.type === 'link' ? mat.url : mat.file_name}
                                 </p>
                               </div>
+                              {mat.type === 'file' && (
+                                <button
+                                  onClick={async () => {
+                                    const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
+                                    const res = await fetch(data.publicUrl);
+                                    const blob = await res.blob();
+                                    const blobUrl = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = blobUrl;
+                                    a.download = mat.file_name || mat.title;
+                                    a.click();
+                                    URL.revokeObjectURL(blobUrl);
+                                  }}
+                                  className="p-1.5 text-neutral-200 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                  title="다운로드"
+                                >
+                                  <Download size={13} />
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleDeleteGeneralMat(mat.id, mat.file_path)}
                                 disabled={deletingGeneralMatId === mat.id}
