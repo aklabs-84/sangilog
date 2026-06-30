@@ -3427,7 +3427,16 @@ const Classroom = () => {
                                   <button
                                     onClick={async () => {
                                       const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
-                                      window.open(data.publicUrl, '_blank');
+                                      const fileName = (mat.file_name || '').toLowerCase();
+                                      if (fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+                                        const res = await fetch(data.publicUrl);
+                                        const text = await res.text();
+                                        const blob = new Blob([text], { type: 'text/html' });
+                                        const blobUrl = URL.createObjectURL(blob);
+                                        window.open(blobUrl, '_blank');
+                                      } else {
+                                        window.open(data.publicUrl, '_blank');
+                                      }
                                     }}
                                     className="text-sm font-black hover:text-primary transition-colors truncate block text-left"
                                   >{mat.title}</button>
@@ -3449,18 +3458,18 @@ const Classroom = () => {
                                     a.click();
                                     URL.revokeObjectURL(blobUrl);
                                   }}
-                                  className="p-1.5 text-neutral-200 hover:text-primary hover:bg-primary/5 rounded-lg transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                  className="p-2.5 text-primary bg-primary/10 hover:bg-primary/20 rounded-xl transition-all shrink-0"
                                   title="다운로드"
                                 >
-                                  <Download size={13} />
+                                  <Download size={17} />
                                 </button>
                               )}
                               <button
                                 onClick={() => handleDeleteGeneralMat(mat.id, mat.file_path)}
                                 disabled={deletingGeneralMatId === mat.id}
-                                className="p-1.5 text-neutral-200 hover:text-error hover:bg-error/5 rounded-lg transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                className="p-2.5 text-error bg-error/10 hover:bg-error/20 rounded-xl transition-all shrink-0"
                               >
-                                {deletingGeneralMatId === mat.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                                {deletingGeneralMatId === mat.id ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} />}
                               </button>
                             </div>
                           ))}
