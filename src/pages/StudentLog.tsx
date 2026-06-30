@@ -3191,45 +3191,70 @@ ${guidePrompt}
                         if (mat.type === 'link') {
                           const href = mat.url?.startsWith('http') ? mat.url : `https://${mat.url}`;
                           return (
-                            <a
-                              key={mat.id}
-                              href={href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container hover:border-primary/30 hover:shadow-sm transition-all group"
-                            >
-                              <div className="w-9 h-9 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0">
-                                <Link2 size={16} />
+                            <div key={mat.id} className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container">
+                              <div className="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center shrink-0">
+                                <Link2 size={18} />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-black text-sm truncate group-hover:text-primary transition-colors">{mat.title}</p>
+                                <p className="font-black text-sm truncate">{mat.title}</p>
                                 <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">{mat.url}</p>
                               </div>
-                              <ExternalLink size={14} className="shrink-0 text-on-surface-variant group-hover:text-primary transition-colors" />
-                            </a>
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2.5 rounded-xl bg-cyan-500 text-white hover:bg-cyan-600 transition-all shrink-0"
+                                title="바로가기"
+                              >
+                                <ExternalLink size={18} />
+                              </a>
+                            </div>
                           );
                         }
                         // 파일 자료
                         return (
-                          <button
-                            key={mat.id}
-                            onClick={() => {
-                              const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
-                              window.open(data.publicUrl, '_blank');
-                            }}
-                            className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-amber-300 hover:shadow-sm transition-all group"
-                          >
-                            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                              <File size={16} />
-                            </div>
+                          <div key={mat.id} className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container">
+                            <button
+                              onClick={async () => {
+                                const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
+                                const fileName = (mat.file_name || '').toLowerCase();
+                                if (fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+                                  const res = await fetch(data.publicUrl);
+                                  const text = await res.text();
+                                  const blob = new Blob([text], { type: 'text/html' });
+                                  window.open(URL.createObjectURL(blob), '_blank');
+                                } else {
+                                  window.open(data.publicUrl, '_blank');
+                                }
+                              }}
+                              className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 hover:bg-amber-200 transition-all"
+                            >
+                              <File size={18} />
+                            </button>
                             <div className="flex-1 min-w-0">
-                              <p className="font-black text-sm truncate group-hover:text-amber-700 transition-colors">{mat.title}</p>
+                              <p className="font-black text-sm truncate">{mat.title}</p>
                               <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">
                                 {mat.file_name}{mat.file_size ? ` · ${(mat.file_size / 1024).toFixed(0)}KB` : ''}
                               </p>
                             </div>
-                            <Download size={14} className="shrink-0 text-on-surface-variant group-hover:text-amber-600 transition-colors" />
-                          </button>
+                            <button
+                              onClick={async () => {
+                                const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
+                                const res = await fetch(data.publicUrl);
+                                const blob = await res.blob();
+                                const blobUrl = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = blobUrl;
+                                a.download = mat.file_name || mat.title;
+                                a.click();
+                                URL.revokeObjectURL(blobUrl);
+                              }}
+                              className="p-2.5 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-all shrink-0"
+                              title="다운로드"
+                            >
+                              <Download size={18} />
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
