@@ -3464,13 +3464,15 @@ const Classroom = () => {
                                   <Download size={17} />
                                 </button>
                               )}
-                              <button
-                                onClick={() => handleDeleteGeneralMat(mat.id, mat.file_path)}
-                                disabled={deletingGeneralMatId === mat.id}
-                                className="p-2.5 text-error bg-error/10 hover:bg-error/20 rounded-xl transition-all shrink-0"
-                              >
-                                {deletingGeneralMatId === mat.id ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} />}
-                              </button>
+                              {(classInfo?.teacher_id === user?.id || classInfo?.assigned_teacher_id === user?.id) && (
+                                <button
+                                  onClick={() => handleDeleteGeneralMat(mat.id, mat.file_path)}
+                                  disabled={deletingGeneralMatId === mat.id}
+                                  className="p-2.5 text-error bg-error/10 hover:bg-error/20 rounded-xl transition-all shrink-0"
+                                >
+                                  {deletingGeneralMatId === mat.id ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} />}
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>
