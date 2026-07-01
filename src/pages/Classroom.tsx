@@ -272,6 +272,12 @@ const Classroom = () => {
     }, { replace: true });
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab === 'teacher_materials' && activeClassId) {
+      fetchPrivateMaterials(activeClassId);
+    }
+  }, [activeTab, activeClassId]);
+
   // 알림 바로가기: 이미 해당 클래스룸에 있는 경우 → 커스텀 이벤트로 직접 drawer 오픈
   useEffect(() => {
     const openFromStorage = () => {
