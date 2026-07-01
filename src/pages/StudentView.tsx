@@ -1092,36 +1092,36 @@ const StudentView = () => {
                     <div className="flex items-center gap-1.5 flex-wrap mb-3">
                       {title && <p className="font-black text-sm group-hover:text-primary transition-colors w-full">{title}</p>}
                       {isGroupSubmission && (
-                        <span className="flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md bg-violet-100 text-violet-600 border border-violet-200">
+                        <span className="flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-md bg-violet-100 text-violet-600 border border-violet-200">
                           👥 조별 제출
                         </span>
                       )}
                       {types.map(type => {
                         const cfg = typeConfig[type] || typeConfig.file;
                         return (
-                          <span key={type} className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>
-                            {cfg.icon && <span className="scale-75">{cfg.icon}</span>}{cfg.label}
+                          <span key={type} className={`flex items-center gap-1 text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${cfg.color}`}>
+                            {cfg.icon && <span className="scale-90">{cfg.icon}</span>}{cfg.label}
                           </span>
                         );
                       })}
                       {weekNumber && (
-                        <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                        <span className="text-xs font-black px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20">
                           {weekNumber}주차
                         </span>
                       )}
                       {isRejected && (
-                        <span className="text-[9px] font-black text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                          <X size={9} /> 반려됨
+                        <span className="text-xs font-black text-red-500 bg-red-50 border border-red-200 px-2.5 py-1 rounded-md flex items-center gap-1">
+                          <X size={11} /> 반려됨
                         </span>
                       )}
                       {(evalForms[groupId]?.score ?? 0) > 0 && (
-                        <span className="text-[9px] font-black text-amber-500 flex items-center gap-0.5">
-                          {'★'.repeat(evalForms[groupId].score)}<span className="text-[8px] text-amber-400/60 ml-0.5">평가됨</span>
+                        <span className="text-xs font-black text-amber-500 flex items-center gap-0.5">
+                          {'★'.repeat(evalForms[groupId].score)}<span className="text-[10px] text-amber-400/60 ml-0.5">평가됨</span>
                         </span>
                       )}
                       {firstItem.teacher_feedback && (
-                        <span className="flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-600 border border-indigo-200">
-                          <MessageSquare size={9} /> 피드백
+                        <span className="flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-600 border border-indigo-200">
+                          <MessageSquare size={11} /> 피드백
                         </span>
                       )}
                     </div>
@@ -1634,16 +1634,16 @@ const StudentView = () => {
       {/* ─── 결과 상세 모달 ─── */}
       <AnimatePresence>
         {selectedResult && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm" onClick={() => setSelectedResult(null)}>
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto" onClick={() => setSelectedResult(null)}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 16 }}
               onClick={e => e.stopPropagation()}
-              className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-hidden"
+              className="w-full max-w-2xl max-h-[90vh] my-auto bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col"
             >
               {/* 모달 헤더 */}
-              <div className="flex items-start justify-between p-8 pb-4">
+              <div className="flex items-start justify-between p-8 pb-4 shrink-0">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     {(() => {
@@ -1662,20 +1662,20 @@ const StudentView = () => {
                         <>
                           {modalTitle && <h3 className="text-xl font-black tracking-tight w-full">{modalTitle}</h3>}
                           {modalIsGroup && (
-                            <span className="flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md bg-violet-100 text-violet-600 border border-violet-200">
+                            <span className="flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-md bg-violet-100 text-violet-600 border border-violet-200">
                               👥 조별 제출
                             </span>
                           )}
                           {types.map(type => {
                             const cfg = typeConfig[type] || { color: 'text-neutral-500 bg-neutral-100', label: type };
                             return (
-                              <span key={type} className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${cfg.color}`}>
+                              <span key={type} className={`text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${cfg.color}`}>
                                 {cfg.label}
                               </span>
                             );
                           })}
                           {modalWeek && (
-                            <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                            <span className="text-xs font-black px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20">
                               {modalWeek}주차
                             </span>
                           )}
@@ -1696,7 +1696,7 @@ const StudentView = () => {
               </div>
 
               {/* 모달 내용 */}
-              <div className="px-8 pb-8 space-y-4 max-h-[65vh] overflow-y-auto">
+              <div className="px-8 pb-8 space-y-4 flex-1 overflow-y-auto">
                 {(() => {
                   const items: any[] = selectedResult.groupItems || [selectedResult];
                   const textItem = items.find((r: any) => r.result_type === 'text');
@@ -1911,7 +1911,7 @@ const StudentView = () => {
                 })()}
               </div>
               {/* 모달 액션 푸터 */}
-              <div className="px-8 pb-6 pt-4 border-t border-neutral-100 flex gap-3">
+              <div className="px-8 pb-6 pt-4 border-t border-neutral-100 flex gap-3 shrink-0">
                 {selectedResult.status !== 'rejected' ? (
                   <button
                     onClick={() => {

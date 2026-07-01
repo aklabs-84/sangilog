@@ -1135,7 +1135,7 @@ const HomeroomDashboard = ({
         const tabLabel = activityTab === 'obs' ? '활동 기록' : '결과제출';
 
         return (
-          <div className="fixed inset-0 z-[900] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md" onClick={closeModal}>
+          <div className="fixed inset-0 z-[900] flex items-end sm:items-center justify-center px-4 pb-4 pt-20 sm:p-8 bg-slate-900/60 backdrop-blur-md" onClick={closeModal}>
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1144,36 +1144,36 @@ const HomeroomDashboard = ({
               className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between px-10 py-7 border-b border-neutral-100">
-                <div className="space-y-1">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 sm:px-10 py-4 sm:py-7 border-b border-neutral-100">
+                <div className="space-y-1 min-w-0">
                   <p className="text-[10px] font-black text-secondary uppercase tracking-[0.25em]">Activity Rate</p>
-                  <h3 className="text-2xl font-black tracking-tight">
+                  <h3 className="text-lg sm:text-2xl font-black tracking-tight truncate">
                     {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}주차 ` : ''}{tabLabel} 현황
                   </h3>
                 </div>
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-3 text-right">
-                    <div className="space-y-0.5">
-                      <p className="text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
-                      <p className="text-[9px] font-black text-secondary/60 uppercase tracking-widest">제출 완료</p>
+                <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 shrink-0">
+                  <div className="flex items-center gap-3 sm:gap-4 text-right">
+                    <div className="space-y-0.5 whitespace-nowrap">
+                      <p className="text-xl sm:text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
+                      <p className="text-[9px] font-black text-secondary/60 uppercase tracking-widest whitespace-nowrap">제출 완료</p>
                     </div>
-                    <div className="w-px h-10 bg-neutral-100" />
-                    <div className="space-y-0.5">
-                      <p className="text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
-                      <p className="text-[9px] font-black text-amber-500/60 uppercase tracking-widest">미제출</p>
+                    <div className="w-px h-10 bg-neutral-100 shrink-0" />
+                    <div className="space-y-0.5 whitespace-nowrap">
+                      <p className="text-xl sm:text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-50">명</span></p>
+                      <p className="text-[9px] font-black text-amber-500/60 uppercase tracking-widest whitespace-nowrap">미제출</p>
                     </div>
                   </div>
-                  <button onClick={closeModal} className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all">
+                  <button onClick={closeModal} className="p-2.5 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-all shrink-0">
                     <X size={20} />
                   </button>
                 </div>
               </div>
 
               {/* 탭 선택 */}
-              <div className="px-10 py-3 border-b border-neutral-100 flex items-center gap-2">
+              <div className="px-5 sm:px-10 py-3 border-b border-neutral-100 flex items-center gap-2">
                 <button
                   onClick={() => setActivityTab('obs')}
-                  className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-[11px] font-black transition-all border ${
+                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap ${
                     activityTab === 'obs'
                       ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
                       : 'bg-white text-neutral-400 border-neutral-200 hover:border-violet-300 hover:text-violet-600'
@@ -1186,7 +1186,7 @@ const HomeroomDashboard = ({
                 </button>
                 <button
                   onClick={() => setActivityTab('results')}
-                  className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-[11px] font-black transition-all border ${
+                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-xl text-[11px] font-black transition-all border whitespace-nowrap ${
                     activityTab === 'results'
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                       : 'bg-white text-neutral-400 border-neutral-200 hover:border-emerald-300 hover:text-emerald-600'
@@ -1201,7 +1201,7 @@ const HomeroomDashboard = ({
 
               {/* 주차 필터 칩 */}
               {statsWeeks.length > 0 && (
-                <div className="px-10 py-3 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                <div className="px-5 sm:px-10 py-3 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
                   <button
                     onClick={() => setSelectedActivityWeek(null)}
                     className={`shrink-0 px-4 py-1.5 rounded-full text-[11px] font-black transition-all border ${
@@ -1238,10 +1238,10 @@ const HomeroomDashboard = ({
               )}
 
               {/* Modal Body */}
-              <div className="flex-1 overflow-hidden grid grid-cols-2 divide-x divide-neutral-100">
+              <div className="flex-1 overflow-hidden grid grid-cols-1 sm:grid-cols-2 grid-rows-2 sm:grid-rows-1 divide-y sm:divide-y-0 sm:divide-x divide-neutral-100">
                 {/* 제출 완료 */}
                 <div className="flex flex-col overflow-hidden">
-                  <div className={`px-8 py-4 border-b flex items-center gap-2 ${tabColor === 'violet' ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                  <div className={`px-5 sm:px-8 py-3 sm:py-4 border-b flex items-center gap-2 ${tabColor === 'violet' ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'}`}>
                     <CheckCheck size={14} className={tabColor === 'violet' ? 'text-violet-600' : 'text-emerald-600'} />
                     <span className={`text-[11px] font-black uppercase tracking-widest ${tabColor === 'violet' ? 'text-violet-700' : 'text-emerald-700'}`}>
                       제출 완료 ({submitted.length}명)
@@ -1253,7 +1253,7 @@ const HomeroomDashboard = ({
                         <div
                           key={s.id}
                           onClick={() => { onNavigateToStudent(s.id); closeModal(); }}
-                          className={`flex items-center gap-3 px-8 py-3 cursor-pointer transition-all group ${tabColor === 'violet' ? 'hover:bg-violet-50' : 'hover:bg-emerald-50'}`}
+                          className={`flex items-center gap-3 px-5 sm:px-8 py-3 cursor-pointer transition-all group ${tabColor === 'violet' ? 'hover:bg-violet-50' : 'hover:bg-emerald-50'}`}
                         >
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tabColor === 'violet' ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'}`}>
                             <Users size={14} />
@@ -1278,7 +1278,7 @@ const HomeroomDashboard = ({
 
                 {/* 미제출 */}
                 <div className="flex flex-col overflow-hidden">
-                  <div className="px-8 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                  <div className="px-5 sm:px-8 py-3 sm:py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
                     <ClockIcon size={14} className="text-amber-500" />
                     <span className="text-[11px] font-black text-amber-600 uppercase tracking-widest">미제출 ({notSubmitted.length}명)</span>
                   </div>
@@ -1288,7 +1288,7 @@ const HomeroomDashboard = ({
                         <div
                           key={s.id}
                           onClick={() => { onNavigateToStudent(s.id); closeModal(); }}
-                          className="flex items-center gap-3 px-8 py-3 hover:bg-amber-50 cursor-pointer transition-all group"
+                          className="flex items-center gap-3 px-5 sm:px-8 py-3 hover:bg-amber-50 cursor-pointer transition-all group"
                         >
                           <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-400 shrink-0">
                             <Users size={14} />
@@ -1313,19 +1313,19 @@ const HomeroomDashboard = ({
               </div>
 
               {/* Modal Footer */}
-              <div className="px-10 py-5 border-t border-neutral-100 bg-neutral-50 flex items-center justify-between">
+              <div className="px-5 sm:px-10 py-4 sm:py-5 border-t border-neutral-100 bg-neutral-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-2 bg-neutral-100 rounded-full w-40 overflow-hidden">
+                  <div className="h-2 bg-neutral-100 rounded-full flex-1 sm:w-40 sm:flex-none overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all ${tabColor === 'violet' ? 'bg-violet-500' : 'bg-emerald-500'}`}
                       style={{ width: students.length > 0 ? `${(submitted.length / students.length) * 100}%` : '0%' }}
                     />
                   </div>
-                  <span className="text-xs font-black text-on-surface-variant/60">
+                  <span className="text-xs font-black text-on-surface-variant/60 whitespace-nowrap">
                     {tabLabel} 참여율 {students.length > 0 ? Math.round((submitted.length / students.length) * 100) : 0}%
                   </span>
                 </div>
-                <button onClick={closeModal} className="px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all">
+                <button onClick={closeModal} className="w-full sm:w-auto px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all">
                   닫기
                 </button>
               </div>

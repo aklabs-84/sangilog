@@ -1269,36 +1269,36 @@ const SubjectDashboard = ({
               className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between px-10 py-5 border-b border-neutral-100">
-                <div className="space-y-1">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 sm:px-10 py-4 sm:py-5 border-b border-neutral-100">
+                <div className="space-y-1 min-w-0">
                   <p className="text-xs font-black text-secondary uppercase tracking-[0.2em]">활동 참여율</p>
-                  <h3 className="text-xl font-black tracking-tight">
+                  <h3 className="text-lg sm:text-xl font-black tracking-tight truncate">
                     {classInfo?.name} {selectedActivityWeek !== null ? `${selectedActivityWeek}주차 ` : ''}{tabLabel} 현황
                   </h3>
                 </div>
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-3 text-right">
-                    <div className="space-y-0.5">
-                      <p className="text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-70">명</span></p>
-                      <p className="text-xs font-black text-secondary/70 uppercase tracking-widest">제출 완료</p>
+                <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 shrink-0">
+                  <div className="flex items-center gap-3 sm:gap-4 text-right">
+                    <div className="space-y-0.5 whitespace-nowrap">
+                      <p className="text-xl sm:text-2xl font-black text-secondary">{submitted.length}<span className="text-sm ml-1 opacity-70">명</span></p>
+                      <p className="text-[10px] sm:text-xs font-black text-secondary/70 uppercase tracking-widest whitespace-nowrap">제출 완료</p>
                     </div>
-                    <div className="w-px h-10 bg-neutral-200" />
-                    <div className="space-y-0.5">
-                      <p className="text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-70">명</span></p>
-                      <p className="text-xs font-black text-amber-500/70 uppercase tracking-widest">미제출</p>
+                    <div className="w-px h-10 bg-neutral-200 shrink-0" />
+                    <div className="space-y-0.5 whitespace-nowrap">
+                      <p className="text-xl sm:text-2xl font-black text-amber-500">{notSubmitted.length}<span className="text-sm ml-1 opacity-70">명</span></p>
+                      <p className="text-[10px] sm:text-xs font-black text-amber-500/70 uppercase tracking-widest whitespace-nowrap">미제출</p>
                     </div>
                   </div>
-                  <button onClick={closeModal} className="p-2.5 rounded-xl text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all">
+                  <button onClick={closeModal} className="p-2.5 rounded-xl text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all shrink-0">
                     <X size={20} />
                   </button>
                 </div>
               </div>
 
               {/* 탭 선택 */}
-              <div className="px-10 py-3 border-b border-neutral-100 flex items-center gap-2">
+              <div className="px-5 sm:px-10 py-3 border-b border-neutral-100 flex items-center gap-2">
                 <button
                   onClick={() => setActivityTab('obs')}
-                  className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-black transition-all border ${
+                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all border whitespace-nowrap ${
                     activityTab === 'obs'
                       ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
                       : 'bg-white text-neutral-500 border-neutral-200 hover:border-violet-300 hover:text-violet-600'
@@ -1311,7 +1311,7 @@ const SubjectDashboard = ({
                 </button>
                 <button
                   onClick={() => setActivityTab('results')}
-                  className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-black transition-all border ${
+                  className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all border whitespace-nowrap ${
                     activityTab === 'results'
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                       : 'bg-white text-neutral-500 border-neutral-200 hover:border-emerald-300 hover:text-emerald-600'
@@ -1326,7 +1326,7 @@ const SubjectDashboard = ({
 
               {/* 주차 필터 칩 */}
               {statsWeeks.length > 0 && (
-                <div className="pl-10 pt-5 pb-8 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                <div className="pl-5 sm:pl-10 pt-4 sm:pt-5 pb-6 sm:pb-8 border-b border-neutral-100 flex items-center gap-2 overflow-x-auto custom-scrollbar">
                   <button
                     onClick={() => setSelectedActivityWeek(null)}
                     className={`shrink-0 px-4 py-2 rounded-full text-xs font-black transition-all border ${
@@ -1365,10 +1365,10 @@ const SubjectDashboard = ({
               )}
 
               {/* Modal Body */}
-              <div className="flex-1 overflow-hidden grid grid-cols-2 divide-x divide-neutral-100">
+              <div className="flex-1 overflow-hidden grid grid-cols-1 sm:grid-cols-2 grid-rows-2 sm:grid-rows-1 divide-y sm:divide-y-0 sm:divide-x divide-neutral-100">
                 {/* 제출 완료 */}
                 <div className="flex flex-col overflow-hidden">
-                  <div className={`px-8 py-4 border-b flex items-center gap-2 ${tabColor === 'violet' ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                  <div className={`px-5 sm:px-8 py-3 sm:py-4 border-b flex items-center gap-2 ${tabColor === 'violet' ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'}`}>
                     <CheckCheck size={14} className={tabColor === 'violet' ? 'text-violet-600' : 'text-emerald-600'} />
                     <span className={`text-sm font-black ${tabColor === 'violet' ? 'text-violet-700' : 'text-emerald-700'}`}>
                       ✓ 제출 완료 ({submitted.length}명)
@@ -1380,7 +1380,7 @@ const SubjectDashboard = ({
                         <div
                           key={s.id}
                           onClick={() => activityTab === 'results' ? handleResultStudentClick(s) : undefined}
-                          className={`flex items-center gap-3 px-8 py-3 transition-all group ${
+                          className={`flex items-center gap-3 px-5 sm:px-8 py-3 transition-all group ${
                             activityTab === 'results' ? 'cursor-pointer' : ''
                           } ${tabColor === 'violet' ? 'hover:bg-violet-50' : 'hover:bg-emerald-50'}`}
                         >
@@ -1411,14 +1411,14 @@ const SubjectDashboard = ({
 
                 {/* 미제출 */}
                 <div className="flex flex-col overflow-hidden">
-                  <div className="px-8 py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                  <div className="px-5 sm:px-8 py-3 sm:py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
                     <ClockIcon size={14} className="text-amber-500" />
                     <span className="text-sm font-black text-amber-700">⏳ 미제출 ({notSubmitted.length}명)</span>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar py-3">
                     {notSubmitted.length > 0 ? (
                       notSubmitted.map(s => (
-                        <div key={s.id} className="flex items-center gap-3 px-8 py-3 hover:bg-amber-50 transition-all group">
+                        <div key={s.id} className="flex items-center gap-3 px-5 sm:px-8 py-3 hover:bg-amber-50 transition-all group">
                           <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-400 shrink-0">
                             <Users size={14} />
                           </div>
@@ -1442,19 +1442,19 @@ const SubjectDashboard = ({
               </div>
 
               {/* Modal Footer */}
-              <div className="px-10 py-5 border-t border-neutral-100 bg-neutral-50 flex items-center justify-between">
+              <div className="px-5 sm:px-10 py-4 sm:py-5 border-t border-neutral-100 bg-neutral-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-2 bg-neutral-100 rounded-full w-40 overflow-hidden">
+                  <div className="h-2 bg-neutral-100 rounded-full flex-1 sm:w-40 sm:flex-none overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all ${tabColor === 'violet' ? 'bg-violet-500' : 'bg-emerald-500'}`}
                       style={{ width: students.length > 0 ? `${(submitted.length / students.length) * 100}%` : '0%' }}
                     />
                   </div>
-                  <span className="text-sm font-black text-on-surface-variant/80">
+                  <span className="text-sm font-black text-on-surface-variant/80 whitespace-nowrap">
                     {tabLabel} 참여율 {students.length > 0 ? Math.round((submitted.length / students.length) * 100) : 0}%
                   </span>
                 </div>
-                <button onClick={closeModal} className="px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all">
+                <button onClick={closeModal} className="w-full sm:w-auto px-6 py-2.5 bg-neutral-200 hover:bg-neutral-300 rounded-xl text-sm font-black text-neutral-600 transition-all">
                   닫기
                 </button>
               </div>
