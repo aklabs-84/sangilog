@@ -1348,6 +1348,7 @@ const Classroom = () => {
     if (!privateMatForm.title.trim()) { showToast('제목을 입력해주세요.'); return; }
     if (privateMatForm.type === 'link' && !privateMatForm.url.trim()) { showToast('링크 URL을 입력해주세요.'); return; }
     if (privateMatForm.type === 'file' && !privateMatForm.file) { showToast('파일을 선택해주세요.'); return; }
+    if (privateMatForm.type === 'file' && privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024) { showToast('파일 크기는 50MB 이하여야 합니다.'); return; }
     setSavingPrivateMat(true);
     try {
       let filePath: string | null = null;
@@ -1409,6 +1410,7 @@ const Classroom = () => {
     if (!generalMatForm.title.trim()) { showToast('제목을 입력해주세요.'); return; }
     if (generalMatForm.type === 'link' && !generalMatForm.url.trim()) { showToast('링크 URL을 입력해주세요.'); return; }
     if (generalMatForm.type === 'file' && !generalMatForm.file) { showToast('파일을 선택해주세요.'); return; }
+    if (generalMatForm.type === 'file' && generalMatForm.file && generalMatForm.file.size > 50 * 1024 * 1024) { showToast('파일 크기는 50MB 이하여야 합니다.'); return; }
 
     setGeneralMatUploading(true);
     try {
