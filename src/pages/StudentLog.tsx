@@ -1208,7 +1208,7 @@ const StudentLog = () => {
               type: 'need_obs',
               week: selectedWeek,
               topic: weekTopic,
-            }), 1200);
+            }), 3600);
           }
         }
       }
@@ -2087,7 +2087,7 @@ ${guidePrompt}
             type: 'need_result',
             week: matchedWeekPlan.week,
             topic: matchedWeekPlan.topic,
-          }), 1200);
+          }), 3600);
         }
       }
 
