@@ -341,11 +341,11 @@ const ClassBoard = () => {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {!isObs && post._isGroupSub && (
-                          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
+                          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
                             조별
                           </span>
                         )}
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                        <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
                           isObs
                             ? 'bg-violet-100 dark:bg-violet-700/40 text-violet-700 dark:text-violet-300'
                             : 'bg-emerald-100 dark:bg-emerald-700/40 text-emerald-700 dark:text-emerald-300'

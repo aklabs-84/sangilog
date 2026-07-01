@@ -4552,9 +4552,9 @@ ${guidePrompt}
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
                                 {!isObs && post._isGroupSub && (
-                                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">조별</span>
+                                  <span className="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">조별</span>
                                 )}
-                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
                                   isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
                                 }`}>
                                   {isObs ? '활동 기록' : '결과'}
