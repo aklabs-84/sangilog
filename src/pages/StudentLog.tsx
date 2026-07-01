@@ -1688,9 +1688,19 @@ const StudentLog = () => {
       }));
 
       // submission_group 기준으로 그룹핑
+      // 조별 제출 시 RPC가 submission_group을 전파하지 못한 경우를 대비해
+      // group_id + week_number + 30분 시간 버킷을 보조 키로 사용
+      const boardGroupKey = (r: any): string => {
+        // 조별 제출은 submission_group 유무 관계없이 group_id 기반 키 우선 사용
+        if (r.is_group_submission && r.group_id) {
+          const bucket = Math.floor(new Date(r.created_at).getTime() / (1000 * 60 * 30));
+          return `g_${r.group_id}_w_${r.week_number ?? 0}_t_${bucket}`;
+        }
+        return r.submission_group || r.id;
+      };
       const boardGroupMap: Record<string, any[]> = {};
       (results || []).forEach((r: any) => {
-        const key = r.submission_group || r.id;
+        const key = boardGroupKey(r);
         if (!boardGroupMap[key]) boardGroupMap[key] = [];
         boardGroupMap[key].push(r);
       });
