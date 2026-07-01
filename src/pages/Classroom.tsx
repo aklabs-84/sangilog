@@ -2105,18 +2105,34 @@ const Classroom = () => {
                           className="w-full px-4 py-3 rounded-2xl border border-violet-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-400 placeholder:font-normal"
                         />
                       ) : (
-                        <label className="flex flex-col items-center gap-2 p-4 bg-white border-2 border-dashed border-violet-200 rounded-2xl cursor-pointer hover:border-violet-400 transition-all">
-                          <Upload size={20} className="text-violet-400" />
-                          <span className="text-xs font-black text-neutral-500">
-                            {privateMatForm.file ? privateMatForm.file.name : '파일 선택 (PDF, PPT, HWP 등)'}
-                          </span>
-                          <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setPrivateMatForm(prev => ({ ...prev, file: f })); }} />
-                        </label>
+                        (() => {
+                          const overLimit = !!privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024;
+                          const sizeMB = privateMatForm.file ? (privateMatForm.file.size / (1024 * 1024)).toFixed(1) : null;
+                          return (
+                            <div className="space-y-1.5">
+                              <label className={`flex flex-col items-center gap-2 p-4 bg-white border-2 border-dashed rounded-2xl cursor-pointer transition-all ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-violet-200 hover:border-violet-400'}`}>
+                                <Upload size={20} className={overLimit ? 'text-red-400' : 'text-violet-400'} />
+                                <span className={`text-xs font-black ${overLimit ? 'text-red-500' : 'text-neutral-500'}`}>
+                                  {privateMatForm.file ? privateMatForm.file.name : '파일 선택 (PDF, PPT, HWP 등)'}
+                                </span>
+                                {sizeMB && (
+                                  <span className={`text-[10px] font-bold ${overLimit ? 'text-red-500' : 'text-neutral-400'}`}>
+                                    {sizeMB}MB {overLimit ? '— 50MB 초과! 더 작은 파일을 선택해주세요' : '/ 50MB'}
+                                  </span>
+                                )}
+                                {!privateMatForm.file && (
+                                  <span className="text-[10px] text-neutral-300 font-bold">최대 50MB</span>
+                                )}
+                                <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setPrivateMatForm(prev => ({ ...prev, file: f })); }} />
+                              </label>
+                            </div>
+                          );
+                        })()
                       )}
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => { setShowPrivateMatForm(false); setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null }); }}
                           className="px-4 py-2 rounded-xl text-sm font-black text-on-surface-variant hover:bg-violet-100 transition-all">취소</button>
-                        <button onClick={handleAddPrivateMat} disabled={savingPrivateMat}
+                        <button onClick={handleAddPrivateMat} disabled={savingPrivateMat || (privateMatForm.type === 'file' && !!privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024)}
                           className="flex items-center gap-2 px-5 py-2 rounded-xl bg-violet-600 text-white text-sm font-black hover:bg-violet-700 transition-all disabled:opacity-50">
                           {savingPrivateMat ? <Loader2 size={14} className="animate-spin" /> : null}
                           저장
@@ -3437,13 +3453,29 @@ const Classroom = () => {
                               className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-bold focus:border-primary/40 outline-none"
                             />
                           ) : (
-                            <label className="flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dashed border-neutral-200 rounded-xl cursor-pointer hover:border-primary/40 transition-all">
-                              <Upload size={18} className="text-primary/60" />
-                              <span className="text-xs font-black text-neutral-500">
-                                {generalMatForm.file ? generalMatForm.file.name : '파일 선택 (PDF, PPT, HWP 등)'}
-                              </span>
-                              <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setGeneralMatForm(prev => ({ ...prev, file: f })); }} />
-                            </label>
+                            (() => {
+                              const overLimit = !!generalMatForm.file && generalMatForm.file.size > 50 * 1024 * 1024;
+                              const sizeMB = generalMatForm.file ? (generalMatForm.file.size / (1024 * 1024)).toFixed(1) : null;
+                              return (
+                                <div className="space-y-1">
+                                  <label className={`flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dashed rounded-xl cursor-pointer transition-all ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-neutral-200 hover:border-primary/40'}`}>
+                                    <Upload size={18} className={overLimit ? 'text-red-400' : 'text-primary/60'} />
+                                    <span className={`text-xs font-black ${overLimit ? 'text-red-500' : 'text-neutral-500'}`}>
+                                      {generalMatForm.file ? generalMatForm.file.name : '파일 선택 (PDF, PPT, HWP 등)'}
+                                    </span>
+                                    {sizeMB && (
+                                      <span className={`text-[10px] font-bold ${overLimit ? 'text-red-500' : 'text-neutral-400'}`}>
+                                        {sizeMB}MB {overLimit ? '— 50MB 초과! 더 작은 파일을 선택해주세요' : '/ 50MB'}
+                                      </span>
+                                    )}
+                                    {!generalMatForm.file && (
+                                      <span className="text-[10px] text-neutral-300 font-bold">최대 50MB</span>
+                                    )}
+                                    <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setGeneralMatForm(prev => ({ ...prev, file: f })); }} />
+                                  </label>
+                                </div>
+                              );
+                            })()
                           )}
                           <div className="flex gap-2">
                             <button
@@ -3452,7 +3484,7 @@ const Classroom = () => {
                             >취소</button>
                             <button
                               onClick={handleAddGeneralMat}
-                              disabled={generalMatUploading}
+                              disabled={generalMatUploading || (generalMatForm.type === 'file' && !!generalMatForm.file && generalMatForm.file.size > 50 * 1024 * 1024)}
                               className="flex-1 py-2 rounded-xl text-xs font-black bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-all flex items-center justify-center gap-1"
                             >
                               {generalMatUploading ? <Loader2 size={12} className="animate-spin" /> : null}
