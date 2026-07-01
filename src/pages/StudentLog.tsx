@@ -328,6 +328,7 @@ const StudentLog = () => {
   const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
   const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
+  const [boardGroupModalInfo, setBoardGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
   const [boardLikes, setBoardLikes] = useState<Record<string, boolean>>({}); // postId → liked
 
   useEffect(() => {
@@ -733,6 +734,27 @@ const StudentLog = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isRejectModalOpen]);
+
+  useEffect(() => {
+    if (!boardSelectedPost || boardSelectedPost._type === 'obs' || !boardSelectedPost._isGroupSub) {
+      setBoardGroupModalInfo(null);
+      return;
+    }
+    const groupId = (boardSelectedPost._group || []).find((r: any) => r.group_id)?.group_id;
+    const fetchBoardGroupInfo = async () => {
+      if (groupId) {
+        const [{ data: groupData }, { data: members }] = await Promise.all([
+          supabase.from('class_groups').select('name').eq('id', groupId).single(),
+          supabase.from('class_group_members').select('student_id, students(full_name)').eq('group_id', groupId),
+        ]);
+        const memberNames = (members || []).map((m: any) => m.students?.full_name).filter(Boolean);
+        setBoardGroupModalInfo({ name: groupData?.name || '조별 제출', memberNames });
+      } else {
+        setBoardGroupModalInfo({ name: '조별 제출', memberNames: [] });
+      }
+    };
+    fetchBoardGroupInfo();
+  }, [boardSelectedPost]);
 
   const fetchMyGroup = async (studentId: string, classId: string) => {
     const { data: memberData } = await supabase
@@ -1687,22 +1709,34 @@ const StudentLog = () => {
         _type: 'obs' as const,
       }));
 
-      // submission_group 기준으로 그룹핑
-      // 조별 제출 시 RPC가 submission_group을 전파하지 못한 경우를 대비해
-      // group_id + week_number + 30분 시간 버킷을 보조 키로 사용
-      const boardGroupKey = (r: any): string => {
-        // 조별 제출은 submission_group 유무 관계없이 group_id 기반 키 우선 사용
-        if (r.is_group_submission && r.group_id) {
-          const bucket = Math.floor(new Date(r.created_at).getTime() / (1000 * 60 * 30));
-          return `g_${r.group_id}_w_${r.week_number ?? 0}_t_${bucket}`;
-        }
-        return r.submission_group || r.id;
+      // 2단계 그룹핑:
+      // Pass1: submission_group 또는 학생별 10분 시간버킷으로 1차 묶기
+      // Pass2: 조별 제출은 group_id + week + 30분 버킷으로 학생 간 병합
+      const boardPass1Key = (r: any): string => {
+        if (r.submission_group) return r.submission_group;
+        const b = Math.floor(new Date(r.created_at).getTime() / (1000 * 60 * 10));
+        return `s_${r.student_id}_w_${r.week_number ?? 0}_b_${b}`;
       };
-      const boardGroupMap: Record<string, any[]> = {};
+      const boardPass1: Record<string, any[]> = {};
       (results || []).forEach((r: any) => {
-        const key = boardGroupKey(r);
-        if (!boardGroupMap[key]) boardGroupMap[key] = [];
-        boardGroupMap[key].push(r);
+        const key = boardPass1Key(r);
+        if (!boardPass1[key]) boardPass1[key] = [];
+        boardPass1[key].push(r);
+      });
+      const boardGroupMap: Record<string, any[]> = {};
+      Object.values(boardPass1).forEach((group: any[]) => {
+        const rep = group[0];
+        const anyGroupId = group.find((r: any) => r.group_id)?.group_id;
+        const anyIsGroup = group.some((r: any) => r.is_group_submission);
+        let finalKey: string;
+        if (anyIsGroup && anyGroupId) {
+          const b = Math.floor(new Date(rep.created_at).getTime() / (1000 * 60 * 30));
+          finalKey = `g_${anyGroupId}_w_${rep.week_number ?? 0}_b_${b}`;
+        } else {
+          finalKey = boardPass1Key(rep);
+        }
+        if (!boardGroupMap[finalKey]) boardGroupMap[finalKey] = [];
+        boardGroupMap[finalKey].push(...group);
       });
 
       const resultPosts = Object.values(boardGroupMap).map((group: any[]) => {
@@ -5518,6 +5552,20 @@ ${guidePrompt}
                     <h2 className="text-base font-black leading-snug">
                       {isObs ? p.activity_name : p.title}
                     </h2>
+                    {/* 조별 제출 정보 */}
+                    {!isObs && p._isGroupSub && boardGroupModalInfo && (
+                      <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-indigo-50 border border-indigo-100">
+                        <span className="text-lg shrink-0">👥</span>
+                        <div>
+                          <p className="text-sm font-black text-indigo-700">{boardGroupModalInfo.name}</p>
+                          {boardGroupModalInfo.memberNames.length > 0 && (
+                            <p className="text-xs text-indigo-500 font-bold mt-0.5">
+                              {boardGroupModalInfo.memberNames.join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {isObs && p.content && (
                       <div className="space-y-1">
                         <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest">관찰 내용</p>
