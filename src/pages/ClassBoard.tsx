@@ -14,9 +14,7 @@ import {
   File,
   X,
   Download,
-  AlignLeft,
   Link2,
-  ImageIcon,
 } from 'lucide-react';
 
 const ClassBoard = () => {
@@ -68,7 +66,7 @@ const ClassBoard = () => {
           .limit(150),
         supabase
           .from('student_results')
-          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, submission_group, created_at')
+          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, submission_group, is_group_submission, created_at')
           .in('student_id', studentIds)
           .order('created_at', { ascending: false })
           .limit(300),
@@ -111,6 +109,9 @@ const ClassBoard = () => {
             file_url = urlData?.publicUrl || null;
           }
 
+          const uniqueStudentIds = new Set(group.map((r: any) => r.student_id));
+          const isGroupSub = group.some((r: any) => r.is_group_submission) || uniqueStudentIds.size > 1;
+
           return {
             ...rep,
             text_content: textItem?.text_content || null,
@@ -123,6 +124,7 @@ const ClassBoard = () => {
             _type: 'result' as const,
             _group: group,
             _types: [...new Set(group.map((r: any) => r.result_type))] as string[],
+            _isGroupSub: isGroupSub,
           };
         })
       );
@@ -302,13 +304,20 @@ const ClassBoard = () => {
                           </p>
                         </div>
                       </div>
-                      <span className={`shrink-0 text-[9px] font-black px-2 py-0.5 rounded-full ${
-                        isObs
-                          ? 'bg-violet-100 dark:bg-violet-700/40 text-violet-700 dark:text-violet-300'
-                          : 'bg-emerald-100 dark:bg-emerald-700/40 text-emerald-700 dark:text-emerald-300'
-                      }`}>
-                        {isObs ? '활동 기록' : '결과'}
-                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {!isObs && post._isGroupSub && (
+                          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
+                            조별
+                          </span>
+                        )}
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                          isObs
+                            ? 'bg-violet-100 dark:bg-violet-700/40 text-violet-700 dark:text-violet-300'
+                            : 'bg-emerald-100 dark:bg-emerald-700/40 text-emerald-700 dark:text-emerald-300'
+                        }`}>
+                          {isObs ? '활동 기록' : '결과'}
+                        </span>
+                      </div>
                     </div>
 
                     {/* 카드 내용 */}
@@ -323,27 +332,7 @@ const ClassBoard = () => {
                         <p className="text-[11px] text-on-surface-variant font-bold italic line-clamp-2">💬 {post.feeling}</p>
                       )}
                       {!isObs && (
-                        <>
-                          {/* 타입 뱃지 */}
-                          {post._types && post._types.length > 0 && (
-                            <div className="flex gap-1 flex-wrap">
-                              {(post._types as string[]).map((t: string) => {
-                                const cfg: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
-                                  text:  { icon: <AlignLeft size={10} />,  label: '텍스트', color: 'text-primary bg-primary/10' },
-                                  link:  { icon: <Link2 size={10} />,      label: '링크',   color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' },
-                                  image: { icon: <ImageIcon size={10} />,  label: '이미지', color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' },
-                                  file:  { icon: <File size={10} />,       label: '파일',   color: 'text-amber-500 bg-amber-50 dark:bg-amber-900/20' },
-                                };
-                                const c = cfg[t];
-                                if (!c) return null;
-                                return (
-                                  <span key={t} className={`flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-md ${c.color}`}>
-                                    {c.icon}{c.label}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          )}
+                        <div className="space-y-2">
                           {post.text_content && (
                             <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-5">{post.text_content}</p>
                           )}
@@ -361,19 +350,18 @@ const ClassBoard = () => {
                             />
                           )}
                           {post.link_url && (
-                            <div className="flex items-center gap-1.5 text-xs font-black text-blue-600 dark:text-blue-400">
-                              <ExternalLink size={11} />
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
+                              <ExternalLink size={11} className="shrink-0" />
                               <span className="truncate">{post.link_url}</span>
                             </div>
                           )}
                           {post.file_url && (
-                            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700/30">
-                              <File size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                              <span className="text-xs font-black text-amber-700 dark:text-amber-300 truncate flex-1">{post.display_name || '파일'}</span>
-                              <Download size={11} className="text-amber-500/60 shrink-0" />
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-on-surface-variant">
+                              <File size={11} className="shrink-0" />
+                              <span className="truncate">{post.display_name || '파일'}</span>
                             </div>
                           )}
-                        </>
+                        </div>
                       )}
                     </div>
                   </motion.div>
