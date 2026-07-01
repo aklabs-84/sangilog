@@ -2163,7 +2163,25 @@ const Classroom = () => {
                                 {m.type === 'link' ? <Link2 size={16} className="text-blue-600" /> : m.type === 'file' ? <File size={16} className="text-amber-600" /> : <NotebookPen size={16} className="text-violet-600" />}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-black">{m.title}</p>
+                                {m.type === 'file' && m.file_path ? (
+                                  <button
+                                    onClick={async () => {
+                                      const { data } = supabase.storage.from('student-attachments').getPublicUrl(m.file_path);
+                                      const fileName = (m.file_name || '').toLowerCase();
+                                      if (fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+                                        const res = await fetch(data.publicUrl);
+                                        const text = await res.text();
+                                        const blob = new Blob([text], { type: 'text/html' });
+                                        window.open(URL.createObjectURL(blob), '_blank');
+                                      } else {
+                                        window.open(data.publicUrl, '_blank');
+                                      }
+                                    }}
+                                    className="text-sm font-black hover:text-amber-600 transition-colors truncate block text-left"
+                                  >{m.title}</button>
+                                ) : (
+                                  <p className="text-sm font-black">{m.title}</p>
+                                )}
                                 {m.type === 'link' && m.url && (
                                   <a href={m.url} target="_blank" rel="noopener noreferrer"
                                     className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline mt-1 truncate">
