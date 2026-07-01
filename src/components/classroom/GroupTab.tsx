@@ -87,7 +87,14 @@ const GroupTab = ({ classId, students, onGroupsChanged }: GroupTabProps) => {
       .select()
       .single();
     setAddLoading(false);
-    if (error) { alert(error.message); return; }
+    if (error) {
+      if (error.code === '23505') {
+        alert(`'${name}' 이름의 조가 이미 있습니다. 다른 이름을 사용해주세요.`);
+      } else {
+        alert('조 생성 중 오류가 발생했습니다.');
+      }
+      return;
+    }
     setGroups(prev => [...prev, data]);
     setNewName('');
     setAdding(false);

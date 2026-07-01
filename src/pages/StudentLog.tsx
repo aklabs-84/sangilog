@@ -1709,10 +1709,7 @@ const StudentLog = () => {
         if (imageItem?.storage_path) {
           const { data: orig } = supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path);
           image_original_url = orig?.publicUrl || null;
-          const { data: thumb } = supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path, {
-            transform: { width: 600, quality: 70 },
-          });
-          image_url = thumb?.publicUrl || image_original_url;
+          image_url = image_original_url;
         }
         if (fileItem?.storage_path) {
           const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(fileItem.storage_path);
