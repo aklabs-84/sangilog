@@ -882,37 +882,39 @@ const MaterialEditor = () => {
             materials.map(material => (
               <div key={material.id} className="bg-white rounded-2xl border border-surface-container overflow-hidden transition-all hover:border-primary/20 hover:shadow-sm">
                 {/* 자료 헤더 */}
-                <div className="flex items-center gap-3 p-4">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                    material.is_published ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-container text-on-surface-variant'
-                  }`}>
-                    <BookOpen size={16} />
-                  </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      material.is_published ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-container text-on-surface-variant'
+                    }`}>
+                      <BookOpen size={16} />
+                    </div>
 
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black text-sm truncate">{material.title}</p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      {material.is_published
-                        ? <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">● 공개 중</span>
-                        : <span className="text-[10px] font-black text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">● 비공개</span>
-                      }
-                      {material.content && <span className="text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>}
-                      {(material.view_count ?? 0) > 0 && (
-                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Users size={9} /> {material.view_count}명 열람
-                        </span>
-                      )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-sm truncate">{material.title}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        {material.is_published
+                          ? <span className="shrink-0 whitespace-nowrap text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">● 공개 중</span>
+                          : <span className="shrink-0 whitespace-nowrap text-[10px] font-black text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">● 비공개</span>
+                        }
+                        {material.content && <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-primary/60 bg-primary/5 px-2 py-0.5 rounded-full">📝 내용 있음</span>}
+                        {(material.view_count ?? 0) > 0 && (
+                          <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Users size={9} /> {material.view_count}명 열람
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* 액션 버튼들 */}
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 flex-wrap shrink-0 sm:justify-end">
                     {/* 발표 모드 */}
                     {material.content && (
                       <button
                         onClick={() => setPresentingMaterial(material)}
                         title="전체화면 발표 모드"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors"
+                        className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors"
                       >
                         <Presentation size={13} /> 발표
                       </button>
@@ -921,7 +923,7 @@ const MaterialEditor = () => {
                     <button
                       onClick={() => setExpandedId(expandedId === material.id ? null : material.id)}
                       title="내용 미리보기"
-                      className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
+                      className="shrink-0 p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
                     >
                       {expandedId === material.id ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
@@ -929,7 +931,7 @@ const MaterialEditor = () => {
                     <button
                       onClick={() => handleTogglePublish(material)}
                       title={material.is_published ? '비공개로 전환' : '학생에게 공개'}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                      className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
                         material.is_published
                           ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                           : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
@@ -944,7 +946,7 @@ const MaterialEditor = () => {
                     <button
                       onClick={() => handleCopy(material)}
                       title="다른 주차로 복사"
-                      className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
+                      className="shrink-0 p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
                     >
                       <Copy size={15} />
                     </button>
@@ -952,7 +954,7 @@ const MaterialEditor = () => {
                     <button
                       onClick={() => handleEdit(material)}
                       title="수정"
-                      className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
+                      className="shrink-0 p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
                     >
                       <Pencil size={15} />
                     </button>
@@ -960,7 +962,7 @@ const MaterialEditor = () => {
                     <button
                       onClick={() => handleDelete(material.id)}
                       title="삭제"
-                      className="p-2 rounded-xl text-red-400 hover:bg-red-50 transition-colors"
+                      className="shrink-0 p-2 rounded-xl text-red-400 hover:bg-red-50 transition-colors"
                     >
                       <Trash2 size={15} />
                     </button>
