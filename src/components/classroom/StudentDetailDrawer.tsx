@@ -144,16 +144,51 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
     if (!feedbackResultId || !resultFeedback.trim()) return;
     setSavingResultFeedback(true);
     try {
+      const groupItems = results.filter(r => (r.submission_group || r.id) === feedbackResultId);
+      const firstItem = groupItems[0];
+      const feedback = resultFeedback.trim();
       await supabase.from('student_results').update({
-        teacher_feedback: resultFeedback.trim(),
-      }).eq('id', feedbackResultId);
+        teacher_feedback: feedback,
+      }).eq(firstItem?.submission_group ? 'submission_group' : 'id', feedbackResultId);
       setResults(prev => prev.map(r =>
-        r.id === feedbackResultId ? { ...r, teacher_feedback: resultFeedback.trim() } : r
+        (r.submission_group || r.id) === feedbackResultId ? { ...r, teacher_feedback: feedback } : r
       ));
+      if (studentId) {
+        const classId = fromClassId || student?.class_id;
+        const { error: notifErr } = await supabase.from('student_notifications').insert({
+          student_id: studentId,
+          class_id: classId,
+          title: '결과 제출에 선생님 피드백이 도착했습니다',
+          content: `"${firstItem?.title || '결과 제출'}" — ${feedback}`,
+          type: 'feedback',
+          is_read: false,
+        });
+        if (notifErr) console.error('student_notifications insert error (result feedback):', notifErr);
+      }
       setFeedbackResultId(null);
       setResultFeedback('');
     } catch (err) {
       console.error('Result feedback error:', err);
+    } finally {
+      setSavingResultFeedback(false);
+    }
+  };
+
+  const handleDeleteResultFeedback = async (groupId: string) => {
+    setSavingResultFeedback(true);
+    try {
+      const groupItems = results.filter(r => (r.submission_group || r.id) === groupId);
+      const firstItem = groupItems[0];
+      await supabase.from('student_results').update({
+        teacher_feedback: null,
+      }).eq(firstItem?.submission_group ? 'submission_group' : 'id', groupId);
+      setResults(prev => prev.map(r =>
+        (r.submission_group || r.id) === groupId ? { ...r, teacher_feedback: null } : r
+      ));
+      setFeedbackResultId(null);
+      setResultFeedback('');
+    } catch (err) {
+      console.error('Result feedback delete error:', err);
     } finally {
       setSavingResultFeedback(false);
     }
@@ -522,7 +557,10 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                       <FolderOpen size={14} /> 결과 제출
                     </h4>
                     <span className="text-xs font-black text-on-surface-variant/70 bg-surface-container px-2 py-0.5 rounded-md">
-                      {results.length}건
+                      {(() => {
+                        const keys = new Set(results.map(r => r.submission_group || r.id));
+                        return keys.size;
+                      })()}건
                     </span>
                   </div>
 
@@ -532,108 +570,147 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                     <div className="p-4 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
                       <p className="text-xs font-bold text-neutral-400">제출된 결과물이 없습니다.</p>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {results.map(r => {
-                        const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
-                          text:  { icon: <AlignLeft size={13} />,  color: 'text-primary bg-primary/10',     label: '텍스트' },
-                          link:  { icon: <Link2 size={13} />,      color: 'text-blue-500 bg-blue-50',       label: '링크' },
-                          image: { icon: <ImageIcon size={13} />,  color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
-                          file:  { icon: <File size={13} />,       color: 'text-amber-500 bg-amber-50',     label: '파일' }
-                        };
-                        const cfg = typeConfig[r.result_type] || typeConfig.file;
-                        const publicUrl = r.storage_path
-                          ? supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data.publicUrl
-                          : null;
+                  ) : (() => {
+                    const typeConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+                      text:  { icon: <AlignLeft size={13} />,  color: 'text-primary bg-primary/10',     label: '텍스트' },
+                      link:  { icon: <Link2 size={13} />,      color: 'text-blue-500 bg-blue-50',       label: '링크' },
+                      image: { icon: <ImageIcon size={13} />,  color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
+                      file:  { icon: <File size={13} />,       color: 'text-amber-500 bg-amber-50',     label: '파일' }
+                    };
+                    const groups: Record<string, any[]> = {};
+                    results.forEach(r => {
+                      const key = r.submission_group || r.id;
+                      if (!groups[key]) groups[key] = [];
+                      groups[key].push(r);
+                    });
+                    const groupedEntries = Object.entries(groups).sort(([, a], [, b]) =>
+                      new Date(b[0].created_at).getTime() - new Date(a[0].created_at).getTime()
+                    );
 
-                        return (
-                          <div key={r.id} className="p-3.5 bg-white rounded-xl border border-neutral-100 hover:border-primary/20 transition-colors group">
-                            <div className="flex items-start gap-3">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cfg.color}`}>
-                                {cfg.icon}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                                  {r.title && <span className="font-black text-xs text-on-surface">{r.title}</span>}
-                                  <span className={`text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${cfg.color}`}>
-                                    {cfg.label}
-                                  </span>
+                    return (
+                      <div className="space-y-2">
+                        {groupedEntries.map(([groupId, groupItems]) => {
+                          const firstItem = groupItems[0];
+                          const title = groupItems.find(r => r.title)?.title;
+                          const textItem = groupItems.find(r => r.result_type === 'text');
+                          const linkItem = groupItems.find(r => r.result_type === 'link');
+                          const imageItem = groupItems.find(r => r.result_type === 'image');
+                          const fileItem = groupItems.find(r => r.result_type === 'file');
+                          const types = [...new Set(groupItems.map(r => r.result_type as string))];
+                          const teacherFeedback = groupItems.find(r => r.teacher_feedback)?.teacher_feedback;
+                          const imagePublicUrl = imageItem?.storage_path
+                            ? supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path).data.publicUrl
+                            : null;
+
+                          return (
+                            <div key={groupId} className="p-3.5 bg-white rounded-xl border border-neutral-100 hover:border-primary/20 transition-colors group">
+                              <div className="flex items-start gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                                    {title && <span className="font-black text-xs text-on-surface w-full">{title}</span>}
+                                    {types.map(type => {
+                                      const cfg = typeConfig[type] || typeConfig.file;
+                                      return (
+                                        <span key={type} className={`flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded ${cfg.color}`}>
+                                          {cfg.icon}{cfg.label}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                  {textItem?.text_content && (
+                                    <p className="text-xs font-medium text-on-surface/80 line-clamp-2 leading-relaxed mb-1">{textItem.text_content}</p>
+                                  )}
+                                  {linkItem?.link_url && (
+                                    <a href={linkItem.link_url} target="_blank" rel="noopener noreferrer"
+                                      className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 truncate mb-1">
+                                      <ExternalLink size={10} />{linkItem.link_url}
+                                    </a>
+                                  )}
+                                  {imageItem && imagePublicUrl && (
+                                    <div className="flex items-center gap-2 mt-1 mb-1">
+                                      <img
+                                        src={imagePublicUrl}
+                                        alt={title || '이미지'}
+                                        className="max-h-20 rounded-lg object-cover cursor-pointer hover:opacity-80"
+                                        onClick={() => window.open(imagePublicUrl, '_blank')}
+                                      />
+                                      <button
+                                        onClick={() => handleDownloadResult(imageItem)}
+                                        title="다운로드"
+                                        className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                      >
+                                        <Upload size={12} className="rotate-180" />
+                                      </button>
+                                    </div>
+                                  )}
+                                  {fileItem && (
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-xs font-bold text-amber-600 flex items-center gap-1 mt-0.5">
+                                        <File size={10} />{fileItem.display_name}
+                                        {fileItem.file_size ? ` (${formatFileSize(fileItem.file_size)})` : ''}
+                                      </p>
+                                      <button
+                                        onClick={() => handleDownloadResult(fileItem)}
+                                        title="다운로드"
+                                        className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                      >
+                                        <Upload size={12} className="rotate-180" />
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
-                                {r.text_content && (
-                                  <p className="text-xs font-medium text-on-surface/80 line-clamp-2 leading-relaxed">{r.text_content}</p>
-                                )}
-                                {r.link_url && (
-                                  <a href={r.link_url} target="_blank" rel="noopener noreferrer"
-                                    className="text-xs font-bold text-blue-500 hover:underline flex items-center gap-1 truncate">
-                                    <ExternalLink size={10} />{r.link_url}
-                                  </a>
-                                )}
-                                {r.result_type === 'image' && publicUrl && (
-                                  <img
-                                    src={publicUrl}
-                                    alt={r.title || '이미지'}
-                                    className="max-h-20 rounded-lg object-cover mt-1.5 cursor-pointer hover:opacity-80"
-                                    onClick={() => window.open(publicUrl, '_blank')}
-                                  />
-                                )}
-                                {r.result_type === 'file' && (
-                                  <p className="text-xs font-bold text-amber-600 flex items-center gap-1 mt-0.5">
-                                    <File size={10} />{r.display_name}
-                                    {r.file_size ? ` (${formatFileSize(r.file_size)})` : ''}
-                                  </p>
-                                )}
                               </div>
-                              {(r.result_type === 'image' || r.result_type === 'file') && r.storage_path && (
+                              {/* 기존 피드백 표시 */}
+                              {teacherFeedback && (
+                                <div className="mt-2 flex items-start justify-between gap-2 bg-indigo-50 rounded-lg px-2 py-1">
+                                  <p className="text-xs font-bold text-indigo-600 flex-1">
+                                    💬 선생님 피드백: {teacherFeedback}
+                                  </p>
+                                  <button
+                                    onClick={() => handleDeleteResultFeedback(groupId)}
+                                    disabled={savingResultFeedback}
+                                    className="text-[10px] font-black text-indigo-400 hover:text-red-500 transition-colors shrink-0"
+                                  >
+                                    삭제
+                                  </button>
+                                </div>
+                              )}
+                              {/* 피드백 버튼 / 인라인 입력 */}
+                              {feedbackResultId === groupId ? (
+                                <div className="mt-2 space-y-1.5">
+                                  <textarea
+                                    value={resultFeedback}
+                                    onChange={e => setResultFeedback(e.target.value)}
+                                    placeholder="피드백 내용을 입력하세요..."
+                                    className="w-full text-xs p-2.5 border border-indigo-200 rounded-xl resize-none bg-indigo-50 focus:outline-none focus:border-indigo-400"
+                                    rows={2}
+                                    autoFocus
+                                  />
+                                  <div className="flex gap-1.5">
+                                    <button onClick={handleSaveResultFeedback} disabled={savingResultFeedback || !resultFeedback.trim()}
+                                      className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-black disabled:opacity-50 transition-all">
+                                      {savingResultFeedback ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 전송
+                                    </button>
+                                    <button onClick={() => { setFeedbackResultId(null); setResultFeedback(''); }}
+                                      className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-200 transition-all">
+                                      취소
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
                                 <button
-                                  onClick={() => handleDownloadResult(r)}
-                                  title="다운로드"
-                                  className="w-7 h-7 rounded-lg bg-surface-container hover:bg-primary/10 hover:text-primary flex items-center justify-center text-on-surface-variant transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                  onClick={() => { setFeedbackResultId(groupId); setResultFeedback(firstItem.teacher_feedback || teacherFeedback || ''); }}
+                                  className="mt-1.5 flex items-center gap-1 text-xs font-black text-indigo-500 hover:text-indigo-600 transition-colors"
                                 >
-                                  <Upload size={12} className="rotate-180" />
+                                  <MessageCircle size={10} /> {teacherFeedback ? '피드백 수정' : '피드백 남기기'}
                                 </button>
                               )}
                             </div>
-                            {/* 기존 피드백 표시 */}
-                            {r.teacher_feedback && (
-                              <p className="mt-2 text-xs font-bold text-indigo-600 bg-indigo-50 rounded-lg px-2 py-1">
-                                💬 선생님 피드백: {r.teacher_feedback}
-                              </p>
-                            )}
-                            {/* 피드백 버튼 / 인라인 입력 */}
-                            {feedbackResultId === r.id ? (
-                              <div className="mt-2 space-y-1.5">
-                                <textarea
-                                  value={resultFeedback}
-                                  onChange={e => setResultFeedback(e.target.value)}
-                                  placeholder="피드백 내용을 입력하세요..."
-                                  className="w-full text-xs p-2.5 border border-indigo-200 rounded-xl resize-none bg-indigo-50 focus:outline-none focus:border-indigo-400"
-                                  rows={2}
-                                  autoFocus
-                                />
-                                <div className="flex gap-1.5">
-                                  <button onClick={handleSaveResultFeedback} disabled={savingResultFeedback || !resultFeedback.trim()}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-black disabled:opacity-50 transition-all">
-                                    {savingResultFeedback ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} 전송
-                                  </button>
-                                  <button onClick={() => { setFeedbackResultId(null); setResultFeedback(''); }}
-                                    className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-xs font-black hover:bg-neutral-200 transition-all">
-                                    취소
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => { setFeedbackResultId(r.id); setResultFeedback(r.teacher_feedback || ''); }}
-                                className="mt-1.5 flex items-center gap-1 text-xs font-black text-indigo-500 hover:text-indigo-600 transition-colors"
-                              >
-                                <MessageCircle size={10} /> {r.teacher_feedback ? '피드백 수정' : '피드백 남기기'}
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* 건의사항 */}

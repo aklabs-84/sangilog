@@ -45,6 +45,11 @@ const StudentView = () => {
   const [rejectFeedback, setRejectFeedback] = useState('');
   const [processingGroupId, setProcessingGroupId] = useState<string | null>(null);
 
+  // Result Feedback States (반려 아닌 일반 피드백)
+  const [feedbackGroupId, setFeedbackGroupId] = useState<string | null>(null);
+  const [resultFeedbackText, setResultFeedbackText] = useState('');
+  const [savingResultFeedback, setSavingResultFeedback] = useState(false);
+
   // Obs Reject States
   const [obsRejectModal, setObsRejectModal] = useState<{ obsId: string } | null>(null);
   const [obsRejectFeedback, setObsRejectFeedback] = useState('');
@@ -311,6 +316,86 @@ const StudentView = () => {
       showToast('처리 중 오류가 발생했습니다.', 'error');
     } finally {
       setProcessingGroupId(null);
+    }
+  };
+
+  const handleSaveResultFeedback = async (groupId: string) => {
+    const feedback = resultFeedbackText.trim();
+    if (!feedback) return;
+    setSavingResultFeedback(true);
+    try {
+      const groupItems = results.filter((r: any) => (r.submission_group || r.id) === groupId);
+      const firstItem = groupItems[0];
+      if (firstItem?.submission_group) {
+        await supabase.from('student_results')
+          .update({ teacher_feedback: feedback })
+          .eq('submission_group', groupId)
+          .eq('student_id', id!);
+      } else {
+        await supabase.from('student_results')
+          .update({ teacher_feedback: feedback })
+          .eq('id', groupId);
+      }
+      setResults((prev: any[]) => prev.map((r: any) =>
+        (r.submission_group || r.id) === groupId ? { ...r, teacher_feedback: feedback } : r
+      ));
+      setSelectedResult((prev: any) =>
+        prev && (prev.submission_group || prev.id) === groupId
+          ? { ...prev, teacher_feedback: feedback }
+          : prev
+      );
+      const classId = fromClassId || student?.class_id;
+      if (id && classId) {
+        const { error: notifErr } = await supabase.from('student_notifications').insert({
+          student_id: id,
+          class_id: classId,
+          title: '결과 제출에 선생님 피드백이 도착했습니다',
+          content: `"${firstItem?.title || '결과 제출'}" — ${feedback}`,
+          type: 'feedback',
+          is_read: false,
+        });
+        if (notifErr) console.error('student_notifications insert error (result feedback):', notifErr);
+      }
+      setFeedbackGroupId(null);
+      setResultFeedbackText('');
+      showToast('피드백이 저장되었습니다.');
+    } catch {
+      showToast('피드백 저장 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSavingResultFeedback(false);
+    }
+  };
+
+  const handleDeleteResultFeedback = async (groupId: string) => {
+    setSavingResultFeedback(true);
+    try {
+      const groupItems = results.filter((r: any) => (r.submission_group || r.id) === groupId);
+      const firstItem = groupItems[0];
+      if (firstItem?.submission_group) {
+        await supabase.from('student_results')
+          .update({ teacher_feedback: null })
+          .eq('submission_group', groupId)
+          .eq('student_id', id!);
+      } else {
+        await supabase.from('student_results')
+          .update({ teacher_feedback: null })
+          .eq('id', groupId);
+      }
+      setResults((prev: any[]) => prev.map((r: any) =>
+        (r.submission_group || r.id) === groupId ? { ...r, teacher_feedback: null } : r
+      ));
+      setSelectedResult((prev: any) =>
+        prev && (prev.submission_group || prev.id) === groupId
+          ? { ...prev, teacher_feedback: null }
+          : prev
+      );
+      setFeedbackGroupId(null);
+      setResultFeedbackText('');
+      showToast('피드백이 삭제되었습니다.');
+    } catch {
+      showToast('피드백 삭제 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSavingResultFeedback(false);
     }
   };
 
@@ -1034,6 +1119,11 @@ const StudentView = () => {
                           {'★'.repeat(evalForms[groupId].score)}<span className="text-[8px] text-amber-400/60 ml-0.5">평가됨</span>
                         </span>
                       )}
+                      {firstItem.teacher_feedback && (
+                        <span className="flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-600 border border-indigo-200">
+                          <MessageSquare size={9} /> 피드백
+                        </span>
+                      )}
                     </div>
 
                     {/* 내용 미리보기 */}
@@ -1750,6 +1840,75 @@ const StudentView = () => {
                     </div>
                   </div>
                 )}
+
+                {/* 선생님 피드백 (반려 아닌 일반 피드백) */}
+                {(() => {
+                  const gId = selectedResult.groupId || selectedResult.submission_group || selectedResult.id;
+                  const isEditing = feedbackGroupId === gId;
+                  return (
+                    <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-black text-indigo-600 flex items-center gap-1.5">
+                          <MessageSquare size={13} /> 선생님 피드백
+                        </p>
+                        {!isEditing && selectedResult.teacher_feedback && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => { setFeedbackGroupId(gId); setResultFeedbackText(selectedResult.teacher_feedback || ''); }}
+                              className="p-1.5 rounded-lg hover:bg-indigo-100 text-indigo-500 transition-colors"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteResultFeedback(gId)}
+                              disabled={savingResultFeedback}
+                              className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 transition-colors"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={resultFeedbackText}
+                            onChange={e => setResultFeedbackText(e.target.value)}
+                            placeholder="이 결과물에 대한 피드백을 입력하세요. 저장 시 학생에게 알림이 전달됩니다."
+                            rows={3}
+                            autoFocus
+                            className="w-full px-4 py-3 bg-white rounded-xl text-sm border border-indigo-200 focus:border-indigo-400 focus:outline-none resize-none transition-all"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleSaveResultFeedback(gId)}
+                              disabled={savingResultFeedback || !resultFeedbackText.trim()}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-black transition-all disabled:opacity-50"
+                            >
+                              {savingResultFeedback ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                              저장
+                            </button>
+                            <button
+                              onClick={() => { setFeedbackGroupId(null); setResultFeedbackText(''); }}
+                              className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-500 rounded-xl text-xs font-black transition-all"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : selectedResult.teacher_feedback ? (
+                        <p className="text-sm font-bold text-indigo-700 leading-relaxed">{selectedResult.teacher_feedback}</p>
+                      ) : (
+                        <button
+                          onClick={() => { setFeedbackGroupId(gId); setResultFeedbackText(''); }}
+                          className="text-xs font-black text-indigo-500 hover:text-indigo-600 transition-colors"
+                        >
+                          피드백 남기기 +
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
               {/* 모달 액션 푸터 */}
               <div className="px-8 pb-6 pt-4 border-t border-neutral-100 flex gap-3">

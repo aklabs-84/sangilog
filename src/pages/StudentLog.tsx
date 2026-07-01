@@ -2789,6 +2789,7 @@ ${guidePrompt}
                   _isGroupSubmission: group.some((r: any) => r.is_group_submission),
                   _groupStatus: hasRejected ? 'rejected' : allApproved ? 'approved' : 'pending',
                   _rejectionFeedback: group.find((r: any) => r.rejection_feedback)?.rejection_feedback,
+                  _teacherFeedback: group.find((r: any) => r.teacher_feedback)?.teacher_feedback,
                 };
               }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -3075,6 +3076,15 @@ ${guidePrompt}
                                 >
                                   <RefreshCw size={10} /> 수정 후 재제출
                                 </button>
+                              </div>
+                            )}
+                            {/* 선생님 피드백 (반려 아닌 일반 피드백) */}
+                            {r._groupStatus !== 'rejected' && r._teacherFeedback && (
+                              <div className="mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-2xl">
+                                <p className="text-[10px] font-black text-indigo-500 mb-1 flex items-center gap-1">
+                                  <MessageSquare size={11} /> 선생님 피드백
+                                </p>
+                                <p className="text-xs font-bold text-indigo-700 leading-relaxed">{r._teacherFeedback}</p>
                               </div>
                             )}
                             {/* 수정/삭제 버튼 */}
@@ -5446,6 +5456,15 @@ ${guidePrompt}
                             </div>
                           )}
                         </>
+                      )}
+                      {/* 선생님 피드백 (반려 아닌 일반 피드백) */}
+                      {detailItem._teacherFeedback && (
+                        <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl">
+                          <p className="text-[10px] font-black text-indigo-500 mb-1.5 flex items-center gap-1">
+                            <MessageSquare size={12} /> 선생님 피드백
+                          </p>
+                          <p className="text-sm font-bold text-indigo-700 leading-relaxed">{detailItem._teacherFeedback}</p>
+                        </div>
                       )}
                     </>
                   )}
