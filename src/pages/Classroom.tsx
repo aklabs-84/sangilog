@@ -197,7 +197,7 @@ const Classroom = () => {
   // 선생님 전용 자료 상태
   const [privateMatList, setPrivateMatList] = useState<any[]>([]);
   const [privateMatLoading, setPrivateMatLoading] = useState(false);
-  const [privateMatForm, setPrivateMatForm] = useState({ title: '', content: '', type: 'note' as 'note' | 'link', url: '' });
+  const [privateMatForm, setPrivateMatForm] = useState<{ title: string; content: string; type: 'note' | 'link' | 'file'; url: string; file: File | null }>({ title: '', content: '', type: 'note', url: '', file: null });
   const [showPrivateMatForm, setShowPrivateMatForm] = useState(false);
   const [savingPrivateMat, setSavingPrivateMat] = useState(false);
   const [deletingPrivateMatId, setDeletingPrivateMatId] = useState<string | null>(null);
@@ -1347,8 +1347,23 @@ const Classroom = () => {
     if (!activeClassId || !user) return;
     if (!privateMatForm.title.trim()) { showToast('제목을 입력해주세요.'); return; }
     if (privateMatForm.type === 'link' && !privateMatForm.url.trim()) { showToast('링크 URL을 입력해주세요.'); return; }
+    if (privateMatForm.type === 'file' && !privateMatForm.file) { showToast('파일을 선택해주세요.'); return; }
     setSavingPrivateMat(true);
     try {
+      let filePath: string | null = null;
+      let fileName: string | null = null;
+      let fileSize: number | null = null;
+
+      if (privateMatForm.type === 'file' && privateMatForm.file) {
+        const ext = privateMatForm.file.name.split('.').pop() || '';
+        const path = `private-materials/${activeClassId}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('student-attachments').upload(path, privateMatForm.file);
+        if (upErr) throw upErr;
+        filePath = path;
+        fileName = privateMatForm.file.name;
+        fileSize = privateMatForm.file.size;
+      }
+
       const { error } = await supabase.from('teacher_private_materials').insert({
         class_id: activeClassId,
         teacher_id: user.id,
@@ -1356,9 +1371,12 @@ const Classroom = () => {
         content: privateMatForm.type === 'note' ? privateMatForm.content.trim() : '',
         type: privateMatForm.type,
         url: privateMatForm.type === 'link' ? privateMatForm.url.trim() : null,
+        file_path: filePath,
+        file_name: fileName,
+        file_size: fileSize,
       });
       if (error) throw error;
-      setPrivateMatForm({ title: '', content: '', type: 'note', url: '' });
+      setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null });
       setShowPrivateMatForm(false);
       await fetchPrivateMaterials(activeClassId);
       showToast('자료가 등록되었습니다.');
@@ -1370,9 +1388,12 @@ const Classroom = () => {
     }
   };
 
-  const handleDeletePrivateMat = async (id: string) => {
+  const handleDeletePrivateMat = async (id: string, filePath?: string | null) => {
     setDeletingPrivateMatId(id);
     try {
+      if (filePath) {
+        await supabase.storage.from('student-attachments').remove([filePath]);
+      }
       await supabase.from('teacher_private_materials').delete().eq('id', id);
       setPrivateMatList(prev => prev.filter(m => m.id !== id));
       showToast('자료가 삭제되었습니다.');
@@ -2053,10 +2074,10 @@ const Classroom = () => {
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
                       className="p-5 bg-violet-50 border border-violet-200 rounded-3xl space-y-3">
                       <div className="flex gap-2">
-                        {(['note', 'link'] as const).map(t => (
-                          <button key={t} onClick={() => setPrivateMatForm(f => ({ ...f, type: t }))}
+                        {(['note', 'link', 'file'] as const).map(t => (
+                          <button key={t} onClick={() => setPrivateMatForm(f => ({ ...f, type: t, file: null }))}
                             className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${privateMatForm.type === t ? 'bg-violet-600 text-white' : 'bg-white text-on-surface-variant border border-violet-200 hover:bg-violet-100'}`}>
-                            {t === 'note' ? '📝 노트' : '🔗 링크'}
+                            {t === 'note' ? '📝 노트' : t === 'link' ? '🔗 링크' : '📎 파일'}
                           </button>
                         ))}
                       </div>
@@ -2074,16 +2095,24 @@ const Classroom = () => {
                           rows={5}
                           className="w-full px-4 py-3 rounded-2xl border border-violet-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-400 placeholder:font-normal resize-none"
                         />
-                      ) : (
+                      ) : privateMatForm.type === 'link' ? (
                         <input
                           value={privateMatForm.url}
                           onChange={e => setPrivateMatForm(f => ({ ...f, url: e.target.value }))}
                           placeholder="https://..."
                           className="w-full px-4 py-3 rounded-2xl border border-violet-200 bg-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-violet-400 placeholder:font-normal"
                         />
+                      ) : (
+                        <label className="flex flex-col items-center gap-2 p-4 bg-white border-2 border-dashed border-violet-200 rounded-2xl cursor-pointer hover:border-violet-400 transition-all">
+                          <Upload size={20} className="text-violet-400" />
+                          <span className="text-xs font-black text-neutral-500">
+                            {privateMatForm.file ? privateMatForm.file.name : '파일 선택 (PDF, PPT, HWP 등)'}
+                          </span>
+                          <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setPrivateMatForm(prev => ({ ...prev, file: f })); }} />
+                        </label>
                       )}
                       <div className="flex gap-2 justify-end">
-                        <button onClick={() => { setShowPrivateMatForm(false); setPrivateMatForm({ title: '', content: '', type: 'note', url: '' }); }}
+                        <button onClick={() => { setShowPrivateMatForm(false); setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null }); }}
                           className="px-4 py-2 rounded-xl text-sm font-black text-on-surface-variant hover:bg-violet-100 transition-all">취소</button>
                         <button onClick={handleAddPrivateMat} disabled={savingPrivateMat}
                           className="flex items-center gap-2 px-5 py-2 rounded-xl bg-violet-600 text-white text-sm font-black hover:bg-violet-700 transition-all disabled:opacity-50">
@@ -2112,8 +2141,8 @@ const Classroom = () => {
                           className="p-5 rounded-3xl border border-violet-200 bg-white">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 flex-1 min-w-0">
-                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${m.type === 'link' ? 'bg-blue-100' : 'bg-violet-100'}`}>
-                                {m.type === 'link' ? <Link2 size={16} className="text-blue-600" /> : <NotebookPen size={16} className="text-violet-600" />}
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${m.type === 'link' ? 'bg-blue-100' : m.type === 'file' ? 'bg-amber-100' : 'bg-violet-100'}`}>
+                                {m.type === 'link' ? <Link2 size={16} className="text-blue-600" /> : m.type === 'file' ? <File size={16} className="text-amber-600" /> : <NotebookPen size={16} className="text-violet-600" />}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-black">{m.title}</p>
@@ -2122,6 +2151,9 @@ const Classroom = () => {
                                     className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline mt-1 truncate">
                                     <ExternalLink size={11} />{m.url}
                                   </a>
+                                )}
+                                {m.type === 'file' && m.file_name && (
+                                  <p className="text-[10px] text-on-surface-variant/50 mt-1 truncate">{m.file_name}</p>
                                 )}
                                 {m.type === 'note' && m.content && (
                                   <button
@@ -2140,12 +2172,33 @@ const Classroom = () => {
                                 </p>
                               </div>
                             </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {m.type === 'file' && m.file_path && (
+                                <button
+                                  onClick={async () => {
+                                    const { data } = supabase.storage.from('student-attachments').getPublicUrl(m.file_path);
+                                    const res = await fetch(data.publicUrl);
+                                    const blob = await res.blob();
+                                    const blobUrl = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = blobUrl;
+                                    a.download = m.file_name || m.title;
+                                    a.click();
+                                    URL.revokeObjectURL(blobUrl);
+                                  }}
+                                  className="p-2 rounded-xl text-amber-600 hover:bg-amber-100 transition-all"
+                                  title="다운로드"
+                                >
+                                  <Download size={13} />
+                                </button>
+                              )}
                             <button
-                              onClick={() => handleDeletePrivateMat(m.id)}
+                              onClick={() => handleDeletePrivateMat(m.id, m.file_path)}
                               disabled={deletingPrivateMatId === m.id}
-                              className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-red-100 hover:text-red-500 transition-all shrink-0">
+                              className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-red-100 hover:text-red-500 transition-all">
                               {deletingPrivateMatId === m.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                             </button>
+                            </div>
                           </div>
                         </motion.div>
                       ))}
