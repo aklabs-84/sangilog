@@ -124,6 +124,7 @@ const SubjectDashboard = ({
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedActivityWeek, setSelectedActivityWeek] = useState<number | null>(null);
   const [activityTab, setActivityTab] = useState<'obs' | 'results'>('obs');
+  const [mobileStatusTab, setMobileStatusTab] = useState<'submitted' | 'notSubmitted'>('submitted');
 
   // 결과물 상세 (삭제/반려)
   const [resultDetailStudent, setResultDetailStudent] = useState<any>(null);
@@ -1255,6 +1256,7 @@ const SubjectDashboard = ({
           setShowActivityModal(false);
           setSelectedActivityWeek(null);
           setActivityTab('obs');
+          setMobileStatusTab('submitted');
         };
 
         const tabColor = activityTab === 'obs' ? 'violet' : 'emerald';
@@ -1364,11 +1366,35 @@ const SubjectDashboard = ({
                 </div>
               )}
 
+              {/* 모바일 전용: 제출완료/미제출 서브탭 */}
+              <div className="sm:hidden flex border-b border-neutral-100">
+                <button
+                  onClick={() => setMobileStatusTab('submitted')}
+                  className={`flex-1 py-3 text-xs font-black transition-all border-b-2 ${
+                    mobileStatusTab === 'submitted'
+                      ? tabColor === 'violet' ? 'text-violet-600 border-violet-600' : 'text-emerald-600 border-emerald-600'
+                      : 'text-neutral-400 border-transparent'
+                  }`}
+                >
+                  ✓ 제출 완료 ({submitted.length})
+                </button>
+                <button
+                  onClick={() => setMobileStatusTab('notSubmitted')}
+                  className={`flex-1 py-3 text-xs font-black transition-all border-b-2 ${
+                    mobileStatusTab === 'notSubmitted'
+                      ? 'text-amber-600 border-amber-600'
+                      : 'text-neutral-400 border-transparent'
+                  }`}
+                >
+                  ⏳ 미제출 ({notSubmitted.length})
+                </button>
+              </div>
+
               {/* Modal Body */}
-              <div className="flex-1 overflow-hidden grid grid-cols-1 sm:grid-cols-2 grid-rows-2 sm:grid-rows-1 divide-y sm:divide-y-0 sm:divide-x divide-neutral-100">
+              <div className="flex-1 overflow-hidden grid grid-cols-1 sm:grid-cols-2 sm:divide-x divide-neutral-100">
                 {/* 제출 완료 */}
-                <div className="flex flex-col overflow-hidden">
-                  <div className={`px-5 sm:px-8 py-3 sm:py-4 border-b flex items-center gap-2 ${tabColor === 'violet' ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                <div className={`${mobileStatusTab === 'submitted' ? 'flex' : 'hidden'} sm:flex flex-col overflow-hidden`}>
+                  <div className={`hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 border-b items-center gap-2 ${tabColor === 'violet' ? 'bg-violet-50 border-violet-100' : 'bg-emerald-50 border-emerald-100'}`}>
                     <CheckCheck size={14} className={tabColor === 'violet' ? 'text-violet-600' : 'text-emerald-600'} />
                     <span className={`text-sm font-black ${tabColor === 'violet' ? 'text-violet-700' : 'text-emerald-700'}`}>
                       ✓ 제출 완료 ({submitted.length}명)
@@ -1410,8 +1436,8 @@ const SubjectDashboard = ({
                 </div>
 
                 {/* 미제출 */}
-                <div className="flex flex-col overflow-hidden">
-                  <div className="px-5 sm:px-8 py-3 sm:py-4 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                <div className={`${mobileStatusTab === 'notSubmitted' ? 'flex' : 'hidden'} sm:flex flex-col overflow-hidden`}>
+                  <div className="hidden sm:flex px-5 sm:px-8 py-3 sm:py-4 bg-amber-50 border-b border-amber-100 items-center gap-2">
                     <ClockIcon size={14} className="text-amber-500" />
                     <span className="text-sm font-black text-amber-700">⏳ 미제출 ({notSubmitted.length}명)</span>
                   </div>

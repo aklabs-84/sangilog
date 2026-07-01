@@ -1634,13 +1634,14 @@ const StudentView = () => {
       {/* ─── 결과 상세 모달 ─── */}
       <AnimatePresence>
         {selectedResult && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm overflow-y-auto" onClick={() => setSelectedResult(null)}>
+          <div className="fixed inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden" onClick={() => setSelectedResult(null)}>
+          <div className="min-h-full flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 16 }}
               onClick={e => e.stopPropagation()}
-              className="w-full max-w-2xl max-h-[90vh] my-auto bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col"
+              className="w-full max-w-2xl max-h-[90vh] bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col"
             >
               {/* 모달 헤더 */}
               <div className="flex items-start justify-between p-8 pb-4 shrink-0">
@@ -1696,7 +1697,7 @@ const StudentView = () => {
               </div>
 
               {/* 모달 내용 */}
-              <div className="px-8 pb-8 space-y-4 flex-1 overflow-y-auto">
+              <div className="px-8 pb-8 space-y-4 flex-1 overflow-y-auto overflow-x-hidden">
                 {(() => {
                   const items: any[] = selectedResult.groupItems || [selectedResult];
                   const textItem = items.find((r: any) => r.result_type === 'text');
@@ -1952,6 +1953,7 @@ const StudentView = () => {
                 </button>
               </div>
             </motion.div>
+          </div>
           </div>
         )}
       </AnimatePresence>
