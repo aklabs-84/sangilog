@@ -956,12 +956,12 @@ export default function SurveyTool() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {surveyForms.map(form => (
-            <div key={form.id} style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <div key={form.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: '16px 18px' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 15, fontWeight: 'bold', color: '#111' }}>{form.title}</span>
                   <span style={{
-                    fontSize: 11, fontWeight: 'bold', padding: '2px 8px', borderRadius: 20,
+                    fontSize: 11, fontWeight: 'bold', padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap',
                     background: form.status === 'open' ? '#D1FAE5' : form.status === 'draft' ? '#F3F4F6' : '#FEE2E2',
                     color: form.status === 'open' ? '#065F46' : form.status === 'draft' ? '#6B7280' : '#991B1B',
                   }}>
@@ -970,7 +970,7 @@ export default function SurveyTool() {
                 </div>
                 <span style={{ fontSize: 12, color: '#9CA3AF' }}>PIN: {form.pin_code}</span>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <div className="sm:justify-end" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {/* draft / closed → 설문 시작 버튼 */}
                 {form.status !== 'open' && (
                   <button
@@ -990,7 +990,7 @@ export default function SurveyTool() {
                         setView('live');
                       }
                     }}
-                    style={{ padding: '6px 14px', background: '#10B981', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 'bold' }}
+                    style={{ padding: '6px 14px', background: '#10B981', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
                     <Play size={14} /> 시작
                   </button>
@@ -998,23 +998,23 @@ export default function SurveyTool() {
                 {/* open → 결과/종료 */}
                 {form.status === 'open' && (
                   <button onClick={() => openLive(form)}
-                    style={{ padding: '6px 12px', background: '#ECFDF5', border: '1px solid #10B981', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#065F46', fontWeight: 'bold' }}
+                    style={{ padding: '6px 12px', background: '#ECFDF5', border: '1px solid #10B981', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#065F46', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
                     <BarChart2 size={14} /> 결과
                   </button>
                 )}
                 <button onClick={() => openBuilder(form)} title="편집"
-                  style={{ padding: '6px 10px', background: '#F3F4F6', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#374151' }}
+                  style={{ padding: '6px 10px', background: '#F3F4F6', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#374151', whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <Edit3 size={14} /> 편집
                 </button>
                 <button onClick={() => { setCopyingForm(form); setCopyTargetClassId(''); }} title="다른 클래스로 복사"
-                  style={{ padding: '6px 10px', background: '#F0FDF4', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#065F46' }}
+                  style={{ padding: '6px 10px', background: '#F0FDF4', border: 'none', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#065F46', whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   <CopyPlus size={14} /> 복사
                 </button>
                 <button onClick={() => handleDeleteForm(form.id)} title="삭제"
-                  style={{ padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444' }}
+                  style={{ padding: '6px 8px', background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', flexShrink: 0 }}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -1196,70 +1196,74 @@ export default function SurveyTool() {
           onClose={() => setPresentMode(false)}
         />
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <button onClick={() => { setView('list'); channelRef.current?.unsubscribe(); }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}
-        >
-          <ArrowLeft size={16} /> 목록
-        </button>
-        <h2 style={{ flex: 1, fontSize: 18, fontWeight: 'bold', color: '#111' }}>{selectedForm?.title}</h2>
-        <button onClick={downloadCSV}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#F0FDF4', color: '#10B981', border: '1px solid #A7F3D0', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}
-        >
-          <Download size={14} /> CSV
-        </button>
-        <button onClick={handleResetResults} disabled={responderCount === 0}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: responderCount > 0 ? '#FFF7ED' : '#F9FAFB', color: responderCount > 0 ? '#EA580C' : '#9CA3AF', border: `1px solid ${responderCount > 0 ? '#FED7AA' : '#E5E7EB'}`, borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: responderCount > 0 ? 'pointer' : 'default' }}
-        >
-          <RotateCcw size={14} /> 초기화
-        </button>
-        <button onClick={() => setPresentMode(true)} disabled={questions.length === 0}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1e1e2e', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: questions.length > 0 ? 'pointer' : 'default', opacity: questions.length > 0 ? 1 : 0.4 }}
-        >
-          <Maximize2 size={14} /> 발표 모드
-        </button>
-        {selectedForm?.status === 'open' ? (
-          <button onClick={handleCloseSurvey}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3" style={{ marginBottom: 20 }}>
+        <div className="flex items-center gap-3 sm:flex-1" style={{ minWidth: 0 }}>
+          <button onClick={() => { setView('list'); channelRef.current?.unsubscribe(); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, flexShrink: 0 }}
           >
-            <StopCircle size={14} /> 설문 종료
+            <ArrowLeft size={16} /> 목록
           </button>
-        ) : (
-          <button onClick={handleOpenSurvey}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#ECFDF5', color: '#10B981', border: '1px solid #A7F3D0', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}
+          <h2 className="truncate" style={{ flex: 1, minWidth: 0, fontSize: 18, fontWeight: 'bold', color: '#111' }}>{selectedForm?.title}</h2>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={downloadCSV}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#F0FDF4', color: '#10B981', border: '1px solid #A7F3D0', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            <Play size={14} /> 다시 열기
+            <Download size={14} /> CSV
           </button>
-        )}
+          <button onClick={handleResetResults} disabled={responderCount === 0}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: responderCount > 0 ? '#FFF7ED' : '#F9FAFB', color: responderCount > 0 ? '#EA580C' : '#9CA3AF', border: `1px solid ${responderCount > 0 ? '#FED7AA' : '#E5E7EB'}`, borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: responderCount > 0 ? 'pointer' : 'default', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <RotateCcw size={14} /> 초기화
+          </button>
+          <button onClick={() => setPresentMode(true)} disabled={questions.length === 0}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1e1e2e', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: questions.length > 0 ? 'pointer' : 'default', opacity: questions.length > 0 ? 1 : 0.4, whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <Maximize2 size={14} /> 발표 모드
+          </button>
+          {selectedForm?.status === 'open' ? (
+            <button onClick={handleCloseSurvey}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              <StopCircle size={14} /> 설문 종료
+            </button>
+          ) : (
+            <button onClick={handleOpenSurvey}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#ECFDF5', color: '#10B981', border: '1px solid #A7F3D0', borderRadius: 10, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              <Play size={14} /> 다시 열기
+            </button>
+          )}
+        </div>
       </div>
 
       {/* PIN + 참여자 수 */}
-      <div style={{ background: 'linear-gradient(135deg, #1e1e2e, #2d2d44)', borderRadius: 16, padding: 24, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 24 }}>
-        <div style={{ flex: 1 }}>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-5" style={{ background: 'linear-gradient(135deg, #1e1e2e, #2d2d44)', borderRadius: 16, padding: 24, marginBottom: 20 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 4 }}>학생 참여 코드</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 36, fontWeight: 'bold', color: '#fff', letterSpacing: 6, fontFamily: 'monospace' }}>
               {selectedForm?.pin_code}
             </span>
             <button onClick={() => copyPin(selectedForm?.pin_code ?? '')}
-              style={{ padding: '6px 10px', background: copied ? '#10B981' : 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}
+              style={{ padding: '6px 10px', background: copied ? '#10B981' : 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               {copied ? <><CheckCheck size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}
             </button>
           </div>
-          <p style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>
+          <p className="break-all" style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>
             {window.location.origin}/survey/{selectedForm?.pin_code} 에 접속하세요
           </p>
         </div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fff' }}>
-            <Users size={18} />
-            <span style={{ fontSize: 32, fontWeight: 'bold' }}>{responderCount}</span>
+        <div className="flex items-center justify-center sm:justify-start gap-6" style={{ flexShrink: 0 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fff' }}>
+              <Users size={18} />
+              <span style={{ fontSize: 32, fontWeight: 'bold' }}>{responderCount}</span>
+            </div>
+            <p style={{ fontSize: 11, color: '#9CA3AF', whiteSpace: 'nowrap' }}>참여자</p>
           </div>
-          <p style={{ fontSize: 11, color: '#9CA3AF' }}>참여자</p>
-        </div>
-        <div style={{ textAlign: 'center' }}>
-          <span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 'bold', background: selectedForm?.status === 'open' ? '#D1FAE5' : '#FEE2E2', color: selectedForm?.status === 'open' ? '#065F46' : '#991B1B' }}>
+          <span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', background: selectedForm?.status === 'open' ? '#D1FAE5' : '#FEE2E2', color: selectedForm?.status === 'open' ? '#065F46' : '#991B1B' }}>
             {selectedForm?.status === 'open' ? '● 진행 중' : '■ 종료'}
           </span>
         </div>
@@ -1272,17 +1276,17 @@ export default function SurveyTool() {
           const ai = aiAnalysis[q.id];
           return (
             <div key={q.id} style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 14, padding: '18px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div className="flex-wrap" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span style={{ fontSize: 12, color: '#9CA3AF' }}>Q{i + 1}</span>
-                <span style={{ fontSize: 11, fontWeight: 'bold', color: TYPE_META[q.type].color, background: `${TYPE_META[q.type].color}15`, padding: '2px 7px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ fontSize: 11, fontWeight: 'bold', color: TYPE_META[q.type].color, background: `${TYPE_META[q.type].color}15`, padding: '2px 7px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
                   {TYPE_META[q.type].icon} {TYPE_META[q.type].label}
                 </span>
-                <p style={{ fontSize: 14, fontWeight: 'bold', color: '#374151', flex: 1 }}>{q.text}</p>
+                <p className="basis-full sm:basis-0 sm:flex-1 min-w-0" style={{ fontSize: 14, fontWeight: 'bold', color: '#374151' }}>{q.text}</p>
                 {q.type === 'short_text' && (
                   <button
                     onClick={() => analyzeShortText(q.id, qAnswers)}
                     disabled={ai?.loading || qAnswers.length === 0}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: ai ? '#EDE9FE' : '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, cursor: qAnswers.length > 0 && !ai?.loading ? 'pointer' : 'default', color: '#7C3AED', fontSize: 11, fontWeight: 'bold', flexShrink: 0, opacity: qAnswers.length === 0 ? 0.5 : 1 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: ai ? '#EDE9FE' : '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, cursor: qAnswers.length > 0 && !ai?.loading ? 'pointer' : 'default', color: '#7C3AED', fontSize: 11, fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap', opacity: qAnswers.length === 0 ? 0.5 : 1 }}
                   >
                     <Sparkles size={12} /> {ai?.loading ? '분석 중...' : 'AI 분석'}
                   </button>
