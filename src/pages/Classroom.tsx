@@ -114,6 +114,7 @@ const Classroom = () => {
   const [boardTypeFilter, setBoardTypeFilter] = useState<'all' | 'obs' | 'result'>('all');
   const [boardWeekFilter, setBoardWeekFilter] = useState<number | 'all'>('all');
   const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
+  const [boardGroupModalInfo, setBoardGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const [editModalTab, setEditModalTab] = useState<'basic' | 'ai' | 'syllabus'>('basic');
   const [promptValidation, setPromptValidation] = useState<{ feasible: boolean; message: string; guide?: string } | null>(null);
@@ -480,6 +481,27 @@ const Classroom = () => {
       supabase.removeChannel(channel);
     };
   }, [activeClassId]);
+
+  useEffect(() => {
+    if (!boardSelectedPost || boardSelectedPost._type === 'obs' || !boardSelectedPost._isGroupSub) {
+      setBoardGroupModalInfo(null);
+      return;
+    }
+    const groupId = (boardSelectedPost._group || []).find((r: any) => r.group_id)?.group_id;
+    const fetchGroupInfo = async () => {
+      if (groupId) {
+        const [{ data: groupData }, { data: members }] = await Promise.all([
+          supabase.from('class_groups').select('name').eq('id', groupId).single(),
+          supabase.from('class_group_members').select('student_id, students(full_name)').eq('group_id', groupId),
+        ]);
+        const memberNames = (members || []).map((m: any) => m.students?.full_name).filter(Boolean);
+        setBoardGroupModalInfo({ name: groupData?.name || '조별 제출', memberNames });
+      } else {
+        setBoardGroupModalInfo({ name: '조별 제출', memberNames: [] });
+      }
+    };
+    fetchGroupInfo();
+  }, [boardSelectedPost]);
 
   const fetchClasses = async () => {
     try {
@@ -1202,41 +1224,85 @@ const Classroom = () => {
           .limit(150),
         supabase
           .from('student_results')
-          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, created_at')
+          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, submission_group, is_group_submission, group_id, created_at')
           .in('student_id', studentIds)
           .order('created_at', { ascending: false })
-          .limit(150),
+          .limit(300),
       ]);
 
-      // 3. student_name 매핑 + 이미지 URL 변환(썸네일) + 관찰기록에 week_number 부여
+      // 3. student_name 매핑 + 관찰기록에 week_number 부여
       const obsPosts = (obs || []).map((o: any) => ({
         ...o,
         week_number: topicWeekMap[norm(o.activity_name)] ?? null,
         student_name: nameMap[o.student_id] || '학생',
         _type: 'obs' as const,
       }));
-      const resPosts = (results || []).map((r: any) => {
-        let image_url = null;
-        let image_original_url = null;
-        let file_url = null;
-        if (r.result_type === 'image' && r.storage_path) {
-          const { data: orig } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
-          image_original_url = orig?.publicUrl || null;
-          const { data: thumb } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path, {
-            transform: { width: 600, quality: 70 },
-          });
-          image_url = thumb?.publicUrl || image_original_url;
-        } else if (r.result_type === 'file' && r.storage_path) {
-          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
+
+      // 2단계 그룹핑: 같은 제출(submission_group)을 1카드로, 조별은 group_id로 병합
+      const pass1Key = (r: any): string => {
+        if (r.submission_group) return r.submission_group;
+        const b = Math.floor(new Date(r.created_at).getTime() / (1000 * 60 * 10));
+        return `s_${r.student_id}_w_${r.week_number ?? 0}_b_${b}`;
+      };
+      const pass1: Record<string, any[]> = {};
+      (results || []).forEach((r: any) => {
+        const key = pass1Key(r);
+        if (!pass1[key]) pass1[key] = [];
+        pass1[key].push(r);
+      });
+      const groupMap: Record<string, any[]> = {};
+      Object.values(pass1).forEach((group: any[]) => {
+        const rep = group[0];
+        const anyGroupId = group.find((r: any) => r.group_id)?.group_id;
+        const anyIsGroup = group.some((r: any) => r.is_group_submission);
+        let finalKey: string;
+        if (anyIsGroup && anyGroupId) {
+          const b = Math.floor(new Date(rep.created_at).getTime() / (1000 * 60 * 30));
+          finalKey = `g_${anyGroupId}_w_${rep.week_number ?? 0}_b_${b}`;
+        } else {
+          finalKey = pass1Key(rep);
+        }
+        if (!groupMap[finalKey]) groupMap[finalKey] = [];
+        groupMap[finalKey].push(...group);
+      });
+
+      const resPosts = Object.values(groupMap).map((group: any[]) => {
+        const rep = group[0];
+        const imageItem = group.find((r: any) => r.result_type === 'image');
+        const fileItem  = group.find((r: any) => r.result_type === 'file');
+        const textItem  = group.find((r: any) => r.result_type === 'text');
+        const linkItem  = group.find((r: any) => r.result_type === 'link');
+
+        let image_url: string | null = null;
+        let image_original_url: string | null = null;
+        let file_url: string | null = null;
+
+        if (imageItem?.storage_path) {
+          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path);
+          image_original_url = urlData?.publicUrl || null;
+          image_url = image_original_url;
+        }
+        if (fileItem?.storage_path) {
+          const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(fileItem.storage_path);
           file_url = urlData?.publicUrl || null;
         }
+
+        const uniqueStudentIds = new Set(group.map((r: any) => r.student_id));
+        const isGroupSub = group.some((r: any) => r.is_group_submission) || uniqueStudentIds.size > 1;
+
         return {
-          ...r,
+          ...rep,
+          text_content: textItem?.text_content || null,
+          link_url: linkItem?.link_url || null,
+          display_name: fileItem?.display_name || rep.display_name,
+          student_name: nameMap[rep.student_id] || '학생',
           image_url,
           image_original_url,
           file_url,
-          student_name: nameMap[r.student_id] || '학생',
           _type: 'result' as const,
+          _group: group,
+          _types: [...new Set(group.map((r: any) => r.result_type))] as string[],
+          _isGroupSub: isGroupSub,
         };
       });
 
@@ -1892,11 +1958,18 @@ const Classroom = () => {
                                     </p>
                                   </div>
                                 </div>
-                                <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${
-                                  isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
-                                }`}>
-                                  {isObs ? '활동 기록' : '결과'}
-                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {!isObs && post._isGroupSub && (
+                                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">
+                                      조별
+                                    </span>
+                                  )}
+                                  <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
+                                    isObs ? 'bg-violet-100 text-violet-600' : 'bg-emerald-100 text-emerald-600'
+                                  }`}>
+                                    {isObs ? '활동 기록' : '결과'}
+                                  </span>
+                                </div>
                               </div>
                               <div className="space-y-1.5">
                                 <p className="text-sm font-black leading-snug line-clamp-2">
@@ -3267,6 +3340,20 @@ const Classroom = () => {
                     <h2 className="text-lg font-black leading-snug">
                       {isObs ? p.activity_name : p.title}
                     </h2>
+                    {/* 조별 제출 정보 */}
+                    {!isObs && p._isGroupSub && boardGroupModalInfo && (
+                      <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-indigo-50 border border-indigo-100">
+                        <span className="text-lg shrink-0">👥</span>
+                        <div>
+                          <p className="text-sm font-black text-indigo-700">{boardGroupModalInfo.name}</p>
+                          {boardGroupModalInfo.memberNames.length > 0 && (
+                            <p className="text-xs text-indigo-500 font-bold mt-0.5">
+                              {boardGroupModalInfo.memberNames.join(' · ')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {isObs && p.content && (
                       <div className="space-y-1.5">
                         <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest">관찰 내용</p>
