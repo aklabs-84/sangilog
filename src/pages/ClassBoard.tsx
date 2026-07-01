@@ -30,6 +30,8 @@ const ClassBoard = () => {
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
+  const [nameMap, setNameMap] = useState<Record<string, string>>({});
+  const [groupModalInfo, setGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!classId) return;
@@ -44,9 +46,11 @@ const ClassBoard = () => {
       if (classInfo) setClassName(`${classInfo.name}${classInfo.subject ? ` · ${classInfo.subject}` : ''}`);
 
       const studentIds = (studentList || []).map((s: any) => s.id);
-      const nameMap: Record<string, string> = Object.fromEntries(
+      const builtNameMap: Record<string, string> = Object.fromEntries(
         (studentList || []).map((s: any) => [s.id, s.full_name])
       );
+      setNameMap(builtNameMap);
+      const nameMap = builtNameMap;
 
       const topicWeekMap: Record<string, number> = {};
       ((classInfo?.weekly_plan as any[]) || []).forEach((p: any) => {
@@ -66,7 +70,7 @@ const ClassBoard = () => {
           .limit(150),
         supabase
           .from('student_results')
-          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, submission_group, is_group_submission, created_at')
+          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, submission_group, is_group_submission, group_id, created_at')
           .in('student_id', studentIds)
           .order('created_at', { ascending: false })
           .limit(300),
@@ -148,6 +152,27 @@ const ClassBoard = () => {
     const id = setInterval(fetchData, 30_000);
     return () => clearInterval(id);
   }, [fetchData]);
+
+  // 조별 제출 모달 열릴 때 그룹 정보 fetch
+  useEffect(() => {
+    if (!selectedPost || !selectedPost._isGroupSub) { setGroupModalInfo(null); return; }
+    const groupId = selectedPost._group?.[0]?.group_id;
+    const fetchGroupInfo = async () => {
+      if (groupId) {
+        const [{ data: groupData }, { data: members }] = await Promise.all([
+          supabase.from('class_groups').select('name').eq('id', groupId).single(),
+          supabase.from('class_group_members').select('student_id, students(full_name)').eq('group_id', groupId),
+        ]);
+        const memberNames = (members || []).map((m: any) => m.students?.full_name).filter(Boolean);
+        setGroupModalInfo({ name: groupData?.name || '조별 제출', memberNames });
+      } else {
+        const uniqueIds = [...new Set((selectedPost._group || []).map((r: any) => r.student_id))] as string[];
+        const memberNames = uniqueIds.map((id) => nameMap[id]).filter(Boolean);
+        setGroupModalInfo({ name: '조별 제출', memberNames });
+      }
+    };
+    fetchGroupInfo();
+  }, [selectedPost, nameMap]);
 
   const filtered = useMemo(() => posts.filter(p => {
     if (typeFilter !== 'all' && p._type !== typeFilter) return false;
@@ -449,6 +474,26 @@ const ClassBoard = () => {
                     <h2 className="text-lg font-black text-on-surface leading-snug">
                       {isObs ? selectedPost.activity_name : selectedPost.title}
                     </h2>
+
+                    {/* 조별 제출 정보 */}
+                    {!isObs && selectedPost._isGroupSub && (
+                      <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700/40">
+                        <span className="text-lg">👥</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-indigo-700 dark:text-indigo-300">
+                            {groupModalInfo ? groupModalInfo.name : '조별 제출'}
+                          </p>
+                          {groupModalInfo?.memberNames && groupModalInfo.memberNames.length > 0 && (
+                            <p className="text-xs text-indigo-500 dark:text-indigo-400 font-bold mt-0.5">
+                              {groupModalInfo.memberNames.join(' · ')}
+                            </p>
+                          )}
+                          {!groupModalInfo && (
+                            <p className="text-xs text-indigo-400 font-bold mt-0.5">조원 정보 불러오는 중...</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {isObs && selectedPost.content && (
                       <div className="space-y-1.5">
