@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { reorganizeMaterialContent, MATERIAL_REORG_PROMPTS } from '../../lib/gemini';
 import rehypeRaw from 'rehype-raw';
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
@@ -31,7 +32,7 @@ import {
   Loader2, ChevronDown, Globe, Lock,
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
-  Maximize2, Download,
+  Maximize2, Download, Sparkles, RotateCcw, AlertCircle,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -489,6 +490,240 @@ const mdComponents: any = {
   ),
 };
 
+// ── AI 재구성 모달 (학습 가이드 / 발표 자료) ─────────────────────────────────
+type ReorganizeStep = 'select-mode' | 'configure' | 'loading' | 'preview' | 'error';
+
+const AiReorganizeModal = ({
+  rawContent,
+  classId,
+  onApply,
+  onClose,
+}: {
+  rawContent: string;
+  classId?: string;
+  onApply: (newContent: string) => void;
+  onClose: () => void;
+}) => {
+  const [step, setStep] = useState<ReorganizeStep>('select-mode');
+  const [mode, setMode] = useState<'guide' | 'presentation'>('guide');
+  const [userInstruction, setUserInstruction] = useState('');
+  const [showBasePrompt, setShowBasePrompt] = useState(false);
+  const [result, setResult] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleSelectMode = (m: 'guide' | 'presentation') => {
+    setMode(m);
+    setStep('configure');
+  };
+
+  const handleGenerate = async () => {
+    setStep('loading');
+    try {
+      const generated = await reorganizeMaterialContent(rawContent, mode, userInstruction, classId);
+      setResult(generated);
+      setStep('preview');
+    } catch (err: any) {
+      setErrorMessage(
+        err?.message === 'AI_LIMIT_EXCEEDED'
+          ? '이번 달 AI 사용 한도에 도달했습니다.'
+          : (err?.message || 'AI 정리 중 오류가 발생했습니다.')
+      );
+      setStep('error');
+    }
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4"
+      onClick={step === 'loading' ? undefined : onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Sparkles size={15} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-on-surface">AI로 정리</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              {step === 'select-mode' && '어떤 형식으로 정리할까요?'}
+              {step === 'configure' && (mode === 'guide' ? '학습 가이드로 정리' : '발표 자료로 정리')}
+              {step === 'loading' && 'AI가 정리하는 중입니다...'}
+              {step === 'preview' && '결과를 확인하세요'}
+              {step === 'error' && '오류가 발생했습니다'}
+            </p>
+          </div>
+          {step !== 'loading' && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
+            >
+              <XIcon size={16} />
+            </button>
+          )}
+        </div>
+
+        {/* 본문 */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {step === 'select-mode' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => handleSelectMode('guide')}
+                className="flex flex-col items-start gap-2 p-4 rounded-2xl border-2 border-surface-container hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
+              >
+                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <BookOpen size={16} />
+                </div>
+                <p className="font-black text-sm">학습 가이드</p>
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  학생이 단계별로(STEP 1, 2...) 따라갈 수 있는 자습형 가이드로 정리합니다.
+                </p>
+              </button>
+              <button
+                onClick={() => handleSelectMode('presentation')}
+                className="flex flex-col items-start gap-2 p-4 rounded-2xl border-2 border-surface-container hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
+              >
+                <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                  <Presentation size={16} />
+                </div>
+                <p className="font-black text-sm">발표 자료</p>
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  16:9 발표 화면에 맞춰 슬라이드(핵심 불릿 위주)로 정리합니다.
+                </p>
+              </button>
+            </div>
+          )}
+
+          {step === 'configure' && (
+            <div className="space-y-3">
+              <button
+                onClick={() => setShowBasePrompt(s => !s)}
+                className="flex items-center gap-1.5 text-xs font-bold text-primary hover:opacity-70 transition-opacity"
+              >
+                {showBasePrompt ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                AI에게 전달되는 기본 지침 보기
+              </button>
+              {showBasePrompt && (
+                <pre className="whitespace-pre-wrap text-xs leading-relaxed text-on-surface-variant bg-surface-container-low rounded-2xl p-4 font-sans">
+                  {MATERIAL_REORG_PROMPTS[mode]}
+                </pre>
+              )}
+              <div>
+                <p className="text-xs font-black text-on-surface-variant mb-1.5">추가로 반영하고 싶은 요청사항 (선택)</p>
+                <textarea
+                  value={userInstruction}
+                  onChange={e => setUserInstruction(e.target.value)}
+                  placeholder={mode === 'guide' ? '예: 중학생 눈높이로 쉽게 풀어줘' : '예: 실습 위주로 강조해줘'}
+                  rows={3}
+                  className="w-full px-3 py-2.5 bg-white rounded-xl border border-surface-container text-sm focus:outline-none focus:border-primary/40 resize-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {step === 'loading' && (
+            <div className="flex flex-col items-center py-16 gap-3">
+              <Loader2 size={28} className="animate-spin text-primary" />
+              <p className="text-sm font-bold text-on-surface-variant">AI가 정리하는 중입니다...</p>
+            </div>
+          )}
+
+          {step === 'preview' && (
+            mode === 'presentation' ? (
+              <div className="bg-[#0a0a14] rounded-2xl p-6 overflow-auto max-h-[50vh]">
+                <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
+                  {parseSlides(result)[0] ?? result}
+                </ReactMarkdown>
+                <p className="text-white/40 text-xs font-bold mt-3">
+                  총 {parseSlides(result).length}장의 슬라이드로 정리됩니다 (첫 슬라이드만 미리보기, 적용 후 발표 모드에서 전체 확인 가능)
+                </p>
+              </div>
+            ) : (
+              <div className="max-h-[50vh] overflow-auto">
+                <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{result}</ReactMarkdown>
+              </div>
+            )
+          )}
+
+          {step === 'error' && (
+            <div className="flex flex-col items-center py-12 gap-3 text-center">
+              <AlertCircle size={32} className="text-red-400" />
+              <p className="text-sm font-bold text-on-surface-variant">{errorMessage}</p>
+            </div>
+          )}
+        </div>
+
+        {/* 하단 액션 */}
+        {step !== 'select-mode' && step !== 'loading' && (
+          <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
+            {step === 'configure' && (
+              <>
+                <button
+                  onClick={() => setStep('select-mode')}
+                  className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  뒤로
+                </button>
+                <div className="flex-1" />
+                <button
+                  onClick={handleGenerate}
+                  className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  <Sparkles size={15} /> 정리 시작
+                </button>
+              </>
+            )}
+            {step === 'preview' && (
+              <>
+                <button
+                  onClick={() => setStep('configure')}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  <RotateCcw size={14} /> 다시 요청
+                </button>
+                <div className="flex-1" />
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => onApply(result)}
+                  className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  <Save size={15} /> 적용
+                </button>
+              </>
+            )}
+            {step === 'error' && (
+              <>
+                <div className="flex-1" />
+                <button
+                  onClick={() => setStep('configure')}
+                  className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  뒤로
+                </button>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-xl font-black text-sm text-white bg-red-400 hover:bg-red-500 transition-colors"
+                >
+                  닫기
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 const MaterialEditor = () => {
   const { user } = useAuth();
 
@@ -520,6 +755,7 @@ const MaterialEditor = () => {
   const [presentingMaterial, setPresentingMaterial] = useState<Material | null>(null);
   const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showAiReorganize, setShowAiReorganize] = useState(false);
 
   useEffect(() => {
     if (user) fetchClasses();
@@ -694,6 +930,14 @@ const MaterialEditor = () => {
         onClose={() => setFullscreenPreview(null)}
       />
     )}
+    {showAiReorganize && (
+      <AiReorganizeModal
+        rawContent={content}
+        classId={selectedClass?.id}
+        onApply={(newContent) => { setContent(newContent); setShowAiReorganize(false); }}
+        onClose={() => setShowAiReorganize(false)}
+      />
+    )}
     <div className="space-y-5">
       {/* ── 상단: 클래스 선택 + 새 자료 버튼 ── */}
       <div className="flex items-center gap-3">
@@ -745,6 +989,15 @@ const MaterialEditor = () => {
               <ArrowLeft size={16} />
             </button>
             <span className="font-black text-sm flex-1">{editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성'}</span>
+            {/* AI로 정리 */}
+            <button
+              onClick={() => setShowAiReorganize(true)}
+              disabled={!content.trim()}
+              title={content.trim() ? 'AI로 학습 가이드/발표 자료 정리' : '내용을 먼저 작성해주세요'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors border border-violet-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Sparkles size={12} /> AI로 정리
+            </button>
             {/* 다른 클래스에서 가져오기 */}
             <button
               onClick={() => setShowImportModal(true)}
