@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -32,10 +32,19 @@ import {
   Loader2, ChevronDown, Globe, Lock,
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
-  Maximize2, Download, Sparkles, RotateCcw, AlertCircle,
+  Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
+
+// AI로 정리한 결과 히스토리 (학습가이드/발표자료 등 여러 버전을 보관)
+interface AiVersion {
+  id: string;
+  mode: 'guide' | 'presentation';
+  label: string;
+  content: string;
+  created_at: string;
+}
 
 interface Material {
   id: string;
@@ -48,12 +57,42 @@ interface Material {
   created_at: string;
   updated_at: string;
   view_count?: number;
+  ai_versions?: AiVersion[];
 }
 
 // ── 슬라이드 파싱 ─────────────────────────────────────────────────────────────
-const parseSlides = (content: string): string[] => {
-  const slides = content.split(/\n\s*---\s*\n/).map(s => s.trim()).filter(Boolean);
-  return slides.length > 0 ? slides : [content.trim()];
+// 슬라이드 첫 줄에 <!-- meta: bg=purple icon=🎯 --> 형태가 있으면 배경/아이콘으로 분리
+interface Slide { content: string; bg?: string; icon?: string; }
+
+const SLIDE_META_RE = /^<!--\s*meta:\s*([^>]*?)\s*-->\s*\n?/;
+
+const SLIDE_BG_THEMES: Record<string, string> = {
+  purple: 'from-[#1e1533] to-[#120d22]',
+  blue: 'from-[#0f1f33] to-[#0a1420]',
+  teal: 'from-[#0f2b28] to-[#0a1c1a]',
+  green: 'from-[#132a17] to-[#0c1c0f]',
+  amber: 'from-[#2a2210] to-[#1c170a]',
+  rose: 'from-[#2a1420] to-[#1c0d16]',
+  dark: 'from-[#141428] to-[#0f0f1e]',
+};
+
+const formatVersionDate = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch { return ''; }
+};
+
+const parseSlides = (content: string): Slide[] => {
+  const chunks = content.split(/\n\s*---\s*\n/).map(s => s.trim()).filter(Boolean);
+  const raw = chunks.length > 0 ? chunks : [content.trim()];
+  return raw.map(chunk => {
+    const m = chunk.match(SLIDE_META_RE);
+    if (!m) return { content: chunk };
+    const attrs = m[1];
+    const bg = attrs.match(/bg=(\w+)/)?.[1];
+    const icon = attrs.match(/icon=(\S+)/)?.[1];
+    return { content: chunk.slice(m[0].length).trim(), bg, icon };
+  });
 };
 
 // ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
@@ -122,6 +161,13 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
   const [current, setCurrent] = useState(0);
   const slides = parseSlides(material.content);
   const total = slides.length;
+  const slide = slides[current];
+  const theme = SLIDE_BG_THEMES[slide.bg ?? 'dark'] ?? SLIDE_BG_THEMES.dark;
+
+  const stageWrapRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const [scale, setScale] = useState(1);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -132,6 +178,37 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [total, onClose]);
+
+  // 16:9 레터박스 스테이지 크기 계산 (뷰포트에 꽉 차게, 비율 유지)
+  useEffect(() => {
+    const calc = () => {
+      const wrap = stageWrapRef.current;
+      if (!wrap) return;
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      let sw = w, sh = (w * 9) / 16;
+      if (sh > h) { sh = h; sw = (h * 16) / 9; }
+      setStageSize({ width: Math.floor(sw), height: Math.floor(sh) });
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    if (stageWrapRef.current) ro.observe(stageWrapRef.current);
+    window.addEventListener('resize', calc);
+    return () => { ro.disconnect(); window.removeEventListener('resize', calc); };
+  }, []);
+
+  // 슬라이드 전환 시 내용이 스테이지보다 크면 스크롤 대신 자동 축소
+  // (transform: scale은 레이아웃에 영향을 주지 않으므로 scrollHeight는 scale과 무관하게 측정됨)
+  useEffect(() => {
+    if (!stageSize.height) return;
+    const id = requestAnimationFrame(() => {
+      const el = contentRef.current;
+      if (!el) return;
+      const natural = el.scrollHeight;
+      setScale(natural > stageSize.height ? Math.max(0.55, (stageSize.height / natural) * 0.98) : 1);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [current, stageSize.height, material.content]);
 
   const prev = () => setCurrent(c => Math.max(c - 1, 0));
   const next = () => setCurrent(c => Math.min(c + 1, total - 1));
@@ -156,23 +233,38 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
         </span>
       </div>
 
-      {/* 슬라이드 메인 영역 */}
-      <div className="flex-1 flex items-center justify-center px-16 py-10 overflow-hidden">
-        <div
-          className="w-full max-w-5xl min-h-0"
-          style={{ maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' }}
-        >
-          {/* 슬라이드 카드 */}
-          <div
-            key={current}
-            className="bg-gradient-to-br from-[#141428] to-[#0f0f1e] rounded-3xl border border-white/8 p-14 shadow-2xl"
-            style={{ animation: 'slideIn 0.25s ease-out' }}
-          >
-            <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
-              {slides[current]}
-            </ReactMarkdown>
+      {/* 슬라이드 메인 영역 — 16:9 레터박스, 스크롤 없이 자동 축소 */}
+      <div ref={stageWrapRef} className="flex-1 min-h-0 flex items-center justify-center px-6 py-5 overflow-hidden">
+        {stageSize.width > 0 && (
+          <div className="relative" style={{ width: stageSize.width, height: stageSize.height }}>
+            <div
+              key={current}
+              className={`absolute inset-0 bg-gradient-to-br ${theme} rounded-3xl border border-white/8 shadow-2xl overflow-hidden`}
+              style={{ animation: 'slideIn 0.25s ease-out' }}
+            >
+              {/* 은은한 아이콘 워터마크 — 텍스트보다 시선을 끌지 않도록 저투명도로 배치 */}
+              {slide.icon && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none select-none absolute -bottom-10 -right-6 leading-none opacity-[0.06]"
+                  style={{ fontSize: Math.max(120, stageSize.height * 0.55) }}
+                >
+                  {slide.icon}
+                </span>
+              )}
+              <div
+                className="relative z-10 w-full h-full flex flex-col justify-center"
+                style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
+              >
+                <div ref={contentRef} className="px-14 py-10">
+                  <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
+                    {slide.content}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 하단 네비게이션 */}
@@ -501,7 +593,7 @@ const AiReorganizeModal = ({
 }: {
   rawContent: string;
   classId?: string;
-  onApply: (newContent: string) => void;
+  onApply: (newContent: string, mode: 'guide' | 'presentation') => void;
   onClose: () => void;
 }) => {
   const [step, setStep] = useState<ReorganizeStep>('select-mode');
@@ -635,7 +727,7 @@ const AiReorganizeModal = ({
             mode === 'presentation' ? (
               <div className="bg-[#0a0a14] rounded-2xl p-6 overflow-auto max-h-[50vh]">
                 <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
-                  {parseSlides(result)[0] ?? result}
+                  {parseSlides(result)[0]?.content ?? result}
                 </ReactMarkdown>
                 <p className="text-white/40 text-xs font-bold mt-3">
                   총 {parseSlides(result).length}장의 슬라이드로 정리됩니다 (첫 슬라이드만 미리보기, 적용 후 발표 모드에서 전체 확인 가능)
@@ -692,7 +784,7 @@ const AiReorganizeModal = ({
                   취소
                 </button>
                 <button
-                  onClick={() => onApply(result)}
+                  onClick={() => onApply(result, mode)}
                   className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
                 >
                   <Save size={15} /> 적용
@@ -756,6 +848,9 @@ const MaterialEditor = () => {
   const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAiReorganize, setShowAiReorganize] = useState(false);
+  const [aiVersions, setAiVersions] = useState<AiVersion[]>([]);
+  const [showVersionMenu, setShowVersionMenu] = useState(false);
+  const [presentingVersionMenuFor, setPresentingVersionMenuFor] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) fetchClasses();
@@ -803,7 +898,7 @@ const MaterialEditor = () => {
 
   const resetForm = () => {
     setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
-    setEditingMaterial(null); setViewMode('edit');
+    setEditingMaterial(null); setViewMode('edit'); setAiVersions([]);
   };
 
   const handleNew = () => {
@@ -818,6 +913,7 @@ const MaterialEditor = () => {
     setContent(material.content || '');
     setIsPublished(material.is_published || false);
     setViewMode('edit');
+    setAiVersions(material.ai_versions ?? []);
     setIsEditorOpen(true);
   };
 
@@ -857,6 +953,7 @@ const MaterialEditor = () => {
         title: title.trim(),
         content: (content ?? '').trim(),
         is_published: isPublished,
+        ai_versions: aiVersions,
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
@@ -934,7 +1031,20 @@ const MaterialEditor = () => {
       <AiReorganizeModal
         rawContent={content}
         classId={selectedClass?.id}
-        onApply={(newContent) => { setContent(newContent); setShowAiReorganize(false); }}
+        onApply={(newContent, mode) => {
+          setAiVersions(prev => [
+            {
+              id: crypto.randomUUID(),
+              mode,
+              label: mode === 'guide' ? '학습 가이드' : '발표 자료',
+              content: newContent,
+              created_at: new Date().toISOString(),
+            },
+            ...prev,
+          ]);
+          setContent(newContent);
+          setShowAiReorganize(false);
+        }}
         onClose={() => setShowAiReorganize(false)}
       />
     )}
@@ -998,6 +1108,46 @@ const MaterialEditor = () => {
             >
               <Sparkles size={12} /> AI로 정리
             </button>
+            {/* AI 정리 히스토리 */}
+            {aiVersions.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowVersionMenu(o => !o)}
+                  title="AI로 정리한 이전 결과 보기"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-low hover:text-primary font-black text-xs transition-colors border border-surface-container"
+                >
+                  <History size={12} /> 정리 히스토리 ({aiVersions.length})
+                </button>
+                {showVersionMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowVersionMenu(false)} />
+                    <div className="absolute top-full mt-2 right-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-72 overflow-hidden">
+                      <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                        AI 정리 결과 목록
+                      </p>
+                      <div className="max-h-64 overflow-y-auto">
+                        {aiVersions.map(v => (
+                          <button
+                            key={v.id}
+                            onClick={() => { setContent(v.content); setShowVersionMenu(false); }}
+                            className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                          >
+                            {v.mode === 'guide'
+                              ? <BookOpen size={13} className="text-primary shrink-0" />
+                              : <Presentation size={13} className="text-violet-600 shrink-0" />}
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-xs font-black truncate">{v.label}</span>
+                              <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
+                            </span>
+                            {content === v.content && <Check size={13} className="text-emerald-500 shrink-0" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             {/* 다른 클래스에서 가져오기 */}
             <button
               onClick={() => setShowImportModal(true)}
@@ -1164,13 +1314,64 @@ const MaterialEditor = () => {
                   <div className="flex items-center gap-1 flex-wrap shrink-0 sm:justify-end">
                     {/* 발표 모드 */}
                     {material.content && (
-                      <button
-                        onClick={() => setPresentingMaterial(material)}
-                        title="전체화면 발표 모드"
-                        className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors"
-                      >
-                        <Presentation size={13} /> 발표
-                      </button>
+                      <div className="relative shrink-0 flex items-center">
+                        <button
+                          onClick={() => setPresentingMaterial(material)}
+                          title="전체화면 발표 모드"
+                          className={`whitespace-nowrap flex items-center gap-1.5 pl-3 pr-2 py-1.5 font-black text-xs transition-colors bg-violet-100 text-violet-700 hover:bg-violet-200 ${
+                            (material.ai_versions?.length ?? 0) > 0 ? 'rounded-l-xl' : 'rounded-xl'
+                          }`}
+                        >
+                          <Presentation size={13} /> 발표
+                        </button>
+                        {(material.ai_versions?.length ?? 0) > 0 && (
+                          <>
+                            <button
+                              onClick={() => setPresentingVersionMenuFor(v => v === material.id ? null : material.id)}
+                              title="발표할 버전 선택"
+                              className="rounded-r-xl pl-1 pr-2 py-1.5 bg-violet-100 text-violet-700 hover:bg-violet-200 border-l border-violet-200 transition-colors"
+                            >
+                              <ChevronDown size={12} />
+                            </button>
+                            {presentingVersionMenuFor === material.id && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setPresentingVersionMenuFor(null)} />
+                                <div className="absolute top-full mt-1 right-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-64 overflow-hidden">
+                                  <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                                    어떤 버전을 발표할까요?
+                                  </p>
+                                  <div className="max-h-64 overflow-y-auto">
+                                    <button
+                                      onClick={() => { setPresentingMaterial(material); setPresentingVersionMenuFor(null); }}
+                                      className="w-full text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                    >
+                                      <span className="block text-xs font-black">현재 저장본</span>
+                                    </button>
+                                    {material.ai_versions!.map(v => (
+                                      <button
+                                        key={v.id}
+                                        onClick={() => {
+                                          setPresentingMaterial({ ...material, content: v.content });
+                                          setPresentingVersionMenuFor(null);
+                                        }}
+                                        className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                      >
+                                        {v.mode === 'guide'
+                                          ? <BookOpen size={13} className="text-primary shrink-0" />
+                                          : <Presentation size={13} className="text-violet-600 shrink-0" />}
+                                        <span className="flex-1 min-w-0">
+                                          <span className="block text-xs font-black truncate">{v.label}</span>
+                                          <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
                     )}
                     {/* 미리보기 토글 */}
                     <button
