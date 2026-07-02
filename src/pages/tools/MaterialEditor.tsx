@@ -33,6 +33,7 @@ import {
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
+  Library, Link2,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -48,7 +49,7 @@ interface AiVersion {
 
 interface Material {
   id: string;
-  class_id: string;
+  class_id: string | null;
   week_number: number;
   title: string;
   content: string;
@@ -58,6 +59,8 @@ interface Material {
   updated_at: string;
   view_count?: number;
   ai_versions?: AiVersion[];
+  teacher_id?: string | null;
+  source_material_id?: string | null;
 }
 
 // ── 슬라이드 파싱 ─────────────────────────────────────────────────────────────
@@ -465,6 +468,160 @@ const ImportFromClassModal = ({
   );
 };
 
+// ── 공통 자료함 → 클래스 연결 모달 ────────────────────────────────────────────
+const LinkToClassModal = ({
+  material,
+  classes,
+  userId,
+  onClose,
+  onLinked,
+}: {
+  material: Material;
+  classes: any[];
+  userId: string;
+  onClose: () => void;
+  onLinked: () => void;
+}) => {
+  const [linkedClassIds, setLinkedClassIds] = useState<string[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from('class_materials')
+      .select('class_id')
+      .eq('source_material_id', material.id)
+      .then(({ data }) => {
+        setLinkedClassIds((data || []).map((d: any) => d.class_id));
+        setLoading(false);
+      });
+  }, [material.id]);
+
+  const toggle = (classId: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(classId)) next.delete(classId); else next.add(classId);
+      return next;
+    });
+  };
+
+  const handleLink = async () => {
+    if (selected.size === 0) return;
+    setSaving(true);
+    try {
+      const rows = Array.from(selected).map(classId => ({
+        class_id: classId,
+        teacher_id: userId,
+        week_number: 1,
+        title: material.title,
+        content: material.content ?? '',
+        ai_versions: material.ai_versions ?? [],
+        is_published: false,
+        source_material_id: material.id,
+      }));
+      const { error } = await supabase.from('class_materials').insert(rows);
+      if (error) throw error;
+      onLinked();
+      onClose();
+    } catch (err: any) {
+      alert(`연결 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-on-surface truncate">"{material.title}" 연결하기</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">연결할 클래스를 선택하세요 (여러 개 가능)</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant shrink-0"
+          >
+            <XIcon size={16} />
+          </button>
+        </div>
+
+        {/* 본문 */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-primary" />
+            </div>
+          ) : classes.length === 0 ? (
+            <div className="flex flex-col items-center py-12 gap-3 opacity-40">
+              <BookOpen size={36} />
+              <p className="font-black text-sm">연결할 클래스가 없습니다</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {classes.map(cls => {
+                const isLinked = linkedClassIds.includes(cls.id);
+                const isSelected = selected.has(cls.id);
+                return (
+                  <button
+                    key={cls.id}
+                    onClick={() => !isLinked && toggle(cls.id)}
+                    disabled={isLinked}
+                    className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl border transition-all ${
+                      isLinked
+                        ? 'border-transparent opacity-40 cursor-not-allowed'
+                        : isSelected
+                          ? 'border-primary/40 bg-primary/5'
+                          : 'border-transparent hover:bg-surface-container-low'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                      isSelected ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant'
+                    }`}>
+                      <BookOpen size={15} />
+                    </div>
+                    <span className="font-bold text-sm flex-1 text-on-surface">{cls.name}</span>
+                    {isLinked
+                      ? <span className="text-[10px] font-black text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full shrink-0">연결됨</span>
+                      : isSelected
+                        ? <Check size={16} className="text-primary shrink-0" />
+                        : null
+                    }
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 하단 액션 */}
+        <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container shrink-0">
+          <p className="flex-1 text-xs font-bold text-on-surface-variant">
+            {selected.size > 0 ? `${selected.size}개 클래스 선택됨` : '클래스를 선택하세요'}
+          </p>
+          <button
+            onClick={handleLink}
+            disabled={selected.size === 0 || saving}
+            className="flex items-center gap-2 px-5 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-40"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+            연결하기
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // ── 미리보기 전체화면 모달 ────────────────────────────────────────────────────
 const PreviewFullscreenModal = ({
   title,
@@ -823,6 +980,9 @@ const MaterialEditor = () => {
   const [classes, setClasses] = useState<any[]>([]);
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [classDropdownOpen, setClassDropdownOpen] = useState(false);
+  // 공통 자료함 — 클래스 선택 없이 만들어두고 나중에 원하는 클래스에 연결
+  const [libraryMode, setLibraryMode] = useState(false);
+  const [linkingMaterial, setLinkingMaterial] = useState<Material | null>(null);
 
   // 자료 목록
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -850,7 +1010,15 @@ const MaterialEditor = () => {
   const [showAiReorganize, setShowAiReorganize] = useState(false);
   const [aiVersions, setAiVersions] = useState<AiVersion[]>([]);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
-  const [presentingVersionMenuFor, setPresentingVersionMenuFor] = useState<string | null>(null);
+  // 목록 화면에서 자료별로 "원본" 또는 AI 정리 버전 중 어떤 걸 보고 있는지 (null = 원본)
+  const [selectedVersionId, setSelectedVersionId] = useState<Record<string, string | null>>({});
+  const [versionMenuFor, setVersionMenuFor] = useState<string | null>(null);
+
+  const getActiveVersion = (material: Material): { content: string; label: string } => {
+    const selId = selectedVersionId[material.id];
+    const v = selId ? material.ai_versions?.find(v => v.id === selId) : undefined;
+    return v ? { content: v.content, label: v.label } : { content: material.content, label: '원본' };
+  };
 
   useEffect(() => {
     if (user) fetchClasses();
@@ -891,6 +1059,21 @@ const MaterialEditor = () => {
       } else {
         setMaterials(data || []);
       }
+    } finally {
+      setMaterialsLoading(false);
+    }
+  };
+
+  const fetchLibraryMaterials = async () => {
+    setMaterialsLoading(true);
+    try {
+      const { data } = await supabase
+        .from('class_materials')
+        .select('*')
+        .is('class_id', null)
+        .eq('teacher_id', user!.id)
+        .order('created_at', { ascending: false });
+      setMaterials(data ?? []);
     } finally {
       setMaterialsLoading(false);
     }
@@ -943,16 +1126,17 @@ const MaterialEditor = () => {
 
   // ── 저장 ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!selectedClass) { alert('클래스를 선택해주세요.'); return; }
+    if (!libraryMode && !selectedClass) { alert('클래스를 선택해주세요.'); return; }
     if (!title.trim()) { alert('제목을 입력해주세요.'); return; }
     setSaving(true);
     try {
       const payload = {
-        class_id: selectedClass.id,
+        class_id: libraryMode ? null : selectedClass.id,
+        teacher_id: user!.id,
         week_number: weekNumber,
         title: title.trim(),
         content: (content ?? '').trim(),
-        is_published: isPublished,
+        is_published: libraryMode ? false : isPublished,
         ai_versions: aiVersions,
         updated_at: new Date().toISOString(),
       };
@@ -963,7 +1147,7 @@ const MaterialEditor = () => {
         const { error } = await supabase.from('class_materials').insert(payload);
         if (error) throw error;
       }
-      await fetchMaterials(selectedClass.id);
+      if (libraryMode) await fetchLibraryMaterials(); else await fetchMaterials(selectedClass.id);
       setIsEditorOpen(false);
       resetForm();
     } catch (err: any) {
@@ -977,7 +1161,7 @@ const MaterialEditor = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('이 수업 자료를 삭제하시겠습니까?')) return;
     await supabase.from('class_materials').delete().eq('id', id);
-    await fetchMaterials(selectedClass.id);
+    if (libraryMode) await fetchLibraryMaterials(); else await fetchMaterials(selectedClass.id);
   };
 
   // ── 복사 ──────────────────────────────────────────────────────────────────
@@ -1048,15 +1232,24 @@ const MaterialEditor = () => {
         onClose={() => setShowAiReorganize(false)}
       />
     )}
+    {linkingMaterial && user && (
+      <LinkToClassModal
+        material={linkingMaterial}
+        classes={classes}
+        userId={user.id}
+        onLinked={() => fetchLibraryMaterials()}
+        onClose={() => setLinkingMaterial(null)}
+      />
+    )}
     <div className="space-y-5">
       {/* ── 상단: 클래스 선택 + 새 자료 버튼 ── */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="relative">
           <button
             onClick={() => setClassDropdownOpen(o => !o)}
             className="flex items-center gap-2 px-4 py-2.5 bg-surface-container rounded-2xl border-2 border-transparent hover:border-primary/20 transition-all font-black text-sm"
           >
-            {selectedClass ? selectedClass.name : '클래스 선택'}
+            {libraryMode ? '클래스 선택' : (selectedClass ? selectedClass.name : '클래스 선택')}
             <ChevronDown size={15} className="text-on-surface-variant" />
           </button>
           {classDropdownOpen && (
@@ -1066,7 +1259,7 @@ const MaterialEditor = () => {
               ) : classes.map(cls => (
                 <button
                   key={cls.id}
-                  onClick={() => { setSelectedClass(cls); setClassDropdownOpen(false); fetchMaterials(cls.id); setIsEditorOpen(false); resetForm(); }}
+                  onClick={() => { setSelectedClass(cls); setLibraryMode(false); setClassDropdownOpen(false); fetchMaterials(cls.id); setIsEditorOpen(false); resetForm(); }}
                   className="w-full text-left px-4 py-3 hover:bg-surface-container-low transition-colors text-sm font-bold"
                 >
                   {cls.name}
@@ -1076,7 +1269,19 @@ const MaterialEditor = () => {
           )}
         </div>
 
-        {selectedClass && !isEditorOpen && (
+        <button
+          onClick={() => { setLibraryMode(true); setSelectedClass(null); setIsEditorOpen(false); resetForm(); fetchLibraryMaterials(); }}
+          title="클래스 선택 없이 공통으로 쓸 자료를 만들고, 나중에 원하는 클래스에 연결할 수 있습니다"
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 transition-all font-black text-sm ${
+            libraryMode
+              ? 'bg-primary/10 border-primary/30 text-primary'
+              : 'bg-surface-container border-transparent hover:border-primary/20'
+          }`}
+        >
+          <Library size={15} /> 공통 자료함
+        </button>
+
+        {(selectedClass || libraryMode) && !isEditorOpen && (
           <button
             onClick={handleNew}
             className="flex items-center gap-2 px-4 py-2.5 btn-gradient rounded-2xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
@@ -1091,14 +1296,18 @@ const MaterialEditor = () => {
         <div className="bg-white rounded-3xl border border-surface-container overflow-hidden shadow-sm">
 
           {/* 에디터 헤더 */}
-          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-surface-container bg-surface-container-low">
+          <div className="flex items-center flex-wrap gap-2 px-5 py-3.5 border-b border-surface-container bg-surface-container-low">
             <button
               onClick={() => { setIsEditorOpen(false); resetForm(); }}
               className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant"
             >
               <ArrowLeft size={16} />
             </button>
-            <span className="font-black text-sm flex-1">{editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성'}</span>
+            <span className="font-black text-sm flex-1">
+              {libraryMode
+                ? (editingMaterial ? '공통 자료 수정' : '새 공통 자료 작성')
+                : (editingMaterial ? '수업 자료 수정' : '새 수업 자료 작성')}
+            </span>
             {/* AI로 정리 */}
             <button
               onClick={() => setShowAiReorganize(true)}
@@ -1148,6 +1357,25 @@ const MaterialEditor = () => {
                 )}
               </div>
             )}
+            {/* 편집 중인 내용을 바로 발표 모드로 */}
+            <button
+              onClick={() => setPresentingMaterial({
+                id: editingMaterial?.id ?? 'draft',
+                class_id: selectedClass?.id ?? '',
+                week_number: weekNumber,
+                title: title.trim() || '(제목 없음)',
+                content,
+                url: '',
+                is_published: isPublished,
+                created_at: editingMaterial?.created_at ?? new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })}
+              disabled={!content.trim()}
+              title={content.trim() ? '지금 편집 중인 내용을 바로 발표 모드로 보기' : '내용을 먼저 작성해주세요'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors border border-violet-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Presentation size={12} /> 발표
+            </button>
             {/* 다른 클래스에서 가져오기 */}
             <button
               onClick={() => setShowImportModal(true)}
@@ -1155,6 +1383,16 @@ const MaterialEditor = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary/15 font-black text-xs transition-colors border border-primary/15"
             >
               <Download size={12} /> 가져오기
+            </button>
+            {/* 저장 (상단에서도 바로 저장 가능) */}
+            <button
+              onClick={handleSave}
+              disabled={saving || uploading}
+              title={uploading ? '이미지 업로드 완료 후 저장 가능합니다' : undefined}
+              className="flex items-center gap-1.5 px-3 py-1.5 btn-gradient rounded-xl font-black text-xs text-white shadow hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+            >
+              {(saving || uploading) ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              {editingMaterial ? '수정 완료' : '저장'}
             </button>
             {/* 뷰 모드 토글 */}
             <div className="flex items-center gap-0.5 bg-surface-container rounded-xl p-1">
@@ -1177,16 +1415,18 @@ const MaterialEditor = () => {
 
           {/* 메타 정보 입력 */}
           <div className="flex flex-wrap gap-2.5 px-5 py-3 border-b border-surface-container bg-surface-container-low/50">
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-xs font-black text-on-surface-variant whitespace-nowrap">주차</span>
-              <input
-                type="number"
-                min={1}
-                value={weekNumber}
-                onChange={e => setWeekNumber(Math.max(1, Number(e.target.value) || 1))}
-                className="w-16 px-2 py-2 bg-white rounded-xl border border-surface-container font-black text-sm text-center focus:outline-none focus:border-primary/40"
-              />
-            </div>
+            {!libraryMode && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-xs font-black text-on-surface-variant whitespace-nowrap">주차</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={weekNumber}
+                  onChange={e => setWeekNumber(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-16 px-2 py-2 bg-white rounded-xl border border-surface-container font-black text-sm text-center focus:outline-none focus:border-primary/40"
+                />
+              </div>
+            )}
             <input
               type="text"
               value={title}
@@ -1228,20 +1468,28 @@ const MaterialEditor = () => {
 
           {/* 하단 액션 바 */}
           <div className="flex items-center gap-3 px-5 py-4 border-t border-surface-container bg-surface-container-low/50">
-            {/* 공개 토글 */}
-            <button
-              onClick={() => setIsPublished(p => !p)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-black text-sm transition-all ${
-                isPublished
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                  : 'bg-white border-surface-container text-on-surface-variant hover:border-primary/20'
-              }`}
-            >
-              {isPublished ? <><Globe size={14} /> 학생 공개 중</> : <><Lock size={14} /> 비공개</>}
-            </button>
-            <p className="text-xs font-bold text-on-surface-variant opacity-60">
-              {isPublished ? '학생이 수업자료 탭에서 볼 수 있습니다' : '저장 후 공개 여부를 설정하세요'}
-            </p>
+            {libraryMode ? (
+              <p className="text-xs font-bold text-on-surface-variant opacity-60 flex items-center gap-1.5">
+                <Library size={14} /> 공통 자료함에는 학생에게 공개되지 않습니다. 저장 후 원하는 클래스에 연결하면 그 클래스에서 공개 여부를 설정할 수 있습니다.
+              </p>
+            ) : (
+              <>
+                {/* 공개 토글 */}
+                <button
+                  onClick={() => setIsPublished(p => !p)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-black text-sm transition-all ${
+                    isPublished
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                      : 'bg-white border-surface-container text-on-surface-variant hover:border-primary/20'
+                  }`}
+                >
+                  {isPublished ? <><Globe size={14} /> 학생 공개 중</> : <><Lock size={14} /> 비공개</>}
+                </button>
+                <p className="text-xs font-bold text-on-surface-variant opacity-60">
+                  {isPublished ? '학생이 수업자료 탭에서 볼 수 있습니다' : '저장 후 공개 여부를 설정하세요'}
+                </p>
+              </>
+            )}
             <div className="flex-1" />
             <button
               onClick={() => { setIsEditorOpen(false); resetForm(); }}
@@ -1263,11 +1511,11 @@ const MaterialEditor = () => {
       )}
 
       {/* ── 자료 목록 ── */}
-      {selectedClass && !isEditorOpen && (
+      {(selectedClass || libraryMode) && !isEditorOpen && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant">
-              {selectedClass.name} 수업 자료 ({materials.length}개)
+              {libraryMode ? `공통 자료함 (${materials.length}개)` : `${selectedClass.name} 수업 자료 (${materials.length}개)`}
             </p>
           </div>
 
@@ -1278,7 +1526,7 @@ const MaterialEditor = () => {
           ) : materials.length === 0 ? (
             <div className="flex flex-col items-center py-16 space-y-3 opacity-30">
               <BookOpen size={48} />
-              <p className="font-black">아직 작성된 수업 자료가 없습니다.</p>
+              <p className="font-black">{libraryMode ? '아직 등록된 공통 자료가 없습니다.' : '아직 작성된 수업 자료가 없습니다.'}</p>
               <p className="text-sm font-bold">위의 '새 자료 작성' 버튼을 눌러 시작하세요.</p>
             </div>
           ) : (
@@ -1312,66 +1560,62 @@ const MaterialEditor = () => {
 
                   {/* 액션 버튼들 */}
                   <div className="flex items-center gap-1 flex-wrap shrink-0 sm:justify-end">
-                    {/* 발표 모드 */}
-                    {material.content && (
-                      <div className="relative shrink-0 flex items-center">
+                    {/* 원본/AI 정리 버전 선택 — 목록 화면에서도 선택해서 볼 수 있게 */}
+                    {(material.ai_versions?.length ?? 0) > 0 && (
+                      <div className="relative shrink-0">
                         <button
-                          onClick={() => setPresentingMaterial(material)}
-                          title="전체화면 발표 모드"
-                          className={`whitespace-nowrap flex items-center gap-1.5 pl-3 pr-2 py-1.5 font-black text-xs transition-colors bg-violet-100 text-violet-700 hover:bg-violet-200 ${
-                            (material.ai_versions?.length ?? 0) > 0 ? 'rounded-l-xl' : 'rounded-xl'
-                          }`}
+                          onClick={() => setVersionMenuFor(v => v === material.id ? null : material.id)}
+                          title="보고 싶은 버전 선택 (원본 / AI 정리 결과)"
+                          className="whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container text-on-surface-variant hover:bg-surface-container-low hover:text-primary font-black text-xs transition-colors border border-surface-container"
                         >
-                          <Presentation size={13} /> 발표
+                          <History size={12} /> {getActiveVersion(material).label} <ChevronDown size={11} />
                         </button>
-                        {(material.ai_versions?.length ?? 0) > 0 && (
+                        {versionMenuFor === material.id && (
                           <>
-                            <button
-                              onClick={() => setPresentingVersionMenuFor(v => v === material.id ? null : material.id)}
-                              title="발표할 버전 선택"
-                              className="rounded-r-xl pl-1 pr-2 py-1.5 bg-violet-100 text-violet-700 hover:bg-violet-200 border-l border-violet-200 transition-colors"
-                            >
-                              <ChevronDown size={12} />
-                            </button>
-                            {presentingVersionMenuFor === material.id && (
-                              <>
-                                <div className="fixed inset-0 z-40" onClick={() => setPresentingVersionMenuFor(null)} />
-                                <div className="absolute top-full mt-1 right-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-64 overflow-hidden">
-                                  <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                                    어떤 버전을 발표할까요?
-                                  </p>
-                                  <div className="max-h-64 overflow-y-auto">
-                                    <button
-                                      onClick={() => { setPresentingMaterial(material); setPresentingVersionMenuFor(null); }}
-                                      className="w-full text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
-                                    >
-                                      <span className="block text-xs font-black">현재 저장본</span>
-                                    </button>
-                                    {material.ai_versions!.map(v => (
-                                      <button
-                                        key={v.id}
-                                        onClick={() => {
-                                          setPresentingMaterial({ ...material, content: v.content });
-                                          setPresentingVersionMenuFor(null);
-                                        }}
-                                        className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
-                                      >
-                                        {v.mode === 'guide'
-                                          ? <BookOpen size={13} className="text-primary shrink-0" />
-                                          : <Presentation size={13} className="text-violet-600 shrink-0" />}
-                                        <span className="flex-1 min-w-0">
-                                          <span className="block text-xs font-black truncate">{v.label}</span>
-                                          <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
-                                        </span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              </>
-                            )}
+                            <div className="fixed inset-0 z-40" onClick={() => setVersionMenuFor(null)} />
+                            <div className="absolute top-full mt-1 left-0 bg-white rounded-2xl shadow-xl border border-surface-container z-50 w-64 overflow-hidden">
+                              <p className="px-4 pt-3 pb-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                                어떤 버전을 볼까요?
+                              </p>
+                              <div className="max-h-64 overflow-y-auto">
+                                <button
+                                  onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: null })); setVersionMenuFor(null); }}
+                                  className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                >
+                                  <span className="flex-1 min-w-0"><span className="block text-xs font-black">원본</span></span>
+                                  {!selectedVersionId[material.id] && <Check size={13} className="text-emerald-500 shrink-0" />}
+                                </button>
+                                {material.ai_versions!.map(v => (
+                                  <button
+                                    key={v.id}
+                                    onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: v.id })); setVersionMenuFor(null); }}
+                                    className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
+                                  >
+                                    {v.mode === 'guide'
+                                      ? <BookOpen size={13} className="text-primary shrink-0" />
+                                      : <Presentation size={13} className="text-violet-600 shrink-0" />}
+                                    <span className="flex-1 min-w-0">
+                                      <span className="block text-xs font-black truncate">{v.label}</span>
+                                      <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
+                                    </span>
+                                    {selectedVersionId[material.id] === v.id && <Check size={13} className="text-emerald-500 shrink-0" />}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           </>
                         )}
                       </div>
+                    )}
+                    {/* 발표 모드 */}
+                    {material.content && (
+                      <button
+                        onClick={() => setPresentingMaterial({ ...material, content: getActiveVersion(material).content })}
+                        title="전체화면 발표 모드"
+                        className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors"
+                      >
+                        <Presentation size={13} /> 발표
+                      </button>
                     )}
                     {/* 미리보기 토글 */}
                     <button
@@ -1381,29 +1625,42 @@ const MaterialEditor = () => {
                     >
                       {expandedId === material.id ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
-                    {/* 공개/비공개 토글 */}
-                    <button
-                      onClick={() => handleTogglePublish(material)}
-                      title={material.is_published ? '비공개로 전환' : '학생에게 공개'}
-                      className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
-                        material.is_published
-                          ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                          : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
-                      }`}
-                    >
-                      {material.is_published
-                        ? <><Globe size={13} /> 공개 중</>
-                        : <><Lock size={13} /> 비공개</>
-                      }
-                    </button>
-                    {/* 복사 */}
-                    <button
-                      onClick={() => handleCopy(material)}
-                      title="다른 주차로 복사"
-                      className="shrink-0 p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
-                    >
-                      <Copy size={15} />
-                    </button>
+                    {libraryMode ? (
+                      /* 클래스에 연결 */
+                      <button
+                        onClick={() => setLinkingMaterial(material)}
+                        title="이 공통 자료를 원하는 클래스에 연결(복사)"
+                        className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 font-black text-xs transition-colors"
+                      >
+                        <Link2 size={13} /> 클래스에 연결
+                      </button>
+                    ) : (
+                      <>
+                        {/* 공개/비공개 토글 */}
+                        <button
+                          onClick={() => handleTogglePublish(material)}
+                          title={material.is_published ? '비공개로 전환' : '학생에게 공개'}
+                          className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                            material.is_published
+                              ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                              : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
+                          }`}
+                        >
+                          {material.is_published
+                            ? <><Globe size={13} /> 공개 중</>
+                            : <><Lock size={13} /> 비공개</>
+                          }
+                        </button>
+                        {/* 복사 */}
+                        <button
+                          onClick={() => handleCopy(material)}
+                          title="다른 주차로 복사"
+                          className="shrink-0 p-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors"
+                        >
+                          <Copy size={15} />
+                        </button>
+                      </>
+                    )}
                     {/* 수정 */}
                     <button
                       onClick={() => handleEdit(material)}
@@ -1429,14 +1686,14 @@ const MaterialEditor = () => {
                     {material.content ? (
                       <div className="relative">
                         <button
-                          onClick={() => setFullscreenPreview({ title: material.title, content: material.content })}
+                          onClick={() => setFullscreenPreview({ title: material.title, content: getActiveVersion(material).content })}
                           className="absolute top-2 right-2 z-10 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors"
                           title="전체 화면으로 보기"
                         >
                           <Maximize2 size={14} />
                         </button>
                         <div className="p-5 max-h-80 overflow-y-auto">
-                          <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{material.content}</ReactMarkdown>
+                          <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{getActiveVersion(material).content}</ReactMarkdown>
                         </div>
                       </div>
                     ) : (
@@ -1451,11 +1708,11 @@ const MaterialEditor = () => {
       )}
 
       {/* 클래스 미선택 안내 */}
-      {!selectedClass && !isEditorOpen && (
+      {!selectedClass && !libraryMode && !isEditorOpen && (
         <div className="flex flex-col items-center py-24 space-y-3 opacity-30">
           <BookOpen size={56} />
           <p className="font-black text-lg">클래스를 선택하세요</p>
-          <p className="text-sm font-bold">위에서 클래스를 선택하면 수업 자료를 관리할 수 있습니다.</p>
+          <p className="text-sm font-bold">위에서 클래스를 선택하거나, '공통 자료함'에서 클래스 구분 없이 자료를 관리할 수 있습니다.</p>
         </div>
       )}
     </div>
