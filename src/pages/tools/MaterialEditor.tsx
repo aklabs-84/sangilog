@@ -94,10 +94,23 @@ const splitSlideChunks = (content: string): string[] => {
   const lines = content.split('\n');
   const chunks: string[] = [];
   let buf: string[] = [];
-  let inFence = false;
+  let fenceChar: string | null = null;
+  let fenceLen = 0;
   for (const line of lines) {
-    if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
-    if (!inFence && line.trim() === '---') {
+    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1];
+      if (fenceChar === null) {
+        fenceChar = marker[0];
+        fenceLen = marker.length;
+      } else if (marker[0] === fenceChar && marker.length >= fenceLen) {
+        // 여는 펜스와 문자/길이가 일치할 때만 닫힘으로 처리 — 문서 안에 예시로 등장하는
+        // 다른 종류/길이의 코드펜스 줄을 닫힘으로 오인해 이후 "---" 전체를 놓치는 것을 방지
+        fenceChar = null;
+        fenceLen = 0;
+      }
+    }
+    if (fenceChar === null && line.trim() === '---') {
       chunks.push(buf.join('\n'));
       buf = [];
       continue;
