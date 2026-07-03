@@ -652,13 +652,22 @@ const PresentationModal = ({
               );
             })()}
 
-            {/* 스포트라이트 (레이저 포인터) — 주변을 짙게 어둡게 하고 밝은 링으로 강조 */}
+            {/* 스포트라이트 (레이저 포인터) — 원 안쪽은 밝게 띄우고 바깥은 짙게 어둡게, 밝은 링으로 강조 */}
             {tool === 'spotlight' && lensPos && (
               <div className="absolute inset-0 z-20 rounded-3xl pointer-events-none overflow-hidden">
+                {/* 원 안쪽을 밝혀서 가독성 확보 (screen 블렌드로 배경/글자 모두 밝아짐) */}
                 <div
                   className="absolute inset-0"
                   style={{
-                    background: 'rgba(0,0,0,0.9)',
+                    background: `radial-gradient(circle 130px at ${lensPos.x}px ${lensPos.y}px, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.32) 40%, rgba(255,255,255,0.08) 65%, rgba(255,255,255,0) 82%)`,
+                    mixBlendMode: 'screen',
+                  } as CSSProperties}
+                />
+                {/* 원 바깥쪽을 짙게 어둡게 */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: 'rgba(0,0,0,0.92)',
                     WebkitMaskImage: `radial-gradient(circle 130px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
                     maskImage: `radial-gradient(circle 130px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
                   } as CSSProperties}
@@ -670,7 +679,7 @@ const PresentationModal = ({
                     height: 260,
                     left: lensPos.x - 130,
                     top: lensPos.y - 130,
-                    boxShadow: '0 0 0 4px rgba(255,255,255,0.9), 0 0 40px 8px rgba(255,255,255,0.5)',
+                    boxShadow: '0 0 0 4px rgba(255,255,255,0.95), 0 0 50px 12px rgba(255,255,255,0.6)',
                   }}
                 />
               </div>
