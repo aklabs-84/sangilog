@@ -8,6 +8,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockExt from '@tiptap/extension-code-block';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Node, Extension, mergeAttributes } from '@tiptap/core';
+import { Plugin } from '@tiptap/pm/state';
+import type { Transaction } from '@tiptap/pm/state';
 import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Suggestion from '@tiptap/suggestion';
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
@@ -525,6 +527,37 @@ const CodeBlockView = ({ node }: NodeViewProps) => {
 const CustomCodeBlock = CodeBlockExt.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView);
+  },
+});
+
+// ── 구분선 자동 보정 ──────────────────────────────────────────────────────────
+// "---"만 입력하면 즉시 구분선(hr)로 바뀌는 내장 입력 규칙이 한글 입력기/붙여넣기 등의
+// 타이밍 이슈로 가끔 놓쳐서 "---" 글자가 그대로 남는 경우가 있음.
+// 커서가 그 문단을 벗어난 뒤 "---"만 단독으로 남아있으면 자동으로 구분선으로 바꿔 보정한다.
+const HR_ONLY_TEXT = new Set(['---', '___', '***', '—-']);
+
+const AutoHorizontalRule = Extension.create({
+  name: 'autoHorizontalRule',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        appendTransaction: (transactions, _oldState, newState) => {
+          if (!transactions.some(tr => tr.docChanged)) return null;
+          const cursorPos = newState.selection.from;
+          let tr: Transaction | null = null;
+          newState.doc.descendants((node, pos) => {
+            if (node.type.name !== 'paragraph') return;
+            if (cursorPos > pos && cursorPos < pos + node.nodeSize) return; // 편집 중인 문단은 건드리지 않음
+            if (!HR_ONLY_TEXT.has(node.textContent.trim())) return;
+            if (!tr) tr = newState.tr;
+            const from = tr.mapping.map(pos);
+            const to = tr.mapping.map(pos + node.nodeSize);
+            tr.replaceWith(from, to, newState.schema.nodes.horizontalRule.create());
+          });
+          return tr;
+        },
+      }),
+    ];
   },
 });
 
@@ -1124,6 +1157,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       StarterKit.configure({ codeBlock: false, link: false }),
       CustomCodeBlock,
       SlashCommandExtension,
+      AutoHorizontalRule,
       Markdown.configure({
         html: true,
         tightLists: true,
