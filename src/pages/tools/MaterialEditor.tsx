@@ -111,6 +111,31 @@ const serializeSlides = (slides: Slide[]): string =>
 const SLIDE_BG_OPTIONS = Object.keys(SLIDE_BG_THEMES);
 const SLIDE_ICON_PRESETS = ['🎯', '📚', '💡', '🔬', '🧪', '🌟', '📌', '✅', '🚀', '📊'];
 
+// 슬라이드 안의 이미지 하나를 텍스트에서 분리 — "왼쪽 텍스트 / 오른쪽 이미지" 2단 레이아웃용
+// (직렬화되는 원본 content는 그대로 두고, 발표 화면 렌더링 시에만 나눠서 보여줌)
+const SLIDE_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/;
+
+const splitSlideImage = (content: string): { text: string; image: { src: string; alt: string } | null } => {
+  const lines = content.split('\n');
+  let image: { src: string; alt: string } | null = null;
+  const outLines: string[] = [];
+  for (const line of lines) {
+    if (!image) {
+      const m = line.match(SLIDE_IMAGE_RE);
+      if (m) {
+        image = { src: m[2], alt: m[1] || '' };
+        const remainder = line.replace(m[0], '').replace(/^[-*+]\s*$|^\d+\.\s*$/, '').trim();
+        if (remainder) outLines.push(line.replace(m[0], '').trimEnd());
+        continue;
+      }
+    }
+    outLines.push(line);
+  }
+  // 이미지만 있던 자리에 남는 빈 불릿(마커만 있고 내용 없는 줄)도 함께 정리
+  const cleaned = outLines.filter(l => !/^\s*(?:[-*+]|\d+\.)\s*$/.test(l));
+  return { text: cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim(), image };
+};
+
 // ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
 const slideComponents: any = {
   h1: ({ children }: any) => (
@@ -188,6 +213,7 @@ const PresentationModal = ({
   const total = slides.length;
   const slide = slides[current];
   const theme = SLIDE_BG_THEMES[slide.bg ?? 'dark'] ?? SLIDE_BG_THEMES.dark;
+  const { text: slideText, image: slideImage } = splitSlideImage(slide.content);
 
   const updateCurrentSlide = (patch: Partial<Slide>) => {
     setSlides(prev => prev.map((s, i) => (i === current ? { ...s, ...patch } : s)));
@@ -312,9 +338,26 @@ const PresentationModal = ({
                 style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
               >
                 <div ref={contentRef} className="px-14 py-10">
-                  <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
-                    {slide.content}
-                  </ReactMarkdown>
+                  {slideImage ? (
+                    <div className="flex items-center gap-10">
+                      <div className="flex-1 min-w-0">
+                        <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
+                          {slideText}
+                        </ReactMarkdown>
+                      </div>
+                      <div className="w-[38%] shrink-0 flex items-center justify-center">
+                        <img
+                          src={slideImage.src}
+                          alt={slideImage.alt}
+                          className="max-w-full max-h-[380px] object-contain rounded-2xl shadow-xl"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
+                      {slide.content}
+                    </ReactMarkdown>
+                  )}
                 </div>
               </div>
             </div>
