@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -65,7 +65,7 @@ interface Material {
 
 // ── 슬라이드 파싱 ─────────────────────────────────────────────────────────────
 // 슬라이드 첫 줄에 <!-- meta: bg=purple icon=🎯 --> 형태가 있으면 배경/아이콘으로 분리
-interface Slide { content: string; bg?: string; icon?: string; }
+interface Slide { content: string; bg?: string; icon?: string; fontScale?: number; imgScale?: number; }
 
 const SLIDE_META_RE = /^<!--\s*meta:\s*([^>]*?)\s*-->\s*\n?/;
 
@@ -94,7 +94,14 @@ const parseSlides = (content: string): Slide[] => {
     const attrs = m[1];
     const bg = attrs.match(/bg=(\w+)/)?.[1];
     const icon = attrs.match(/icon=(\S+)/)?.[1];
-    return { content: chunk.slice(m[0].length).trim(), bg, icon };
+    const fontScale = attrs.match(/fontScale=(\d+)/)?.[1];
+    const imgScale = attrs.match(/imgScale=(\d+)/)?.[1];
+    return {
+      content: chunk.slice(m[0].length).trim(),
+      bg, icon,
+      fontScale: fontScale ? Number(fontScale) : undefined,
+      imgScale: imgScale ? Number(imgScale) : undefined,
+    };
   });
 };
 
@@ -104,6 +111,8 @@ const serializeSlides = (slides: Slide[]): string =>
     const attrs: string[] = [];
     if (s.bg) attrs.push(`bg=${s.bg}`);
     if (s.icon) attrs.push(`icon=${s.icon}`);
+    if (s.fontScale && s.fontScale !== 100) attrs.push(`fontScale=${s.fontScale}`);
+    if (s.imgScale && s.imgScale !== 38) attrs.push(`imgScale=${s.imgScale}`);
     const meta = attrs.length > 0 ? `<!-- meta: ${attrs.join(' ')} -->\n` : '';
     return `${meta}${s.content}`;
   }).join('\n\n---\n\n');
@@ -136,34 +145,38 @@ const splitSlideImage = (content: string): { text: string; image: { src: string;
   return { text: cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim(), image };
 };
 
+// 슬라이드 글자 크기 편집 — 편집 패널의 %를 --slide-font-scale CSS 변수로 상위에서 지정하면
+// 아래 각 요소가 calc()로 기본 rem 크기에 곱해서 반영한다 (Tailwind text-* 클래스는 rem 고정값이라 상속 배율 적용 불가)
+const slideFontSize = (baseRem: number) => ({ fontSize: `calc(${baseRem}rem * var(--slide-font-scale, 1))` });
+
 // ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
 const slideComponents: any = {
   h1: ({ children }: any) => (
-    <h1 className="text-5xl font-black mb-6 leading-tight text-white tracking-tight">{children}</h1>
+    <h1 style={slideFontSize(3)} className="font-black mb-6 leading-tight text-white tracking-tight">{children}</h1>
   ),
   h2: ({ children }: any) => (
-    <h2 className="text-3xl font-black mb-4 mt-6 text-white/90">{children}</h2>
+    <h2 style={slideFontSize(1.875)} className="font-black mb-4 mt-6 text-white/90">{children}</h2>
   ),
   h3: ({ children }: any) => (
-    <h3 className="text-2xl font-black mb-3 mt-5 text-white/80">{children}</h3>
+    <h3 style={slideFontSize(1.5)} className="font-black mb-3 mt-5 text-white/80">{children}</h3>
   ),
   p: ({ children }: any) => (
-    <p className="text-xl leading-relaxed mb-4 text-white/75">{children}</p>
+    <p style={slideFontSize(1.25)} className="leading-relaxed mb-4 text-white/75">{children}</p>
   ),
   ul: ({ children }: any) => <ul className="space-y-3 mb-4 pl-2">{children}</ul>,
   ol: ({ children }: any) => <ol className="list-decimal pl-6 space-y-3 mb-4">{children}</ol>,
   li: ({ children }: any) => (
-    <li className="flex items-start gap-3 text-xl text-white/75">
+    <li style={slideFontSize(1.25)} className="flex items-start gap-3 text-white/75">
       <span className="mt-2 w-2 h-2 rounded-full bg-primary shrink-0" />
       <span>{children}</span>
     </li>
   ),
   blockquote: ({ children }: any) => (
-    <blockquote className="border-l-4 border-primary pl-6 italic text-white/60 my-4 text-xl">{children}</blockquote>
+    <blockquote style={slideFontSize(1.25)} className="border-l-4 border-primary pl-6 italic text-white/60 my-4">{children}</blockquote>
   ),
   code: ({ children, className }: any) => {
     if (!className) {
-      return <code className="bg-white/10 px-2 py-0.5 rounded text-lg font-mono text-primary-light">{children}</code>;
+      return <code style={slideFontSize(1.125)} className="bg-white/10 px-2 py-0.5 rounded font-mono text-primary-light">{children}</code>;
     }
     return <code className={className}>{children}</code>;
   },
@@ -171,7 +184,7 @@ const slideComponents: any = {
     const child = (Array.isArray(children) ? children[0] : children) as any;
     const code = String(child?.props?.children ?? '').replace(/\n$/, '');
     return (
-      <pre className="bg-white/5 rounded-2xl p-5 overflow-auto text-base font-mono text-white/80 my-4 border border-white/10">
+      <pre style={slideFontSize(1)} className="bg-white/5 rounded-2xl p-5 overflow-auto font-mono text-white/80 my-4 border border-white/10">
         {code}
       </pre>
     );
@@ -214,6 +227,7 @@ const PresentationModal = ({
   const slide = slides[current];
   const theme = SLIDE_BG_THEMES[slide.bg ?? 'dark'] ?? SLIDE_BG_THEMES.dark;
   const { text: slideText, image: slideImage } = splitSlideImage(slide.content);
+  const imgScalePct = slide.imgScale ?? 38;
 
   const updateCurrentSlide = (patch: Partial<Slide>) => {
     setSlides(prev => prev.map((s, i) => (i === current ? { ...s, ...patch } : s)));
@@ -337,7 +351,11 @@ const PresentationModal = ({
                 className="relative z-10 w-full h-full flex flex-col justify-center"
                 style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
               >
-                <div ref={contentRef} className="px-14 py-10">
+                <div
+                  ref={contentRef}
+                  className="px-14 py-10"
+                  style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}
+                >
                   {slideImage ? (
                     <div className="flex items-center gap-10">
                       <div className="flex-1 min-w-0">
@@ -345,11 +363,12 @@ const PresentationModal = ({
                           {slideText}
                         </ReactMarkdown>
                       </div>
-                      <div className="w-[38%] shrink-0 flex items-center justify-center">
+                      <div style={{ width: `${imgScalePct}%` }} className="shrink-0 flex items-center justify-center">
                         <img
                           src={slideImage.src}
                           alt={slideImage.alt}
-                          className="max-w-full max-h-[380px] object-contain rounded-2xl shadow-xl"
+                          style={{ maxHeight: `${Math.round(380 * (imgScalePct / 38))}px` }}
+                          className="max-w-full object-contain rounded-2xl shadow-xl"
                         />
                       </div>
                     </div>
@@ -418,6 +437,30 @@ const PresentationModal = ({
                 </button>
               )}
             </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-white/40 mr-1">글자 크기</span>
+              <input
+                type="range"
+                min={70} max={150} step={10}
+                value={slide.fontScale ?? 100}
+                onChange={e => updateCurrentSlide({ fontScale: Number(e.target.value) })}
+                className="w-24 accent-primary"
+              />
+              <span className="text-xs font-bold text-white/60 w-9 tabular-nums">{slide.fontScale ?? 100}%</span>
+            </div>
+            {slideImage && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-black text-white/40 mr-1">이미지 크기</span>
+                <input
+                  type="range"
+                  min={20} max={60} step={2}
+                  value={slide.imgScale ?? 38}
+                  onChange={e => updateCurrentSlide({ imgScale: Number(e.target.value) })}
+                  className="w-24 accent-primary"
+                />
+                <span className="text-xs font-bold text-white/60 w-9 tabular-nums">{slide.imgScale ?? 38}%</span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -474,7 +517,7 @@ const ImportFromClassModal = ({
   onImport,
   onClose,
 }: {
-  currentClassId: string;
+  currentClassId?: string;
   userId: string;
   onImport: (title: string, content: string, weekNumber: number) => void;
   onClose: () => void;
@@ -486,12 +529,13 @@ const ImportFromClassModal = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase
+    let query = supabase
       .from('classes')
       .select('id, name')
       .eq('teacher_id', userId)
-      .eq('is_archived', false)
-      .neq('id', currentClassId)
+      .eq('is_archived', false);
+    if (currentClassId) query = query.neq('id', currentClassId);
+    query
       .order('created_at', { ascending: false })
       .then(({ data }) => { setClasses(data || []); setLoading(false); });
   }, []);
@@ -1380,9 +1424,9 @@ const MaterialEditor = () => {
         onSave={presentingOnSave ?? undefined}
       />
     )}
-    {showImportModal && selectedClass && user && (
+    {showImportModal && user && (
       <ImportFromClassModal
-        currentClassId={selectedClass.id}
+        currentClassId={selectedClass?.id}
         userId={user.id}
         onImport={(importedTitle, importedContent, importedWeek) => {
           setTitle(importedTitle ?? '');
