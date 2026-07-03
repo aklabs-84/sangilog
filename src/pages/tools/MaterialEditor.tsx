@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { reorganizeMaterialContent, MATERIAL_REORG_PROMPTS } from '../../lib/gemini';
+import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS } from '../../lib/gemini';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
@@ -150,6 +150,32 @@ const splitSlideImage = (content: string): { text: string; image: { src: string;
 // 아래 각 요소가 calc()로 기본 rem 크기에 곱해서 반영한다 (Tailwind text-* 클래스는 rem 고정값이라 상속 배율 적용 불가)
 const slideFontSize = (baseRem: number) => ({ fontSize: `calc(${baseRem}rem * var(--slide-font-scale, 1))` });
 
+// 노션 스타일 콜아웃 블록 — RichEditor의 CalloutExtension이 `<div data-callout="...">`로 직렬화한 것을 렌더링
+const CALLOUT_STYLES: Record<string, { icon: string; classes: string }> = {
+  info: { icon: '💡', classes: 'bg-blue-50 border-blue-200 text-blue-900' },
+  warning: { icon: '⚠️', classes: 'bg-amber-50 border-amber-200 text-amber-900' },
+  tip: { icon: '✅', classes: 'bg-emerald-50 border-emerald-200 text-emerald-900' },
+  important: { icon: '❗', classes: 'bg-red-50 border-red-200 text-red-900' },
+};
+const CALLOUT_STYLES_DARK: Record<string, { icon: string; classes: string }> = {
+  info: { icon: '💡', classes: 'bg-blue-500/10 border-blue-400/30 text-blue-50' },
+  warning: { icon: '⚠️', classes: 'bg-amber-500/10 border-amber-400/30 text-amber-50' },
+  tip: { icon: '✅', classes: 'bg-emerald-500/10 border-emerald-400/30 text-emerald-50' },
+  important: { icon: '❗', classes: 'bg-red-500/10 border-red-400/30 text-red-50' },
+};
+const renderCallout = (props: any, dark: boolean) => {
+  const { children, ...rest } = props;
+  const type = rest['data-callout'];
+  const style = type ? (dark ? CALLOUT_STYLES_DARK : CALLOUT_STYLES)[type] : undefined;
+  if (!style) return <div {...rest}>{children}</div>;
+  return (
+    <div className={`my-3 rounded-xl border-2 flex gap-3 px-4 py-3 ${style.classes}`}>
+      <span className="shrink-0 text-lg leading-none mt-0.5">{style.icon}</span>
+      <div className="flex-1 min-w-0 text-sm [&>p]:m-0 [&>p]:mb-2 [&>p:last-child]:mb-0">{children}</div>
+    </div>
+  );
+};
+
 // ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
 const slideComponents: any = {
   h1: ({ children }: any) => (
@@ -220,6 +246,7 @@ const slideComponents: any = {
       <span className="text-sm opacity-70">▶</span> {children}
     </summary>
   ),
+  div: (props: any) => renderCallout(props, true),
 };
 
 // ── 프레젠테이션 모달 ─────────────────────────────────────────────────────────
@@ -945,6 +972,7 @@ const mdComponents: any = {
       <span className="text-primary text-xs">▶</span> {children}
     </summary>
   ),
+  div: (props: any) => renderCallout(props, false),
 };
 
 // ── AI 재구성 모달 (학습 가이드 / 발표 자료) ─────────────────────────────────
@@ -969,13 +997,16 @@ const AiReorganizeModal = ({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [previewSlide, setPreviewSlide] = useState(0);
+  const [validating, setValidating] = useState(false);
+  const [validationWarning, setValidationWarning] = useState<{ message: string; guide?: string } | null>(null);
 
   const handleSelectMode = (m: 'guide' | 'presentation') => {
     setMode(m);
+    setValidationWarning(null);
     setStep('configure');
   };
 
-  const handleGenerate = async () => {
+  const runGenerate = async () => {
     setStep('loading');
     setFeedback(null);
     try {
@@ -992,6 +1023,24 @@ const AiReorganizeModal = ({
       );
       setStep('error');
     }
+  };
+
+  const handleGenerate = async () => {
+    const trimmed = userInstruction.trim();
+    if (!trimmed) {
+      setValidationWarning(null);
+      await runGenerate();
+      return;
+    }
+    setValidating(true);
+    setValidationWarning(null);
+    const check = await validateReorganizeInstruction(trimmed, mode);
+    setValidating(false);
+    if (!check.feasible) {
+      setValidationWarning({ message: check.message, guide: check.guide });
+      return;
+    }
+    await runGenerate();
   };
 
   const previewSlides = mode === 'presentation' ? parseSlides(result) : [];
@@ -1079,12 +1128,23 @@ const AiReorganizeModal = ({
                 <p className="text-xs font-black text-on-surface-variant mb-1.5">추가로 반영하고 싶은 요청사항 (선택)</p>
                 <textarea
                   value={userInstruction}
-                  onChange={e => setUserInstruction(e.target.value)}
+                  onChange={e => { setUserInstruction(e.target.value); setValidationWarning(null); }}
                   placeholder={mode === 'guide' ? '예: 중학생 눈높이로 쉽게 풀어줘' : '예: 실습 위주로 강조해줘'}
                   rows={3}
                   className="w-full px-3 py-2.5 bg-white rounded-xl border border-surface-container text-sm focus:outline-none focus:border-primary/40 resize-none"
                 />
               </div>
+              {validationWarning && (
+                <div className="flex items-start gap-2 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                  <div className="text-xs font-bold leading-relaxed space-y-1">
+                    <p>{validationWarning.message}</p>
+                    {validationWarning.guide && (
+                      <p className="text-amber-700">💡 {validationWarning.guide}</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1162,9 +1222,12 @@ const AiReorganizeModal = ({
                 <div className="flex-1" />
                 <button
                   onClick={handleGenerate}
-                  className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+                  disabled={validating}
+                  className="flex items-center gap-2 px-6 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:hover:scale-100 transition-all"
                 >
-                  <Sparkles size={15} /> 정리 시작
+                  {validating
+                    ? <><Loader2 size={15} className="animate-spin" /> 요청사항 확인 중...</>
+                    : <><Sparkles size={15} /> 정리 시작</>}
                 </button>
               </>
             )}
@@ -1433,6 +1496,36 @@ const MaterialEditor = () => {
     if (!error) setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, is_published: next } : m));
   };
 
+  // ── AI 정리 히스토리 개별 삭제 (편집 화면) ────────────────────────────────
+  const handleDeleteAiVersion = async (v: AiVersion) => {
+    if (!confirm(`"${v.label}" 버전을 삭제하시겠습니까?`)) return;
+    const next = aiVersions.filter(x => x.id !== v.id);
+    setAiVersions(next);
+    if (editingMaterial?.id) {
+      const { error } = await supabase
+        .from('class_materials')
+        .update({ ai_versions: next, updated_at: new Date().toISOString() })
+        .eq('id', editingMaterial.id);
+      if (!error) setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? { ...m, ai_versions: next } : m));
+    }
+  };
+
+  // ── AI 정리 히스토리 개별 삭제 (목록 화면) ────────────────────────────────
+  const handleDeleteMaterialVersion = async (material: Material, v: AiVersion) => {
+    if (!confirm(`"${v.label}" 버전을 삭제하시겠습니까?`)) return;
+    const nextVersions = (material.ai_versions ?? []).filter(x => x.id !== v.id);
+    const { error } = await supabase
+      .from('class_materials')
+      .update({ ai_versions: nextVersions, updated_at: new Date().toISOString() })
+      .eq('id', material.id);
+    if (!error) {
+      setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, ai_versions: nextVersions } : m));
+      if (selectedVersionId[material.id] === v.id) {
+        setSelectedVersionId(prev => ({ ...prev, [material.id]: null }));
+      }
+    }
+  };
+
   // ── 목록 화면 발표 모드에서 편집 저장 (원본 또는 특정 AI 버전) ────────────────
   const persistMaterialVersion = async (material: Material, versionId: string | null, newContent: string) => {
     if (versionId) {
@@ -1617,36 +1710,44 @@ const MaterialEditor = () => {
                       </p>
                       <div className="max-h-64 overflow-y-auto">
                         {aiVersions.map(v => (
-                          <button
-                            key={v.id}
-                            onClick={() => {
-                              setShowVersionMenu(false);
-                              // 원본(content)은 건드리지 않고, 이 버전만 발표 모드로 열어서 보기/편집한다
-                              setPresentingMaterial({
-                                id: editingMaterial?.id ?? 'draft',
-                                class_id: selectedClass?.id ?? null,
-                                week_number: weekNumber,
-                                title: `${title.trim() || '(제목 없음)'} · ${v.label}`,
-                                content: v.content,
-                                url: '',
-                                is_published: isPublished,
-                                created_at: v.created_at,
-                                updated_at: new Date().toISOString(),
-                              });
-                              setPresentingOnSave(() => (updated: string) => {
-                                setAiVersions(prev => prev.map(x => x.id === v.id ? { ...x, content: updated } : x));
-                              });
-                            }}
-                            className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
-                          >
-                            {v.mode === 'guide'
-                              ? <BookOpen size={13} className="text-primary shrink-0" />
-                              : <Presentation size={13} className="text-violet-600 shrink-0" />}
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-xs font-black truncate">{v.label}</span>
-                              <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
-                            </span>
-                          </button>
+                          <div key={v.id} className="flex items-center group hover:bg-surface-container-low transition-colors">
+                            <button
+                              onClick={() => {
+                                setShowVersionMenu(false);
+                                // 원본(content)은 건드리지 않고, 이 버전만 발표 모드로 열어서 보기/편집한다
+                                setPresentingMaterial({
+                                  id: editingMaterial?.id ?? 'draft',
+                                  class_id: selectedClass?.id ?? null,
+                                  week_number: weekNumber,
+                                  title: `${title.trim() || '(제목 없음)'} · ${v.label}`,
+                                  content: v.content,
+                                  url: '',
+                                  is_published: isPublished,
+                                  created_at: v.created_at,
+                                  updated_at: new Date().toISOString(),
+                                });
+                                setPresentingOnSave(() => (updated: string) => {
+                                  setAiVersions(prev => prev.map(x => x.id === v.id ? { ...x, content: updated } : x));
+                                });
+                              }}
+                              className="flex-1 min-w-0 flex items-center gap-2 text-left pl-4 pr-2 py-2.5"
+                            >
+                              {v.mode === 'guide'
+                                ? <BookOpen size={13} className="text-primary shrink-0" />
+                                : <Presentation size={13} className="text-violet-600 shrink-0" />}
+                              <span className="flex-1 min-w-0">
+                                <span className="block text-xs font-black truncate">{v.label}</span>
+                                <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAiVersion(v)}
+                              title="이 버전 삭제"
+                              className="shrink-0 p-1.5 mr-2 rounded-lg text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -1886,20 +1987,28 @@ const MaterialEditor = () => {
                                   {!selectedVersionId[material.id] && <Check size={13} className="text-emerald-500 shrink-0" />}
                                 </button>
                                 {material.ai_versions!.map(v => (
-                                  <button
-                                    key={v.id}
-                                    onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: v.id })); setVersionMenuFor(null); }}
-                                    className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
-                                  >
-                                    {v.mode === 'guide'
-                                      ? <BookOpen size={13} className="text-primary shrink-0" />
-                                      : <Presentation size={13} className="text-violet-600 shrink-0" />}
-                                    <span className="flex-1 min-w-0">
-                                      <span className="block text-xs font-black truncate">{v.label}</span>
-                                      <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
-                                    </span>
-                                    {selectedVersionId[material.id] === v.id && <Check size={13} className="text-emerald-500 shrink-0" />}
-                                  </button>
+                                  <div key={v.id} className="flex items-center group hover:bg-surface-container-low transition-colors">
+                                    <button
+                                      onClick={() => { setSelectedVersionId(prev => ({ ...prev, [material.id]: v.id })); setVersionMenuFor(null); }}
+                                      className="flex-1 min-w-0 flex items-center gap-2 text-left pl-4 pr-2 py-2.5"
+                                    >
+                                      {v.mode === 'guide'
+                                        ? <BookOpen size={13} className="text-primary shrink-0" />
+                                        : <Presentation size={13} className="text-violet-600 shrink-0" />}
+                                      <span className="flex-1 min-w-0">
+                                        <span className="block text-xs font-black truncate">{v.label}</span>
+                                        <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
+                                      </span>
+                                      {selectedVersionId[material.id] === v.id && <Check size={13} className="text-emerald-500 shrink-0" />}
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteMaterialVersion(material, v)}
+                                      title="이 버전 삭제"
+                                      className="shrink-0 p-1.5 mr-2 rounded-lg text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
                                 ))}
                               </div>
                             </div>

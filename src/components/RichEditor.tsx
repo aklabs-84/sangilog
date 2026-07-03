@@ -16,7 +16,7 @@ import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
   Copy, Check, Table2, Plus, Trash2, ArrowRightToLine, ArrowDownToLine,
-  MonitorPlay, Palette,
+  MonitorPlay, Palette, Lightbulb,
 } from 'lucide-react';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
@@ -30,6 +30,7 @@ const SLASH_COMMANDS = [
   { icon: '</>', title: '코드 블록', description: '코드 스니펫',      command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run() },
   { icon: '—',  title: '구분선',    description: '슬라이드 구분선',   command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).setHorizontalRule().run() },
   { icon: '▶',  title: '토글 블록', description: '접을 수 있는 내용', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'details', attrs: { summary: '토글 제목' }, content: [{ type: 'paragraph' }] }).run() },
+  { icon: '💡', title: '콜아웃',    description: '강조 박스 (정보/주의/팁/중요)', command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertContent({ type: 'callout', attrs: { type: 'info' }, content: [{ type: 'paragraph' }] }).run() },
   { icon: '⊞',  title: '표',       description: '표 삽입 (3×3)',     command: ({ editor, range }: any) => editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { icon: '▶',  title: '영상 임베드', description: 'YouTube 등 영상 삽입', command: ({ editor, range }: any) => { editor.chain().focus().deleteRange(range).run(); (window as any).__openEmbedDialog?.(); } },
 ] as const;
@@ -393,6 +394,93 @@ const DetailsExtension = Node.create({
 
   addNodeView() {
     return ReactNodeViewRenderer(DetailsView);
+  },
+});
+
+// ── 콜아웃(Callout) — 노션 스타일 강조 박스 ───────────────────────────────────
+const CALLOUT_TYPES: Record<string, { icon: string; label: string; classes: string }> = {
+  info: { icon: '💡', label: '정보', classes: 'bg-blue-50 border-blue-300' },
+  warning: { icon: '⚠️', label: '주의', classes: 'bg-amber-50 border-amber-300' },
+  tip: { icon: '✅', label: '팁', classes: 'bg-emerald-50 border-emerald-300' },
+  important: { icon: '❗', label: '중요', classes: 'bg-red-50 border-red-300' },
+};
+const CALLOUT_ORDER = ['info', 'warning', 'tip', 'important'];
+
+const CalloutView = ({ node, updateAttributes, selected, editor, getPos }: NodeViewProps) => {
+  const type = CALLOUT_TYPES[node.attrs.type] ? node.attrs.type : 'info';
+  const meta = CALLOUT_TYPES[type];
+
+  const cycleType = () => {
+    const idx = CALLOUT_ORDER.indexOf(type);
+    updateAttributes({ type: CALLOUT_ORDER[(idx + 1) % CALLOUT_ORDER.length] });
+  };
+
+  return (
+    <NodeViewWrapper>
+      <div className={`group my-2 rounded-xl border-2 flex gap-2 px-4 py-3 transition-colors ${meta.classes} ${selected ? 'ring-2 ring-primary' : ''}`}>
+        <button
+          onMouseDown={e => { e.preventDefault(); e.stopPropagation(); cycleType(); }}
+          className="shrink-0 text-lg leading-none mt-0.5 hover:opacity-70 transition-opacity"
+          title={`클릭하여 콜아웃 종류 변경 (현재: ${meta.label})`}
+          contentEditable={false}
+        >
+          {meta.icon}
+        </button>
+        <NodeViewContent className="flex-1 min-w-0 text-sm [&>p]:m-0" />
+        <button
+          onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
+          className="shrink-0 self-start p-1 rounded-lg text-black/30 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-colors"
+          title="콜아웃 삭제"
+        >
+          <X size={13} />
+        </button>
+      </div>
+    </NodeViewWrapper>
+  );
+};
+
+const CalloutExtension = Node.create({
+  name: 'callout',
+  group: 'block',
+  content: 'block+',
+  defining: true,
+  isolating: true,
+
+  addAttributes() {
+    return {
+      type: {
+        default: 'info',
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-callout') || 'info',
+        renderHTML: (attrs: { type: string }) => ({ 'data-callout': attrs.type }),
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: 'div[data-callout]' }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes(HTMLAttributes), 0];
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any, node: any) {
+          const type = CALLOUT_TYPES[node.attrs.type] ? node.attrs.type : 'info';
+          state.write(`<div data-callout="${type}">\n\n`);
+          state.renderContent(node);
+          state.ensureNewLine();
+          state.write('</div>\n\n');
+        },
+        parse: {},
+      },
+    };
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(CalloutView);
   },
 });
 
@@ -1046,6 +1134,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       LinkExtension.configure({ openOnClick: false }),
       ResizableImage,
       DetailsExtension,
+      CalloutExtension,
       ColorableTable.configure({ resizable: true, HTMLAttributes: { class: 'rich-table' } }),
       TableRow,
       ColorableTableHeader,
@@ -1218,6 +1307,15 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
     }).run();
   };
 
+  const handleInsertCallout = () => {
+    if (!editor) return;
+    editor.chain().focus().insertContent({
+      type: 'callout',
+      attrs: { type: 'info' },
+      content: [{ type: 'paragraph' }],
+    }).run();
+  };
+
   const handleInsertTable = (rows: number, cols: number) => {
     if (!editor) return;
     editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
@@ -1295,6 +1393,9 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
         {sep}
         <button onClick={handleInsertToggle} title="토글 블록 삽입" className={btnCls(isActive('details'))}>
           <ChevronRight size={15} />
+        </button>
+        <button onClick={handleInsertCallout} title="콜아웃 삽입 (강조 박스)" className={btnCls(isActive('callout'))}>
+          <Lightbulb size={15} />
         </button>
         {sep}
         {/* 표 삽입 버튼 */}

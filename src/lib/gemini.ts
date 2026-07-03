@@ -471,6 +471,56 @@ function restoreImagePlaceholders(result: string, map: string[]): string {
 // 완전히 반영되지 못했을 때만 AI가 응답 맨 앞에 붙이는 반영 여부 안내
 const FEEDBACK_BLOCK_RE = /^\s*\[\[FEEDBACK\]\]\s*\n?([\s\S]*?)\n?\s*\[\[\/FEEDBACK\]\]\s*\n?/;
 
+// 선생님이 입력한 "추가 요청사항"이 정적 마크다운 결과물로 실제 구현 가능한지 생성 전에 미리 검증
+export async function validateReorganizeInstruction(
+  instruction: string,
+  mode: 'guide' | 'presentation'
+): Promise<{ feasible: boolean; message: string; guide?: string }> {
+  const modeLabel = mode === 'guide' ? '학습 가이드' : '발표 슬라이드';
+  const validationPrompt = `당신은 AI 수업 자료 정리 시스템의 요청사항 검증 전문가입니다.
+교사가 "${modeLabel} AI 정리" 기능에 입력한 추가 요청사항이 실제로 구현 가능한지 판별하세요.
+
+[시스템이 만들어내는 결과물]
+- 순수 텍스트 마크다운 문서입니다 (제목, 문단, 불릿/번호 목록, 표, 인용구, 토글 블록, 콜아웃 강조 박스, 원문에 이미 있던 이미지로만 구성)
+- ${mode === 'presentation' ? '16:9 슬라이드로 나뉘며 슬라이드마다 배경 테마 1개·이모지 아이콘 1개만 지정 가능합니다' : '학생이 순서대로 따라가는 STEP 단계 구조로 나뉩니다'}
+- 화면에 그려진 뒤에는 움직이지 않는 정적 문서입니다
+
+[시스템이 절대 할 수 없는 것]
+- 애니메이션, 전환 효과, 움직이거나 반짝이는 요소
+- 이미지 생성·편집·교체 (원문에 없던 새 이미지를 만들거나 기존 이미지를 다른 것으로 바꿀 수 없음 — 배치 위치 조정만 가능)
+- 클릭/호버 상호작용, 버튼, 게임·퀴즈 자동 채점 등 앱 기능
+- 동영상 삽입/재생, 오디오, 외부 스크립트 실행
+- 실시간 데이터 연동
+- 원문에 없는 사실 정보의 임의 추가
+
+[동작 가능한 요청 예시]
+- 말투·어조, 강조점, 분량 조절 (예: 중학생 눈높이로, 간결하게)
+- 특정 섹션 강조, 순서 변경, 원문 내용 범위 안에서 예시 보강
+- 표/불릿/토글/콜아웃 등 형식 활용, 소제목 구성 방식 조정
+- 톤앤매너 지정 (친근하게, 격식있게 등)
+
+[교사가 입력한 추가 요청사항]
+"${instruction}"
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{"feasible":true,"message":"성공 메시지"}
+또는
+{"feasible":false,"message":"안 되는 이유","guide":"대신 이렇게 요청해보세요"}`;
+
+  try {
+    const result = await promptValidatorAI.generateContent(validationPrompt);
+    const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(raw);
+    return {
+      feasible: Boolean(parsed.feasible),
+      message: String(parsed.message || ''),
+      guide: parsed.guide ? String(parsed.guide) : undefined,
+    };
+  } catch {
+    return { feasible: true, message: '검증 중 오류가 발생했습니다. 요청사항을 반영해 진행합니다.' };
+  }
+}
+
 export async function reorganizeMaterialContent(
   rawContent: string,
   mode: 'guide' | 'presentation',
