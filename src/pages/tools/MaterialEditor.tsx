@@ -2123,7 +2123,8 @@ const MaterialEditor = () => {
                   created_at: editingMaterial?.created_at ?? new Date().toISOString(),
                   updated_at: new Date().toISOString(),
                 });
-                setPresentingOnSave(() => (updated: string) => setContent(updated));
+                // 발표 화면에서 슬라이드를 편집해도 원본(content)은 건드리지 않는다 — 편집은 발표 세션 내에서만 반영
+                setPresentingOnSave(() => () => {});
               }}
               disabled={!content.trim()}
               title={content.trim() ? '지금 편집 중인 내용을 바로 발표 모드로 보기' : '내용을 먼저 작성해주세요'}
@@ -2376,7 +2377,10 @@ const MaterialEditor = () => {
                         onClick={() => {
                           const versionId = selectedVersionId[material.id] ?? null;
                           setPresentingMaterial({ ...material, content: getActiveVersion(material).content });
-                          setPresentingOnSave(() => (updated: string) => persistMaterialVersion(material, versionId, updated));
+                          // AI 정리 버전 편집은 그대로 저장하되, 원본(versionId 없음)은 발표 화면 편집으로 덮어쓰지 않는다
+                          setPresentingOnSave(() => (updated: string) => {
+                            if (versionId) persistMaterialVersion(material, versionId, updated);
+                          });
                         }}
                         title="전체화면 발표 모드"
                         className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors"
