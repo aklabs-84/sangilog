@@ -88,8 +88,28 @@ const formatVersionDate = (iso: string) => {
   } catch { return ''; }
 };
 
+// 코드펜스(``` ~~~) 안에 우연히 "---"만 있는 줄이 있어도 슬라이드 경계로 오인하지 않도록
+// 펜스 상태를 추적하며 슬라이드 경계("---" 단독 줄)를 찾는다.
+const splitSlideChunks = (content: string): string[] => {
+  const lines = content.split('\n');
+  const chunks: string[] = [];
+  let buf: string[] = [];
+  let inFence = false;
+  for (const line of lines) {
+    if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
+    if (!inFence && line.trim() === '---') {
+      chunks.push(buf.join('\n'));
+      buf = [];
+      continue;
+    }
+    buf.push(line);
+  }
+  chunks.push(buf.join('\n'));
+  return chunks;
+};
+
 const parseSlides = (content: string): Slide[] => {
-  const chunks = content.split(/\n\s*---\s*\n/).map(s => s.trim()).filter(Boolean);
+  const chunks = splitSlideChunks(content).map(s => s.trim()).filter(Boolean);
   const raw = chunks.length > 0 ? chunks : [content.trim()];
   return raw.map(chunk => {
     const m = chunk.match(SLIDE_META_RE);
@@ -124,29 +144,50 @@ const SLIDE_BG_OPTIONS = Object.keys(SLIDE_BG_THEMES);
 const SLIDE_ICON_PRESETS = ['🎯', '📚', '💡', '🔬', '🧪', '🌟', '📌', '✅', '🚀', '📊'];
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
 
-// 슬라이드 안의 이미지 하나를 텍스트에서 분리 — "왼쪽 텍스트 / 오른쪽 이미지" 2단 레이아웃용
+// 슬라이드 안의 이미지를 텍스트에서 분리 — "왼쪽 텍스트 / 오른쪽 이미지" 2단 레이아웃용
 // (직렬화되는 원본 content는 그대로 두고, 발표 화면 렌더링 시에만 나눠서 보여줌)
+// 이미지가 여러 장이면 모두 오른쪽 컬럼에 세로로 쌓아 보여준다 — 텍스트 사이에 뒤섞이지 않도록.
 const SLIDE_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/;
 
-const splitSlideImage = (content: string): { text: string; image: { src: string; alt: string } | null } => {
+const splitSlideImages = (content: string): { text: string; images: { src: string; alt: string }[] } => {
   const lines = content.split('\n');
-  let image: { src: string; alt: string } | null = null;
+  const images: { src: string; alt: string }[] = [];
   const outLines: string[] = [];
   for (const line of lines) {
-    if (!image) {
-      const m = line.match(SLIDE_IMAGE_RE);
-      if (m) {
-        image = { src: m[2], alt: m[1] || '' };
-        const remainder = line.replace(m[0], '').replace(/^[-*+]\s*$|^\d+\.\s*$/, '').trim();
-        if (remainder) outLines.push(line.replace(m[0], '').trimEnd());
-        continue;
-      }
+    const m = line.match(SLIDE_IMAGE_RE);
+    if (m) {
+      images.push({ src: m[2], alt: m[1] || '' });
+      const remainder = line.replace(m[0], '').replace(/^[-*+]\s*$|^\d+\.\s*$/, '').trim();
+      if (remainder) outLines.push(line.replace(m[0], '').trimEnd());
+      continue;
     }
     outLines.push(line);
   }
   // 이미지만 있던 자리에 남는 빈 불릿(마커만 있고 내용 없는 줄)도 함께 정리
   const cleaned = outLines.filter(l => !/^\s*(?:[-*+]|\d+\.)\s*$/.test(l));
-  return { text: cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim(), image };
+  return { text: cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim(), images };
+};
+
+// 문단 바로 뒤에 빈 줄 없이 "---"가 붙으면 CommonMark가 구분선(hr) 대신 제목(Setext heading)이나
+// 그냥 텍스트로 잘못 해석하는 경우가 있어, 렌더링 직전에 "---" 단독 줄 앞뒤로 빈 줄을 강제 삽입해 보정한다.
+// (코드펜스 안의 "---"는 건드리지 않음)
+const normalizeStandaloneHr = (md: string): string => {
+  const lines = md.split('\n');
+  const out: string[] = [];
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
+    const isHr = !inFence && /^(-{3,}|_{3,}|\*{3,})$/.test(line.trim());
+    if (isHr) {
+      if (out.length > 0 && out[out.length - 1].trim() !== '') out.push('');
+      out.push(line);
+      if (lines[i + 1] !== undefined && lines[i + 1].trim() !== '') out.push('');
+    } else {
+      out.push(line);
+    }
+  }
+  return out.join('\n');
 };
 
 // 슬라이드 전체보기 그리드용 — 마크다운 기호를 걷어낸 짧은 미리보기 텍스트
@@ -223,7 +264,7 @@ const slideComponents: any = {
     const child = (Array.isArray(children) ? children[0] : children) as any;
     const code = String(child?.props?.children ?? '').replace(/\n$/, '');
     return (
-      <pre style={slideFontSize(1)} className="bg-white/5 rounded-2xl p-5 overflow-auto font-mono text-white/80 my-4 border border-white/10">
+      <pre style={slideFontSize(1)} className="bg-white/5 rounded-2xl p-5 whitespace-pre-wrap break-words font-mono text-white/80 my-4 border border-white/10">
         {code}
       </pre>
     );
@@ -277,7 +318,7 @@ const PresentationModal = ({
   const total = slides.length;
   const slide = slides[current];
   const theme = SLIDE_BG_THEMES[slide.bg ?? 'dark'] ?? SLIDE_BG_THEMES.dark;
-  const { text: slideText, image: slideImage } = splitSlideImage(slide.content);
+  const { text: slideText, images: slideImages } = splitSlideImages(slide.content);
   const imgScalePct = slide.imgScale ?? 38;
 
   const updateCurrentSlide = (patch: Partial<Slide>) => {
@@ -293,6 +334,8 @@ const PresentationModal = ({
   const contentRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [scale, setScale] = useState(1);
+  // 최소 배율(0.55)까지 줄여도 내용이 다 안 들어가면, 더 줄이는 대신 세로 스크롤을 허용한다
+  const [scrollOverflow, setScrollOverflow] = useState(false);
 
   // ── 발표 중 보조 도구 (돋보기 / 펜 / 스포트라이트 / 슬라이드 그리드) ─────────
   const [tool, setTool] = useState<'none' | 'zoom' | 'pen' | 'spotlight'>('none');
@@ -342,15 +385,29 @@ const PresentationModal = ({
     return () => { ro.disconnect(); window.removeEventListener('resize', calc); };
   }, []);
 
-  // 슬라이드 전환 시 내용이 스테이지보다 크면 스크롤 대신 자동 축소
+  // 슬라이드 전환 시 내용이 스테이지보다 크면 자동 축소하되, 최소 배율(0.55)로도 다 안 들어가면
+  // 글자를 더 줄이는 대신 세로 스크롤을 허용해 내용이 안 보이지 않게 한다.
   // (transform: scale은 레이아웃에 영향을 주지 않으므로 scrollHeight는 scale과 무관하게 측정됨)
   useEffect(() => {
     if (!stageSize.height) return;
+    const MIN_SCALE = 0.55;
     const id = requestAnimationFrame(() => {
       const el = contentRef.current;
       if (!el) return;
       const natural = el.scrollHeight;
-      setScale(natural > stageSize.height ? Math.max(0.55, (stageSize.height / natural) * 0.98) : 1);
+      if (natural <= stageSize.height) {
+        setScale(1);
+        setScrollOverflow(false);
+        return;
+      }
+      const needed = (stageSize.height / natural) * 0.98;
+      if (needed < MIN_SCALE) {
+        setScale(MIN_SCALE);
+        setScrollOverflow(true);
+      } else {
+        setScale(needed);
+        setScrollOverflow(false);
+      }
     });
     return () => cancelAnimationFrame(id);
   }, [current, stageSize.height, slide.content]);
@@ -358,26 +415,36 @@ const PresentationModal = ({
   const prev = () => setCurrent(c => Math.max(c - 1, 0));
   const next = () => setCurrent(c => Math.min(c + 1, total - 1));
 
+  // 위 스케일/스크롤 판정을 스테이지 본편·돋보기·스포트라이트 3곳에서 동일하게 재사용
+  const contentWrapperClass = `w-full h-full flex flex-col ${scrollOverflow ? 'justify-start overflow-y-auto' : 'justify-center'}`;
+  const contentWrapperStyle: CSSProperties = {
+    transform: `scale(${scale})`,
+    transformOrigin: scrollOverflow ? 'top center' : 'center center',
+  };
+
   // ── 발표 중 슬라이드 본문(돋보기 렌즈에도 동일하게 재사용) ───────────────────
-  const slideBody = slideImage ? (
+  const slideBody = slideImages.length > 0 ? (
     <div className="flex items-center gap-10">
       <div className="flex-1 min-w-0">
         <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-          {slideText}
+          {normalizeStandaloneHr(slideText)}
         </ReactMarkdown>
       </div>
-      <div style={{ width: `${imgScalePct}%` }} className="shrink-0 flex items-center justify-center">
-        <img
-          src={slideImage.src}
-          alt={slideImage.alt}
-          style={{ maxHeight: `${Math.round(380 * (imgScalePct / 38))}px` }}
-          className="max-w-full object-contain rounded-2xl shadow-xl"
-        />
+      <div style={{ width: `${imgScalePct}%` }} className="shrink-0 flex flex-col items-center justify-center gap-4">
+        {slideImages.map((img, i) => (
+          <img
+            key={i}
+            src={img.src}
+            alt={img.alt}
+            style={{ maxHeight: `${Math.round((slideImages.length > 1 ? 200 : 380) * (imgScalePct / 38))}px` }}
+            className="max-w-full object-contain rounded-2xl shadow-xl"
+          />
+        ))}
       </div>
     </div>
   ) : (
     <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-      {slide.content}
+      {normalizeStandaloneHr(slide.content)}
     </ReactMarkdown>
   );
 
@@ -581,8 +648,8 @@ const PresentationModal = ({
                 </span>
               )}
               <div
-                className="relative z-10 w-full h-full flex flex-col justify-center"
-                style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
+                className={`relative z-10 ${contentWrapperClass}`}
+                style={contentWrapperStyle}
               >
                 <div
                   ref={contentRef}
@@ -636,8 +703,8 @@ const PresentationModal = ({
                     }}
                   >
                     <div
-                      className="w-full h-full flex flex-col justify-center"
-                      style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
+                      className={contentWrapperClass}
+                      style={contentWrapperStyle}
                     >
                       <div className="px-14 py-10" style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}>
                         {slideBody}
@@ -668,8 +735,8 @@ const PresentationModal = ({
                     style={{ filter: 'brightness(1.8) contrast(1.15) saturate(1.1)' }}
                   >
                     <div
-                      className="relative w-full h-full flex flex-col justify-center"
-                      style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
+                      className={`relative ${contentWrapperClass}`}
+                      style={contentWrapperStyle}
                     >
                       <div className="px-14 py-10" style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}>
                         {slideBody}
@@ -802,7 +869,7 @@ const PresentationModal = ({
               />
               <span className="text-xs font-bold text-white/60 w-9 tabular-nums">{slide.fontScale ?? 100}%</span>
             </div>
-            {slideImage && (
+            {slideImages.length > 0 && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-black text-white/40 mr-1">이미지 크기</span>
                 <input
@@ -1522,7 +1589,7 @@ const AiReorganizeModal = ({
                   <div className="relative bg-[#0a0a14] rounded-2xl overflow-hidden aspect-video">
                     <div className="absolute inset-0 overflow-auto p-8 flex flex-col justify-center">
                       <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                        {previewSlides[previewSlide]?.content ?? result}
+                        {normalizeStandaloneHr(previewSlides[previewSlide]?.content ?? result)}
                       </ReactMarkdown>
                     </div>
                   </div>
