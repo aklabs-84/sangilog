@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useContext, createContext, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -229,6 +229,25 @@ const renderCallout = (props: any, dark: boolean) => {
   );
 };
 
+// 슬라이드 안 이미지를 클릭하면 전체화면으로 보여주기 위한 컨텍스트 — Provider가 없으면(null)
+// 클릭해도 아무 동작 없이 일반 이미지처럼 보인다 (미리보기 등 확대가 필요 없는 곳에서 안전).
+const SlideImageZoomContext = createContext<((src: string) => void) | null>(null);
+
+const SlideImg = ({ src, alt, title }: { src?: string; alt?: string; title?: string }) => {
+  const zoom = useContext(SlideImageZoomContext);
+  const wm = (title || '').match(/^width:(\d+)$/);
+  const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      style={style}
+      onClick={zoom ? () => zoom(src!) : undefined}
+      className={`max-w-full rounded-2xl my-4 shadow-xl max-h-64 object-contain ${zoom ? 'cursor-zoom-in hover:opacity-90 transition-opacity' : ''}`}
+    />
+  );
+};
+
 // ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
 const slideComponents: any = {
   h1: ({ children }: any) => (
@@ -271,11 +290,7 @@ const slideComponents: any = {
   },
   strong: ({ children }: any) => <strong className="font-black text-white">{children}</strong>,
   em: ({ children }: any) => <em className="italic text-primary-light">{children}</em>,
-  img: ({ src, alt, title }: any) => {
-    const wm = (title || '').match(/^width:(\d+)$/);
-    const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
-    return <img src={src} alt={alt} style={style} className="max-w-full rounded-2xl my-4 shadow-xl max-h-64 object-contain" />;
-  },
+  img: ({ src, alt, title }: any) => <SlideImg src={src} alt={alt} title={title} />,
   a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">{children}</a>,
   hr: () => <hr className="border-white/10 my-5" />,
   table: ({ children }: any) => (
@@ -341,6 +356,7 @@ const PresentationModal = ({
   const [tool, setTool] = useState<'none' | 'zoom' | 'pen' | 'spotlight'>('none');
   const [showGrid, setShowGrid] = useState(false);
   const [lensPos, setLensPos] = useState<{ x: number; y: number } | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const timer = useTimer();
 
   const selectTool = (t: typeof tool) => {
@@ -350,6 +366,10 @@ const PresentationModal = ({
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      if (zoomedImage) {
+        if (e.key === 'Escape') setZoomedImage(null);
+        return;
+      }
       if (editMode) {
         if (e.key === 'Escape') setEditMode(false);
         return;
@@ -365,7 +385,7 @@ const PresentationModal = ({
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [total, onClose, editMode, tool, showGrid]);
+  }, [total, onClose, editMode, tool, showGrid, zoomedImage]);
 
   // 16:9 레터박스 스테이지 크기 계산 (뷰포트에 꽉 차게, 비율 유지)
   useEffect(() => {
@@ -437,7 +457,8 @@ const PresentationModal = ({
             src={img.src}
             alt={img.alt}
             style={{ maxHeight: `${Math.round((slideImages.length > 1 ? 200 : 380) * (imgScalePct / 38))}px` }}
-            className="max-w-full object-contain rounded-2xl shadow-xl"
+            className="max-w-full object-contain rounded-2xl shadow-xl cursor-zoom-in hover:opacity-90 transition-opacity"
+            onClick={() => setZoomedImage(img.src)}
           />
         ))}
       </div>
@@ -542,6 +563,7 @@ const PresentationModal = ({
   };
 
   return createPortal(
+    <SlideImageZoomContext.Provider value={setZoomedImage}>
     <div className="fixed inset-0 z-[9999] bg-[#0a0a14] flex flex-col select-none">
 
       {/* 상단 바 */}
@@ -959,13 +981,35 @@ const PresentationModal = ({
         </div>
       )}
 
+      {/* 이미지 전체화면 보기 — 슬라이드 안 이미지를 클릭하면 확대 */}
+      {zoomedImage && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-8 cursor-zoom-out"
+          onClick={() => setZoomedImage(null)}
+        >
+          <button
+            onClick={() => setZoomedImage(null)}
+            className="absolute top-5 right-5 p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all"
+          >
+            <XIcon size={20} />
+          </button>
+          <img
+            src={zoomedImage}
+            alt=""
+            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       <style>{`
         @keyframes slideIn {
           from { opacity: 0; transform: translateX(18px); }
           to   { opacity: 1; transform: translateX(0); }
         }
       `}</style>
-    </div>,
+    </div>
+    </SlideImageZoomContext.Provider>,
     document.body
   );
 };
