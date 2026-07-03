@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
+import { useTimer } from '../../lib/timerContext';
 import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS } from '../../lib/gemini';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
@@ -35,6 +36,7 @@ import {
   Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2,
+  ZoomIn, PenTool, Undo2, Highlighter, LayoutGrid, Flashlight, Timer as TimerIcon, Play, Pause,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -120,6 +122,7 @@ const serializeSlides = (slides: Slide[]): string =>
 
 const SLIDE_BG_OPTIONS = Object.keys(SLIDE_BG_THEMES);
 const SLIDE_ICON_PRESETS = ['🎯', '📚', '💡', '🔬', '🧪', '🌟', '📌', '✅', '🚀', '📊'];
+const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
 
 // 슬라이드 안의 이미지 하나를 텍스트에서 분리 — "왼쪽 텍스트 / 오른쪽 이미지" 2단 레이아웃용
 // (직렬화되는 원본 content는 그대로 두고, 발표 화면 렌더링 시에만 나눠서 보여줌)
@@ -145,6 +148,15 @@ const splitSlideImage = (content: string): { text: string; image: { src: string;
   const cleaned = outLines.filter(l => !/^\s*(?:[-*+]|\d+\.)\s*$/.test(l));
   return { text: cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim(), image };
 };
+
+// 슬라이드 전체보기 그리드용 — 마크다운 기호를 걷어낸 짧은 미리보기 텍스트
+const getSlideSnippet = (s: Slide): string =>
+  s.content
+    .replace(SLIDE_IMAGE_RE, '')
+    .replace(/^#+\s*/gm, '')
+    .replace(/[*_`>-]/g, '')
+    .trim()
+    .slice(0, 120) || '(내용 없음)';
 
 // 슬라이드 글자 크기 편집 — 편집 패널의 %를 --slide-font-scale CSS 변수로 상위에서 지정하면
 // 아래 각 요소가 calc()로 기본 rem 크기에 곱해서 반영한다 (Tailwind text-* 클래스는 rem 고정값이라 상속 배율 적용 불가)
@@ -282,19 +294,35 @@ const PresentationModal = ({
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [scale, setScale] = useState(1);
 
+  // ── 발표 중 보조 도구 (돋보기 / 펜 / 스포트라이트 / 슬라이드 그리드) ─────────
+  const [tool, setTool] = useState<'none' | 'zoom' | 'pen' | 'spotlight'>('none');
+  const [showGrid, setShowGrid] = useState(false);
+  const [lensPos, setLensPos] = useState<{ x: number; y: number } | null>(null);
+  const timer = useTimer();
+
+  const selectTool = (t: typeof tool) => {
+    setEditMode(false);
+    setTool(prev => (prev === t ? 'none' : t));
+  };
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (editMode) {
         if (e.key === 'Escape') setEditMode(false);
         return;
       }
+      if (showGrid) {
+        if (e.key === 'Escape') setShowGrid(false);
+        return;
+      }
+      if (tool !== 'none' && e.key === 'Escape') { setTool('none'); return; }
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') setCurrent(c => Math.min(c + 1, total - 1));
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setCurrent(c => Math.max(c - 1, 0));
       else if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [total, onClose, editMode]);
+  }, [total, onClose, editMode, tool, showGrid]);
 
   // 16:9 레터박스 스테이지 크기 계산 (뷰포트에 꽉 차게, 비율 유지)
   useEffect(() => {
@@ -330,6 +358,112 @@ const PresentationModal = ({
   const prev = () => setCurrent(c => Math.max(c - 1, 0));
   const next = () => setCurrent(c => Math.min(c + 1, total - 1));
 
+  // ── 발표 중 슬라이드 본문(돋보기 렌즈에도 동일하게 재사용) ───────────────────
+  const slideBody = slideImage ? (
+    <div className="flex items-center gap-10">
+      <div className="flex-1 min-w-0">
+        <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+          {slideText}
+        </ReactMarkdown>
+      </div>
+      <div style={{ width: `${imgScalePct}%` }} className="shrink-0 flex items-center justify-center">
+        <img
+          src={slideImage.src}
+          alt={slideImage.alt}
+          style={{ maxHeight: `${Math.round(380 * (imgScalePct / 38))}px` }}
+          className="max-w-full object-contain rounded-2xl shadow-xl"
+        />
+      </div>
+    </div>
+  ) : (
+    <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+      {slide.content}
+    </ReactMarkdown>
+  );
+
+  // ── 돋보기 / 스포트라이트 커서 위치 추적 ──────────────────────────────────────
+  const stageBoxRef = useRef<HTMLDivElement>(null);
+  const handleStageMouseMove = (e: React.MouseEvent) => {
+    const box = stageBoxRef.current;
+    if (!box) return;
+    const rect = box.getBoundingClientRect();
+    setLensPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  // ── 펜 그리기 (Canvas 오버레이, 슬라이드 전환 시 자동 초기화) ─────────────────
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawingRef = useRef(false);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const undoStackRef = useRef<ImageData[]>([]);
+  const [penColor, setPenColor] = useState('#ff5252');
+  const [penHighlight, setPenHighlight] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !stageSize.width || !stageSize.height) return;
+    canvas.width = stageSize.width;
+    canvas.height = stageSize.height;
+    undoStackRef.current = [];
+    const id = requestAnimationFrame(() => setCanUndo(false));
+    return () => cancelAnimationFrame(id);
+  }, [stageSize.width, stageSize.height, current]);
+
+  const getCanvasPoint = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
+  const handlePenDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    undoStackRef.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    setCanUndo(true);
+    drawingRef.current = true;
+    lastPointRef.current = getCanvasPoint(e);
+  };
+
+  const handlePenMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx || !lastPointRef.current) return;
+    const point = getCanvasPoint(e);
+    ctx.globalAlpha = penHighlight ? 0.35 : 1;
+    ctx.strokeStyle = penColor;
+    ctx.lineWidth = penHighlight ? 18 : 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    lastPointRef.current = point;
+  };
+
+  const handlePenUp = () => {
+    drawingRef.current = false;
+    lastPointRef.current = null;
+  };
+
+  const handleUndo = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const lastState = undoStackRef.current.pop();
+    if (lastState) ctx.putImageData(lastState, 0, 0);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setCanUndo(undoStackRef.current.length > 0);
+  };
+
+  const handleClearPen = () => {
+    const canvas = canvasRef.current;
+    canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    undoStackRef.current = [];
+    setCanUndo(false);
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-[#0a0a14] flex flex-col select-none">
 
@@ -345,6 +479,50 @@ const PresentationModal = ({
           <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
           <span className="text-white/60 text-sm font-bold truncate">{material.title}</span>
         </div>
+
+        {/* 발표 보조 도구 */}
+        {!editMode && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => selectTool('zoom')}
+              title="돋보기"
+              className={`p-2 rounded-xl transition-all ${tool === 'zoom' ? 'bg-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+            >
+              <ZoomIn size={16} />
+            </button>
+            <button
+              onClick={() => selectTool('pen')}
+              title="펜"
+              className={`p-2 rounded-xl transition-all ${tool === 'pen' ? 'bg-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+            >
+              <PenTool size={16} />
+            </button>
+            <button
+              onClick={() => selectTool('spotlight')}
+              title="스포트라이트"
+              className={`p-2 rounded-xl transition-all ${tool === 'spotlight' ? 'bg-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+            >
+              <Flashlight size={16} />
+            </button>
+            <button
+              onClick={() => setShowGrid(true)}
+              title="슬라이드 전체보기"
+              className="p-2 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 transition-all"
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              onClick={timer.toggle}
+              title="타이머"
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-black tabular-nums transition-all ${timer.isRunning ? 'bg-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+            >
+              {timer.isRunning ? <Pause size={14} /> : <Play size={14} />}
+              <TimerIcon size={14} />
+              {String(Math.floor(timer.remainingSeconds / 60)).padStart(2, '0')}:{String(timer.remainingSeconds % 60).padStart(2, '0')}
+            </button>
+          </div>
+        )}
+
         {onSave && (
           editMode ? (
             <button
@@ -355,7 +533,7 @@ const PresentationModal = ({
             </button>
           ) : (
             <button
-              onClick={() => setEditMode(true)}
+              onClick={() => { setTool('none'); setEditMode(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white font-black text-sm hover:bg-white/20 active:scale-95 transition-all shrink-0"
             >
               <Pencil size={15} /> 편집
@@ -370,7 +548,13 @@ const PresentationModal = ({
       {/* 슬라이드 메인 영역 — 16:9 레터박스, 스크롤 없이 자동 축소 */}
       <div ref={stageWrapRef} className="flex-1 min-h-0 flex items-center justify-center px-6 py-5 overflow-hidden">
         {stageSize.width > 0 && (
-          <div className="relative" style={{ width: stageSize.width, height: stageSize.height }}>
+          <div
+            ref={stageBoxRef}
+            className="relative"
+            style={{ width: stageSize.width, height: stageSize.height }}
+            onMouseMove={tool === 'zoom' || tool === 'spotlight' ? handleStageMouseMove : undefined}
+            onMouseLeave={() => setLensPos(null)}
+          >
             <div
               key={current}
               className={`absolute inset-0 bg-gradient-to-br ${theme} rounded-3xl border border-white/8 shadow-2xl overflow-hidden`}
@@ -395,33 +579,106 @@ const PresentationModal = ({
                   className="px-14 py-10"
                   style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}
                 >
-                  {slideImage ? (
-                    <div className="flex items-center gap-10">
-                      <div className="flex-1 min-w-0">
-                        <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                          {slideText}
-                        </ReactMarkdown>
-                      </div>
-                      <div style={{ width: `${imgScalePct}%` }} className="shrink-0 flex items-center justify-center">
-                        <img
-                          src={slideImage.src}
-                          alt={slideImage.alt}
-                          style={{ maxHeight: `${Math.round(380 * (imgScalePct / 38))}px` }}
-                          className="max-w-full object-contain rounded-2xl shadow-xl"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                      {slide.content}
-                    </ReactMarkdown>
-                  )}
+                  {slideBody}
                 </div>
               </div>
             </div>
+
+            {/* 펜 그리기 캔버스 오버레이 */}
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 rounded-3xl"
+              style={{ pointerEvents: tool === 'pen' ? 'auto' : 'none', cursor: tool === 'pen' ? 'crosshair' : 'default' }}
+              onPointerDown={handlePenDown}
+              onPointerMove={handlePenMove}
+              onPointerUp={handlePenUp}
+              onPointerLeave={handlePenUp}
+            />
+
+            {/* 돋보기 렌즈 */}
+            {tool === 'zoom' && lensPos && (
+              <>
+                <div
+                  className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none"
+                  style={{
+                    clipPath: `circle(120px at ${lensPos.x}px ${lensPos.y}px)`,
+                    WebkitClipPath: `circle(120px at ${lensPos.x}px ${lensPos.y}px)`,
+                  }}
+                >
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-br ${theme}`}
+                    style={{
+                      transform: 'scale(2.2)',
+                      transformOrigin: `${(lensPos.x / stageSize.width) * 100}% ${(lensPos.y / stageSize.height) * 100}%`,
+                    }}
+                  >
+                    <div
+                      className="relative w-full h-full flex flex-col justify-center"
+                      style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
+                    >
+                      <div className="px-14 py-10" style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}>
+                        {slideBody}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="absolute rounded-full border-4 border-white/80 shadow-2xl pointer-events-none"
+                  style={{ width: 240, height: 240, left: lensPos.x - 120, top: lensPos.y - 120 }}
+                />
+              </>
+            )}
+
+            {/* 스포트라이트 (레이저 포인터) */}
+            {tool === 'spotlight' && lensPos && (
+              <div
+                className="absolute inset-0 rounded-3xl pointer-events-none"
+                style={{
+                  background: 'rgba(0,0,0,0.65)',
+                  WebkitMaskImage: `radial-gradient(circle 150px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 55%, black 100%)`,
+                  maskImage: `radial-gradient(circle 150px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 55%, black 100%)`,
+                } as CSSProperties}
+              />
+            )}
           </div>
         )}
       </div>
+
+      {/* 펜 보조 도구바 — 색상/형광펜/실행취소/지우기 */}
+      {tool === 'pen' && (
+        <div className="shrink-0 flex items-center justify-center gap-4 px-6 py-3 border-t border-white/10 bg-white/5">
+          <div className="flex items-center gap-1.5">
+            {PEN_COLORS.map(c => (
+              <button
+                key={c}
+                onClick={() => setPenColor(c)}
+                title={c}
+                className={`w-7 h-7 rounded-full border-2 transition-all ${penColor === c ? 'border-primary scale-110' : 'border-white/20 hover:border-white/50'}`}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+          <button
+            onClick={() => setPenHighlight(h => !h)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${penHighlight ? 'bg-primary/30 ring-2 ring-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+          >
+            <Highlighter size={14} /> 형광펜
+          </button>
+          <button
+            onClick={handleUndo}
+            disabled={!canUndo}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+          >
+            <Undo2 size={14} /> 실행취소
+          </button>
+          <button
+            onClick={handleClearPen}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-white/10 text-white/70 hover:bg-white/20 transition-all"
+          >
+            <XIcon size={14} /> 전체 지우기
+          </button>
+        </div>
+      )}
 
       {/* 편집 패널 — 현재 슬라이드의 텍스트/배경/아이콘 편집 */}
       {editMode && (
@@ -537,6 +794,45 @@ const PresentationModal = ({
           다음 <ChevronRight size={16} />
         </button>
       </div>
+
+      {/* 슬라이드 전체보기 그리드 — 클릭 시 바로 이동 */}
+      {showGrid && (
+        <div className="absolute inset-0 z-20 bg-[#0a0a14]/97 backdrop-blur-sm flex flex-col">
+          <div className="flex items-center gap-3 px-5 py-3 border-b border-white/10 shrink-0">
+            <button
+              onClick={() => setShowGrid(false)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white font-black text-sm hover:bg-white/20 active:scale-95 transition-all"
+            >
+              <XIcon size={15} /> 닫기
+            </button>
+            <span className="text-white/60 text-sm font-bold">슬라이드 전체보기 — 클릭해서 이동</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
+              {slides.map((s, i) => {
+                const sTheme = SLIDE_BG_THEMES[s.bg ?? 'dark'] ?? SLIDE_BG_THEMES.dark;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => { setCurrent(i); setShowGrid(false); }}
+                    className={`relative aspect-video rounded-2xl bg-gradient-to-br ${sTheme} border-2 overflow-hidden text-left p-4 transition-all ${
+                      i === current ? 'border-primary ring-2 ring-primary' : 'border-white/10 hover:border-white/30'
+                    }`}
+                  >
+                    <span className="absolute top-2 left-2 text-[10px] font-black text-white/50 bg-black/30 px-1.5 py-0.5 rounded">
+                      {i + 1}
+                    </span>
+                    {s.icon && <span className="absolute top-2 right-2 text-sm opacity-70">{s.icon}</span>}
+                    <p className="text-[11px] text-white/70 leading-snug line-clamp-4 mt-4 whitespace-pre-line break-words">
+                      {getSlideSnippet(s)}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes slideIn {
