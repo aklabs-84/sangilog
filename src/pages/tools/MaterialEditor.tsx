@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -399,32 +399,42 @@ const PresentationModal = ({
   const [penHighlight, setPenHighlight] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
 
-  useEffect(() => {
+  // useEffect는 브라우저 페인트 이후 실행되어 첫 클릭 시점에 캔버스 크기가
+  // 아직 반영되지 않을 수 있음 → useLayoutEffect로 페인트 전에 동기 반영
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !stageSize.width || !stageSize.height) return;
     canvas.width = stageSize.width;
     canvas.height = stageSize.height;
     undoStackRef.current = [];
+  }, [stageSize.width, stageSize.height, current]);
+
+  useEffect(() => {
     const id = requestAnimationFrame(() => setCanUndo(false));
     return () => cancelAnimationFrame(id);
   }, [stageSize.width, stageSize.height, current]);
 
-  const getCanvasPoint = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+  const getCanvasPoint = (e: ReactMouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
-  const handlePenDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+  const handlePenDown = (e: ReactMouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
-    undoStackRef.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    setCanUndo(true);
+    // 드래그 상태부터 먼저 세팅 — undo 스냅샷 저장에 실패해도 그리기 자체는 항상 되도록
     drawingRef.current = true;
     lastPointRef.current = getCanvasPoint(e);
+    try {
+      undoStackRef.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      setCanUndo(true);
+    } catch {
+      // 캔버스 크기가 0이거나 스냅샷을 뜰 수 없는 경우 — undo만 비활성화하고 그리기는 계속
+    }
   };
 
-  const handlePenMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+  const handlePenMove = (e: ReactMouseEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -557,7 +567,7 @@ const PresentationModal = ({
           >
             <div
               key={current}
-              className={`absolute inset-0 bg-gradient-to-br ${theme} rounded-3xl border border-white/8 shadow-2xl overflow-hidden`}
+              className={`absolute inset-0 z-0 bg-gradient-to-br ${theme} rounded-3xl border border-white/8 shadow-2xl overflow-hidden`}
               style={{ animation: 'slideIn 0.25s ease-out' }}
             >
               {/* 은은한 아이콘 워터마크 — 텍스트보다 시선을 끌지 않도록 저투명도로 배치 */}
@@ -587,33 +597,46 @@ const PresentationModal = ({
             {/* 펜 그리기 캔버스 오버레이 */}
             <canvas
               ref={canvasRef}
-              className="absolute inset-0 rounded-3xl"
-              style={{ pointerEvents: tool === 'pen' ? 'auto' : 'none', cursor: tool === 'pen' ? 'crosshair' : 'default' }}
-              onPointerDown={handlePenDown}
-              onPointerMove={handlePenMove}
-              onPointerUp={handlePenUp}
-              onPointerLeave={handlePenUp}
+              className="absolute inset-0 z-10 rounded-3xl"
+              style={{
+                pointerEvents: tool === 'pen' ? 'auto' : 'none',
+                cursor: tool === 'pen' ? 'crosshair' : 'default',
+                touchAction: 'none',
+              }}
+              onMouseDown={handlePenDown}
+              onMouseMove={handlePenMove}
+              onMouseUp={handlePenUp}
+              onMouseLeave={handlePenUp}
+              onDragStart={(e) => e.preventDefault()}
             />
 
-            {/* 돋보기 렌즈 */}
-            {tool === 'zoom' && lensPos && (
-              <>
+            {/* 돋보기 — 화면 상단에 고정된 큰 확대창 (커서를 따라 크롭 위치만 이동) */}
+            {tool === 'zoom' && lensPos && stageSize.width > 0 && (() => {
+              const ZOOM = 2.6;
+              const panelW = stageSize.width;
+              const panelH = Math.min(340, Math.round(stageSize.height * 0.46));
+              const scaledW = stageSize.width * ZOOM;
+              const scaledH = stageSize.height * ZOOM;
+              let tx = panelW / 2 - lensPos.x * ZOOM;
+              let ty = panelH / 2 - lensPos.y * ZOOM;
+              tx = Math.min(0, Math.max(panelW - scaledW, tx));
+              ty = Math.min(0, Math.max(panelH - scaledH, ty));
+              return (
                 <div
-                  className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none"
-                  style={{
-                    clipPath: `circle(120px at ${lensPos.x}px ${lensPos.y}px)`,
-                    WebkitClipPath: `circle(120px at ${lensPos.x}px ${lensPos.y}px)`,
-                  }}
+                  className="absolute left-0 right-0 top-0 z-30 overflow-hidden rounded-b-[28px] border-b-4 border-primary shadow-2xl pointer-events-none"
+                  style={{ height: panelH, boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}
                 >
                   <div
-                    className={`absolute inset-0 bg-gradient-to-br ${theme}`}
+                    className={`bg-gradient-to-br ${theme}`}
                     style={{
-                      transform: 'scale(2.2)',
-                      transformOrigin: `${(lensPos.x / stageSize.width) * 100}% ${(lensPos.y / stageSize.height) * 100}%`,
+                      width: stageSize.width,
+                      height: stageSize.height,
+                      transform: `translate(${tx}px, ${ty}px) scale(${ZOOM})`,
+                      transformOrigin: '0 0',
                     }}
                   >
                     <div
-                      className="relative w-full h-full flex flex-col justify-center"
+                      className="w-full h-full flex flex-col justify-center"
                       style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
                     >
                       <div className="px-14 py-10" style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}>
@@ -621,24 +644,36 @@ const PresentationModal = ({
                       </div>
                     </div>
                   </div>
+                  <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/50 to-transparent" />
+                  <span className="absolute top-2.5 left-3.5 flex items-center gap-1.5 text-[11px] font-black text-white bg-black/55 px-2.5 py-1 rounded-lg">
+                    <ZoomIn size={12} /> 돋보기 {ZOOM}x
+                  </span>
                 </div>
-                <div
-                  className="absolute rounded-full border-4 border-white/80 shadow-2xl pointer-events-none"
-                  style={{ width: 240, height: 240, left: lensPos.x - 120, top: lensPos.y - 120 }}
-                />
-              </>
-            )}
+              );
+            })()}
 
-            {/* 스포트라이트 (레이저 포인터) */}
+            {/* 스포트라이트 (레이저 포인터) — 주변을 짙게 어둡게 하고 밝은 링으로 강조 */}
             {tool === 'spotlight' && lensPos && (
-              <div
-                className="absolute inset-0 rounded-3xl pointer-events-none"
-                style={{
-                  background: 'rgba(0,0,0,0.65)',
-                  WebkitMaskImage: `radial-gradient(circle 150px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 55%, black 100%)`,
-                  maskImage: `radial-gradient(circle 150px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 55%, black 100%)`,
-                } as CSSProperties}
-              />
+              <div className="absolute inset-0 z-20 rounded-3xl pointer-events-none overflow-hidden">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: 'rgba(0,0,0,0.9)',
+                    WebkitMaskImage: `radial-gradient(circle 130px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
+                    maskImage: `radial-gradient(circle 130px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
+                  } as CSSProperties}
+                />
+                <div
+                  className="absolute rounded-full"
+                  style={{
+                    width: 260,
+                    height: 260,
+                    left: lensPos.x - 130,
+                    top: lensPos.y - 130,
+                    boxShadow: '0 0 0 4px rgba(255,255,255,0.9), 0 0 40px 8px rgba(255,255,255,0.5)',
+                  }}
+                />
+              </div>
             )}
           </div>
         )}
