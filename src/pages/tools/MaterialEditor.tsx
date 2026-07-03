@@ -98,6 +98,19 @@ const parseSlides = (content: string): Slide[] => {
   });
 };
 
+// parseSlides의 역함수 — 편집된 슬라이드 배열을 다시 meta 주석 포함 마크다운으로 합침
+const serializeSlides = (slides: Slide[]): string =>
+  slides.map(s => {
+    const attrs: string[] = [];
+    if (s.bg) attrs.push(`bg=${s.bg}`);
+    if (s.icon) attrs.push(`icon=${s.icon}`);
+    const meta = attrs.length > 0 ? `<!-- meta: ${attrs.join(' ')} -->\n` : '';
+    return `${meta}${s.content}`;
+  }).join('\n\n---\n\n');
+
+const SLIDE_BG_OPTIONS = Object.keys(SLIDE_BG_THEMES);
+const SLIDE_ICON_PRESETS = ['🎯', '📚', '💡', '🔬', '🧪', '🌟', '📌', '✅', '🚀', '📊'];
+
 // ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
 const slideComponents: any = {
   h1: ({ children }: any) => (
@@ -160,12 +173,30 @@ const slideComponents: any = {
 };
 
 // ── 프레젠테이션 모달 ─────────────────────────────────────────────────────────
-const PresentationModal = ({ material, onClose }: { material: Material; onClose: () => void }) => {
+const PresentationModal = ({
+  material,
+  onClose,
+  onSave,
+}: {
+  material: Material;
+  onClose: () => void;
+  onSave?: (newContent: string) => void;
+}) => {
   const [current, setCurrent] = useState(0);
-  const slides = parseSlides(material.content);
+  const [slides, setSlides] = useState<Slide[]>(() => parseSlides(material.content));
+  const [editMode, setEditMode] = useState(false);
   const total = slides.length;
   const slide = slides[current];
   const theme = SLIDE_BG_THEMES[slide.bg ?? 'dark'] ?? SLIDE_BG_THEMES.dark;
+
+  const updateCurrentSlide = (patch: Partial<Slide>) => {
+    setSlides(prev => prev.map((s, i) => (i === current ? { ...s, ...patch } : s)));
+  };
+
+  const handleSaveEdits = () => {
+    onSave?.(serializeSlides(slides));
+    setEditMode(false);
+  };
 
   const stageWrapRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -174,13 +205,17 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      if (editMode) {
+        if (e.key === 'Escape') setEditMode(false);
+        return;
+      }
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') setCurrent(c => Math.min(c + 1, total - 1));
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setCurrent(c => Math.max(c - 1, 0));
       else if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [total, onClose]);
+  }, [total, onClose, editMode]);
 
   // 16:9 레터박스 스테이지 크기 계산 (뷰포트에 꽉 차게, 비율 유지)
   useEffect(() => {
@@ -211,7 +246,7 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
       setScale(natural > stageSize.height ? Math.max(0.55, (stageSize.height / natural) * 0.98) : 1);
     });
     return () => cancelAnimationFrame(id);
-  }, [current, stageSize.height, material.content]);
+  }, [current, stageSize.height, slide.content]);
 
   const prev = () => setCurrent(c => Math.max(c - 1, 0));
   const next = () => setCurrent(c => Math.min(c + 1, total - 1));
@@ -231,6 +266,23 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
           <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
           <span className="text-white/60 text-sm font-bold truncate">{material.title}</span>
         </div>
+        {onSave && (
+          editMode ? (
+            <button
+              onClick={handleSaveEdits}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-white font-black text-sm hover:bg-emerald-600 active:scale-95 transition-all shadow shrink-0"
+            >
+              <Save size={15} /> 저장
+            </button>
+          ) : (
+            <button
+              onClick={() => setEditMode(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white font-black text-sm hover:bg-white/20 active:scale-95 transition-all shrink-0"
+            >
+              <Pencil size={15} /> 편집
+            </button>
+          )
+        )}
         <span className="text-white/40 text-sm font-bold tabular-nums shrink-0">
           {current + 1} / {total}
         </span>
@@ -269,6 +321,63 @@ const PresentationModal = ({ material, onClose }: { material: Material; onClose:
           </div>
         )}
       </div>
+
+      {/* 편집 패널 — 현재 슬라이드의 텍스트/배경/아이콘 편집 */}
+      {editMode && (
+        <div className="shrink-0 border-t border-white/10 bg-white/5 px-6 py-4 space-y-3">
+          <textarea
+            value={slide.content}
+            onChange={e => updateCurrentSlide({ content: e.target.value })}
+            rows={4}
+            className="w-full px-4 py-3 bg-[#0a0a14] rounded-xl border border-white/10 text-sm text-white/90 font-mono focus:outline-none focus:border-primary/40 resize-none"
+            placeholder="이 슬라이드의 마크다운 내용"
+          />
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-white/40 mr-1">배경</span>
+              {SLIDE_BG_OPTIONS.map(name => (
+                <button
+                  key={name}
+                  onClick={() => updateCurrentSlide({ bg: name })}
+                  title={name}
+                  className={`w-6 h-6 rounded-full bg-gradient-to-br ${SLIDE_BG_THEMES[name]} border-2 transition-all ${
+                    (slide.bg ?? 'dark') === name ? 'border-primary scale-110' : 'border-white/20 hover:border-white/50'
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-white/40 mr-1">아이콘</span>
+              {SLIDE_ICON_PRESETS.map(ic => (
+                <button
+                  key={ic}
+                  onClick={() => updateCurrentSlide({ icon: ic })}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm transition-all ${
+                    slide.icon === ic ? 'bg-primary/30 ring-2 ring-primary' : 'bg-white/10 hover:bg-white/20'
+                  }`}
+                >
+                  {ic}
+                </button>
+              ))}
+              <input
+                value={slide.icon ?? ''}
+                onChange={e => updateCurrentSlide({ icon: e.target.value })}
+                placeholder="직접 입력"
+                className="w-20 px-2.5 py-1.5 bg-[#0a0a14] rounded-lg border border-white/10 text-sm text-white/90 focus:outline-none focus:border-primary/40"
+              />
+              {slide.icon && (
+                <button
+                  onClick={() => updateCurrentSlide({ icon: undefined })}
+                  title="아이콘 제거"
+                  className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <XIcon size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 하단 네비게이션 */}
       <div className="flex items-center justify-center gap-6 px-8 py-5 border-t border-white/5">
@@ -1005,6 +1114,9 @@ const MaterialEditor = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [presentingMaterial, setPresentingMaterial] = useState<Material | null>(null);
+  // 발표 모드에서 "저장" 시 어디에 반영할지 (원본 draft / 특정 AI 버전 / DB 직접 저장 등 호출부마다 다름)
+  const [presentingOnSave, setPresentingOnSave] = useState<((newContent: string) => void) | null>(null);
+  const closePresenting = () => { setPresentingMaterial(null); setPresentingOnSave(null); };
   const [fullscreenPreview, setFullscreenPreview] = useState<{ title: string; content: string } | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAiReorganize, setShowAiReorganize] = useState(false);
@@ -1187,10 +1299,32 @@ const MaterialEditor = () => {
     if (!error) setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, is_published: next } : m));
   };
 
+  // ── 목록 화면 발표 모드에서 편집 저장 (원본 또는 특정 AI 버전) ────────────────
+  const persistMaterialVersion = async (material: Material, versionId: string | null, newContent: string) => {
+    if (versionId) {
+      const nextVersions = (material.ai_versions ?? []).map(v => v.id === versionId ? { ...v, content: newContent } : v);
+      const { error } = await supabase
+        .from('class_materials')
+        .update({ ai_versions: nextVersions, updated_at: new Date().toISOString() })
+        .eq('id', material.id);
+      if (!error) setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, ai_versions: nextVersions } : m));
+    } else {
+      const { error } = await supabase
+        .from('class_materials')
+        .update({ content: newContent, updated_at: new Date().toISOString() })
+        .eq('id', material.id);
+      if (!error) setMaterials(prev => prev.map(m => m.id === material.id ? { ...m, content: newContent } : m));
+    }
+  };
+
   return (
     <>
     {presentingMaterial && (
-      <PresentationModal material={presentingMaterial} onClose={() => setPresentingMaterial(null)} />
+      <PresentationModal
+        material={presentingMaterial}
+        onClose={closePresenting}
+        onSave={presentingOnSave ?? undefined}
+      />
     )}
     {showImportModal && selectedClass && user && (
       <ImportFromClassModal
@@ -1216,18 +1350,31 @@ const MaterialEditor = () => {
         rawContent={content}
         classId={selectedClass?.id}
         onApply={(newContent, mode) => {
-          setAiVersions(prev => [
-            {
-              id: crypto.randomUUID(),
-              mode,
-              label: mode === 'guide' ? '학습 가이드' : '발표 자료',
-              content: newContent,
-              created_at: new Date().toISOString(),
-            },
-            ...prev,
-          ]);
-          setContent(newContent);
+          const newVersion: AiVersion = {
+            id: crypto.randomUUID(),
+            mode,
+            label: mode === 'guide' ? '학습 가이드' : '발표 자료',
+            content: newContent,
+            created_at: new Date().toISOString(),
+          };
+          // 원본(content)은 절대 건드리지 않고, 결과는 히스토리에만 추가한다
+          setAiVersions(prev => [newVersion, ...prev]);
           setShowAiReorganize(false);
+          // 방금 만든 결과를 바로 발표 모드로 열어서 확인/편집할 수 있게 한다
+          setPresentingMaterial({
+            id: editingMaterial?.id ?? 'draft',
+            class_id: selectedClass?.id ?? null,
+            week_number: weekNumber,
+            title: `${title.trim() || '(제목 없음)'} · ${newVersion.label}`,
+            content: newVersion.content,
+            url: '',
+            is_published: isPublished,
+            created_at: newVersion.created_at,
+            updated_at: newVersion.created_at,
+          });
+          setPresentingOnSave(() => (updated: string) => {
+            setAiVersions(prev => prev.map(v => v.id === newVersion.id ? { ...v, content: updated } : v));
+          });
         }}
         onClose={() => setShowAiReorganize(false)}
       />
@@ -1338,7 +1485,24 @@ const MaterialEditor = () => {
                         {aiVersions.map(v => (
                           <button
                             key={v.id}
-                            onClick={() => { setContent(v.content); setShowVersionMenu(false); }}
+                            onClick={() => {
+                              setShowVersionMenu(false);
+                              // 원본(content)은 건드리지 않고, 이 버전만 발표 모드로 열어서 보기/편집한다
+                              setPresentingMaterial({
+                                id: editingMaterial?.id ?? 'draft',
+                                class_id: selectedClass?.id ?? null,
+                                week_number: weekNumber,
+                                title: `${title.trim() || '(제목 없음)'} · ${v.label}`,
+                                content: v.content,
+                                url: '',
+                                is_published: isPublished,
+                                created_at: v.created_at,
+                                updated_at: new Date().toISOString(),
+                              });
+                              setPresentingOnSave(() => (updated: string) => {
+                                setAiVersions(prev => prev.map(x => x.id === v.id ? { ...x, content: updated } : x));
+                              });
+                            }}
                             className="w-full flex items-center gap-2 text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors"
                           >
                             {v.mode === 'guide'
@@ -1348,7 +1512,6 @@ const MaterialEditor = () => {
                               <span className="block text-xs font-black truncate">{v.label}</span>
                               <span className="block text-[10px] font-bold text-on-surface-variant">{formatVersionDate(v.created_at)}</span>
                             </span>
-                            {content === v.content && <Check size={13} className="text-emerald-500 shrink-0" />}
                           </button>
                         ))}
                       </div>
@@ -1359,17 +1522,20 @@ const MaterialEditor = () => {
             )}
             {/* 편집 중인 내용을 바로 발표 모드로 */}
             <button
-              onClick={() => setPresentingMaterial({
-                id: editingMaterial?.id ?? 'draft',
-                class_id: selectedClass?.id ?? '',
-                week_number: weekNumber,
-                title: title.trim() || '(제목 없음)',
-                content,
-                url: '',
-                is_published: isPublished,
-                created_at: editingMaterial?.created_at ?? new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })}
+              onClick={() => {
+                setPresentingMaterial({
+                  id: editingMaterial?.id ?? 'draft',
+                  class_id: selectedClass?.id ?? '',
+                  week_number: weekNumber,
+                  title: title.trim() || '(제목 없음)',
+                  content,
+                  url: '',
+                  is_published: isPublished,
+                  created_at: editingMaterial?.created_at ?? new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                });
+                setPresentingOnSave(() => (updated: string) => setContent(updated));
+              }}
               disabled={!content.trim()}
               title={content.trim() ? '지금 편집 중인 내용을 바로 발표 모드로 보기' : '내용을 먼저 작성해주세요'}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors border border-violet-200 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1610,7 +1776,11 @@ const MaterialEditor = () => {
                     {/* 발표 모드 */}
                     {material.content && (
                       <button
-                        onClick={() => setPresentingMaterial({ ...material, content: getActiveVersion(material).content })}
+                        onClick={() => {
+                          const versionId = selectedVersionId[material.id] ?? null;
+                          setPresentingMaterial({ ...material, content: getActiveVersion(material).content });
+                          setPresentingOnSave(() => (updated: string) => persistMaterialVersion(material, versionId, updated));
+                        }}
                         title="전체화면 발표 모드"
                         className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-100 text-violet-700 hover:bg-violet-200 font-black text-xs transition-colors"
                       >
