@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { reorganizeMaterialContent, MATERIAL_REORG_PROMPTS } from '../../lib/gemini';
 import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 
 // ── WebP 변환 + 리사이즈 (최대 1280px) ───────────────────────────────────────
 const compressToWebP = (file: File, maxWidth = 1280, quality = 0.85): Promise<File> =>
@@ -198,6 +199,17 @@ const slideComponents: any = {
   },
   a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">{children}</a>,
   hr: () => <hr className="border-white/10 my-5" />,
+  table: ({ children }: any) => (
+    <div className="overflow-auto mb-4">
+      <table style={slideFontSize(1.125)} className="w-full border-collapse text-white/80">{children}</table>
+    </div>
+  ),
+  th: ({ children }: any) => (
+    <th className="border border-white/15 px-3 py-2 bg-white/10 font-black text-left text-white">{children}</th>
+  ),
+  td: ({ children }: any) => (
+    <td className="border border-white/15 px-3 py-2">{children}</td>
+  ),
   details: ({ children }: any) => (
     <details className="my-3 rounded-xl border border-white/15 overflow-hidden">
       {children}
@@ -359,7 +371,7 @@ const PresentationModal = ({
                   {slideImage ? (
                     <div className="flex items-center gap-10">
                       <div className="flex-1 min-w-0">
-                        <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
+                        <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
                           {slideText}
                         </ReactMarkdown>
                       </div>
@@ -373,7 +385,7 @@ const PresentationModal = ({
                       </div>
                     </div>
                   ) : (
-                    <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
+                    <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
                       {slide.content}
                     </ReactMarkdown>
                   )}
@@ -859,7 +871,7 @@ const PreviewFullscreenModal = ({
       {/* 본문 */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-8 py-10">
-          <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>
+          <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
             {content}
           </ReactMarkdown>
         </div>
@@ -956,6 +968,7 @@ const AiReorganizeModal = ({
   const [result, setResult] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [previewSlide, setPreviewSlide] = useState(0);
 
   const handleSelectMode = (m: 'guide' | 'presentation') => {
     setMode(m);
@@ -969,6 +982,7 @@ const AiReorganizeModal = ({
       const generated = await reorganizeMaterialContent(rawContent, mode, userInstruction, classId);
       setResult(generated.content);
       setFeedback(generated.feedback);
+      setPreviewSlide(0);
       setStep('preview');
     } catch (err: any) {
       setErrorMessage(
@@ -979,6 +993,8 @@ const AiReorganizeModal = ({
       setStep('error');
     }
   };
+
+  const previewSlides = mode === 'presentation' ? parseSlides(result) : [];
 
   return createPortal(
     <div
@@ -1088,17 +1104,37 @@ const AiReorganizeModal = ({
                 </div>
               )}
               {mode === 'presentation' ? (
-                <div className="bg-[#0a0a14] rounded-2xl p-6 overflow-auto max-h-[50vh]">
-                  <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
-                    {parseSlides(result)[0]?.content ?? result}
-                  </ReactMarkdown>
-                  <p className="text-white/40 text-xs font-bold mt-3">
-                    총 {parseSlides(result).length}장의 슬라이드로 정리됩니다 (첫 슬라이드만 미리보기, 적용 후 발표 모드에서 전체 확인 가능)
-                  </p>
+                <div className="space-y-2">
+                  <div className="relative bg-[#0a0a14] rounded-2xl overflow-hidden aspect-video">
+                    <div className="absolute inset-0 overflow-auto p-8 flex flex-col justify-center">
+                      <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                        {previewSlides[previewSlide]?.content ?? result}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between px-1">
+                    <button
+                      onClick={() => setPreviewSlide(i => Math.max(i - 1, 0))}
+                      disabled={previewSlide === 0}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black text-on-surface-variant hover:bg-surface-container disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                    >
+                      <ChevronLeft size={13} /> 이전
+                    </button>
+                    <span className="text-xs font-black text-on-surface-variant tabular-nums">
+                      {previewSlide + 1} / {previewSlides.length}장
+                    </span>
+                    <button
+                      onClick={() => setPreviewSlide(i => Math.min(i + 1, previewSlides.length - 1))}
+                      disabled={previewSlide === previewSlides.length - 1}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black text-on-surface-variant hover:bg-surface-container disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                    >
+                      다음 <ChevronRight size={13} />
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="max-h-[50vh] overflow-auto">
-                  <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{result}</ReactMarkdown>
+                  <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{result}</ReactMarkdown>
                 </div>
               )}
             </>
@@ -1719,7 +1755,7 @@ const MaterialEditor = () => {
                   >
                     <Maximize2 size={15} />
                   </button>
-                  <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{content}</ReactMarkdown>
+                  <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{content}</ReactMarkdown>
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full gap-3 opacity-30">
@@ -1961,7 +1997,7 @@ const MaterialEditor = () => {
                           <Maximize2 size={14} />
                         </button>
                         <div className="p-5 max-h-80 overflow-y-auto">
-                          <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{getActiveVersion(material).content}</ReactMarkdown>
+                          <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{getActiveVersion(material).content}</ReactMarkdown>
                         </div>
                       </div>
                     ) : (
