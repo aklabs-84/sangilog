@@ -910,6 +910,7 @@ const AiReorganizeModal = ({
   const [userInstruction, setUserInstruction] = useState('');
   const [showBasePrompt, setShowBasePrompt] = useState(false);
   const [result, setResult] = useState('');
+  const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
   const handleSelectMode = (m: 'guide' | 'presentation') => {
@@ -919,9 +920,11 @@ const AiReorganizeModal = ({
 
   const handleGenerate = async () => {
     setStep('loading');
+    setFeedback(null);
     try {
       const generated = await reorganizeMaterialContent(rawContent, mode, userInstruction, classId);
-      setResult(generated);
+      setResult(generated.content);
+      setFeedback(generated.feedback);
       setStep('preview');
     } catch (err: any) {
       setErrorMessage(
@@ -1033,20 +1036,28 @@ const AiReorganizeModal = ({
           )}
 
           {step === 'preview' && (
-            mode === 'presentation' ? (
-              <div className="bg-[#0a0a14] rounded-2xl p-6 overflow-auto max-h-[50vh]">
-                <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
-                  {parseSlides(result)[0]?.content ?? result}
-                </ReactMarkdown>
-                <p className="text-white/40 text-xs font-bold mt-3">
-                  총 {parseSlides(result).length}장의 슬라이드로 정리됩니다 (첫 슬라이드만 미리보기, 적용 후 발표 모드에서 전체 확인 가능)
-                </p>
-              </div>
-            ) : (
-              <div className="max-h-[50vh] overflow-auto">
-                <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{result}</ReactMarkdown>
-              </div>
-            )
+            <>
+              {feedback && (
+                <div className="flex items-start gap-2 px-4 py-3 mb-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                  <div className="text-xs font-bold leading-relaxed whitespace-pre-line">{feedback}</div>
+                </div>
+              )}
+              {mode === 'presentation' ? (
+                <div className="bg-[#0a0a14] rounded-2xl p-6 overflow-auto max-h-[50vh]">
+                  <ReactMarkdown components={slideComponents} rehypePlugins={[rehypeRaw]}>
+                    {parseSlides(result)[0]?.content ?? result}
+                  </ReactMarkdown>
+                  <p className="text-white/40 text-xs font-bold mt-3">
+                    총 {parseSlides(result).length}장의 슬라이드로 정리됩니다 (첫 슬라이드만 미리보기, 적용 후 발표 모드에서 전체 확인 가능)
+                  </p>
+                </div>
+              ) : (
+                <div className="max-h-[50vh] overflow-auto">
+                  <ReactMarkdown components={mdComponents} rehypePlugins={[rehypeRaw]}>{result}</ReactMarkdown>
+                </div>
+              )}
+            </>
           )}
 
           {step === 'error' && (
@@ -1080,7 +1091,7 @@ const AiReorganizeModal = ({
             {step === 'preview' && (
               <>
                 <button
-                  onClick={() => setStep('configure')}
+                  onClick={() => { setFeedback(null); setStep('configure'); }}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
                 >
                   <RotateCcw size={14} /> 다시 요청

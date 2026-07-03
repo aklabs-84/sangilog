@@ -467,23 +467,36 @@ function restoreImagePlaceholders(result: string, map: string[]): string {
   return restored;
 }
 
+// [[FEEDBACK]]...[[/FEEDBACK]] 블록 — 선생님 추가 요청사항이 기본 규칙과 충돌해
+// 완전히 반영되지 못했을 때만 AI가 응답 맨 앞에 붙이는 반영 여부 안내
+const FEEDBACK_BLOCK_RE = /^\s*\[\[FEEDBACK\]\]\s*\n?([\s\S]*?)\n?\s*\[\[\/FEEDBACK\]\]\s*\n?/;
+
 export async function reorganizeMaterialContent(
   rawContent: string,
   mode: 'guide' | 'presentation',
   userInstruction?: string,
   classId?: string
-): Promise<string> {
+): Promise<{ content: string; feedback: string | null }> {
   const { replaced, map } = extractImagePlaceholders(rawContent);
 
-  const instructionBlock = userInstruction?.trim()
-    ? `\n\n[선생님 추가 요청사항 — 위 기본 규칙과 충돌하지 않는 선에서 반영]\n${userInstruction.trim()}`
+  const trimmedInstruction = userInstruction?.trim();
+  const instructionBlock = trimmedInstruction
+    ? `\n\n[선생님 추가 요청사항 — 위 기본 규칙과 충돌하지 않는 선에서 반영]\n${trimmedInstruction}`
+    : '';
+  const feedbackInstruction = trimmedInstruction
+    ? `\n\n[요청사항 반영 여부 안내]\n위 선생님 추가 요청사항이 기본 형식 규칙(단계 구조, 슬라이드 분할/메타 규칙 등)과 충돌해 완전히 반영하지 못했다면, 응답 맨 앞줄에 아래 형식으로 짧게 안내를 붙이세요.\n[[FEEDBACK]]\n(반영되지 않은 부분을 1문장으로) (대신 이렇게 요청해보세요: 로 시작하는 대안 1문장)\n[[/FEEDBACK]]\n요청사항을 완전히 반영했다면 이 블록을 절대 넣지 마세요. 블록 다음 줄부터는 곧바로 실제 정리된 본문만 이어서 작성하세요.`
     : '';
 
-  const prompt = `${MATERIAL_REORG_PROMPTS[mode]}${instructionBlock}\n\n[원문]\n${replaced}`;
+  const prompt = `${MATERIAL_REORG_PROMPTS[mode]}${instructionBlock}${feedbackInstruction}\n\n[원문]\n${replaced}`;
 
   const result = await materialReorganizeAI.generateContent(
     prompt,
     classId ? { class_id: classId } : undefined
   );
-  return restoreImagePlaceholders(result.response.text().trim(), map);
+  const raw = result.response.text().trim();
+  const feedbackMatch = raw.match(FEEDBACK_BLOCK_RE);
+  const feedback = feedbackMatch ? feedbackMatch[1].trim() : null;
+  const bodyRaw = feedbackMatch ? raw.slice(feedbackMatch[0].length) : raw;
+
+  return { content: restoreImagePlaceholders(bodyRaw.trim(), map), feedback };
 }
