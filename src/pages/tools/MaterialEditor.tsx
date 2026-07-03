@@ -652,17 +652,31 @@ const PresentationModal = ({
               );
             })()}
 
-            {/* 스포트라이트 (레이저 포인터) — 원 안쪽은 밝게 띄우고 바깥은 짙게 어둡게, 밝은 링으로 강조 */}
+            {/* 스포트라이트 (레이저 포인터) — 원 안쪽은 동일한 내용을 밝기/대비만 높여 다시 그려 또렷하게, 바깥은 짙게 어둡게 */}
             {tool === 'spotlight' && lensPos && (
               <div className="absolute inset-0 z-20 rounded-3xl pointer-events-none overflow-hidden">
-                {/* 원 안쪽을 밝혀서 가독성 확보 (screen 블렌드로 배경/글자 모두 밝아짐) */}
+                {/* 원 안쪽 — 같은 위치에 같은 콘텐츠를 밝기/대비 필터만 올려 복제 (색 반전 없이 안전하게 밝게) */}
                 <div
-                  className="absolute inset-0"
+                  className="absolute inset-0 overflow-hidden"
                   style={{
-                    background: `radial-gradient(circle 130px at ${lensPos.x}px ${lensPos.y}px, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.32) 40%, rgba(255,255,255,0.08) 65%, rgba(255,255,255,0) 82%)`,
-                    mixBlendMode: 'screen',
-                  } as CSSProperties}
-                />
+                    clipPath: `circle(130px at ${lensPos.x}px ${lensPos.y}px)`,
+                    WebkitClipPath: `circle(130px at ${lensPos.x}px ${lensPos.y}px)`,
+                  }}
+                >
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-br ${theme}`}
+                    style={{ filter: 'brightness(1.8) contrast(1.15) saturate(1.1)' }}
+                  >
+                    <div
+                      className="relative w-full h-full flex flex-col justify-center"
+                      style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}
+                    >
+                      <div className="px-14 py-10" style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}>
+                        {slideBody}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 {/* 원 바깥쪽을 짙게 어둡게 */}
                 <div
                   className="absolute inset-0"
