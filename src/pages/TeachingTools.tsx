@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
@@ -10,6 +10,8 @@ import MaterialEditor from './tools/MaterialEditor';
 import ClassTranscription from './tools/ClassTranscription';
 import WhiteboardList from '../components/whiteboard/WhiteboardList';
 import SurveyTool from './tools/SurveyTool';
+import SlideDeckEditor from './tools/SlideDeckEditor';
+import OnlineMeeting from './tools/OnlineMeeting';
 
 interface ToolLimits {
   freeDesc?: string;   // undefined = 무료 사용 불가
@@ -125,6 +127,26 @@ const tools: Tool[] = [
     },
   },
   {
+    id: 'slide-deck',
+    icon: <Layers size={28} />,
+    label: '슬라이드 만들기',
+    description: 'PPT처럼 텍스트·이미지를 원하는 위치에 자유롭게 배치해 발표 자료를 만듭니다',
+    badge: 'NEW',
+    available: true,
+    planRequired: 'basic',
+    limits: { basicDesc: '슬라이드 수 무제한', proDesc: '슬라이드 수 무제한' },
+    component: <SlideDeckEditor />,
+    quickGuide: {
+      steps: [
+        { title: '템플릿 선택', desc: '+ 새 슬라이드를 클릭하고 원하는 디자인 템플릿을 선택합니다.' },
+        { title: '텍스트 · 이미지 추가', desc: '상단 툴바에서 텍스트/이미지를 추가하고 드래그로 위치를, 모서리를 드래그해 크기를 조절합니다.' },
+        { title: '슬라이드 관리', desc: '왼쪽 목록에서 슬라이드를 추가·복제·삭제하고 클릭해 전환합니다.' },
+        { title: '자동 저장', desc: '편집 내용은 잠시 후 자동으로 저장됩니다.' },
+      ],
+      tip: '텍스트 블록을 더블클릭하면 바로 내용을 수정할 수 있습니다.',
+    },
+  },
+  {
     id: 'transcription',
     icon: <Mic size={28} />,
     label: '수업 전사 & AI 분석',
@@ -190,6 +212,26 @@ const tools: Tool[] = [
         { title: 'AI 분석 · CSV 내보내기', desc: '설문 종료 후 ✨ AI 분석으로 응답을 요약하거나 CSV로 저장합니다.' },
       ],
       tip: '문항 타입: 객관식 · 예/아니오 · 별점 · 단답형 · 의견 척도(슬라이더) · 순위 매기기 6가지를 조합할 수 있습니다.',
+    },
+  },
+  {
+    id: 'online-meeting',
+    icon: <Video size={28} />,
+    label: '온라인 수업',
+    description: 'Google Meet/Zoom 회의 링크를 등록하고 학생들에게 바로 전달합니다',
+    badge: 'NEW',
+    available: true,
+    planRequired: 'free',
+    limits: { freeDesc: '무제한', proDesc: '무제한' },
+    component: <OnlineMeeting />,
+    quickGuide: {
+      steps: [
+        { title: '클래스 선택', desc: '온라인 수업을 진행할 클래스를 선택합니다.' },
+        { title: '회의 링크 붙여넣기', desc: 'Google Meet(meet.google.com/new) 또는 Zoom에서 직접 생성한 회의 링크를 붙여넣습니다.' },
+        { title: '등록하고 학생에게 전달', desc: '등록 즉시 학생 페이지에 입장 버튼이 노출됩니다.' },
+        { title: '수업 종료 처리', desc: '수업이 끝나면 목록에서 종료 버튼을 눌러 학생 화면에서 입장 버튼을 숨깁니다.' },
+      ],
+      tip: '교사가 호스트로 직접 회의를 열어야 하므로, 미리 Google Meet/Zoom에서 링크를 생성한 뒤 붙여넣어 주세요.',
     },
   },
   {
