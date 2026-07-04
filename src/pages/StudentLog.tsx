@@ -165,7 +165,7 @@ const StudentLog = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting'>('home');
   const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
   const [selectedHomeWeek, setSelectedHomeWeek] = useState<number | null>(null);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'obs' | 'result'>('all');
@@ -330,6 +330,11 @@ const StudentLog = () => {
   const [boardSelectedPost, setBoardSelectedPost] = useState<any | null>(null);
   const [boardGroupModalInfo, setBoardGroupModalInfo] = useState<{ name: string; memberNames: string[] } | null>(null);
   const [boardLikes, setBoardLikes] = useState<Record<string, boolean>>({}); // postId → liked
+
+  // Online Meeting Tab States
+  const [activeMeeting, setActiveMeeting] = useState<any | null>(null);
+  const [meetingLoading, setMeetingLoading] = useState(false);
+  const [meetingHistory, setMeetingHistory] = useState<any[]>([]);
 
   useEffect(() => {
     const sessionData = sessionStorage.getItem('student_session');
@@ -671,6 +676,24 @@ const StudentLog = () => {
         table: 'quiz_sessions',
         filter: `class_id=eq.${session.class_id}`,
       }, () => { fetchActiveQuizSessions(); })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [session?.class_id]);
+
+  // 온라인 수업 미팅 Realtime 구독 — 선생님이 등록/종료 시 즉시 반영
+  useEffect(() => {
+    if (!session?.class_id) return;
+    fetchActiveMeeting();
+
+    const channel = supabase
+      .channel(`class-meeting-rt-${session.class_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'class_meetings',
+        filter: `class_id=eq.${session.class_id}`,
+      }, () => { fetchActiveMeeting(); })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -1659,6 +1682,26 @@ const StudentLog = () => {
     setActiveBoardSessions(sessions);
   };
 
+  const fetchActiveMeeting = async () => {
+    if (!session?.class_id) return;
+    setMeetingLoading(true);
+    try {
+      const { data } = await supabase
+        .from('class_meetings')
+        .select('id, title, platform, meeting_url, scheduled_at, is_active, created_at')
+        .eq('class_id', session.class_id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      const all = data || [];
+      setMeetingHistory(all);
+      setActiveMeeting(all.find(m => m.is_active) ?? null);
+    } catch (err) {
+      console.error('Error fetching class meetings:', err);
+    } finally {
+      setMeetingLoading(false);
+    }
+  };
+
   const fetchBoard = async () => {
     if (!session?.class_id) return;
     setBoardLoading(true);
@@ -1937,7 +1980,7 @@ const StudentLog = () => {
     }
   };
 
-  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes') => {
+  const handleTabChange = (tab: 'home' | 'record' | 'history' | 'badges' | 'materials' | 'results' | 'unit' | 'suggestions' | 'quiz' | 'survey' | 'board' | 'notes' | 'meeting') => {
     setActiveTab(tab);
     setIsMoreSheetOpen(false);
     if (tab === 'history') { fetchHistory(); fetchResults(); }
@@ -1949,6 +1992,7 @@ const StudentLog = () => {
     if (tab === 'survey') fetchActiveSurveyForms();
     if (tab === 'board') { fetchBoard(); fetchActiveBoardSessions(); }
     if (tab === 'notes') { setSelectedNote(null); fetchNotes(); }
+    if (tab === 'meeting') fetchActiveMeeting();
   };
 
   const formatRelativeTime = (dateStr: string) => {
@@ -2407,6 +2451,25 @@ ${guidePrompt}
                     <p className="text-sm font-bold text-on-surface-variant/60">{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} · {session?.class_name}</p>
                     <h2 className="text-2xl font-black mt-0.5">안녕하세요, {session?.student_name}님! 👋</h2>
                   </div>
+
+                  {/* 온라인 수업 배너 */}
+                  {activeMeeting && (
+                    <motion.button
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      onClick={() => window.open(activeMeeting.meeting_url, '_blank')}
+                      className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-500 shadow-lg shadow-rose-200 active:scale-98 transition-all text-left"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-white/25 flex items-center justify-center text-2xl shrink-0 shadow-inner">
+                        🎥
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-black text-sm">지금 온라인 수업이 진행 중이에요</p>
+                        <p className="text-white/80 text-xs font-bold truncate">{activeMeeting.title}</p>
+                      </div>
+                      <span className="text-white text-xs font-black shrink-0 bg-white/20 px-3 py-1.5 rounded-full">입장하기 →</span>
+                    </motion.button>
+                  )}
 
                   {/* 공지사항 */}
                   {announcements.length > 0 && (
@@ -4402,6 +4465,97 @@ ${guidePrompt}
               </motion.div>
             )}
 
+            {/* ─── 온라인 수업 탭 ─── */}
+            {activeTab === 'meeting' && (
+              <motion.div
+                key="meeting"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                className="p-8 space-y-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-[0.25em]">Online Class</p>
+                    <h2 className="text-2xl font-black">온라인 수업</h2>
+                    <p className="text-sm text-on-surface-variant font-bold">선생님이 등록한 회의 링크로 바로 입장하세요</p>
+                  </div>
+                  <button
+                    onClick={fetchActiveMeeting}
+                    disabled={meetingLoading}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-black text-xs transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} className={meetingLoading ? 'animate-spin' : ''} />
+                    새로고침
+                  </button>
+                </div>
+
+                {meetingLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 size={28} className="animate-spin text-rose-500" />
+                  </div>
+                ) : meetingHistory.length === 0 ? (
+                  <div className="flex flex-col items-center py-20 space-y-4">
+                    <div className="w-20 h-20 rounded-3xl bg-rose-50 flex items-center justify-center">
+                      <ExternalLink size={36} className="text-rose-300" />
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="font-black text-on-surface opacity-40">등록된 온라인 수업이 없습니다</p>
+                      <p className="text-sm text-on-surface-variant/50 font-bold">선생님이 회의 링크를 등록하면 여기에 표시됩니다</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {meetingHistory.map((m) => (
+                      <motion.div
+                        key={m.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`rounded-3xl border-2 p-6 flex items-center justify-between gap-4 ${
+                          m.is_active
+                            ? 'border-rose-100 bg-gradient-to-r from-rose-50 to-orange-50'
+                            : 'border-surface-container bg-surface-container-low opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shrink-0 ${
+                            m.is_active
+                              ? 'bg-gradient-to-br from-rose-500 to-orange-500 shadow-rose-200'
+                              : 'bg-surface-container-high shadow-none'
+                          }`}>
+                            <ExternalLink size={26} className={m.is_active ? 'text-white' : 'text-on-surface-variant/50'} />
+                          </div>
+                          <div className="min-w-0">
+                            {m.is_active && (
+                              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 mb-1 inline-block">
+                                진행 중 🔴
+                              </span>
+                            )}
+                            <h3 className="font-black text-on-surface text-base truncate">{m.title}</h3>
+                            <p className="text-xs text-on-surface-variant/60 font-bold">
+                              {new Date(m.created_at).toLocaleString('ko-KR')}
+                            </p>
+                          </div>
+                        </div>
+
+                        {m.is_active && (
+                          <a
+                            href={m.meeting_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-500 text-white font-black text-sm shadow-lg shadow-rose-200 hover:brightness-110 active:scale-95 transition-all shrink-0"
+                          >
+                            <ExternalLink size={16} />
+                            입장하기
+                          </a>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {/* ─── 보드 탭 ─── */}
             {activeTab === 'board' && (
               <motion.div
@@ -5066,6 +5220,7 @@ ${guidePrompt}
                   { key: 'notes' as const,     icon: NotebookPen, label: '나의 노트', color: 'text-emerald-600', activeBg: 'bg-emerald-50' },
                   { key: 'quiz' as const,      icon: Gamepad2,    label: '퀴즈',      color: 'text-purple-600', activeBg: 'bg-purple-50' },
                   { key: 'survey' as const,    icon: BarChart2,   label: '설문',      color: 'text-teal-600',   activeBg: 'bg-teal-50' },
+                  { key: 'meeting' as const,   icon: ExternalLink, label: '온라인수업', color: 'text-rose-600',  activeBg: 'bg-rose-50',  live: !!activeMeeting },
                   { key: 'unit' as const,      icon: ClipboardList, label: '단원마무리', color: 'text-amber-600', activeBg: 'bg-amber-50', badge: unitPendingCount },
                   { key: 'suggestions' as const, icon: Megaphone, label: '건의사항',  color: 'text-rose-600',   activeBg: 'bg-rose-50',  badge: unreadReplyCount },
                 ].map((item) => {
@@ -5090,6 +5245,9 @@ ${guidePrompt}
                         <span className="absolute top-2 right-2 w-4 h-4 bg-error text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-sm">
                           {(item as any).badge}
                         </span>
+                      )}
+                      {(item as any).live && (
+                        <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full shadow-sm animate-pulse" />
                       )}
                     </button>
                   );
