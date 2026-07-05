@@ -1503,6 +1503,14 @@ const MaterialEditor = () => {
       if (editingMaterial) {
         const { error } = await supabase.from('class_materials').update(payload).eq('id', editingMaterial.id);
         if (error) throw error;
+        if (libraryMode) {
+          // 공통 자료 원본 수정 시, 이미 연결된 클래스 자료들의 에디터 내용도 함께 반영
+          const { error: syncError } = await supabase
+            .from('class_materials')
+            .update({ content: payload.content, ai_versions: payload.ai_versions, updated_at: payload.updated_at })
+            .eq('source_material_id', editingMaterial.id);
+          if (syncError) console.error('[MaterialEditor] linked materials sync error:', syncError);
+        }
       } else {
         const { error } = await supabase.from('class_materials').insert(payload);
         if (error) throw error;
