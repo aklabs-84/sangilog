@@ -18,6 +18,7 @@ export default function EmojiBlockObject({
   obj, isSelected, editable, onSelect, onUpdate, onDelete, onDragStart, onResizeStart,
 }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const style = obj.style ?? {};
 
   return (
     <div
@@ -25,13 +26,14 @@ export default function EmojiBlockObject({
         position: 'absolute', left: obj.x, top: obj.y, width: obj.width, height: obj.height,
         zIndex: isSelected ? 9999 : obj.zIndex,
         outline: editable && isSelected ? '2px solid #3B82F6' : 'none',
-        cursor: editable ? 'grab' : 'default', userSelect: 'none', boxSizing: 'border-box',
+        cursor: editable ? 'grab' : obj.href ? 'pointer' : 'default', userSelect: 'none', boxSizing: 'border-box',
         display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
       }}
       onPointerDown={editable ? e => { onSelect(); onDragStart(e); } : undefined}
       onDoubleClick={editable ? () => setPickerOpen(true) : undefined}
+      onClick={!editable && obj.href ? e => { e.stopPropagation(); window.open(obj.href, '_blank', 'noopener,noreferrer'); } : undefined}
     >
-      <span style={{ fontSize: Math.min(obj.width, obj.height) * 0.8, lineHeight: 1 }}>{obj.text || '🙂'}</span>
+      <span style={{ fontSize: Math.min(obj.width, obj.height) * 0.8, lineHeight: 1, opacity: style.opacity ?? 1 }}>{obj.text || '🙂'}</span>
       {editable && isSelected && (
         <>
           <button

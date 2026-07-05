@@ -18,6 +18,7 @@ export interface SlideObjectStyle {
   fontFamily?: string;            // 템플릿별 타이포그래피 차별화
   frame?: ImageFrame;             // type: 'image' 프레임 스타일
   rotate?: number;                // deg — 콜라주/폴라로이드 연출용 미세 회전
+  opacity?: number;               // 0~1, 기본 1 = 불투명. text/image/emoji 오브젝트 투명도
 }
 
 export interface SlideObject {
@@ -27,7 +28,7 @@ export interface SlideObject {
   zIndex: number;
   text?: string;    // type: 'text' | 'link'(라벨) | 'emoji'(글자 자체) | 'code'(코드 내용)
   src?: string; alt?: string;  // type: 'image'
-  href?: string;    // type: 'link'
+  href?: string;    // type: 'link'(필수) | 'text'/'image'(선택 — 있으면 발표 모드에서 클릭 시 새 탭으로 열림)
   codeLang?: string;  // type: 'code' — 언어 라벨(예: Python, JavaScript)
   style?: SlideObjectStyle;
 }

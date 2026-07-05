@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind } from '../../components/slidedeck/types';
-import { SLIDE_TEMPLATES, getTemplate, instantiateSlide, getLayoutSlotSpec, buildDraftDeckSlides } from '../../components/slidedeck/templates';
+import { SLIDE_TEMPLATES, getTemplate, instantiateSlide, getLayoutSlotSpec, buildDraftDeckSlides, applyTemplateToDeck } from '../../components/slidedeck/templates';
 import TemplateGallery from '../../components/slidedeck/TemplateGallery';
 import SlideThumbnailRail from '../../components/slidedeck/SlideThumbnailRail';
 import SlideStage from '../../components/slidedeck/SlideStage';
@@ -12,6 +12,9 @@ import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
 import ImportMaterialModal, { type ImportableMaterial } from '../../components/slidedeck/ImportMaterialModal';
 import { generateSlideDeckDraft } from '../../lib/gemini';
 import { uploadSlideImage } from '../../components/slidedeck/utils/imageUpload';
+import { exportDeckToPptx } from '../../components/slidedeck/utils/exportPptx';
+import { exportDeckToPdf } from '../../components/slidedeck/utils/exportPdf';
+import { parsePptxFile } from '../../components/slidedeck/utils/importPptx';
 
 type View = 'list' | 'template' | 'editor';
 
@@ -50,7 +53,11 @@ export default function SlideDeckEditor() {
   const [importedMaterial, setImportedMaterial] = useState<ImportableMaterial | null>(null);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
+  const [exporting, setExporting] = useState<'pptx' | 'pdf' | null>(null);
+  const [importingPptx, setImportingPptx] = useState(false);
+  const [showApplyTemplateModal, setShowApplyTemplateModal] = useState(false);
   const bgFileRef = useRef<HTMLInputElement>(null);
+  const pptxFileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadDecks = useCallback(async () => {
@@ -133,6 +140,49 @@ export default function SlideDeckEditor() {
     } finally {
       setAiGenerating(false);
       setImportedMaterial(null);
+    }
+  };
+
+  // ── 파워포인트(.pptx) 파일 불러오기 ────────────────────────────────────────
+  const handleImportPptxFile = async (file: File) => {
+    if (!user) return;
+    const proceed = confirm(
+      '파워포인트 파일을 불러오면 텍스트와 이미지 위주로 우리 도구 형식으로 변환됩니다.\n' +
+      '텍스트/이미지에 걸린 하이퍼링크와 웹 동영상(유튜브 등) 링크는 가능한 가져오지만, 표·차트·스마트아트·애니메이션·' +
+      '내장된 동영상 파일 자체(재생은 지원하지 않아 정지 이미지만 가져옴) 등은 지원되지 않아 일부 내용이 생략될 수 있습니다.\n' +
+      '계속할까요?'
+    );
+    if (!proceed) return;
+    setImportingPptx(true);
+    try {
+      const { slides, skippedOther, skippedImages, skippedVectorImages } = await parsePptxFile(file);
+      if (slides.length === 0) {
+        alert('슬라이드를 찾을 수 없습니다. 올바른 pptx 파일인지 확인해주세요.');
+        return;
+      }
+      const title = file.name.replace(/\.pptx$/i, '') || '제목 없는 슬라이드';
+      const { data, error } = await supabase
+        .from('slide_decks')
+        .insert({ teacher_id: user.id, title, slides })
+        .select()
+        .single();
+      if (error || !data) { alert('슬라이드를 저장하는 중 오류가 발생했습니다.'); return; }
+      setActiveDeck(data as SlideDeck);
+      setActiveSlideIndex(0);
+      setSelectedObjectId(null);
+      setView('editor');
+      loadDecks();
+      const notes: string[] = [];
+      if (skippedOther > 0) notes.push(`표/차트/그룹 도형 등 ${skippedOther}개`);
+      if (skippedImages > 0) notes.push(`가져오지 못한 이미지 ${skippedImages}개(외부 링크 이미지 등 접근 실패 포함)`);
+      if (skippedVectorImages > 0) notes.push(`지원되지 않는 이미지 형식(EMF/WMF/TIFF) ${skippedVectorImages}개`);
+      if (notes.length > 0) {
+        alert(`가져오기를 완료했습니다. ${notes.join(', ')}는 생략되었습니다.`);
+      }
+    } catch {
+      alert('pptx 파일을 읽는 중 오류가 발생했습니다. 올바른 파워포인트 파일인지 확인해주세요.');
+    } finally {
+      setImportingPptx(false);
     }
   };
 
@@ -230,6 +280,37 @@ export default function SlideDeckEditor() {
     setSelectedObjectId(obj.id);
   };
 
+  // ── 템플릿 디자인 적용(기존 슬라이드 전체에 배색만 교체) ────────────────────────
+  const handleApplyTemplate = (templateId: string) => {
+    setActiveDeck(prev => prev ? applyTemplateToDeck(prev, templateId) : prev);
+    setActiveTemplateId(templateId);
+    setShowApplyTemplateModal(false);
+  };
+
+  const handleExportPptx = async () => {
+    if (!activeDeck || exporting) return;
+    setExporting('pptx');
+    try {
+      await exportDeckToPptx(activeDeck);
+    } catch {
+      alert('PPT 파일을 만드는 중 오류가 발생했습니다.');
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!activeDeck || exporting) return;
+    setExporting('pdf');
+    try {
+      await exportDeckToPdf(activeDeck);
+    } catch {
+      alert('PDF 파일을 만드는 중 오류가 발생했습니다.');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const selectedObject = currentSlide?.objects.find(o => o.id === selectedObjectId) ?? null;
 
   const updateSelectedStyle = (changes: Partial<NonNullable<SlideObject['style']>>) => {
@@ -244,6 +325,24 @@ export default function SlideDeckEditor() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>슬라이드 만들기</h2>
           <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              ref={pptxFileRef}
+              type="file"
+              accept=".pptx"
+              style={{ display: 'none' }}
+              onChange={e => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) handleImportPptxFile(f);
+              }}
+            />
+            <button
+              onClick={() => pptxFileRef.current?.click()}
+              disabled={importingPptx}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 16px', cursor: importingPptx ? 'default' : 'pointer', fontSize: 14, fontWeight: 600, opacity: importingPptx ? 0.6 : 1 }}
+            >
+              {importingPptx ? <Loader2 size={16} className="animate-spin" /> : <FileUp size={16} />} PPT 불러오기
+            </button>
             <button
               onClick={() => setShowImportModal(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
@@ -278,6 +377,15 @@ export default function SlideDeckEditor() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {importingPptx && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(255,255,255,0.85)', zIndex: 9995,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+          }}>
+            <Loader2 className="animate-spin" size={32} color="#3B82F6" />
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>파워포인트 파일을 변환하고 있어요...</p>
           </div>
         )}
         {showImportModal && (
@@ -336,6 +444,28 @@ export default function SlideDeckEditor() {
             {saveState === 'saving' ? '저장 중...' : saveState === 'saved' ? '저장됨' : ''}
           </span>
           <button
+            onClick={() => setShowApplyTemplateModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+          >
+            <Palette size={14} /> 템플릿 디자인 적용
+          </button>
+          <button
+            onClick={handleExportPptx}
+            disabled={!!exporting}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: exporting ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, opacity: exporting && exporting !== 'pptx' ? 0.5 : 1 }}
+          >
+            {exporting === 'pptx' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileDown size={14} />}
+            PPT 다운로드
+          </button>
+          <button
+            onClick={handleExportPdf}
+            disabled={!!exporting}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 14px', cursor: exporting ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, opacity: exporting && exporting !== 'pdf' ? 0.5 : 1 }}
+          >
+            {exporting === 'pdf' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} />}
+            PDF 다운로드
+          </button>
+          <button
             onClick={() => setPresenting(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#111827', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
           >
@@ -343,6 +473,7 @@ export default function SlideDeckEditor() {
           </button>
         </div>
 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
           <button onClick={() => addObject('text')} style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', background: '#fff', cursor: 'pointer', fontSize: 13 }}>
             <Type size={14} /> 텍스트 추가
@@ -398,8 +529,12 @@ export default function SlideDeckEditor() {
               </button>
             </div>
           )}
+        </div>
+
+        {selectedObject && (selectedObject.type === 'text' || selectedObject.type === 'image' || selectedObject.type === 'emoji') && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
           {selectedObject?.type === 'text' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8, paddingLeft: 8, borderLeft: '1px solid #e5e7eb' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
                 type="number" min={12} max={120}
                 value={selectedObject.style?.fontSize ?? 24}
@@ -424,6 +559,50 @@ export default function SlideDeckEditor() {
               />
             </div>
           )}
+          {selectedObject && (selectedObject.type === 'text' || selectedObject.type === 'image' || selectedObject.type === 'emoji') && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: selectedObject.type === 'text' ? 8 : 0, borderLeft: selectedObject.type === 'text' ? '1px solid #e5e7eb' : 'none' }}>
+              <span style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>투명도</span>
+              <input
+                type="range" min={0} max={100}
+                value={Math.round((selectedObject.style?.opacity ?? 1) * 100)}
+                onChange={e => updateSelectedStyle({ opacity: Number(e.target.value) / 100 })}
+                style={{ width: 100 }}
+              />
+              <span style={{ fontSize: 12, color: '#6b7280', width: 32 }}>{Math.round((selectedObject.style?.opacity ?? 1) * 100)}%</span>
+            </div>
+          )}
+          {selectedObject && (selectedObject.type === 'text' || selectedObject.type === 'image' || selectedObject.type === 'emoji') && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8, paddingLeft: 8, borderLeft: '1px solid #e5e7eb' }}>
+              <Link2 size={14} color="#6b7280" />
+              <input
+                type="text"
+                placeholder="링크 주소(https://...)"
+                value={selectedObject.href ?? ''}
+                onChange={e => handleUpdateObject(selectedObject.id, { href: e.target.value || undefined })}
+                style={{ width: 200, border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 8px', fontSize: 12 }}
+              />
+              {selectedObject.href && (
+                <>
+                  <button
+                    onClick={() => window.open(selectedObject.href, '_blank', 'noopener,noreferrer')}
+                    title="새 탭에서 열기"
+                    style={{ display: 'flex', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', color: '#3B82F6' }}
+                  >
+                    <ExternalLink size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleUpdateObject(selectedObject.id, { href: undefined })}
+                    title="링크 제거"
+                    style={{ display: 'flex', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444' }}
+                  >
+                    <XIcon size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          </div>
+        )}
         </div>
 
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
@@ -453,6 +632,28 @@ export default function SlideDeckEditor() {
             startIndex={activeSlideIndex}
             onClose={() => setPresenting(false)}
           />
+        )}
+
+        {showApplyTemplateModal && (
+          <div
+            onClick={() => setShowApplyTemplateModal(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9996, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ background: '#fff', borderRadius: 16, padding: 24, maxWidth: 900, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 700 }}>템플릿 디자인 적용</h3>
+                <button onClick={() => setShowApplyTemplateModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}><XIcon size={18} /></button>
+              </div>
+              <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
+                선택한 템플릿의 배경과 글자 색상이 이 슬라이드 전체({activeDeck.slides.length}장)에 적용됩니다.
+                오브젝트의 위치·크기·내용은 그대로 유지되고, 배경 이미지는 제거됩니다.
+              </p>
+              <TemplateGallery onSelect={handleApplyTemplate} />
+            </div>
+          </div>
         )}
       </div>
     );

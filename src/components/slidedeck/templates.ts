@@ -1,4 +1,4 @@
-import type { SlideTemplate, DeckSlide, SlideLayoutKind, SlideObject } from './types';
+import type { SlideTemplate, DeckSlide, SlideDeck, SlideLayoutKind, SlideObject } from './types';
 import type { AiDraftSlide, SlideLayoutSpec } from '../../lib/gemini';
 
 // 4개 템플릿 — 수업/학원 학습활동에서 실제로 쓰는 발표 목적별로 구성.
@@ -203,6 +203,33 @@ export const instantiateSlide = (template: SlideTemplate, kind: SlideLayoutKind)
   textColor: template.textColor,
   objects: template.layouts[kind].map(o => ({ ...o, id: crypto.randomUUID() })),
 });
+
+// 이미 만들어진 덱(직접 제작 or PPT 가져오기)에 템플릿 디자인을 통째로 입힌다.
+// 오브젝트의 위치/크기/내용은 그대로 두고, 슬라이드 배경과 모든 텍스트 계열 오브젝트의 색상만
+// 선택한 템플릿의 배경/글자/강조색으로 통일한다 — 레이아웃을 다시 만드는 게 아니라 "배색만 교체".
+export const applyTemplateToDeck = (deck: SlideDeck, templateId: string): SlideDeck => {
+  const template = getTemplate(templateId);
+  return {
+    ...deck,
+    slides: deck.slides.map(slide => ({
+      ...slide,
+      bg: template.bg,
+      textColor: template.textColor,
+      bgImage: undefined,
+      bgImageOpacity: undefined,
+      objects: slide.objects.map(obj => {
+        if (obj.type === 'text' || obj.type === 'emoji') {
+          if (!obj.style?.color) return obj; // 색 지정 없으면 이미 slide.textColor를 상속하므로 그대로 둠
+          return { ...obj, style: { ...obj.style, color: template.textColor } };
+        }
+        if (obj.type === 'link') {
+          return { ...obj, style: { ...obj.style, color: template.accentColor } };
+        }
+        return obj;
+      }),
+    })),
+  };
+};
 
 // ── AI 초안 생성: 레이아웃별 "채울 수 있는" 텍스트 슬롯 ──────────────────────
 // layouts[kind] 배열의 텍스트 오브젝트 중 실제 콘텐츠용인 것만 objectIndex로 지정한다.

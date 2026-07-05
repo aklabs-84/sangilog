@@ -38,6 +38,7 @@ export default function TextBlockObject({
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
     lineHeight: 1.35,
+    opacity: style.opacity ?? 1,
   };
 
   return (
@@ -46,11 +47,12 @@ export default function TextBlockObject({
         position: 'absolute', left: obj.x, top: obj.y, width: obj.width, height: obj.height,
         zIndex: isSelected ? 9999 : obj.zIndex,
         outline: editable && isSelected ? '2px solid #3B82F6' : editable ? '1px dashed transparent' : 'none',
-        cursor: editable ? 'grab' : 'default', userSelect: 'none', boxSizing: 'border-box',
+        cursor: editable ? 'grab' : obj.href ? 'pointer' : 'default', userSelect: 'none', boxSizing: 'border-box',
         overflow: 'hidden',
       }}
       onPointerDown={editable ? e => { onSelect(); if (!editing) onDragStart(e); } : undefined}
       onDoubleClick={editable ? startEditing : undefined}
+      onClick={!editable && obj.href ? e => { e.stopPropagation(); window.open(obj.href, '_blank', 'noopener,noreferrer'); } : undefined}
     >
       {editing ? (
         <textarea
