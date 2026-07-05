@@ -1984,7 +1984,7 @@ const MaterialEditor = () => {
             </div>
           ) : (
             materials.map(material => (
-              <div key={material.id} className="bg-white rounded-2xl border border-surface-container overflow-hidden transition-all hover:border-primary/20 hover:shadow-sm">
+              <div key={material.id} className="bg-white rounded-2xl border border-surface-container transition-all hover:border-primary/20 hover:shadow-sm">
                 {/* 자료 헤더 */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
                   <div className="flex items-center gap-3 min-w-0">
@@ -2150,7 +2150,7 @@ const MaterialEditor = () => {
 
                 {/* 내용 미리보기 (확장) */}
                 {expandedId === material.id && (
-                  <div className="border-t border-surface-container">
+                  <div className="border-t border-surface-container rounded-b-2xl overflow-hidden">
                     {material.content ? (
                       <div className="relative">
                         <button
