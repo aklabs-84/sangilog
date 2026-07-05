@@ -1,4 +1,5 @@
-import type { SlideTemplate, DeckSlide, SlideLayoutKind } from './types';
+import type { SlideTemplate, DeckSlide, SlideLayoutKind, SlideObject } from './types';
+import type { AiDraftSlide, SlideLayoutSpec } from '../../lib/gemini';
 
 // 4개 템플릿 — 수업/학원 학습활동에서 실제로 쓰는 발표 목적별로 구성.
 // 색상/폰트뿐 아니라 오브젝트 구성 자체(코드블록, 이미지 프레임, 스텝 배지 등)가 서로 다르다.
@@ -202,3 +203,114 @@ export const instantiateSlide = (template: SlideTemplate, kind: SlideLayoutKind)
   textColor: template.textColor,
   objects: template.layouts[kind].map(o => ({ ...o, id: crypto.randomUUID() })),
 });
+
+// ── AI 초안 생성: 레이아웃별 "채울 수 있는" 텍스트 슬롯 ──────────────────────
+// layouts[kind] 배열의 텍스트 오브젝트 중 실제 콘텐츠용인 것만 objectIndex로 지정한다.
+// 여기 없는 텍스트 오브젝트(장식 바, "KEY POINT"/"STEP 1"/"Before"/"After"/"실행 결과" 같은
+// 고정 라벨)는 AI가 건드리지 않고 템플릿 기본값을 그대로 유지한다.
+interface FillSlot { objectIndex: number; role: string; maxChars: number }
+
+export const LAYOUT_FILL_SLOTS: Record<string, Record<SlideLayoutKind, FillSlot[]>> = {
+  'bold-statement': {
+    title: [
+      { objectIndex: 1, role: '헤드라인 문장', maxChars: 30 },
+      { objectIndex: 2, role: '부제목', maxChars: 50 },
+    ],
+    textOnly: [{ objectIndex: 1, role: '핵심 문장', maxChars: 60 }],
+    textImage1: [{ objectIndex: 0, role: '핵심 문장', maxChars: 40 }],
+    textImagesMany: [{ objectIndex: 0, role: '핵심 문장', maxChars: 50 }],
+  },
+  'image-focus': {
+    title: [{ objectIndex: 1, role: '슬라이드 제목', maxChars: 30 }],
+    textOnly: [{ objectIndex: 1, role: '본문(제목+설명, 필요하면 줄바꿈 두 번으로 구분)', maxChars: 120 }],
+    textImage1: [
+      { objectIndex: 0, role: '제목', maxChars: 30 },
+      { objectIndex: 2, role: '사진 설명', maxChars: 30 },
+    ],
+    textImagesMany: [
+      { objectIndex: 0, role: '제목', maxChars: 30 },
+      { objectIndex: 4, role: '이미지들에 대한 설명', maxChars: 60 },
+    ],
+  },
+  'code-practice': {
+    title: [
+      { objectIndex: 1, role: '실습 제목', maxChars: 30 },
+      { objectIndex: 2, role: '부제목', maxChars: 40 },
+    ],
+    textOnly: [{ objectIndex: 0, role: '실습 목표(줄바꿈으로 여러 줄 가능)', maxChars: 100 }],
+    textImage1: [],
+    textImagesMany: [],
+  },
+  'step-by-step': {
+    title: [
+      { objectIndex: 0, role: '실습 이름', maxChars: 30 },
+      { objectIndex: 1, role: '부제목', maxChars: 40 },
+    ],
+    textOnly: [{ objectIndex: 1, role: '이 단계 설명(줄바꿈으로 여러 줄 가능)', maxChars: 140 }],
+    textImage1: [{ objectIndex: 1, role: '이 단계 설명', maxChars: 120 }],
+    textImagesMany: [{ objectIndex: 1, role: '이 단계 설명', maxChars: 80 }],
+  },
+};
+
+// 템플릿·레이아웃의 텍스트/이미지/코드 슬롯 스펙 — AI 프롬프트에 그대로 전달
+export const getLayoutSlotSpec = (template: SlideTemplate, kind: SlideLayoutKind): SlideLayoutSpec => {
+  const objs = template.layouts[kind];
+  const fillSlots = LAYOUT_FILL_SLOTS[template.id]?.[kind] ?? [];
+  return {
+    kind,
+    textSlots: fillSlots.map(f => ({ role: f.role, maxChars: f.maxChars })),
+    imageSlotCount: objs.filter(o => o.type === 'image').length,
+    codeSlotCount: objs.filter(o => o.type === 'code').length,
+  };
+};
+
+const STEP_BADGE_RE = /^STEP \d+$/;
+
+// AI가 생성한 슬라이드 초안(레이아웃 + texts/images/code 참조)을 실제 DeckSlide[]로 변환
+export const buildDraftDeckSlides = (
+  template: SlideTemplate,
+  aiSlides: AiDraftSlide[],
+  imageUrls: string[],
+  codeBlocks: { lang: string; code: string }[]
+): DeckSlide[] => {
+  let stepCounter = 0;
+  return aiSlides.map(draft => {
+    const kind: SlideLayoutKind = template.layouts[draft.layout] ? draft.layout : 'textOnly';
+    const layoutObjs = template.layouts[kind];
+    const fillSlots = LAYOUT_FILL_SLOTS[template.id]?.[kind] ?? [];
+    if (kind !== 'title') stepCounter += 1;
+
+    let imgCursor = 0;
+    let codeCursor = 0;
+    const objects: SlideObject[] = layoutObjs.map((o, idx) => {
+      const obj: SlideObject = { ...o, id: crypto.randomUUID() };
+      const slotPos = fillSlots.findIndex(f => f.objectIndex === idx);
+
+      if (slotPos !== -1) {
+        const text = draft.texts?.[slotPos];
+        if (text) obj.text = text;
+      } else if (obj.type === 'text' && STEP_BADGE_RE.test(obj.text ?? '')) {
+        obj.text = `STEP ${stepCounter}`;
+      }
+
+      if (obj.type === 'image') {
+        const ref = draft.images?.[imgCursor];
+        imgCursor += 1;
+        if (ref !== undefined && imageUrls[ref]) obj.src = imageUrls[ref];
+      }
+
+      if (obj.type === 'code') {
+        const ref = draft.code?.[codeCursor];
+        codeCursor += 1;
+        if (ref !== undefined && codeBlocks[ref]) {
+          obj.text = codeBlocks[ref].code;
+          if (codeBlocks[ref].lang) obj.codeLang = codeBlocks[ref].lang;
+        }
+      }
+
+      return obj;
+    });
+
+    return { id: crypto.randomUUID(), bg: template.bg, textColor: template.textColor, objects };
+  });
+};

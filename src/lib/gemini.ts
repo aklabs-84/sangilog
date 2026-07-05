@@ -41,12 +41,18 @@ async function callDirect(body: any): Promise<string> {
   if (!apiKey) throw new Error('VITE_GEMINI_API_KEY가 .env에 없습니다.');
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const { mode, model = 'flash', prompt, systemInstruction, history, message, files } = body;
+  const { mode, model = 'flash', prompt, systemInstruction, history, message, files, jsonMode } = body;
   const generativeModel = genAI.getGenerativeModel({
     model: getModelId(model),
-    generationConfig: model === 'pro'
-      ? { temperature: 0.7, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
-      : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 8192 },
+    generationConfig: {
+      ...(model === 'pro'
+        ? { temperature: 0.7, topP: 0.95, topK: 64, maxOutputTokens: 8192 }
+        : { temperature: 0.4, topP: 0.8, topK: 40, maxOutputTokens: 8192 }),
+      ...(jsonMode && {
+        responseMimeType: 'application/json',
+        thinkingConfig: { thinkingBudget: 0 },
+      }),
+    },
   });
 
   if (mode === 'generate') {
@@ -139,6 +145,7 @@ export const surveyAnalysisAI     = makeModelWrapper('flash', 'survey_analysis')
 export const observationReviewAI  = makeModelWrapper('flash', 'observation_review');
 export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis');
 export const materialReorganizeAI = makeModelWrapper('flash', 'material_reorganize');
+export const slideDeckDraftAI      = makeModelWrapper('flash', 'slidedeck_ai_draft', true);
 
 /**
  * 파일을 Gemini API 파트로 변환 (Base64) - 브라우저에서 실행, 결과를 서버로 전달
@@ -443,13 +450,34 @@ export const MATERIAL_REORG_PROMPTS: Record<'guide' | 'presentation', string> = 
 };
 
 // 이미지 마크다운을 자리표시자로 치환 — AI가 URL을 직접 다루지 않도록 함
-function extractImagePlaceholders(content: string): { replaced: string; map: string[] } {
+export function extractImagePlaceholders(content: string): { replaced: string; map: string[] } {
   const map: string[] = [];
   const replaced = content.replace(/!\[[^\]]*\]\([^)]+\)/g, (match) => {
     map.push(match);
     return `{{IMG:${map.length - 1}}}`;
   });
   return { replaced, map };
+}
+
+// 마크다운 이미지에서 URL만 뽑아낸 목록 (순서대로) — 슬라이드 초안 생성 시 인덱스로 참조
+// 자료 에디터는 ![alt](url "width:123") 형식으로 너비를 저장하므로, 괄호 안 전체가 아니라
+// URL 부분만 분리해야 한다 (title 부분을 그대로 넣으면 이미지가 깨진다).
+export function extractImageUrls(content: string): string[] {
+  const urls: string[] = [];
+  const re = /!\[[^\]]*\]\((\S+?)(?:\s+["'][^"']*["'])?\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content))) urls.push(m[1]);
+  return urls;
+}
+
+// 펜스 코드블록을 자리표시자로 치환 — AI가 코드를 지어내지 않고 원문에 실제 있는 코드만 참조하게 함
+export function extractCodePlaceholders(content: string): { replaced: string; blocks: { lang: string; code: string }[] } {
+  const blocks: { lang: string; code: string }[] = [];
+  const replaced = content.replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_match, lang, code) => {
+    blocks.push({ lang: String(lang).trim(), code: String(code).replace(/\n$/, '') });
+    return `{{CODE:${blocks.length - 1}}}`;
+  });
+  return { replaced, blocks };
 }
 
 // 자리표시자를 원본 이미지 마크다운으로 복원 — 응답에서 누락된 이미지는 하단에 폴백으로 추가
@@ -549,4 +577,70 @@ export async function reorganizeMaterialContent(
   const bodyRaw = feedbackMatch ? raw.slice(feedbackMatch[0].length) : raw;
 
   return { content: restoreImagePlaceholders(bodyRaw.trim(), map), feedback };
+}
+
+// ── 슬라이드 만들기 도구: 자료 → AI 초안 생성 ────────────────────────────────
+// slidedeck 쪽 SlideLayoutKind와 이름을 맞추되, 이 파일은 해당 타입을 import하지 않고
+// 문자열 리터럴로만 다뤄 lib(gemini.ts)이 UI 레이어 타입에 결합되지 않도록 한다.
+export type SlideDraftLayoutKind = 'title' | 'textOnly' | 'textImage1' | 'textImagesMany';
+
+export interface SlideLayoutSpec {
+  kind: SlideDraftLayoutKind;
+  textSlots: { role: string; maxChars: number }[];
+  imageSlotCount: number;
+  codeSlotCount: number;
+}
+
+export interface AiDraftSlide {
+  layout: SlideDraftLayoutKind;
+  texts: string[];
+  images: number[];
+  code: number[];
+}
+
+// 선택한 템플릿의 레이아웃 스펙에 맞춰 원문을 슬라이드 초안(JSON)으로 재구성
+export async function generateSlideDeckDraft(
+  rawContent: string,
+  layoutSpecs: SlideLayoutSpec[],
+  classId?: string
+): Promise<{ slides: AiDraftSlide[]; imageUrls: string[]; codeBlocks: { lang: string; code: string }[] }> {
+  const { replaced: withoutImages } = extractImagePlaceholders(rawContent);
+  const { replaced, blocks: codeBlocks } = extractCodePlaceholders(withoutImages);
+  const imageUrls = extractImageUrls(rawContent);
+
+  const layoutDescriptions = layoutSpecs.map(spec => {
+    const textsDesc = spec.textSlots.length
+      ? spec.textSlots.map((s, i) => `texts[${i}]=${s.role}(최대 ${s.maxChars}자)`).join(', ')
+      : '텍스트 슬롯 없음';
+    return `- "${spec.kind}": ${textsDesc} · 이미지 ${spec.imageSlotCount}개${spec.codeSlotCount ? ` · 코드 ${spec.codeSlotCount}개` : ''}`;
+  }).join('\n');
+
+  const prompt = `이 수업 자료를 16:9 슬라이드 초안으로 재구성합니다. 아래 4가지 레이아웃 중 각 슬라이드에 맞는 것을 골라 배치하세요.
+
+[사용 가능한 레이아웃]
+${layoutDescriptions}
+
+[규칙]
+- 반드시 첫 슬라이드는 "title" 레이아웃이어야 합니다 (수업 주제를 한 줄로).
+- 각 슬라이드는 화면 하나에 스크롤 없이 다 들어가야 하므로, 레이아웃이 지정한 texts 개수와 글자 수 제한을 반드시 지키세요.
+- 한 슬라이드에 모든 내용을 몰아넣지 말고, 내용이 많으면 여러 슬라이드로 나누세요.
+- 원문에 없는 정보를 임의로 추가하거나 빼지 마세요.
+- 원문에 {{IMG:n}} 표시가 있으면 관련 내용이 있는 슬라이드에서 이미지 슬롯이 있는 레이아웃을 골라 "images" 배열에 해당 번호(n)를 넣으세요. 이미지가 없는 슬라이드의 "images"는 빈 배열로 두세요. 같은 이미지 번호를 두 번 이상 쓰지 마세요.
+- 원문에 {{CODE:n}} 표시가 있으면 코드 슬롯이 있는 레이아웃("textOnly"/"textImage1"/"textImagesMany" 중 codeSlotCount>0인 것)을 골라 "code" 배열에 번호를 넣으세요. 원문에 코드가 없으면 "code"는 항상 빈 배열로 두세요 (코드를 지어내지 마세요).
+- 이미지/코드 슬롯 개수보다 배열 길이가 많으면 안 됩니다.
+
+반드시 아래 JSON 배열 형식으로만 응답하세요 (설명 문구 없이 JSON만):
+[{"layout":"title","texts":["...","..."],"images":[],"code":[]}, ...]
+
+[원문]
+${replaced}`;
+
+  const result = await slideDeckDraftAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const slides = JSON.parse(raw) as AiDraftSlide[];
+
+  return { slides, imageUrls, codeBlocks };
 }

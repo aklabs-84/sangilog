@@ -1,16 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, Play, Trash2, Loader2, LayoutGrid } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, Play, Trash2, Loader2, LayoutGrid, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType } from '../../components/slidedeck/types';
-import { SLIDE_TEMPLATES, getTemplate, instantiateSlide } from '../../components/slidedeck/templates';
+import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind } from '../../components/slidedeck/types';
+import { SLIDE_TEMPLATES, getTemplate, instantiateSlide, getLayoutSlotSpec, buildDraftDeckSlides } from '../../components/slidedeck/templates';
 import TemplateGallery from '../../components/slidedeck/TemplateGallery';
 import SlideThumbnailRail from '../../components/slidedeck/SlideThumbnailRail';
 import SlideStage from '../../components/slidedeck/SlideStage';
 import PresentationView from '../../components/slidedeck/PresentationView';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
+import ImportMaterialModal, { type ImportableMaterial } from '../../components/slidedeck/ImportMaterialModal';
+import { generateSlideDeckDraft } from '../../lib/gemini';
 
 type View = 'list' | 'template' | 'editor';
+
+const ALL_LAYOUT_KINDS: SlideLayoutKind[] = ['title', 'textOnly', 'textImage1', 'textImagesMany'];
+
+// class_materials.ai_versions 중 mode:'presentation' 최신본이 있으면 그걸, 없으면 원문(content)을 초안 원본으로 사용
+const resolveSourceContent = (material: ImportableMaterial): string => {
+  const presentationVersions = (material.ai_versions ?? []).filter(v => v.mode === 'presentation');
+  if (presentationVersions.length > 0) {
+    const latest = [...presentationVersions].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    return latest.content;
+  }
+  return material.content ?? '';
+};
 
 interface DeckListRow {
   id: string;
@@ -31,6 +45,9 @@ export default function SlideDeckEditor() {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importedMaterial, setImportedMaterial] = useState<ImportableMaterial | null>(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadDecks = useCallback(async () => {
@@ -80,6 +97,40 @@ export default function SlideDeckEditor() {
     setSelectedObjectId(null);
     setView('editor');
     loadDecks();
+  };
+
+  // ── AI 초안 생성 (자료 에디터에서 가져오기) ────────────────────────────────
+  const handleCreateDraftFromMaterial = async (templateId: string) => {
+    if (!user || !importedMaterial) return;
+    setAiGenerating(true);
+    try {
+      const template = getTemplate(templateId);
+      const layoutSpecs = ALL_LAYOUT_KINDS.map(kind => getLayoutSlotSpec(template, kind));
+      const sourceContent = resolveSourceContent(importedMaterial);
+      const { slides: aiSlides, imageUrls, codeBlocks } = await generateSlideDeckDraft(
+        sourceContent,
+        layoutSpecs,
+        importedMaterial.class_id ?? undefined
+      );
+      const draftSlides = buildDraftDeckSlides(template, aiSlides, imageUrls, codeBlocks);
+      const { data, error } = await supabase
+        .from('slide_decks')
+        .insert({ teacher_id: user.id, title: importedMaterial.title || '제목 없는 슬라이드', slides: draftSlides })
+        .select()
+        .single();
+      if (error || !data) return;
+      setActiveTemplateId(templateId);
+      setActiveDeck(data as SlideDeck);
+      setActiveSlideIndex(0);
+      setSelectedObjectId(null);
+      setView('editor');
+      loadDecks();
+    } catch (err: any) {
+      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : 'AI 초안 생성 중 오류가 발생했습니다.');
+    } finally {
+      setAiGenerating(false);
+      setImportedMaterial(null);
+    }
   };
 
   const handleOpenDeck = async (id: string) => {
@@ -178,12 +229,20 @@ export default function SlideDeckEditor() {
       <div style={{ padding: '4px 2px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>슬라이드 만들기</h2>
-          <button
-            onClick={() => setView('template')}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
-          >
-            <Plus size={16} /> 새 슬라이드
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setShowImportModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', color: '#111827', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+            >
+              <Sparkles size={16} /> AI로 자료 가져오기
+            </button>
+            <button
+              onClick={() => setView('template')}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+            >
+              <Plus size={16} /> 새 슬라이드
+            </button>
+          </div>
         </div>
         {loadingList ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 60, color: '#9CA3AF' }}><Loader2 className="animate-spin" size={24} /></div>
@@ -207,18 +266,42 @@ export default function SlideDeckEditor() {
             ))}
           </div>
         )}
+        {showImportModal && (
+          <ImportMaterialModal
+            userId={user?.id ?? ''}
+            onSelect={material => { setImportedMaterial(material); setView('template'); }}
+            onClose={() => setShowImportModal(false)}
+          />
+        )}
       </div>
     );
   }
 
   if (view === 'template') {
     return (
-      <div style={{ padding: '4px 2px' }}>
-        <button onClick={() => setView('list')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 13, marginBottom: 16 }}>
+      <div style={{ padding: '4px 2px', position: 'relative' }}>
+        <button
+          onClick={() => { setView('list'); setImportedMaterial(null); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 13, marginBottom: 16 }}
+        >
           <ArrowLeft size={16} /> 목록으로
         </button>
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>템플릿을 선택하세요</h2>
-        <TemplateGallery onSelect={handleCreateFromTemplate} />
+        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>템플릿을 선택하세요</h2>
+        {importedMaterial && (
+          <p style={{ fontSize: 13, color: '#3B82F6', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Sparkles size={14} /> '{importedMaterial.title}' 자료로 AI 초안을 만듭니다
+          </p>
+        )}
+        <TemplateGallery onSelect={importedMaterial ? handleCreateDraftFromMaterial : handleCreateFromTemplate} />
+        {aiGenerating && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(255,255,255,0.85)', zIndex: 9995,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+          }}>
+            <Loader2 className="animate-spin" size={32} color="#3B82F6" />
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>AI가 슬라이드 초안을 만들고 있어요...</p>
+          </div>
+        )}
       </div>
     );
   }
