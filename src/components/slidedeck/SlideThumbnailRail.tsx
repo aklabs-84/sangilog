@@ -13,7 +13,11 @@ interface Props {
 
 export default function SlideThumbnailRail({ slides, activeIndex, onSelect, onAdd, onDuplicate, onDelete }: Props) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: 168, flexShrink: 0, overflowY: 'auto', padding: '4px 2px' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 10, width: 168, flexShrink: 0,
+      overflowY: 'auto', padding: '4px 2px',
+      height: 'calc(100vh - 220px)', minHeight: 320,
+    }}>
       {slides.map((slide, i) => (
         <div key={slide.id} style={{ position: 'relative' }}>
           <div
