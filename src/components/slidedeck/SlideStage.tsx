@@ -86,6 +86,28 @@ export default function SlideStage({ slide, editable = false, selectedId = null,
           background: slide.bg, position: 'relative',
         }}
       >
+        {slide.bgImage && (
+          <>
+            <img
+              src={slide.bgImage}
+              alt=""
+              draggable={false}
+              style={{
+                position: 'absolute', inset: 0, width: '100%', height: '100%',
+                objectFit: 'cover',
+                pointerEvents: 'none', userSelect: 'none',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute', inset: 0,
+                background: '#000',
+                opacity: 1 - (slide.bgImageOpacity ?? 1),
+                pointerEvents: 'none',
+              }}
+            />
+          </>
+        )}
         {slide.objects.slice().sort((a, b) => a.zIndex - b.zIndex).map(obj => (
           obj.type === 'text' ? (
             <TextBlockObject

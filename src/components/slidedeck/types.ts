@@ -36,6 +36,8 @@ export interface DeckSlide {
   id: string;
   bg: string;        // css background(color/gradient)
   textColor: string; // 슬라이드 기본 텍스트색(오브젝트 style.color 없을 때 fallback)
+  bgImage?: string;         // 배경 이미지 URL — 오브젝트들보다 아래, slide.bg 위에 렌더링
+  bgImageOpacity?: number;  // 0~1, 기본 1 = 원본 밝기. 낮출수록 검정 오버레이가 진해져 이미지가 어두워짐(텍스트 가독성 확보)
   objects: SlideObject[];
 }
 

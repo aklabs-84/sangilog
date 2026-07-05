@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, Play, Trash2, Loader2, LayoutGrid, Sparkles } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind } from '../../components/slidedeck/types';
@@ -11,6 +11,7 @@ import PresentationView from '../../components/slidedeck/PresentationView';
 import EmojiPickerPopover from '../../components/slidedeck/EmojiPickerPopover';
 import ImportMaterialModal, { type ImportableMaterial } from '../../components/slidedeck/ImportMaterialModal';
 import { generateSlideDeckDraft } from '../../lib/gemini';
+import { uploadSlideImage } from '../../components/slidedeck/utils/imageUpload';
 
 type View = 'list' | 'template' | 'editor';
 
@@ -48,6 +49,8 @@ export default function SlideDeckEditor() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importedMaterial, setImportedMaterial] = useState<ImportableMaterial | null>(null);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [bgUploading, setBgUploading] = useState(false);
+  const bgFileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadDecks = useCallback(async () => {
@@ -202,6 +205,17 @@ export default function SlideDeckEditor() {
     setSelectedObjectId(null);
   };
 
+  const handleUpdateSlide = (changes: Partial<DeckSlide>) => {
+    updateSlides(slides => slides.map((s, i) => i !== activeSlideIndex ? s : { ...s, ...changes }));
+  };
+
+  const handleBgImageFile = async (file: File) => {
+    setBgUploading(true);
+    const publicUrl = await uploadSlideImage(file);
+    setBgUploading(false);
+    if (publicUrl) handleUpdateSlide({ bgImage: publicUrl, bgImageOpacity: currentSlide?.bgImageOpacity ?? 1 });
+  };
+
   const addObject = (type: SlideObjectType, emoji?: string) => {
     if (!currentSlide) return;
     const maxZ = currentSlide.objects.reduce((m, o) => Math.max(m, o.zIndex), 0);
@@ -353,6 +367,37 @@ export default function SlideDeckEditor() {
               />
             )}
           </div>
+          <input
+            ref={bgFileRef} type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleBgImageFile(f); e.target.value = ''; }}
+          />
+          <button
+            onClick={() => bgFileRef.current?.click()}
+            disabled={bgUploading}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', background: '#fff', cursor: bgUploading ? 'default' : 'pointer', fontSize: 13 }}
+          >
+            {bgUploading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <ImagePlus size={14} />}
+            {currentSlide?.bgImage ? '배경 이미지 변경' : '배경 이미지'}
+          </button>
+          {currentSlide?.bgImage && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8, paddingLeft: 8, borderLeft: '1px solid #e5e7eb' }}>
+              <span style={{ fontSize: 12, color: '#6b7280', whiteSpace: 'nowrap' }}>배경 밝기</span>
+              <input
+                type="range" min={0} max={100}
+                value={Math.round((currentSlide.bgImageOpacity ?? 1) * 100)}
+                onChange={e => handleUpdateSlide({ bgImageOpacity: Number(e.target.value) / 100 })}
+                style={{ width: 100 }}
+              />
+              <span style={{ fontSize: 12, color: '#6b7280', width: 32 }}>{Math.round((currentSlide.bgImageOpacity ?? 1) * 100)}%</span>
+              <button
+                onClick={() => handleUpdateSlide({ bgImage: undefined, bgImageOpacity: undefined })}
+                title="배경 이미지 제거"
+                style={{ display: 'flex', alignItems: 'center', border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444' }}
+              >
+                <XIcon size={14} />
+              </button>
+            </div>
+          )}
           {selectedObject?.type === 'text' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8, paddingLeft: 8, borderLeft: '1px solid #e5e7eb' }}>
               <input
