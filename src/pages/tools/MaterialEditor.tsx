@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useContext, createContext, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useContext, createContext, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -33,10 +33,11 @@ import {
   Save, Trash2, Copy, Plus,
   Loader2, ChevronDown, Globe, Lock,
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
-  Users, Presentation, ChevronLeft, ChevronRight, X as XIcon,
+  Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
   Library, Link2,
-  ZoomIn, PenTool, Undo2, Highlighter, LayoutGrid, Flashlight, Timer as TimerIcon, Play, Pause,
+  ZoomIn, PenTool, Undo2, Highlighter, Flashlight, Timer as TimerIcon, Play, Pause,
+  Sun, Moon,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -66,120 +67,13 @@ interface Material {
   source_material_id?: string | null;
 }
 
-// ── 슬라이드 파싱 ─────────────────────────────────────────────────────────────
-// 슬라이드 첫 줄에 <!-- meta: bg=purple icon=🎯 --> 형태가 있으면 배경/아이콘으로 분리
-interface Slide { content: string; bg?: string; icon?: string; fontScale?: number; imgScale?: number; }
-
-const SLIDE_META_RE = /^<!--\s*meta:\s*([^>]*?)\s*-->\s*\n?/;
-
-const SLIDE_BG_THEMES: Record<string, string> = {
-  purple: 'from-[#1e1533] to-[#120d22]',
-  blue: 'from-[#0f1f33] to-[#0a1420]',
-  teal: 'from-[#0f2b28] to-[#0a1c1a]',
-  green: 'from-[#132a17] to-[#0c1c0f]',
-  amber: 'from-[#2a2210] to-[#1c170a]',
-  rose: 'from-[#2a1420] to-[#1c0d16]',
-  dark: 'from-[#141428] to-[#0f0f1e]',
-};
-
 const formatVersionDate = (iso: string) => {
   try {
     return new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   } catch { return ''; }
 };
 
-// 코드펜스(``` ~~~) 안에 우연히 "---"만 있는 줄이 있어도 슬라이드 경계로 오인하지 않도록
-// 펜스 상태를 추적하며 슬라이드 경계("---" 단독 줄)를 찾는다.
-const splitSlideChunks = (content: string): string[] => {
-  const lines = content.split('\n');
-  const chunks: string[] = [];
-  let buf: string[] = [];
-  let fenceChar: string | null = null;
-  let fenceLen = 0;
-  for (const line of lines) {
-    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
-    if (fenceMatch) {
-      const marker = fenceMatch[1];
-      if (fenceChar === null) {
-        fenceChar = marker[0];
-        fenceLen = marker.length;
-      } else if (marker[0] === fenceChar && marker.length >= fenceLen) {
-        // 여는 펜스와 문자/길이가 일치할 때만 닫힘으로 처리 — 문서 안에 예시로 등장하는
-        // 다른 종류/길이의 코드펜스 줄을 닫힘으로 오인해 이후 "---" 전체를 놓치는 것을 방지
-        fenceChar = null;
-        fenceLen = 0;
-      }
-    }
-    if (fenceChar === null && line.trim() === '---') {
-      chunks.push(buf.join('\n'));
-      buf = [];
-      continue;
-    }
-    buf.push(line);
-  }
-  chunks.push(buf.join('\n'));
-  return chunks;
-};
-
-const parseSlides = (content: string): Slide[] => {
-  const chunks = splitSlideChunks(content).map(s => s.trim()).filter(Boolean);
-  const raw = chunks.length > 0 ? chunks : [content.trim()];
-  return raw.map(chunk => {
-    const m = chunk.match(SLIDE_META_RE);
-    if (!m) return { content: chunk };
-    const attrs = m[1];
-    const bg = attrs.match(/bg=(\w+)/)?.[1];
-    const icon = attrs.match(/icon=(\S+)/)?.[1];
-    const fontScale = attrs.match(/fontScale=(\d+)/)?.[1];
-    const imgScale = attrs.match(/imgScale=(\d+)/)?.[1];
-    return {
-      content: chunk.slice(m[0].length).trim(),
-      bg, icon,
-      fontScale: fontScale ? Number(fontScale) : undefined,
-      imgScale: imgScale ? Number(imgScale) : undefined,
-    };
-  });
-};
-
-// parseSlides의 역함수 — 편집된 슬라이드 배열을 다시 meta 주석 포함 마크다운으로 합침
-const serializeSlides = (slides: Slide[]): string =>
-  slides.map(s => {
-    const attrs: string[] = [];
-    if (s.bg) attrs.push(`bg=${s.bg}`);
-    if (s.icon) attrs.push(`icon=${s.icon}`);
-    if (s.fontScale && s.fontScale !== 100) attrs.push(`fontScale=${s.fontScale}`);
-    if (s.imgScale && s.imgScale !== 38) attrs.push(`imgScale=${s.imgScale}`);
-    const meta = attrs.length > 0 ? `<!-- meta: ${attrs.join(' ')} -->\n` : '';
-    return `${meta}${s.content}`;
-  }).join('\n\n---\n\n');
-
-const SLIDE_BG_OPTIONS = Object.keys(SLIDE_BG_THEMES);
-const SLIDE_ICON_PRESETS = ['🎯', '📚', '💡', '🔬', '🧪', '🌟', '📌', '✅', '🚀', '📊'];
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
-
-// 슬라이드 안의 이미지를 텍스트에서 분리 — "왼쪽 텍스트 / 오른쪽 이미지" 2단 레이아웃용
-// (직렬화되는 원본 content는 그대로 두고, 발표 화면 렌더링 시에만 나눠서 보여줌)
-// 이미지가 여러 장이면 모두 오른쪽 컬럼에 세로로 쌓아 보여준다 — 텍스트 사이에 뒤섞이지 않도록.
-const SLIDE_IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/;
-
-const splitSlideImages = (content: string): { text: string; images: { src: string; alt: string }[] } => {
-  const lines = content.split('\n');
-  const images: { src: string; alt: string }[] = [];
-  const outLines: string[] = [];
-  for (const line of lines) {
-    const m = line.match(SLIDE_IMAGE_RE);
-    if (m) {
-      images.push({ src: m[2], alt: m[1] || '' });
-      const remainder = line.replace(m[0], '').replace(/^[-*+]\s*$|^\d+\.\s*$/, '').trim();
-      if (remainder) outLines.push(line.replace(m[0], '').trimEnd());
-      continue;
-    }
-    outLines.push(line);
-  }
-  // 이미지만 있던 자리에 남는 빈 불릿(마커만 있고 내용 없는 줄)도 함께 정리
-  const cleaned = outLines.filter(l => !/^\s*(?:[-*+]|\d+\.)\s*$/.test(l));
-  return { text: cleaned.join('\n').replace(/\n{3,}/g, '\n\n').trim(), images };
-};
 
 // 문단 바로 뒤에 빈 줄 없이 "---"가 붙으면 CommonMark가 구분선(hr) 대신 제목(Setext heading)이나
 // 그냥 텍스트로 잘못 해석하는 경우가 있어, 렌더링 직전에 "---" 단독 줄 앞뒤로 빈 줄을 강제 삽입해 보정한다.
@@ -202,15 +96,6 @@ const normalizeStandaloneHr = (md: string): string => {
   }
   return out.join('\n');
 };
-
-// 슬라이드 전체보기 그리드용 — 마크다운 기호를 걷어낸 짧은 미리보기 텍스트
-const getSlideSnippet = (s: Slide): string =>
-  s.content
-    .replace(SLIDE_IMAGE_RE, '')
-    .replace(/^#+\s*/gm, '')
-    .replace(/[*_`>-]/g, '')
-    .trim()
-    .slice(0, 120) || '(내용 없음)';
 
 // 슬라이드 글자 크기 편집 — 편집 패널의 %를 --slide-font-scale CSS 변수로 상위에서 지정하면
 // 아래 각 요소가 calc()로 기본 rem 크기에 곱해서 반영한다 (Tailwind text-* 클래스는 rem 고정값이라 상속 배율 적용 불가)
@@ -256,39 +141,48 @@ const SlideImg = ({ src, alt, title }: { src?: string; alt?: string; title?: str
       alt={alt}
       style={style}
       onClick={zoom ? () => zoom(src!) : undefined}
-      className={`max-w-full rounded-2xl my-4 shadow-xl max-h-64 object-contain ${zoom ? 'cursor-zoom-in hover:opacity-90 transition-opacity' : ''}`}
+      className={`w-full h-auto rounded-2xl my-4 shadow-xl ${zoom ? 'cursor-zoom-in hover:opacity-90 transition-opacity' : ''}`}
     />
   );
 };
 
 // ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
-const slideComponents: any = {
+// 발표 화면은 다크/라이트 두 테마를 지원한다 — dark=true면 짙은 배경 위 흰 글자,
+// false면 밝은 배경 위 어두운 글자로 색상 세트 전체를 바꿔 반환한다.
+const getSlideComponents = (dark: boolean): any => {
+  const SlideSummary = ({ children }: any) => (
+    <summary className={`px-6 py-4 cursor-pointer font-black text-lg list-none flex items-center gap-3 select-none transition-colors [&::-webkit-details-marker]:hidden ${dark ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}>
+      <span className="text-sm opacity-70 shrink-0">▶</span> <span>{children}</span>
+    </summary>
+  );
+
+  return {
   h1: ({ children }: any) => (
-    <h1 style={slideFontSize(3)} className="font-black mb-6 leading-tight text-white tracking-tight">{children}</h1>
+    <h1 style={slideFontSize(3)} className={`font-black mb-6 leading-tight tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>{children}</h1>
   ),
   h2: ({ children }: any) => (
-    <h2 style={slideFontSize(1.875)} className="font-black mb-4 mt-6 text-white/90">{children}</h2>
+    <h2 style={slideFontSize(1.875)} className={`font-black mb-4 mt-6 ${dark ? 'text-white/90' : 'text-slate-800'}`}>{children}</h2>
   ),
   h3: ({ children }: any) => (
-    <h3 style={slideFontSize(1.5)} className="font-black mb-3 mt-5 text-white/80">{children}</h3>
+    <h3 style={slideFontSize(1.5)} className={`font-black mb-3 mt-5 ${dark ? 'text-white/80' : 'text-slate-700'}`}>{children}</h3>
   ),
   p: ({ children }: any) => (
-    <p style={slideFontSize(1.25)} className="leading-relaxed mb-4 text-white/75">{children}</p>
+    <p style={slideFontSize(1.25)} className={`leading-relaxed mb-4 ${dark ? 'text-white/75' : 'text-slate-600'}`}>{children}</p>
   ),
   ul: ({ children }: any) => <ul className="space-y-3 mb-4 pl-2">{children}</ul>,
   ol: ({ children }: any) => <ol className="list-decimal pl-6 space-y-3 mb-4">{children}</ol>,
   li: ({ children }: any) => (
-    <li style={slideFontSize(1.25)} className="flex items-start gap-3 text-white/75">
+    <li style={slideFontSize(1.25)} className={`flex items-start gap-3 ${dark ? 'text-white/75' : 'text-slate-600'}`}>
       <span className="mt-2 w-2 h-2 rounded-full bg-primary shrink-0" />
       <span>{children}</span>
     </li>
   ),
   blockquote: ({ children }: any) => (
-    <blockquote style={slideFontSize(1.25)} className="border-l-4 border-primary pl-6 italic text-white/60 my-4">{children}</blockquote>
+    <blockquote style={slideFontSize(1.25)} className={`border-l-4 border-primary pl-6 italic my-4 ${dark ? 'text-white/60' : 'text-slate-500'}`}>{children}</blockquote>
   ),
   code: ({ children, className }: any) => {
     if (!className) {
-      return <code style={slideFontSize(1.125)} className="bg-white/10 px-2 py-0.5 rounded font-mono text-primary-light">{children}</code>;
+      return <code style={slideFontSize(1.125)} className={`px-2 py-0.5 rounded font-mono text-primary ${dark ? 'bg-white/10' : 'bg-slate-900/5'}`}>{children}</code>;
     }
     return <code className={className}>{children}</code>;
   },
@@ -296,38 +190,45 @@ const slideComponents: any = {
     const child = (Array.isArray(children) ? children[0] : children) as any;
     const code = String(child?.props?.children ?? '').replace(/\n$/, '');
     return (
-      <pre style={slideFontSize(1)} className="bg-white/5 rounded-2xl p-5 whitespace-pre-wrap break-words font-mono text-white/80 my-4 border border-white/10">
+      <pre style={slideFontSize(1)} className={`rounded-2xl p-5 whitespace-pre-wrap break-words font-mono my-4 border ${dark ? 'bg-white/5 text-white/80 border-white/10' : 'bg-slate-900/[0.03] text-slate-700 border-slate-900/10'}`}>
         {code}
       </pre>
     );
   },
-  strong: ({ children }: any) => <strong className="font-black text-white">{children}</strong>,
-  em: ({ children }: any) => <em className="italic text-primary-light">{children}</em>,
+  strong: ({ children }: any) => <strong className={`font-black ${dark ? 'text-white' : 'text-slate-900'}`}>{children}</strong>,
+  em: ({ children }: any) => <em className="italic text-primary">{children}</em>,
   img: ({ src, alt, title }: any) => <SlideImg src={src} alt={alt} title={title} />,
   a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">{children}</a>,
-  hr: () => <hr className="border-white/10 my-5" />,
+  hr: () => <hr className={`my-5 ${dark ? 'border-white/10' : 'border-slate-900/10'}`} />,
   table: ({ children }: any) => (
     <div className="overflow-auto mb-4">
-      <table style={slideFontSize(1.125)} className="w-full border-collapse text-white/80">{children}</table>
+      <table style={slideFontSize(1.125)} className={`w-full border-collapse ${dark ? 'text-white/80' : 'text-slate-700'}`}>{children}</table>
     </div>
   ),
   th: ({ children }: any) => (
-    <th className="border border-white/15 px-3 py-2 bg-white/10 font-black text-left text-white">{children}</th>
+    <th className={`border px-3 py-2 font-black text-left ${dark ? 'border-white/15 bg-white/10 text-white' : 'border-slate-900/10 bg-slate-900/5 text-slate-900'}`}>{children}</th>
   ),
   td: ({ children }: any) => (
-    <td className="border border-white/15 px-3 py-2">{children}</td>
+    <td className={`border px-3 py-2 ${dark ? 'border-white/15' : 'border-slate-900/10'}`}>{children}</td>
   ),
-  details: ({ children }: any) => (
-    <details className="my-3 rounded-xl border border-white/15 overflow-hidden">
-      {children}
-    </details>
-  ),
-  summary: ({ children }: any) => (
-    <summary className="px-4 py-2.5 bg-white/10 cursor-pointer font-black text-lg text-white/90 list-none flex items-center gap-2 select-none hover:bg-white/15 transition-colors">
-      <span className="text-sm opacity-70">▶</span> {children}
-    </summary>
-  ),
-  div: (props: any) => renderCallout(props, true),
+  details: ({ children }: any) => {
+    // 원문에서 <details>와 <summary>가 줄바꿈으로 떨어져 있으면 그 사이 개행이
+    // children 배열의 첫 항목(공백 텍스트 노드)으로 끼어든다. 자리(0번 인덱스)가
+    // 아니라 실제 summary 타입으로 찾아야 <summary>가 <details>의 직계 자식으로
+    // 남아 — 안 그러면 브라우저가 유효한 summary로 인식하지 못해 기본 스타일로 표시된다.
+    const arr = Array.isArray(children) ? children : [children];
+    const summaryEl = arr.find((c: any) => c?.type === SlideSummary);
+    const rest = arr.filter((c: any) => c !== summaryEl);
+    return (
+      <details className={`my-4 rounded-2xl border overflow-hidden ${dark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white shadow-sm'}`}>
+        {summaryEl}
+        <div className="px-6 py-5">{rest}</div>
+      </details>
+    );
+  },
+  summary: SlideSummary,
+  div: (props: any) => renderCallout(props, dark),
+  };
 };
 
 // ── 프레젠테이션 모달 ─────────────────────────────────────────────────────────
@@ -340,34 +241,18 @@ const PresentationModal = ({
   onClose: () => void;
   onSave?: (newContent: string) => void;
 }) => {
-  const [current, setCurrent] = useState(0);
-  const [slides, setSlides] = useState<Slide[]>(() => parseSlides(material.content));
   const [editMode, setEditMode] = useState(false);
-  const total = slides.length;
-  const slide = slides[current];
-  const theme = SLIDE_BG_THEMES[slide.bg ?? 'dark'] ?? SLIDE_BG_THEMES.dark;
-  const { text: slideText, images: slideImages } = splitSlideImages(slide.content);
-  const imgScalePct = slide.imgScale ?? 38;
-
-  const updateCurrentSlide = (patch: Partial<Slide>) => {
-    setSlides(prev => prev.map((s, i) => (i === current ? { ...s, ...patch } : s)));
-  };
+  const [editedContent, setEditedContent] = useState(material.content);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const dark = theme === 'dark';
 
   const handleSaveEdits = () => {
-    onSave?.(serializeSlides(slides));
+    onSave?.(editedContent);
     setEditMode(false);
   };
 
-  const stageWrapRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
-  const [scale, setScale] = useState(1);
-  // 최소 배율(0.55)까지 줄여도 내용이 다 안 들어가면, 더 줄이는 대신 세로 스크롤을 허용한다
-  const [scrollOverflow, setScrollOverflow] = useState(false);
-
-  // ── 발표 중 보조 도구 (돋보기 / 펜 / 스포트라이트 / 슬라이드 그리드) ─────────
+  // ── 발표 중 보조 도구 (돋보기 / 펜 / 스포트라이트) ─────────────────────────
   const [tool, setTool] = useState<'none' | 'zoom' | 'pen' | 'spotlight'>('none');
-  const [showGrid, setShowGrid] = useState(false);
   const [lensPos, setLensPos] = useState<{ x: number; y: number } | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const timer = useTimer();
@@ -387,103 +272,45 @@ const PresentationModal = ({
         if (e.key === 'Escape') setEditMode(false);
         return;
       }
-      if (showGrid) {
-        if (e.key === 'Escape') setShowGrid(false);
-        return;
-      }
       if (tool !== 'none' && e.key === 'Escape') { setTool('none'); return; }
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') setCurrent(c => Math.min(c + 1, total - 1));
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setCurrent(c => Math.max(c - 1, 0));
-      else if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [total, onClose, editMode, tool, showGrid, zoomedImage]);
+  }, [onClose, editMode, tool, zoomedImage]);
 
-  // 16:9 레터박스 스테이지 크기 계산 (뷰포트에 꽉 차게, 비율 유지)
+  // ── 문서 스크롤 영역 크기/스크롤 위치 추적 (돋보기·스포트라이트가 "지금 화면에
+  // 보이는 부분"을 계산하는 데 필요) — 편집모드로 전환되어도 캔버스가 리셋되지
+  // 않도록, 크기 측정은 항상 마운트돼 있는 바깥 wrapper(viewRef) 기준으로 한다.
+  const viewRef = useRef<HTMLDivElement>(null);
+  const stageBoxRef = useRef<HTMLDivElement>(null);
+  const docRef = useRef<HTMLDivElement>(null);
+  const [paneSize, setPaneSize] = useState({ width: 0, height: 0 });
+  const [docHeight, setDocHeight] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
+
   useEffect(() => {
     const calc = () => {
-      const wrap = stageWrapRef.current;
-      if (!wrap) return;
-      const w = wrap.clientWidth;
-      const h = wrap.clientHeight;
-      let sw = w, sh = (w * 9) / 16;
-      if (sh > h) { sh = h; sw = (h * 16) / 9; }
-      setStageSize({ width: Math.floor(sw), height: Math.floor(sh) });
+      const el = viewRef.current;
+      if (el) setPaneSize({ width: el.clientWidth, height: el.clientHeight });
     };
     calc();
     const ro = new ResizeObserver(calc);
-    if (stageWrapRef.current) ro.observe(stageWrapRef.current);
+    if (viewRef.current) ro.observe(viewRef.current);
     window.addEventListener('resize', calc);
     return () => { ro.disconnect(); window.removeEventListener('resize', calc); };
   }, []);
 
-  // 슬라이드 전환 시 내용이 스테이지보다 크면 자동 축소하되, 최소 배율(0.55)로도 다 안 들어가면
-  // 글자를 더 줄이는 대신 세로 스크롤을 허용해 내용이 안 보이지 않게 한다.
-  // (transform: scale은 레이아웃에 영향을 주지 않으므로 scrollHeight는 scale과 무관하게 측정됨)
   useEffect(() => {
-    if (!stageSize.height) return;
-    const MIN_SCALE = 0.55;
-    const id = requestAnimationFrame(() => {
-      const el = contentRef.current;
-      if (!el) return;
-      const natural = el.scrollHeight;
-      if (natural <= stageSize.height) {
-        setScale(1);
-        setScrollOverflow(false);
-        return;
-      }
-      const needed = (stageSize.height / natural) * 0.98;
-      if (needed < MIN_SCALE) {
-        setScale(MIN_SCALE);
-        setScrollOverflow(true);
-      } else {
-        setScale(needed);
-        setScrollOverflow(false);
-      }
-    });
-    return () => cancelAnimationFrame(id);
-  }, [current, stageSize.height, slide.content]);
+    const doc = docRef.current;
+    if (!doc) return;
+    const update = () => setDocHeight(doc.scrollHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(doc);
+    return () => ro.disconnect();
+  }, [editMode]);
 
-  const prev = () => setCurrent(c => Math.max(c - 1, 0));
-  const next = () => setCurrent(c => Math.min(c + 1, total - 1));
-
-  // 위 스케일/스크롤 판정을 스테이지 본편·돋보기·스포트라이트 3곳에서 동일하게 재사용
-  const contentWrapperClass = `w-full h-full flex flex-col ${scrollOverflow ? 'justify-start overflow-y-auto' : 'justify-center'}`;
-  const contentWrapperStyle: CSSProperties = {
-    transform: `scale(${scale})`,
-    transformOrigin: scrollOverflow ? 'top center' : 'center center',
-  };
-
-  // ── 발표 중 슬라이드 본문(돋보기 렌즈에도 동일하게 재사용) ───────────────────
-  const slideBody = slideImages.length > 0 ? (
-    <div className="flex items-center gap-10">
-      <div className="flex-1 min-w-0">
-        <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-          {normalizeStandaloneHr(slideText)}
-        </ReactMarkdown>
-      </div>
-      <div style={{ width: `${imgScalePct}%` }} className="shrink-0 flex flex-col items-center justify-center gap-4">
-        {slideImages.map((img, i) => (
-          <img
-            key={i}
-            src={img.src}
-            alt={img.alt}
-            style={{ maxHeight: `${Math.round((slideImages.length > 1 ? 200 : 380) * (imgScalePct / 38))}px` }}
-            className="max-w-full object-contain rounded-2xl shadow-xl cursor-zoom-in hover:opacity-90 transition-opacity"
-            onClick={() => setZoomedImage(img.src)}
-          />
-        ))}
-      </div>
-    </div>
-  ) : (
-    <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-      {normalizeStandaloneHr(slide.content)}
-    </ReactMarkdown>
-  );
-
-  // ── 돋보기 / 스포트라이트 커서 위치 추적 ──────────────────────────────────────
-  const stageBoxRef = useRef<HTMLDivElement>(null);
   const handleStageMouseMove = (e: React.MouseEvent) => {
     const box = stageBoxRef.current;
     if (!box) return;
@@ -491,7 +318,15 @@ const PresentationModal = ({
     setLensPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  // ── 펜 그리기 (Canvas 오버레이, 슬라이드 전환 시 자동 초기화) ─────────────────
+  // ── 문서 본문(돋보기/스포트라이트 복제본에도 동일하게 재사용) ─────────────────
+  const slideComponents = useMemo(() => getSlideComponents(dark), [dark]);
+  const docInner = (
+    <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+      {normalizeStandaloneHr(material.content)}
+    </ReactMarkdown>
+  );
+
+  // ── 펜 그리기 (Canvas 오버레이 — 화면에 고정, 문서를 스크롤해도 그림은 그대로 남는다) ──
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
@@ -504,16 +339,12 @@ const PresentationModal = ({
   // 아직 반영되지 않을 수 있음 → useLayoutEffect로 페인트 전에 동기 반영
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !stageSize.width || !stageSize.height) return;
-    canvas.width = stageSize.width;
-    canvas.height = stageSize.height;
+    if (!canvas || !paneSize.width || !paneSize.height) return;
+    canvas.width = paneSize.width;
+    canvas.height = paneSize.height;
     undoStackRef.current = [];
-  }, [stageSize.width, stageSize.height, current]);
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setCanUndo(false));
-    return () => cancelAnimationFrame(id);
-  }, [stageSize.width, stageSize.height, current]);
+    setCanUndo(false);
+  }, [paneSize.width, paneSize.height]);
 
   const getCanvasPoint = (e: ReactMouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -575,12 +406,14 @@ const PresentationModal = ({
     setCanUndo(false);
   };
 
+  const SPOTLIGHT_RADIUS = 130;
+
   return createPortal(
     <SlideImageZoomContext.Provider value={setZoomedImage}>
-    <div className="fixed inset-0 z-[9999] bg-[#0a0a14] flex flex-col select-none">
+    <div className={`fixed inset-0 z-[9999] flex flex-col select-none ${dark ? 'bg-[#0a0a14]' : 'bg-slate-50'}`}>
 
       {/* 상단 바 */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-white/5 shrink-0">
+      <div className={`flex items-center gap-3 px-5 py-3 border-b shrink-0 ${dark ? 'border-white/10 bg-white/5' : 'border-slate-900/10 bg-white'}`}>
         <button
           onClick={onClose}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-800 font-black text-sm hover:bg-slate-100 active:scale-95 transition-all shadow"
@@ -589,44 +422,44 @@ const PresentationModal = ({
         </button>
         <div className="flex items-center gap-2 ml-2 flex-1 min-w-0">
           <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
-          <span className="text-white/60 text-sm font-bold truncate">{material.title}</span>
+          <span className={`text-sm font-bold truncate ${dark ? 'text-white/60' : 'text-slate-500'}`}>{material.title}</span>
         </div>
 
         {/* 발표 보조 도구 */}
         {!editMode && (
           <div className="flex items-center gap-1 shrink-0">
             <button
+              onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
+              title={dark ? '밝게 보기' : '어둡게 보기'}
+              className={`p-2 rounded-xl transition-all ${dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
+            >
+              {dark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <button
               onClick={() => selectTool('zoom')}
               title="돋보기"
-              className={`p-2 rounded-xl transition-all ${tool === 'zoom' ? 'bg-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+              className={`p-2 rounded-xl transition-all ${tool === 'zoom' ? 'bg-primary text-white' : dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
             >
               <ZoomIn size={16} />
             </button>
             <button
               onClick={() => selectTool('pen')}
               title="펜"
-              className={`p-2 rounded-xl transition-all ${tool === 'pen' ? 'bg-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+              className={`p-2 rounded-xl transition-all ${tool === 'pen' ? 'bg-primary text-white' : dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
             >
               <PenTool size={16} />
             </button>
             <button
               onClick={() => selectTool('spotlight')}
               title="스포트라이트"
-              className={`p-2 rounded-xl transition-all ${tool === 'spotlight' ? 'bg-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+              className={`p-2 rounded-xl transition-all ${tool === 'spotlight' ? 'bg-primary text-white' : dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
             >
               <Flashlight size={16} />
             </button>
             <button
-              onClick={() => setShowGrid(true)}
-              title="슬라이드 전체보기"
-              className="p-2 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 transition-all"
-            >
-              <LayoutGrid size={16} />
-            </button>
-            <button
               onClick={timer.toggle}
               title="타이머"
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-black tabular-nums transition-all ${timer.isRunning ? 'bg-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-black tabular-nums transition-all ${timer.isRunning ? 'bg-primary text-white' : dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
             >
               {timer.isRunning ? <Pause size={14} /> : <Play size={14} />}
               <TimerIcon size={14} />
@@ -646,355 +479,173 @@ const PresentationModal = ({
           ) : (
             <button
               onClick={() => { setTool('none'); setEditMode(true); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white font-black text-sm hover:bg-white/20 active:scale-95 transition-all shrink-0"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm active:scale-95 transition-all shrink-0 ${dark ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-900/5 text-slate-800 hover:bg-slate-900/10'}`}
             >
               <Pencil size={15} /> 편집
             </button>
           )
         )}
-        <span className="text-white/40 text-sm font-bold tabular-nums shrink-0">
-          {current + 1} / {total}
-        </span>
       </div>
 
-      {/* 슬라이드 메인 영역 — 16:9 레터박스, 스크롤 없이 자동 축소 */}
-      <div ref={stageWrapRef} className="flex-1 min-h-0 flex items-center justify-center px-6 py-5 overflow-hidden">
-        {stageSize.width > 0 && (
-          <div
-            ref={stageBoxRef}
-            className="relative"
-            style={{ width: stageSize.width, height: stageSize.height }}
-            onMouseMove={tool === 'zoom' || tool === 'spotlight' ? handleStageMouseMove : undefined}
-            onMouseLeave={() => setLensPos(null)}
-          >
+      {/* 본문 영역 — 편집모드: 원문 전체 텍스트 편집 / 발표모드: 전체 문서 스크롤 뷰 */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div ref={viewRef} className="relative flex-1 min-h-0">
+          {editMode ? (
+            <div className="absolute inset-0 p-6">
+              <textarea
+                value={editedContent}
+                onChange={e => setEditedContent(e.target.value)}
+                className={`w-full h-full px-5 py-4 rounded-2xl border text-sm font-mono focus:outline-none focus:border-primary/40 resize-none ${dark ? 'bg-white/5 border-white/10 text-white/90' : 'bg-white border-slate-900/10 text-slate-800'}`}
+                placeholder="마크다운 내용을 입력하세요"
+              />
+            </div>
+          ) : (
             <div
-              key={current}
-              className={`absolute inset-0 z-0 bg-gradient-to-br ${theme} rounded-3xl border border-white/8 shadow-2xl overflow-hidden`}
-              style={{ animation: 'slideIn 0.25s ease-out' }}
+              ref={stageBoxRef}
+              className="absolute inset-0 overflow-y-auto"
+              onScroll={e => setScrollTop(e.currentTarget.scrollTop)}
+              onMouseMove={tool === 'zoom' || tool === 'spotlight' ? handleStageMouseMove : undefined}
+              onMouseLeave={() => setLensPos(null)}
             >
-              {/* 은은한 아이콘 워터마크 — 텍스트보다 시선을 끌지 않도록 저투명도로 배치 */}
-              {slide.icon && (
-                <span
-                  aria-hidden
-                  className="pointer-events-none select-none absolute -bottom-10 -right-6 leading-none opacity-[0.06]"
-                  style={{ fontSize: Math.max(120, stageSize.height * 0.55) }}
-                >
-                  {slide.icon}
-                </span>
-              )}
-              <div
-                className={`relative z-10 ${contentWrapperClass}`}
-                style={contentWrapperStyle}
-              >
-                <div
-                  ref={contentRef}
-                  className="px-14 py-10"
-                  style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}
-                >
-                  {slideBody}
-                </div>
+              <div ref={docRef} className="max-w-6xl mx-auto px-8 md:px-16 py-14">
+                {docInner}
               </div>
             </div>
+          )}
 
-            {/* 펜 그리기 캔버스 오버레이 */}
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 z-10 rounded-3xl"
-              style={{
-                pointerEvents: tool === 'pen' ? 'auto' : 'none',
-                cursor: tool === 'pen' ? 'crosshair' : 'default',
-                touchAction: 'none',
-              }}
-              onMouseDown={handlePenDown}
-              onMouseMove={handlePenMove}
-              onMouseUp={handlePenUp}
-              onMouseLeave={handlePenUp}
-              onDragStart={(e) => e.preventDefault()}
-            />
-
-            {/* 돋보기 — 화면 상단에 고정된 큰 확대창 (커서를 따라 크롭 위치만 이동) */}
-            {tool === 'zoom' && lensPos && stageSize.width > 0 && (() => {
-              const ZOOM = 2.6;
-              const panelW = stageSize.width;
-              const panelH = Math.min(340, Math.round(stageSize.height * 0.46));
-              const scaledW = stageSize.width * ZOOM;
-              const scaledH = stageSize.height * ZOOM;
-              let tx = panelW / 2 - lensPos.x * ZOOM;
-              let ty = panelH / 2 - lensPos.y * ZOOM;
-              tx = Math.min(0, Math.max(panelW - scaledW, tx));
-              ty = Math.min(0, Math.max(panelH - scaledH, ty));
-              return (
+          {/* 돋보기 — 화면 상단에 고정된 확대창. 지금 스크롤돼 보이는 부분을 커서 위치 기준으로 확대 */}
+          {!editMode && tool === 'zoom' && lensPos && paneSize.width > 0 && docHeight > 0 && (() => {
+            const ZOOM = 2.6;
+            const panelW = paneSize.width;
+            const panelH = Math.min(340, Math.round(paneSize.height * 0.46));
+            const scaledW = panelW * ZOOM;
+            const scaledH = docHeight * ZOOM;
+            let tx = panelW / 2 - lensPos.x * ZOOM;
+            let ty = panelH / 2 - (lensPos.y + scrollTop) * ZOOM;
+            tx = Math.min(0, Math.max(panelW - scaledW, tx));
+            ty = Math.min(0, Math.max(panelH - scaledH, ty));
+            return (
+              <div
+                className="absolute left-0 right-0 top-0 z-30 overflow-hidden rounded-b-[28px] border-b-4 border-primary shadow-2xl pointer-events-none"
+                style={{ height: panelH, boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}
+              >
                 <div
-                  className="absolute left-0 right-0 top-0 z-30 overflow-hidden rounded-b-[28px] border-b-4 border-primary shadow-2xl pointer-events-none"
-                  style={{ height: panelH, boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}
-                >
-                  <div
-                    className={`bg-gradient-to-br ${theme}`}
-                    style={{
-                      width: stageSize.width,
-                      height: stageSize.height,
-                      transform: `translate(${tx}px, ${ty}px) scale(${ZOOM})`,
-                      transformOrigin: '0 0',
-                    }}
-                  >
-                    <div
-                      className={contentWrapperClass}
-                      style={contentWrapperStyle}
-                    >
-                      <div className="px-14 py-10" style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}>
-                        {slideBody}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/50 to-transparent" />
-                  <span className="absolute top-2.5 left-3.5 flex items-center gap-1.5 text-[11px] font-black text-white bg-black/55 px-2.5 py-1 rounded-lg">
-                    <ZoomIn size={12} /> 돋보기 {ZOOM}x
-                  </span>
-                </div>
-              );
-            })()}
-
-            {/* 스포트라이트 (레이저 포인터) — 원 안쪽은 동일한 내용을 밝기/대비만 높여 다시 그려 또렷하게, 바깥은 짙게 어둡게 */}
-            {tool === 'spotlight' && lensPos && (
-              <div className="absolute inset-0 z-20 rounded-3xl pointer-events-none overflow-hidden">
-                {/* 원 안쪽 — 같은 위치에 같은 콘텐츠를 밝기/대비 필터만 올려 복제 (색 반전 없이 안전하게 밝게) */}
-                <div
-                  className="absolute inset-0 overflow-hidden"
+                  className={dark ? 'bg-[#0a0a14]' : 'bg-slate-50'}
                   style={{
-                    clipPath: `circle(130px at ${lensPos.x}px ${lensPos.y}px)`,
-                    WebkitClipPath: `circle(130px at ${lensPos.x}px ${lensPos.y}px)`,
+                    width: panelW,
+                    transform: `translate(${tx}px, ${ty}px) scale(${ZOOM})`,
+                    transformOrigin: '0 0',
                   }}
                 >
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-br ${theme}`}
-                    style={{ filter: 'brightness(1.8) contrast(1.15) saturate(1.1)' }}
-                  >
-                    <div
-                      className={`relative ${contentWrapperClass}`}
-                      style={contentWrapperStyle}
-                    >
-                      <div className="px-14 py-10" style={{ '--slide-font-scale': (slide.fontScale ?? 100) / 100 } as CSSProperties}>
-                        {slideBody}
-                      </div>
-                    </div>
+                  <div className="max-w-6xl mx-auto px-8 md:px-16 py-14">
+                    {docInner}
                   </div>
                 </div>
-                {/* 원 바깥쪽을 짙게 어둡게 */}
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: 'rgba(0,0,0,0.92)',
-                    WebkitMaskImage: `radial-gradient(circle 130px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
-                    maskImage: `radial-gradient(circle 130px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
-                  } as CSSProperties}
-                />
-                <div
-                  className="absolute rounded-full"
-                  style={{
-                    width: 260,
-                    height: 260,
-                    left: lensPos.x - 130,
-                    top: lensPos.y - 130,
-                    boxShadow: '0 0 0 4px rgba(255,255,255,0.95), 0 0 50px 12px rgba(255,255,255,0.6)',
-                  }}
-                />
+                <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/50 to-transparent" />
+                <span className="absolute top-2.5 left-3.5 flex items-center gap-1.5 text-[11px] font-black text-white bg-black/55 px-2.5 py-1 rounded-lg">
+                  <ZoomIn size={12} /> 돋보기 {ZOOM}x
+                </span>
               </div>
-            )}
+            );
+          })()}
+
+          {/* 스포트라이트 (레이저 포인터) — 원 안쪽은 지금 보이는 내용을 밝기/대비만 높여 다시 그려 또렷하게, 바깥은 짙게 어둡게 */}
+          {!editMode && tool === 'spotlight' && lensPos && (
+            <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
+              {/* 원 안쪽 — 같은 스크롤 위치의 같은 콘텐츠를 밝기/대비 필터만 올려 복제 */}
+              <div
+                className="absolute inset-0 overflow-hidden"
+                style={{
+                  clipPath: `circle(${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px)`,
+                  WebkitClipPath: `circle(${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px)`,
+                }}
+              >
+                <div
+                  className={`absolute inset-x-0 ${dark ? 'bg-[#0a0a14]' : 'bg-slate-50'}`}
+                  style={{ top: -scrollTop, filter: dark ? 'brightness(1.8) contrast(1.15) saturate(1.1)' : 'brightness(1.1) contrast(1.05)' }}
+                >
+                  <div className="max-w-6xl mx-auto px-8 md:px-16 py-14">
+                    {docInner}
+                  </div>
+                </div>
+              </div>
+              {/* 원 바깥쪽을 짙게 어둡게 */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: 'rgba(0,0,0,0.92)',
+                  WebkitMaskImage: `radial-gradient(circle ${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
+                  maskImage: `radial-gradient(circle ${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
+                } as CSSProperties}
+              />
+              <div
+                className="absolute rounded-full"
+                style={{
+                  width: SPOTLIGHT_RADIUS * 2,
+                  height: SPOTLIGHT_RADIUS * 2,
+                  left: lensPos.x - SPOTLIGHT_RADIUS,
+                  top: lensPos.y - SPOTLIGHT_RADIUS,
+                  boxShadow: '0 0 0 4px rgba(255,255,255,0.95), 0 0 50px 12px rgba(255,255,255,0.6)',
+                }}
+              />
+            </div>
+          )}
+
+          {/* 펜 그리기 캔버스 — 이 영역(발표 화면)에 고정, 문서를 스크롤해도 그림은 화면에 그대로 남는다 */}
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 z-40"
+            style={{
+              pointerEvents: tool === 'pen' && !editMode ? 'auto' : 'none',
+              cursor: tool === 'pen' ? 'crosshair' : 'default',
+              touchAction: 'none',
+            }}
+            onMouseDown={handlePenDown}
+            onMouseMove={handlePenMove}
+            onMouseUp={handlePenUp}
+            onMouseLeave={handlePenUp}
+            onDragStart={(e) => e.preventDefault()}
+          />
+        </div>
+
+        {/* 펜 보조 도구바 — 색상/형광펜/실행취소/지우기 */}
+        {tool === 'pen' && !editMode && (
+          <div className={`shrink-0 flex items-center justify-center gap-4 px-6 py-3 border-t ${dark ? 'border-white/10 bg-white/5' : 'border-slate-900/10 bg-white'}`}>
+            <div className="flex items-center gap-1.5">
+              {PEN_COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setPenColor(c)}
+                  title={c}
+                  className={`w-7 h-7 rounded-full border-2 transition-all ${penColor === c ? 'border-primary scale-110' : dark ? 'border-white/20 hover:border-white/50' : 'border-slate-900/15 hover:border-slate-900/40'}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+            <button
+              onClick={() => setPenHighlight(h => !h)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${penHighlight ? 'bg-primary/30 ring-2 ring-primary text-white' : dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
+            >
+              <Highlighter size={14} /> 형광펜
+            </button>
+            <button
+              onClick={handleUndo}
+              disabled={!canUndo}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black disabled:opacity-30 disabled:cursor-not-allowed transition-all ${dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
+            >
+              <Undo2 size={14} /> 실행취소
+            </button>
+            <button
+              onClick={handleClearPen}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
+            >
+              <XIcon size={14} /> 전체 지우기
+            </button>
           </div>
         )}
       </div>
 
-      {/* 펜 보조 도구바 — 색상/형광펜/실행취소/지우기 */}
-      {tool === 'pen' && (
-        <div className="shrink-0 flex items-center justify-center gap-4 px-6 py-3 border-t border-white/10 bg-white/5">
-          <div className="flex items-center gap-1.5">
-            {PEN_COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => setPenColor(c)}
-                title={c}
-                className={`w-7 h-7 rounded-full border-2 transition-all ${penColor === c ? 'border-primary scale-110' : 'border-white/20 hover:border-white/50'}`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-          </div>
-          <button
-            onClick={() => setPenHighlight(h => !h)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${penHighlight ? 'bg-primary/30 ring-2 ring-primary text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
-          >
-            <Highlighter size={14} /> 형광펜
-          </button>
-          <button
-            onClick={handleUndo}
-            disabled={!canUndo}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-          >
-            <Undo2 size={14} /> 실행취소
-          </button>
-          <button
-            onClick={handleClearPen}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-white/10 text-white/70 hover:bg-white/20 transition-all"
-          >
-            <XIcon size={14} /> 전체 지우기
-          </button>
-        </div>
-      )}
-
-      {/* 편집 패널 — 현재 슬라이드의 텍스트/배경/아이콘 편집 */}
-      {editMode && (
-        <div className="shrink-0 border-t border-white/10 bg-white/5 px-6 py-4 space-y-3">
-          <textarea
-            value={slide.content}
-            onChange={e => updateCurrentSlide({ content: e.target.value })}
-            rows={4}
-            className="w-full px-4 py-3 bg-[#0a0a14] rounded-xl border border-white/10 text-sm text-white/90 font-mono focus:outline-none focus:border-primary/40 resize-none"
-            placeholder="이 슬라이드의 마크다운 내용"
-          />
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black text-white/40 mr-1">배경</span>
-              {SLIDE_BG_OPTIONS.map(name => (
-                <button
-                  key={name}
-                  onClick={() => updateCurrentSlide({ bg: name })}
-                  title={name}
-                  className={`w-6 h-6 rounded-full bg-gradient-to-br ${SLIDE_BG_THEMES[name]} border-2 transition-all ${
-                    (slide.bg ?? 'dark') === name ? 'border-primary scale-110' : 'border-white/20 hover:border-white/50'
-                  }`}
-                />
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black text-white/40 mr-1">아이콘</span>
-              {SLIDE_ICON_PRESETS.map(ic => (
-                <button
-                  key={ic}
-                  onClick={() => updateCurrentSlide({ icon: ic })}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm transition-all ${
-                    slide.icon === ic ? 'bg-primary/30 ring-2 ring-primary' : 'bg-white/10 hover:bg-white/20'
-                  }`}
-                >
-                  {ic}
-                </button>
-              ))}
-              <input
-                value={slide.icon ?? ''}
-                onChange={e => updateCurrentSlide({ icon: e.target.value })}
-                placeholder="직접 입력"
-                className="w-20 px-2.5 py-1.5 bg-[#0a0a14] rounded-lg border border-white/10 text-sm text-white/90 focus:outline-none focus:border-primary/40"
-              />
-              {slide.icon && (
-                <button
-                  onClick={() => updateCurrentSlide({ icon: undefined })}
-                  title="아이콘 제거"
-                  className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-                >
-                  <XIcon size={13} />
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black text-white/40 mr-1">글자 크기</span>
-              <input
-                type="range"
-                min={70} max={150} step={10}
-                value={slide.fontScale ?? 100}
-                onChange={e => updateCurrentSlide({ fontScale: Number(e.target.value) })}
-                className="w-24 accent-primary"
-              />
-              <span className="text-xs font-bold text-white/60 w-9 tabular-nums">{slide.fontScale ?? 100}%</span>
-            </div>
-            {slideImages.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black text-white/40 mr-1">이미지 크기</span>
-                <input
-                  type="range"
-                  min={20} max={60} step={2}
-                  value={slide.imgScale ?? 38}
-                  onChange={e => updateCurrentSlide({ imgScale: Number(e.target.value) })}
-                  className="w-24 accent-primary"
-                />
-                <span className="text-xs font-bold text-white/60 w-9 tabular-nums">{slide.imgScale ?? 38}%</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 하단 네비게이션 */}
-      <div className="flex items-center justify-center gap-6 px-8 py-5 border-t border-white/5">
-        <button
-          onClick={prev}
-          disabled={current === 0}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
-        >
-          <ChevronLeft size={16} /> 이전
-        </button>
-
-        {/* 도트 네비게이터 */}
-        <div className="flex items-center gap-1.5">
-          {slides.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrent(i)}
-              className={`rounded-full transition-all ${
-                i === current
-                  ? 'w-6 h-2 bg-primary'
-                  : 'w-2 h-2 bg-white/20 hover:bg-white/40'
-              }`}
-            />
-          ))}
-        </div>
-
-        <button
-          onClick={next}
-          disabled={current === total - 1}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
-        >
-          다음 <ChevronRight size={16} />
-        </button>
-      </div>
-
-      {/* 슬라이드 전체보기 그리드 — 클릭 시 바로 이동 */}
-      {showGrid && (
-        <div className="absolute inset-0 z-20 bg-[#0a0a14]/97 backdrop-blur-sm flex flex-col">
-          <div className="flex items-center gap-3 px-5 py-3 border-b border-white/10 shrink-0">
-            <button
-              onClick={() => setShowGrid(false)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white font-black text-sm hover:bg-white/20 active:scale-95 transition-all"
-            >
-              <XIcon size={15} /> 닫기
-            </button>
-            <span className="text-white/60 text-sm font-bold">슬라이드 전체보기 — 클릭해서 이동</span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
-              {slides.map((s, i) => {
-                const sTheme = SLIDE_BG_THEMES[s.bg ?? 'dark'] ?? SLIDE_BG_THEMES.dark;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => { setCurrent(i); setShowGrid(false); }}
-                    className={`relative aspect-video rounded-2xl bg-gradient-to-br ${sTheme} border-2 overflow-hidden text-left p-4 transition-all ${
-                      i === current ? 'border-primary ring-2 ring-primary' : 'border-white/10 hover:border-white/30'
-                    }`}
-                  >
-                    <span className="absolute top-2 left-2 text-[10px] font-black text-white/50 bg-black/30 px-1.5 py-0.5 rounded">
-                      {i + 1}
-                    </span>
-                    {s.icon && <span className="absolute top-2 right-2 text-sm opacity-70">{s.icon}</span>}
-                    <p className="text-[11px] text-white/70 leading-snug line-clamp-4 mt-4 whitespace-pre-line break-words">
-                      {getSlideSnippet(s)}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 이미지 전체화면 보기 — 슬라이드 안 이미지를 클릭하면 확대 */}
+      {/* 이미지 전체화면 보기 — 문서 안 이미지를 클릭하면 확대 */}
       {zoomedImage && (
         <div
           className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-8 cursor-zoom-out"
@@ -1014,13 +665,6 @@ const PresentationModal = ({
           />
         </div>
       )}
-
-      <style>{`
-        @keyframes slideIn {
-          from { opacity: 0; transform: translateX(18px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-      `}</style>
     </div>
     </SlideImageZoomContext.Provider>,
     document.body
@@ -1453,8 +1097,8 @@ const mdComponents: any = {
   div: (props: any) => renderCallout(props, false),
 };
 
-// ── AI 재구성 모달 (학습 가이드 / 발표 자료) ─────────────────────────────────
-type ReorganizeStep = 'select-mode' | 'configure' | 'loading' | 'preview' | 'error';
+// ── AI 재구성 모달 (학습 가이드) ─────────────────────────────────
+type ReorganizeStep = 'configure' | 'loading' | 'preview' | 'error';
 
 const AiReorganizeModal = ({
   rawContent,
@@ -1467,22 +1111,15 @@ const AiReorganizeModal = ({
   onApply: (newContent: string, mode: 'guide' | 'presentation') => void;
   onClose: () => void;
 }) => {
-  const [step, setStep] = useState<ReorganizeStep>('select-mode');
-  const [mode, setMode] = useState<'guide' | 'presentation'>('guide');
+  const [step, setStep] = useState<ReorganizeStep>('configure');
+  const mode = 'guide' as const;
   const [userInstruction, setUserInstruction] = useState('');
   const [showBasePrompt, setShowBasePrompt] = useState(false);
   const [result, setResult] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [previewSlide, setPreviewSlide] = useState(0);
   const [validating, setValidating] = useState(false);
   const [validationWarning, setValidationWarning] = useState<{ message: string; guide?: string } | null>(null);
-
-  const handleSelectMode = (m: 'guide' | 'presentation') => {
-    setMode(m);
-    setValidationWarning(null);
-    setStep('configure');
-  };
 
   const runGenerate = async () => {
     setStep('loading');
@@ -1491,7 +1128,6 @@ const AiReorganizeModal = ({
       const generated = await reorganizeMaterialContent(rawContent, mode, userInstruction, classId);
       setResult(generated.content);
       setFeedback(generated.feedback);
-      setPreviewSlide(0);
       setStep('preview');
     } catch (err: any) {
       setErrorMessage(
@@ -1521,8 +1157,6 @@ const AiReorganizeModal = ({
     await runGenerate();
   };
 
-  const previewSlides = mode === 'presentation' ? parseSlides(result) : [];
-
   return createPortal(
     <div
       className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4"
@@ -1540,8 +1174,7 @@ const AiReorganizeModal = ({
           <div className="flex-1 min-w-0">
             <p className="font-black text-sm text-on-surface">AI로 정리</p>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              {step === 'select-mode' && '어떤 형식으로 정리할까요?'}
-              {step === 'configure' && (mode === 'guide' ? '학습 가이드로 정리' : '발표 자료로 정리')}
+              {step === 'configure' && '학습 가이드로 정리'}
               {step === 'loading' && 'AI가 정리하는 중입니다...'}
               {step === 'preview' && '결과를 확인하세요'}
               {step === 'error' && '오류가 발생했습니다'}
@@ -1559,35 +1192,6 @@ const AiReorganizeModal = ({
 
         {/* 본문 */}
         <div className="flex-1 overflow-y-auto p-5">
-          {step === 'select-mode' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={() => handleSelectMode('guide')}
-                className="flex flex-col items-start gap-2 p-4 rounded-2xl border-2 border-surface-container hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
-              >
-                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <BookOpen size={16} />
-                </div>
-                <p className="font-black text-sm">학습 가이드</p>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  학생이 단계별로(STEP 1, 2...) 따라갈 수 있는 자습형 가이드로 정리합니다.
-                </p>
-              </button>
-              <button
-                onClick={() => handleSelectMode('presentation')}
-                className="flex flex-col items-start gap-2 p-4 rounded-2xl border-2 border-surface-container hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
-              >
-                <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
-                  <Presentation size={16} />
-                </div>
-                <p className="font-black text-sm">발표 자료</p>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  16:9 발표 화면에 맞춰 슬라이드(핵심 불릿 위주)로 정리합니다.
-                </p>
-              </button>
-            </div>
-          )}
-
           {step === 'configure' && (
             <div className="space-y-3">
               <button
@@ -1607,7 +1211,7 @@ const AiReorganizeModal = ({
                 <textarea
                   value={userInstruction}
                   onChange={e => { setUserInstruction(e.target.value); setValidationWarning(null); }}
-                  placeholder={mode === 'guide' ? '예: 중학생 눈높이로 쉽게 풀어줘' : '예: 실습 위주로 강조해줘'}
+                  placeholder="예: 중학생 눈높이로 쉽게 풀어줘"
                   rows={3}
                   className="w-full px-3 py-2.5 bg-white rounded-xl border border-surface-container text-sm focus:outline-none focus:border-primary/40 resize-none"
                 />
@@ -1641,40 +1245,9 @@ const AiReorganizeModal = ({
                   <div className="text-xs font-bold leading-relaxed whitespace-pre-line">{feedback}</div>
                 </div>
               )}
-              {mode === 'presentation' ? (
-                <div className="space-y-2">
-                  <div className="relative bg-[#0a0a14] rounded-2xl overflow-hidden aspect-video">
-                    <div className="absolute inset-0 overflow-auto p-8 flex flex-col justify-center">
-                      <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                        {normalizeStandaloneHr(previewSlides[previewSlide]?.content ?? result)}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between px-1">
-                    <button
-                      onClick={() => setPreviewSlide(i => Math.max(i - 1, 0))}
-                      disabled={previewSlide === 0}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black text-on-surface-variant hover:bg-surface-container disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-                    >
-                      <ChevronLeft size={13} /> 이전
-                    </button>
-                    <span className="text-xs font-black text-on-surface-variant tabular-nums">
-                      {previewSlide + 1} / {previewSlides.length}장
-                    </span>
-                    <button
-                      onClick={() => setPreviewSlide(i => Math.min(i + 1, previewSlides.length - 1))}
-                      disabled={previewSlide === previewSlides.length - 1}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black text-on-surface-variant hover:bg-surface-container disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-                    >
-                      다음 <ChevronRight size={13} />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="max-h-[50vh] overflow-auto">
-                  <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{result}</ReactMarkdown>
-                </div>
-              )}
+              <div className="max-h-[50vh] overflow-auto">
+                <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{result}</ReactMarkdown>
+              </div>
             </>
           )}
 
@@ -1687,15 +1260,15 @@ const AiReorganizeModal = ({
         </div>
 
         {/* 하단 액션 */}
-        {step !== 'select-mode' && step !== 'loading' && (
+        {step !== 'loading' && (
           <div className="flex items-center gap-2 px-5 py-4 border-t border-surface-container bg-surface-container-low/50 shrink-0">
             {step === 'configure' && (
               <>
                 <button
-                  onClick={() => setStep('select-mode')}
+                  onClick={onClose}
                   className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
                 >
-                  뒤로
+                  취소
                 </button>
                 <div className="flex-1" />
                 <button
