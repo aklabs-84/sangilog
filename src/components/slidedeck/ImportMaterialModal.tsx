@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, BookOpen, ChevronRight, Loader2, Sparkles, X as XIcon } from 'lucide-react';
+import { ArrowLeft, BookOpen, ChevronRight, Library, Loader2, Sparkles, X as XIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 export interface AiVersion {
@@ -32,6 +32,7 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
   const [step, setStep] = useState<'class' | 'material'>('class');
   const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
   const [selectedClass, setSelectedClass] = useState<{ id: string; name: string } | null>(null);
+  const [isLibrary, setIsLibrary] = useState(false);
   const [materials, setMaterials] = useState<ImportableMaterial[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,6 +48,7 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
 
   const handleSelectClass = async (cls: { id: string; name: string }) => {
     setSelectedClass(cls);
+    setIsLibrary(false);
     setLoading(true);
     const { data, error } = await supabase
       .from('class_materials')
@@ -54,6 +56,22 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
       .eq('class_id', cls.id)
       .order('week_number', { ascending: true });
     if (error) console.error('[ImportMaterialModal] class_materials fetch error:', error);
+    setMaterials((data || []) as ImportableMaterial[]);
+    setLoading(false);
+    setStep('material');
+  };
+
+  const handleSelectLibrary = async () => {
+    setSelectedClass(null);
+    setIsLibrary(true);
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('class_materials')
+      .select('id, class_id, title, content, week_number, ai_versions')
+      .is('class_id', null)
+      .eq('teacher_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) console.error('[ImportMaterialModal] library materials fetch error:', error);
     setMaterials((data || []) as ImportableMaterial[]);
     setLoading(false);
     setStep('material');
@@ -73,7 +91,7 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
         <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
           {step === 'material' && (
             <button
-              onClick={() => { setStep('class'); setSelectedClass(null); setMaterials([]); }}
+              onClick={() => { setStep('class'); setSelectedClass(null); setIsLibrary(false); setMaterials([]); }}
               className="p-1.5 rounded-xl hover:bg-surface-container transition-colors text-on-surface-variant"
             >
               <ArrowLeft size={16} />
@@ -81,7 +99,7 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
           )}
           <div className="flex-1 min-w-0">
             <p className="font-black text-sm text-on-surface">
-              {step === 'class' ? 'AI로 자료 가져오기' : selectedClass?.name}
+              {step === 'class' ? 'AI로 자료 가져오기' : isLibrary ? '공통 자료함' : selectedClass?.name}
             </p>
             <p className="text-xs text-on-surface-variant mt-0.5">
               {step === 'class' ? '초안을 만들 자료가 있는 클래스를 선택하세요' : '초안의 원본이 될 자료를 선택하세요'}
@@ -96,14 +114,24 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
           {loading ? (
             <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-primary" /></div>
           ) : step === 'class' ? (
-            classes.length === 0 ? (
-              <div className="flex flex-col items-center py-12 gap-3 opacity-40">
-                <BookOpen size={36} />
-                <p className="font-black text-sm">클래스가 없습니다</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {classes.map(cls => (
+            <div className="flex flex-col gap-1.5">
+              <button
+                onClick={handleSelectLibrary}
+                className="flex items-center gap-3 w-full text-left px-4 py-3 rounded-2xl hover:bg-surface-container-low transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Library size={15} />
+                </div>
+                <span className="font-bold text-sm flex-1 text-on-surface">공통 자료함</span>
+                <ChevronRight size={14} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+              </button>
+              {classes.length === 0 ? (
+                <div className="flex flex-col items-center py-12 gap-3 opacity-40">
+                  <BookOpen size={36} />
+                  <p className="font-black text-sm">클래스가 없습니다</p>
+                </div>
+              ) : (
+                classes.map(cls => (
                   <button
                     key={cls.id}
                     onClick={() => handleSelectClass(cls)}
@@ -115,14 +143,14 @@ export default function ImportMaterialModal({ userId, onSelect, onClose }: Props
                     <span className="font-bold text-sm flex-1 text-on-surface">{cls.name}</span>
                     <ChevronRight size={14} className="text-on-surface-variant group-hover:text-primary transition-colors" />
                   </button>
-                ))}
-              </div>
-            )
+                ))
+              )}
+            </div>
           ) : (
             materials.length === 0 ? (
               <div className="flex flex-col items-center py-12 gap-3 opacity-40">
                 <BookOpen size={36} />
-                <p className="font-black text-sm">이 클래스에 자료가 없습니다</p>
+                <p className="font-black text-sm">{isLibrary ? '공통 자료함에 자료가 없습니다' : '이 클래스에 자료가 없습니다'}</p>
               </div>
             ) : (
               <div className="flex flex-col gap-1.5">
