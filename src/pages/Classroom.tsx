@@ -44,6 +44,8 @@ import {
   Megaphone,
   Pin,
   NotebookPen,
+  Library,
+  Settings2,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
@@ -67,6 +69,7 @@ import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 import UpgradeModal from '../components/UpgradeModal';
 import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
+import ImportMaterialModal, { ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
 
 
 const Classroom = () => {
@@ -126,6 +129,8 @@ const Classroom = () => {
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [archivedClasses, setArchivedClasses] = useState<any[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
+  // 아카이브 모달 내 탭: 아카이브함 / 종료된 학급
+  const [archiveModalTab, setArchiveModalTab] = useState<'archived' | 'closed'>('archived');
 
   // 학교 프로젝트 모달
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
@@ -198,11 +203,13 @@ const Classroom = () => {
   // 선생님 전용 자료 상태
   const [privateMatList, setPrivateMatList] = useState<any[]>([]);
   const [privateMatLoading, setPrivateMatLoading] = useState(false);
-  const [privateMatForm, setPrivateMatForm] = useState<{ title: string; content: string; type: 'note' | 'link' | 'file'; url: string; file: File | null }>({ title: '', content: '', type: 'note', url: '', file: null });
+  const [privateMatForm, setPrivateMatForm] = useState<{ title: string; content: string; type: 'note' | 'link' | 'file' | 'material'; url: string; file: File | null; materialId: string | null }>({ title: '', content: '', type: 'note', url: '', file: null, materialId: null });
   const [showPrivateMatForm, setShowPrivateMatForm] = useState(false);
   const [savingPrivateMat, setSavingPrivateMat] = useState(false);
   const [deletingPrivateMatId, setDeletingPrivateMatId] = useState<string | null>(null);
   const [selectedPrivateMat, setSelectedPrivateMat] = useState<any | null>(null);
+  const [showMaterialPicker, setShowMaterialPicker] = useState(false);
+  const [openingPrivateMatId, setOpeningPrivateMatId] = useState<string | null>(null);
 
   // 학생 선택 및 드로어 상태
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
@@ -680,6 +687,27 @@ const Classroom = () => {
       console.error('Error updating class:', error);
       showToast("학급 수정 중 오류가 발생했습니다.");
     }
+  };
+
+  // 오늘 날짜(YYYY-MM-DD) 및 학급 종료 여부(수동 종료 또는 종료일 경과) 판정
+  const getTodayStr = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+  const isClassClosed = (c: any) => !!c.is_closed || (!!c.end_date && c.end_date < getTodayStr());
+
+  // 학급 설정(수정) 모달 열기 — ClassSelector와 종료된 학급 탭에서 공용으로 사용
+  const handleOpenEditClass = async (c: any) => {
+    setUpdateClassData(c);
+    setIsUpdateModalOpen(true);
+    setMaterialDropdownIdx(null);
+    setIsArchiveModalOpen(false);
+    const { data } = await supabase
+      .from('class_materials')
+      .select('id, week_number, title')
+      .eq('class_id', c.id)
+      .order('week_number', { ascending: true });
+    setEditingClassMaterials(data || []);
   };
 
   const handleToggleClassClosed = async (classId: string, currentIsClosed: boolean) => {
@@ -1421,6 +1449,7 @@ const Classroom = () => {
     if (privateMatForm.type === 'link' && !privateMatForm.url.trim()) { showToast('링크 URL을 입력해주세요.'); return; }
     if (privateMatForm.type === 'file' && !privateMatForm.file) { showToast('파일을 선택해주세요.'); return; }
     if (privateMatForm.type === 'file' && privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024) { showToast('파일 크기는 50MB 이하여야 합니다.'); return; }
+    if (privateMatForm.type === 'material' && !privateMatForm.materialId) { showToast('자료에디터/공통자료함에서 자료를 선택해주세요.'); return; }
     setSavingPrivateMat(true);
     try {
       let filePath: string | null = null;
@@ -1447,9 +1476,10 @@ const Classroom = () => {
         file_path: filePath,
         file_name: fileName,
         file_size: fileSize,
+        material_id: privateMatForm.type === 'material' ? privateMatForm.materialId : null,
       });
       if (error) throw error;
-      setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null });
+      setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null, materialId: null });
       setShowPrivateMatForm(false);
       await fetchPrivateMaterials(activeClassId);
       showToast('자료가 등록되었습니다.');
@@ -1474,6 +1504,24 @@ const Classroom = () => {
       showToast('삭제 중 오류가 발생했습니다.');
     } finally {
       setDeletingPrivateMatId(null);
+    }
+  };
+
+  // 자료에디터/공통자료함에서 가져온 자료는 원본을 실시간 조회해서 보여줌
+  const handleOpenLinkedMaterial = async (privateMatId: string, materialId: string) => {
+    setOpeningPrivateMatId(privateMatId);
+    try {
+      const { data, error } = await supabase
+        .from('class_materials')
+        .select('title, content')
+        .eq('id', materialId)
+        .single();
+      if (error || !data) { showToast('원본 자료를 찾을 수 없습니다. 삭제되었을 수 있어요.'); return; }
+      setFullscreenMaterial({ title: data.title, content: data.content || '' });
+    } catch {
+      showToast('자료를 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setOpeningPrivateMatId(null);
     }
   };
 
@@ -1641,24 +1689,19 @@ const Classroom = () => {
         onCreateClass={() => setIsCreateModalOpen(true)}
         schoolName={profile?.school_name || ''}
         onSchoolSettings={() => navigate('/settings')}
-        onEditClass={async (c) => {
-          setUpdateClassData(c);
-          setIsUpdateModalOpen(true);
-          setMaterialDropdownIdx(null);
-          // 해당 클래스의 수업자료 에디터 자료 로드
-          const { data } = await supabase
-            .from('class_materials')
-            .select('id, week_number, title')
-            .eq('class_id', c.id)
-            .order('week_number', { ascending: true });
-          setEditingClassMaterials(data || []);
-        }}
+        onEditClass={handleOpenEditClass}
         onDeleteClass={handleDeleteClass}
         currentUserId={user?.id}
         onOpenArchive={() => {
+          setArchiveModalTab('archived');
           fetchArchivedClasses();
           setIsArchiveModalOpen(true);
         }}
+        onOpenClosedClasses={() => {
+          setArchiveModalTab('closed');
+          setIsArchiveModalOpen(true);
+        }}
+        closedClassesCount={classes.filter(isClassClosed).length}
       />
 
       {/* 2. 메인 대시보드 영역 (통합 스크롤) */}
@@ -2155,10 +2198,10 @@ const Classroom = () => {
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
                       className="p-5 bg-violet-50 border border-violet-200 rounded-3xl space-y-3">
                       <div className="flex gap-2">
-                        {(['note', 'link', 'file'] as const).map(t => (
-                          <button key={t} onClick={() => setPrivateMatForm(f => ({ ...f, type: t, file: null }))}
+                        {(['note', 'link', 'file', 'material'] as const).map(t => (
+                          <button key={t} onClick={() => setPrivateMatForm(f => ({ ...f, type: t, file: null, materialId: t === 'material' ? f.materialId : null }))}
                             className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${privateMatForm.type === t ? 'bg-violet-600 text-white' : 'bg-white text-on-surface-variant border border-violet-200 hover:bg-violet-100'}`}>
-                            {t === 'note' ? '📝 노트' : t === 'link' ? '🔗 링크' : '📎 파일'}
+                            {t === 'note' ? '📝 노트' : t === 'link' ? '🔗 링크' : t === 'file' ? '📎 파일' : '🔗 자료함'}
                           </button>
                         ))}
                       </div>
@@ -2168,7 +2211,28 @@ const Classroom = () => {
                         placeholder="제목"
                         className="w-full px-4 py-3 rounded-2xl border border-violet-200 bg-white text-sm font-black focus:outline-none focus:ring-2 focus:ring-violet-400 placeholder:font-normal"
                       />
-                      {privateMatForm.type === 'note' ? (
+                      {privateMatForm.type === 'material' ? (
+                        privateMatForm.materialId ? (
+                          <div className="flex items-center gap-3 p-4 bg-white border border-violet-200 rounded-2xl">
+                            <div className="w-9 h-9 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                              <Library size={16} />
+                            </div>
+                            <p className="flex-1 text-sm font-black truncate">{privateMatForm.title || '선택된 자료'}</p>
+                            <button onClick={() => setShowMaterialPicker(true)}
+                              className="px-3 py-1.5 rounded-xl text-xs font-black text-violet-600 hover:bg-violet-100 transition-all shrink-0">
+                              다시 선택
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowMaterialPicker(true)}
+                            className="w-full flex flex-col items-center gap-2 p-4 bg-white border-2 border-dashed border-violet-200 rounded-2xl hover:border-violet-400 transition-all"
+                          >
+                            <Library size={20} className="text-violet-400" />
+                            <span className="text-xs font-black text-neutral-500">자료에디터 · 공통 자료함에서 선택</span>
+                          </button>
+                        )
+                      ) : privateMatForm.type === 'note' ? (
                         <textarea
                           value={privateMatForm.content}
                           onChange={e => setPrivateMatForm(f => ({ ...f, content: e.target.value }))}
@@ -2209,15 +2273,25 @@ const Classroom = () => {
                         })()
                       )}
                       <div className="flex gap-2 justify-end">
-                        <button onClick={() => { setShowPrivateMatForm(false); setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null }); }}
+                        <button onClick={() => { setShowPrivateMatForm(false); setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null, materialId: null }); }}
                           className="px-4 py-2 rounded-xl text-sm font-black text-on-surface-variant hover:bg-violet-100 transition-all">취소</button>
-                        <button onClick={handleAddPrivateMat} disabled={savingPrivateMat || (privateMatForm.type === 'file' && !!privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024)}
+                        <button onClick={handleAddPrivateMat} disabled={savingPrivateMat || (privateMatForm.type === 'file' && !!privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024) || (privateMatForm.type === 'material' && !privateMatForm.materialId)}
                           className="flex items-center gap-2 px-5 py-2 rounded-xl bg-violet-600 text-white text-sm font-black hover:bg-violet-700 transition-all disabled:opacity-50">
                           {savingPrivateMat ? <Loader2 size={14} className="animate-spin" /> : null}
                           저장
                         </button>
                       </div>
                     </motion.div>
+                  )}
+
+                  {showMaterialPicker && user && (
+                    <ImportMaterialModal
+                      userId={user.id}
+                      onClose={() => setShowMaterialPicker(false)}
+                      onSelect={(m: ImportableMaterial) => {
+                        setPrivateMatForm(f => ({ ...f, materialId: m.id, title: f.title.trim() ? f.title : m.title }));
+                      }}
+                    />
                   )}
 
                   {/* 목록 */}
@@ -2238,11 +2312,20 @@ const Classroom = () => {
                           className="p-5 rounded-3xl border border-violet-200 bg-white">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 flex-1 min-w-0">
-                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${m.type === 'link' ? 'bg-blue-100' : m.type === 'file' ? 'bg-amber-100' : 'bg-violet-100'}`}>
-                                {m.type === 'link' ? <Link2 size={16} className="text-blue-600" /> : m.type === 'file' ? <File size={16} className="text-amber-600" /> : <NotebookPen size={16} className="text-violet-600" />}
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${m.type === 'link' ? 'bg-blue-100' : m.type === 'file' ? 'bg-amber-100' : m.type === 'material' ? 'bg-secondary/10' : 'bg-violet-100'}`}>
+                                {m.type === 'link' ? <Link2 size={16} className="text-blue-600" /> : m.type === 'file' ? <File size={16} className="text-amber-600" /> : m.type === 'material' ? <Library size={16} className="text-secondary" /> : <NotebookPen size={16} className="text-violet-600" />}
                               </div>
                               <div className="flex-1 min-w-0">
-                                {m.type === 'file' && m.file_path ? (
+                                {m.type === 'material' ? (
+                                  <button
+                                    onClick={() => m.material_id && handleOpenLinkedMaterial(m.id, m.material_id)}
+                                    disabled={openingPrivateMatId === m.id}
+                                    className="flex items-center gap-2 text-sm font-black hover:text-secondary transition-colors truncate text-left"
+                                  >
+                                    {openingPrivateMatId === m.id && <Loader2 size={12} className="animate-spin shrink-0" />}
+                                    {m.title}
+                                  </button>
+                                ) : m.type === 'file' && m.file_path ? (
                                   <button
                                     onClick={async () => {
                                       const { data } = supabase.storage.from('student-attachments').getPublicUrl(m.file_path);
@@ -2269,6 +2352,11 @@ const Classroom = () => {
                                 )}
                                 {m.type === 'file' && m.file_name && (
                                   <p className="text-[10px] text-on-surface-variant/50 mt-1 truncate">{m.file_name}</p>
+                                )}
+                                {m.type === 'material' && (
+                                  <p className="flex items-center gap-1 text-[10px] font-bold text-secondary mt-1">
+                                    <Library size={10} /> 자료에디터 · 공통자료함 연동
+                                  </p>
                                 )}
                                 {m.type === 'note' && m.content && (
                                   <button
@@ -3209,67 +3297,136 @@ const Classroom = () => {
           </div>
         )}
 
-        {isArchiveModalOpen && (
+        {isArchiveModalOpen && (() => {
+          const closedClasses = classes.filter(isClassClosed);
+          const today = getTodayStr();
+          return (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsArchiveModalOpen(false)}>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl glass p-10 rounded-[3rem] space-y-8 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl glass p-10 rounded-[3rem] space-y-6 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
               <button onClick={() => setIsArchiveModalOpen(false)} className="absolute top-8 right-8 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center text-secondary shadow-sm">
-                  <Archive size={24} />
+                  {archiveModalTab === 'archived' ? <Archive size={24} /> : <Lock size={24} />}
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-3xl font-black font-manrope">학급 아카이브함</h3>
-                  <p className="text-xs font-bold text-on-surface-variant/80 uppercase tracking-widest">아카이브된 학급 목록</p>
+                  <h3 className="text-3xl font-black font-manrope">{archiveModalTab === 'archived' ? '학급 아카이브함' : '종료된 학급'}</h3>
+                  <p className="text-xs font-bold text-on-surface-variant/80 uppercase tracking-widest">
+                    {archiveModalTab === 'archived' ? '아카이브된 학급 목록' : '수업이 종료되었지만 데이터는 남아있는 학급'}
+                  </p>
                 </div>
               </div>
 
+              {/* 탭 스위처 */}
+              <div className="flex gap-2 p-1.5 bg-surface-container rounded-2xl w-fit">
+                <button
+                  onClick={() => setArchiveModalTab('archived')}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${archiveModalTab === 'archived' ? 'bg-white shadow-sm text-secondary' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+                >
+                  아카이브함 {archivedClasses.length > 0 && `(${archivedClasses.length})`}
+                </button>
+                <button
+                  onClick={() => setArchiveModalTab('closed')}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${archiveModalTab === 'closed' ? 'bg-white shadow-sm text-secondary' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+                >
+                  종료된 학급 {closedClasses.length > 0 && `(${closedClasses.length})`}
+                </button>
+              </div>
+
               <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
-                {archiveLoading ? (
-                  <div className="py-20 text-center space-y-4 opacity-70">
-                    <RefreshCcw size={40} className="mx-auto animate-spin" />
-                    <p className="text-xs font-black uppercase tracking-widest">아카이브 불러오는 중...</p>
-                  </div>
-                ) : archivedClasses.length > 0 ? (
-                  archivedClasses.map(c => (
-                    <div key={c.id} className="flex items-center justify-between p-6 bg-white/60 rounded-[2rem] border border-surface-container-high transition-all hover:bg-white hover:shadow-soft">
-                      <div className="flex items-center gap-5">
-                         <div className="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-on-surface-variant/60"><GraduationCap size={24} /></div>
-                         <div className="flex flex-col">
-                            <h4 className="text-lg font-black tracking-tight">{c.name}</h4>
-                            <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant/70">{c.subject}</p>
-                         </div>
+                {archiveModalTab === 'archived' ? (
+                  archiveLoading ? (
+                    <div className="py-20 text-center space-y-4 opacity-70">
+                      <RefreshCcw size={40} className="mx-auto animate-spin" />
+                      <p className="text-xs font-black uppercase tracking-widest">아카이브 불러오는 중...</p>
+                    </div>
+                  ) : archivedClasses.length > 0 ? (
+                    archivedClasses.map(c => (
+                      <div key={c.id} className="flex items-center justify-between p-6 bg-white/60 rounded-[2rem] border border-surface-container-high transition-all hover:bg-white hover:shadow-soft">
+                        <div className="flex items-center gap-5">
+                           <div className="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-on-surface-variant/60"><GraduationCap size={24} /></div>
+                           <div className="flex flex-col">
+                              <h4 className="text-lg font-black tracking-tight">{c.name}</h4>
+                              <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant/70">{c.subject}</p>
+                           </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <button onClick={() => handleRestoreClass(c.id)} className="flex items-center gap-2 px-5 py-2.5 bg-primary/5 hover:bg-primary/10 text-primary rounded-xl text-xs font-black border border-primary/10 transition-all">
+                              <RefreshCcw size={14} /> 복원하기
+                           </button>
+                           <button onClick={() => handlePermanentDelete(c.id, c.name)} className="p-2.5 hover:bg-error/10 text-error/60 hover:text-error transition-all rounded-xl" title="영구 삭제">
+                              <Trash2 size={16} />
+                           </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                         <button onClick={() => handleRestoreClass(c.id)} className="flex items-center gap-2 px-5 py-2.5 bg-primary/5 hover:bg-primary/10 text-primary rounded-xl text-xs font-black border border-primary/10 transition-all">
-                            <RefreshCcw size={14} /> 복원하기
-                         </button>
-                         <button onClick={() => handlePermanentDelete(c.id, c.name)} className="p-2.5 hover:bg-error/10 text-error/60 hover:text-error transition-all rounded-xl" title="영구 삭제">
-                            <Trash2 size={16} />
-                         </button>
+                    ))
+                  ) : (
+                    <div className="py-20 text-center space-y-6 flex flex-col items-center">
+                      <div className="w-20 h-20 bg-surface-container rounded-[2rem] flex items-center justify-center opacity-50"><Archive size={32} /></div>
+                      <div className="space-y-2">
+                        <p className="text-base font-black tracking-tight">아카이브함이 비어 있습니다.</p>
+                        <p className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">아카이브된 학급이 없습니다.</p>
                       </div>
                     </div>
-                  ))
+                  )
                 ) : (
-                  <div className="py-20 text-center space-y-6 flex flex-col items-center">
-                    <div className="w-20 h-20 bg-surface-container rounded-[2rem] flex items-center justify-center opacity-50"><Archive size={32} /></div>
-                    <div className="space-y-2">
-                      <p className="text-base font-black tracking-tight">아카이브함이 비어 있습니다.</p>
-                      <p className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">아카이브된 학급이 없습니다.</p>
+                  closedClasses.length > 0 ? (
+                    closedClasses.map(c => {
+                      const autoClosedByDate = c.end_date && c.end_date < today;
+                      const canResume = c.is_closed && !autoClosedByDate;
+                      return (
+                        <div key={c.id} className="flex items-center justify-between p-6 bg-white/60 rounded-[2rem] border border-surface-container-high transition-all hover:bg-white hover:shadow-soft gap-4">
+                          <div className="flex items-center gap-5 min-w-0">
+                             <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center text-rose-400 shrink-0"><Lock size={20} /></div>
+                             <div className="flex flex-col min-w-0">
+                                <h4 className="text-lg font-black tracking-tight truncate">{c.name}</h4>
+                                <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant/70 truncate">{c.subject}</p>
+                                <p className="text-[11px] font-bold text-rose-400 mt-1">
+                                  {autoClosedByDate ? `종료일(${c.end_date}) 경과로 자동 종료` : '선생님이 수업 종료를 선언함'}
+                                </p>
+                             </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                             <button onClick={() => { setActiveClassId(c.id); setIsArchiveModalOpen(false); }} className="flex items-center gap-2 px-5 py-2.5 bg-primary/5 hover:bg-primary/10 text-primary rounded-xl text-xs font-black border border-primary/10 transition-all">
+                                열기
+                             </button>
+                             {canResume ? (
+                               <button onClick={() => handleToggleClassClosed(c.id, true)} className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl text-xs font-black border border-rose-100 transition-all">
+                                  <Unlock size={13} /> 수업 재개
+                               </button>
+                             ) : (
+                               <button onClick={() => handleOpenEditClass(c)} title="종료일을 변경하려면 학급 설정을 여세요" className="p-2.5 hover:bg-surface-container text-on-surface-variant/60 hover:text-on-surface transition-all rounded-xl">
+                                  <Settings2 size={16} />
+                               </button>
+                             )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="py-20 text-center space-y-6 flex flex-col items-center">
+                      <div className="w-20 h-20 bg-surface-container rounded-[2rem] flex items-center justify-center opacity-50"><Lock size={32} /></div>
+                      <div className="space-y-2">
+                        <p className="text-base font-black tracking-tight">종료된 학급이 없습니다.</p>
+                        <p className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">진행 중인 학급만 있어요.</p>
+                      </div>
                     </div>
-                  </div>
+                  )
                 )}
               </div>
-              
-              <div className="bg-error/5 p-6 rounded-3xl flex items-start gap-4 border border-error/10">
-                <AlertCircle size={20} className="text-error/70 mt-0.5" />
-                <p className="text-xs text-error/70 leading-relaxed font-bold">
-                  아카이브함의 학급을 영구 삭제하면 학생 명단과 해당 학급에 기록된 모든 관찰 데이터가 영구적으로 손실됩니다. <br />
-                  중요한 데이터는 사전에 [데이터 내보내기] 기능을 통해 백업하세요.
-                </p>
-              </div>
+
+              {archiveModalTab === 'archived' && (
+                <div className="bg-error/5 p-6 rounded-3xl flex items-start gap-4 border border-error/10">
+                  <AlertCircle size={20} className="text-error/70 mt-0.5" />
+                  <p className="text-xs text-error/70 leading-relaxed font-bold">
+                    아카이브함의 학급을 영구 삭제하면 학생 명단과 해당 학급에 기록된 모든 관찰 데이터가 영구적으로 손실됩니다. <br />
+                    중요한 데이터는 사전에 [데이터 내보내기] 기능을 통해 백업하세요.
+                  </p>
+                </div>
+              )}
             </motion.div>
           </div>
-        )}
+          );
+        })()}
 
         {/* 이동 중 브리핑 모달 */}
         {isBriefingOpen && activeClassId && classInfo && (

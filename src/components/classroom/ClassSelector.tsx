@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check, School, SlidersHorizontal, Crown } from 'lucide-react';
+import { Plus, GraduationCap, Settings2, Trash2, Archive, ChevronDown, Check, School, SlidersHorizontal, Crown, Lock } from 'lucide-react';
 
 interface ClassSelectorProps {
   classes: any[];
@@ -10,10 +10,21 @@ interface ClassSelectorProps {
   onEditClass: (classInfo: any) => void;
   onDeleteClass: (id: string) => void;
   onOpenArchive: () => void;
+  onOpenClosedClasses: () => void;
+  closedClassesCount?: number;
   schoolName?: string;
   onSchoolSettings?: () => void;
   currentUserId?: string;
 }
+
+// 수동 종료(is_closed) 또는 종료일(end_date) 경과 여부
+const isClassClosed = (c: any) => {
+  if (c.is_closed) return true;
+  if (!c.end_date) return false;
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return c.end_date < today;
+};
 
 const ClassSelector = ({
   classes,
@@ -23,6 +34,8 @@ const ClassSelector = ({
   onEditClass,
   onDeleteClass,
   onOpenArchive,
+  onOpenClosedClasses,
+  closedClassesCount = 0,
   schoolName,
   onSchoolSettings,
   currentUserId,
@@ -31,9 +44,9 @@ const ClassSelector = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const activeClass = classes.find(c => c.id === activeClassId);
 
-  // 일반 학급 vs 학교 프로젝트 담당 학급 분리
-  const regularClasses = classes.filter(c => !c.parent_class_id);
-  const projectClasses = classes.filter(c => c.parent_class_id);
+  // 일반 학급 vs 학교 프로젝트 담당 학급 분리 — 종료된 학급(현재 보고 있는 학급 제외)은 메인 목록에서 숨김
+  const regularClasses = classes.filter(c => !c.parent_class_id && (c.id === activeClassId || !isClassClosed(c)));
+  const projectClasses = classes.filter(c => c.parent_class_id && (c.id === activeClassId || !isClassClosed(c)));
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -87,6 +100,9 @@ const ClassSelector = ({
                   </span>
                   {activeClass.parent_class_id && (
                     <span className="text-[9px] font-black bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full shrink-0">담당</span>
+                  )}
+                  {isClassClosed(activeClass) && (
+                    <span className="flex items-center gap-0.5 text-[9px] font-black bg-rose-100 text-rose-500 px-1.5 py-0.5 rounded-full shrink-0"><Lock size={9} />종료</span>
                   )}
                 </div>
                 <span className={`text-[11px] font-black uppercase tracking-[0.1em] whitespace-nowrap truncate w-full ${activeClass.parent_class_id ? 'text-violet-500' : 'text-primary/80'}`}>
@@ -215,6 +231,17 @@ const ClassSelector = ({
                     </>
                   )}
                 </div>
+
+                {/* 종료된 학급 바로가기 */}
+                {closedClassesCount > 0 && (
+                  <button
+                    onClick={() => { onOpenClosedClasses(); setOpen(false); }}
+                    className="flex items-center gap-2 w-[calc(100%-1rem)] mx-2 mt-1 px-4 py-2.5 rounded-xl text-xs font-black text-rose-500 bg-rose-50 hover:bg-rose-100 transition-all"
+                  >
+                    <Lock size={13} />
+                    종료된 학급 {closedClassesCount}개 보기
+                  </button>
+                )}
 
                 {/* 푸터 액션 */}
                 <div className="px-4 py-3 border-t border-surface-container-high flex gap-2">
