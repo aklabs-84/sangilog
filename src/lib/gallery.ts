@@ -12,6 +12,7 @@ export interface GalleryItem {
   file_size: number | null;
   caption: string | null;
   created_at: string;
+  source?: 'upload' | 'drive';
 }
 
 export interface VideoUrlInfo {
@@ -135,6 +136,109 @@ export async function addVideoLink(
     .single();
   if (error) throw error;
   return data;
+}
+
+// ── 구글 드라이브 폴더 연동 ────────────────────────────────────────────────
+
+export interface DriveFolderLink {
+  folder_url: string;
+  folder_id: string;
+}
+
+export interface DriveFolderApiItem {
+  id: string;
+  name: string;
+  type: 'image' | 'video';
+  createdTime: string;
+}
+
+export function extractDriveFolderId(url: string): string | null {
+  const trimmed = url.trim();
+  const folderMatch = trimmed.match(/drive\.google\.com\/drive\/folders\/([a-zA-Z0-9_-]+)/);
+  if (folderMatch) return folderMatch[1];
+  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idParamMatch) return idParamMatch[1];
+  return null;
+}
+
+export async function fetchDriveFolderItems(folderId: string): Promise<DriveFolderApiItem[]> {
+  const res = await fetch(`/api/drive-folder?folderId=${encodeURIComponent(folderId)}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? '구글 드라이브 폴더 조회에 실패했습니다.');
+  return data.items ?? [];
+}
+
+export async function getDriveFolderLink(
+  classId: string,
+  weekNumber: number | null
+): Promise<DriveFolderLink | null> {
+  let query = supabase
+    .from('class_gallery_drive_folders')
+    .select('folder_url, folder_id')
+    .eq('class_id', classId);
+
+  query = weekNumber == null ? query.is('week_number', null) : query.eq('week_number', weekNumber);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function setDriveFolderLink(
+  teacherId: string,
+  classId: string,
+  weekNumber: number | null,
+  folderUrl: string
+): Promise<DriveFolderLink> {
+  const folderId = extractDriveFolderId(folderUrl);
+  if (!folderId) throw new Error('올바른 구글 드라이브 폴더 링크가 아닙니다.');
+
+  const { error } = await supabase
+    .from('class_gallery_drive_folders')
+    .upsert(
+      {
+        teacher_id: teacherId,
+        class_id: classId,
+        week_number: weekNumber,
+        folder_url: folderUrl.trim(),
+        folder_id: folderId,
+      },
+      { onConflict: 'class_id, week_number' }
+    );
+  if (error) throw error;
+  return { folder_url: folderUrl.trim(), folder_id: folderId };
+}
+
+export async function removeDriveFolderLink(classId: string, weekNumber: number | null): Promise<void> {
+  let query = supabase.from('class_gallery_drive_folders').delete().eq('class_id', classId);
+  query = weekNumber == null ? query.is('week_number', null) : query.eq('week_number', weekNumber);
+  const { error } = await query;
+  if (error) throw error;
+}
+
+// 드라이브 폴더 파일을 기존 GalleryItem 형태로 합성 (기존 카드/라이트박스/영상 플레이어 재사용)
+export function driveItemToGalleryItem(
+  item: DriveFolderApiItem,
+  teacherId: string,
+  classId: string,
+  weekNumber: number | null
+): GalleryItem {
+  return {
+    id: `drive-${item.id}`,
+    teacher_id: teacherId,
+    class_id: classId,
+    week_number: weekNumber,
+    file_url:
+      item.type === 'image'
+        ? `https://drive.google.com/thumbnail?id=${item.id}&sz=w1600`
+        : `https://drive.google.com/file/d/${item.id}/view`,
+    file_type: item.type,
+    file_name: item.name,
+    file_size: null,
+    caption: null,
+    created_at: item.createdTime,
+    source: 'drive',
+  };
 }
 
 // ── 이미지 → WebP 변환 + 리사이즈 (최대 1920x1080) ────────────────────────

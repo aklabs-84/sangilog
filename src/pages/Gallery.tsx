@@ -3,14 +3,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Images, Upload, X, ChevronLeft, ChevronRight, Trash2,
   Play, Crown, AlertCircle, Loader2, ImageOff, Plus, Check,
-  BadgeCheck, Link, Video, HardDrive, ExternalLink
+  BadgeCheck, Link, Video, HardDrive, ExternalLink, FolderOpen,
+  RefreshCw, Unlink
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import {
   fetchGalleryItems, uploadGalleryItem, deleteGalleryItem, countGalleryItems,
   addVideoLink, parseVideoUrl,
-  type GalleryItem, type VideoUrlInfo
+  getDriveFolderLink, setDriveFolderLink, removeDriveFolderLink,
+  fetchDriveFolderItems, driveItemToGalleryItem, extractDriveFolderId,
+  type GalleryItem, type VideoUrlInfo, type DriveFolderLink
 } from '../lib/gallery';
 
 const FREE_IMAGE_LIMIT = 100;
@@ -48,6 +51,15 @@ export default function Gallery() {
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
   const [videoAddingLoading, setVideoAddingLoading] = useState(false);
+
+  // 구글 드라이브 폴더 연동
+  const [driveFolderLink, setDriveFolderLinkState] = useState<DriveFolderLink | null>(null);
+  const [driveItems, setDriveItems] = useState<GalleryItem[]>([]);
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [driveError, setDriveError] = useState<string | null>(null);
+  const [folderModalOpen, setFolderModalOpen] = useState(false);
+  const [folderUrlInput, setFolderUrlInput] = useState('');
+  const [folderAddingLoading, setFolderAddingLoading] = useState(false);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -88,8 +100,32 @@ export default function Gallery() {
       .finally(() => setLoading(false));
   }, [user, selectedClassId, selectedWeek]);
 
+  // 구글 드라이브 폴더 연동 상태 + 목록 로드
+  const loadDriveFolder = useCallback(async () => {
+    if (!user || !selectedClassId || !isPro) { setDriveFolderLinkState(null); setDriveItems([]); return; }
+    setDriveError(null);
+    try {
+      const link = await getDriveFolderLink(selectedClassId, selectedWeek);
+      setDriveFolderLinkState(link);
+      if (!link) { setDriveItems([]); return; }
+      setDriveLoading(true);
+      const apiItems = await fetchDriveFolderItems(link.folder_id);
+      setDriveItems(apiItems.map(i => driveItemToGalleryItem(i, user.id, selectedClassId, selectedWeek)));
+    } catch (e: any) {
+      setDriveError(e?.message ?? '구글 드라이브 폴더를 불러오는데 실패했습니다.');
+      setDriveItems([]);
+    } finally {
+      setDriveLoading(false);
+    }
+  }, [user, selectedClassId, selectedWeek, isPro]);
+
+  useEffect(() => { loadDriveFolder(); }, [loadDriveFolder]);
+
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const totalWeeks = selectedClass?.weekly_plan?.length ?? 0;
+  const displayItems = [...items, ...driveItems].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
 
   // 이미지 파일 업로드
   const handleFiles = useCallback(
@@ -158,6 +194,37 @@ export default function Gallery() {
     }
   };
 
+  // 구글 드라이브 폴더 연결
+  const handleConnectFolder = async () => {
+    if (!user || !selectedClassId || !folderUrlInput.trim()) return;
+    if (!extractDriveFolderId(folderUrlInput)) {
+      setDriveError('올바른 구글 드라이브 폴더 링크가 아닙니다.');
+      return;
+    }
+    setFolderAddingLoading(true);
+    try {
+      await setDriveFolderLink(user.id, selectedClassId, selectedWeek, folderUrlInput);
+      setFolderModalOpen(false);
+      setFolderUrlInput('');
+      await loadDriveFolder();
+    } catch (e: any) {
+      setDriveError(e?.message ?? '폴더 연결에 실패했습니다.');
+    } finally {
+      setFolderAddingLoading(false);
+    }
+  };
+
+  const handleDisconnectFolder = async () => {
+    if (!selectedClassId) return;
+    try {
+      await removeDriveFolderLink(selectedClassId, selectedWeek);
+      setDriveFolderLinkState(null);
+      setDriveItems([]);
+    } catch {
+      setDriveError('연결 해제에 실패했습니다.');
+    }
+  };
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -180,7 +247,7 @@ export default function Gallery() {
   };
 
   const videoUrlInfo = videoUrl ? parseVideoUrl(videoUrl) : null;
-  const lightboxItem = lightboxIndex !== null ? items[lightboxIndex] : null;
+  const lightboxItem = lightboxIndex !== null ? displayItems[lightboxIndex] : null;
 
   return (
     <div className="min-h-screen p-6 font-manrope">
@@ -257,6 +324,17 @@ export default function Gallery() {
               영상 링크
             </button>
           )}
+          {/* 구글 드라이브 폴더 연결 */}
+          {isPro && !driveFolderLink && (
+            <button
+              onClick={() => { setFolderModalOpen(true); setDriveError(null); }}
+              disabled={!selectedClassId}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 text-primary text-sm font-bold hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
+            >
+              <FolderOpen size={15} />
+              폴더 연결
+            </button>
+          )}
           {/* 사진 추가 */}
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -276,6 +354,45 @@ export default function Gallery() {
           onChange={e => handleFiles(e.target.files)}
         />
       </div>
+
+      {/* 연결된 구글 드라이브 폴더 상태 */}
+      {isPro && driveFolderLink && (
+        <div className="flex items-center gap-2.5 mb-4 px-4 py-2.5 bg-blue-50 border border-blue-200/60 rounded-xl text-xs">
+          <HardDrive size={15} className="text-blue-500 shrink-0" />
+          <a
+            href={driveFolderLink.folder_url}
+            target="_blank"
+            rel="noreferrer"
+            className="font-bold text-blue-700 hover:underline truncate"
+          >
+            연결된 폴더 열기
+          </a>
+          <span className="text-blue-400">·</span>
+          <span className="text-blue-600/80 font-medium">
+            {driveLoading ? '불러오는 중...' : `${driveItems.length}개 항목`}
+          </span>
+          <button
+            onClick={loadDriveFolder}
+            disabled={driveLoading}
+            className="ml-auto flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold disabled:opacity-40"
+          >
+            <RefreshCw size={12} className={driveLoading ? 'animate-spin' : ''} /> 새로고침
+          </button>
+          <button
+            onClick={handleDisconnectFolder}
+            className="flex items-center gap-1 text-on-surface-variant hover:text-error font-bold"
+          >
+            <Unlink size={12} /> 연결 해제
+          </button>
+        </div>
+      )}
+      {driveError && (
+        <div className="flex items-center gap-2 mb-4 px-4 py-3 bg-error/5 border border-error/20 rounded-xl text-sm text-error font-medium">
+          <AlertCircle size={16} className="shrink-0" />
+          <span>{driveError}</span>
+          <button onClick={() => setDriveError(null)} className="ml-auto"><X size={14} /></button>
+        </div>
+      )}
 
       {/* 에러 메시지 */}
       <AnimatePresence>
@@ -305,7 +422,7 @@ export default function Gallery() {
           <div className="flex items-center justify-center h-64">
             <Loader2 size={32} className="animate-spin text-primary/40" />
           </div>
-        ) : items.length === 0 ? (
+        ) : displayItems.length === 0 ? (
           <EmptyState
             icon={<ImageOff size={40} />}
             message="아직 업로드된 사진·영상이 없습니다"
@@ -314,7 +431,7 @@ export default function Gallery() {
           />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {items.map((item, idx) => (
+            {displayItems.map((item, idx) => (
               <GalleryCard
                 key={item.id}
                 item={item}
@@ -417,6 +534,71 @@ export default function Gallery() {
         )}
       </AnimatePresence>
 
+      {/* 구글 드라이브 폴더 연결 모달 */}
+      <AnimatePresence>
+        {folderModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={() => { setFolderModalOpen(false); setFolderUrlInput(''); }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 shadow-xl max-w-md w-full mx-4"
+            >
+              <h3 className="font-black text-on-surface mb-1 flex items-center gap-2">
+                <FolderOpen size={18} className="text-primary" /> 구글 드라이브 폴더 연결
+              </h3>
+              <p className="text-xs text-on-surface-variant mb-1">
+                폴더 안의 이미지·영상을 자동으로 불러와 갤러리에 표시합니다
+              </p>
+              {selectedClass && (
+                <p className="text-xs font-bold text-primary mb-3">
+                  연결 위치: {selectedClass.name}{selectedWeek != null ? ` · ${selectedWeek}주차` : ''}
+                </p>
+              )}
+
+              <input
+                type="url"
+                value={folderUrlInput}
+                onChange={e => setFolderUrlInput(e.target.value)}
+                onPaste={e => setFolderUrlInput(e.clipboardData.getData('text'))}
+                placeholder="https://drive.google.com/drive/folders/..."
+                className="w-full px-4 py-3 rounded-xl border border-on-surface/15 text-sm font-medium text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4"
+                autoFocus
+              />
+
+              <div className="text-xs text-on-surface-variant/70 mb-5 space-y-1">
+                <p>• 폴더 공유 설정을 <strong>"링크가 있는 모든 사용자(뷰어)"</strong>로 변경하세요</p>
+                <p>• 폴더 안 이미지·영상만 자동으로 표시되며, 다른 파일은 무시됩니다</p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setFolderModalOpen(false); setFolderUrlInput(''); }}
+                  className="flex-1 py-2.5 rounded-xl border border-on-surface/10 text-sm font-bold text-on-surface-variant hover:bg-surface-container-low"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleConnectFolder}
+                  disabled={!folderUrlInput.trim() || folderAddingLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {folderAddingLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  연결
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 삭제 확인 모달 */}
       <AnimatePresence>
         {deleteTarget && (
@@ -474,12 +656,14 @@ export default function Gallery() {
             >
               <X size={28} />
             </button>
-            <button
-              className="absolute top-4 left-4 text-white/70 hover:text-error"
-              onClick={e => { e.stopPropagation(); setDeleteTarget(lightboxItem.id); }}
-            >
-              <Trash2 size={22} />
-            </button>
+            {lightboxItem.source !== 'drive' && (
+              <button
+                className="absolute top-4 left-4 text-white/70 hover:text-error"
+                onClick={e => { e.stopPropagation(); setDeleteTarget(lightboxItem.id); }}
+              >
+                <Trash2 size={22} />
+              </button>
+            )}
             {lightboxIndex > 0 && (
               <button
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
@@ -488,7 +672,7 @@ export default function Gallery() {
                 <ChevronLeft size={40} />
               </button>
             )}
-            {lightboxIndex < items.length - 1 && (
+            {lightboxIndex < displayItems.length - 1 && (
               <button
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
                 onClick={e => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
@@ -517,8 +701,9 @@ export default function Gallery() {
                 <p className="text-white/80 text-sm font-medium">{lightboxItem.caption}</p>
               )}
               <p className="text-white/40 text-xs">
-                {lightboxIndex + 1} / {items.length}
+                {lightboxIndex + 1} / {displayItems.length}
                 {lightboxItem.week_number != null && ` · ${lightboxItem.week_number}주차`}
+                {lightboxItem.source === 'drive' && ' · 구글 드라이브'}
               </p>
             </motion.div>
           </motion.div>
@@ -572,12 +757,19 @@ function GalleryCard({
       onClick={onClick}
     >
       {item.file_type === 'image' ? (
-        <img
-          src={item.file_url}
-          alt={item.file_name ?? ''}
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
+        <div className="relative w-full h-full">
+          <img
+            src={item.file_url}
+            alt={item.file_name ?? ''}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+          {item.source === 'drive' && (
+            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-blue-600/80 text-white text-[10px] font-bold flex items-center gap-1">
+              <HardDrive size={10} /> 드라이브
+            </div>
+          )}
+        </div>
       ) : videoInfo?.platform === 'youtube' && videoInfo.thumbnailUrl ? (
         // YouTube 썸네일
         <div className="relative w-full h-full bg-black">
@@ -626,12 +818,14 @@ function GalleryCard({
 
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
 
-      <button
-        onClick={e => { e.stopPropagation(); onDelete(); }}
-        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-error"
-      >
-        <Trash2 size={12} />
-      </button>
+      {item.source !== 'drive' && (
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-error"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
 
       {item.week_number != null && (
         <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
