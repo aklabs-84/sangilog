@@ -223,7 +223,8 @@ const StudentLog = () => {
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string } | null>(null);
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
-  const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'general'>('weekly');
+  const [editorMaterials, setEditorMaterials] = useState<any[]>([]);
+  const [materialsSubTab, setMaterialsSubTab] = useState<'weekly' | 'editor' | 'general'>('weekly');
 
   // Result Submission State
   const [results, setResults] = useState<any[]>([]);
@@ -934,15 +935,17 @@ const StudentLog = () => {
       const plan = classResources as any[];
       const materialIds = plan.map(p => p.material_id).filter(Boolean);
 
-      const [matsResult, generalResult] = await Promise.all([
+      const [matsResult, generalResult, editorResult] = await Promise.all([
         materialIds.length > 0
           ? supabase.from('class_materials').select('*').in('id', materialIds)
           : Promise.resolve({ data: [] }),
         supabase.from('class_general_materials').select('*').eq('class_id', session.class_id).eq('is_published', true).order('created_at', { ascending: false }),
+        supabase.from('class_materials').select('*').eq('class_id', session.class_id).eq('is_published', true).order('week_number', { ascending: true }).order('created_at', { ascending: false }),
       ]);
 
       setClassMaterials(matsResult.data || []);
       setGeneralMaterials(generalResult.data || []);
+      setEditorMaterials(editorResult.data || []);
     } catch (err) {
       console.error('Error fetching resources:', err);
     } finally {
@@ -3206,6 +3209,15 @@ ${guidePrompt}
                     className={`flex-1 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${materialsSubTab === 'weekly' ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-cyan-200'}`}
                   >주차별 자료</button>
                   <button
+                    onClick={() => setMaterialsSubTab('editor')}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${materialsSubTab === 'editor' ? 'border-violet-500 bg-violet-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-violet-200'}`}
+                  >
+                    자료 에디터
+                    {editorMaterials.length > 0 && (
+                      <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-md ${materialsSubTab === 'editor' ? 'bg-white/20' : 'bg-violet-500/10 text-violet-600'}`}>{editorMaterials.length}</span>
+                    )}
+                  </button>
+                  <button
                     onClick={() => setMaterialsSubTab('general')}
                     className={`flex-1 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${materialsSubTab === 'general' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'}`}
                   >
@@ -3292,7 +3304,42 @@ ${guidePrompt}
                       })}
                     </div>
                   );
-                })() : (
+                })() : materialsSubTab === 'editor' ? (
+                  /* ── 자료 에디터 탭 (공통 자료함에서 연결된 자료 포함) ── */
+                  editorMaterials.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
+                      <BookOpen size={64} />
+                      <p className="font-black text-lg">공개된 자료가 없습니다.</p>
+                      <p className="text-sm font-bold">선생님이 자료 에디터에서 자료를 공개하면 이곳에 표시됩니다.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {editorMaterials.map((mat: any) => (
+                        <button
+                          key={mat.id}
+                          className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-violet-200 hover:shadow-sm transition-all"
+                          onClick={() => {
+                            recordMaterialView(mat.id);
+                            setFullscreenMaterial({ title: mat.title, content: mat.content });
+                          }}
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
+                            <BookOpen size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-sm truncate">{mat.title}</p>
+                            {mat.content && (
+                              <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium mt-0.5">
+                                {mat.content.slice(0, 60)}
+                              </p>
+                            )}
+                          </div>
+                          <Maximize2 size={15} className="shrink-0 text-on-surface-variant/50" />
+                        </button>
+                      ))}
+                    </div>
+                  )
+                ) : (
                   /* ── 일반 자료 탭 ── */
                   generalMaterials.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
