@@ -69,7 +69,7 @@ import GlobalStudentSearch from '../components/classroom/GlobalStudentSearch';
 import UpgradeModal from '../components/UpgradeModal';
 import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
-import ImportMaterialModal, { ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
+import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
 
 
 const Classroom = () => {
