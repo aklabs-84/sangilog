@@ -2,7 +2,7 @@
 // 교사 본인의 OAuth refresh_token으로 access_token을 갱신해 files.list 호출 (Bearer 인증)
 
 import { createClient } from '@supabase/supabase-js';
-import { refreshGoogleAccessToken, GoogleReconnectRequiredError } from './_lib/googleToken';
+import { refreshGoogleAccessToken, GoogleReconnectRequiredError } from './_lib/googleToken.js';
 
 interface DriveApiFile {
   id: string;

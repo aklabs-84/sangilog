@@ -1,7 +1,7 @@
 // 이미 연결된 교사의 access_token을 조용히(팝업 없이) 재발급
 
 import { createClient } from '@supabase/supabase-js';
-import { refreshGoogleAccessToken, GoogleReconnectRequiredError } from './_lib/googleToken';
+import { refreshGoogleAccessToken, GoogleReconnectRequiredError } from './_lib/googleToken.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET') {
