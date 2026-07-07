@@ -242,6 +242,8 @@ const Classroom = () => {
   const [deletingGeneralMatId, setDeletingGeneralMatId] = useState<string | null>(null);
   const [showEditorMatPicker, setShowEditorMatPicker] = useState(false);
   const [togglingEditorMatId, setTogglingEditorMatId] = useState<string | null>(null);
+  // 자료 에디터 목록에서 주차별 자료에 이미 연결된 항목을 접어서 보여줄지 여부 (기본 접힘)
+  const [showLinkedEditorMats, setShowLinkedEditorMats] = useState(false);
   const [deletingEditorMatId, setDeletingEditorMatId] = useState<string | null>(null);
 
   // 공지사항 상태
@@ -4184,64 +4186,90 @@ const Classroom = () => {
                           <BookOpen size={28} className="mx-auto mb-2 opacity-30" />
                           <p className="text-xs font-black">등록된 자료 에디터 자료가 없습니다</p>
                         </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {classMaterials.map((mat: any) => {
-                            const linkedWeeks = effectivePlan.filter((p: any) => p.material_id === mat.id).map((p: any) => p.week);
-                            return (
-                            <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
-                              <button
-                                onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '' })}
-                                className="flex items-center gap-3 flex-1 min-w-0 text-left"
-                              >
-                                <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
-                                  <BookOpen size={14} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <p className="text-sm font-black truncate group-hover:text-secondary transition-colors">{mat.title}</p>
-                                    {linkedWeeks.length > 0 && (
-                                      <span className="text-[9px] font-black px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-md shrink-0">{linkedWeeks.join(', ')}주차 연결됨</span>
-                                    )}
-                                  </div>
-                                  {mat.week_number != null && (
-                                    <p className="text-[10px] text-on-surface-variant/50 truncate">{mat.week_number}주차</p>
+                      ) : (() => {
+                        const matsWithLinks = classMaterials.map((mat: any) => ({
+                          mat,
+                          linkedWeeks: effectivePlan.filter((p: any) => p.material_id === mat.id).map((p: any) => p.week),
+                        }));
+                        const unlinkedMats = matsWithLinks.filter(({ linkedWeeks }) => linkedWeeks.length === 0);
+                        const linkedMats = matsWithLinks.filter(({ linkedWeeks }) => linkedWeeks.length > 0);
+
+                        const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
+                          <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
+                            <button
+                              onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '' })}
+                              className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                            >
+                              <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                                <BookOpen size={14} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-sm font-black truncate group-hover:text-secondary transition-colors">{mat.title}</p>
+                                  {linkedWeeks.length > 0 && (
+                                    <span className="text-[9px] font-black px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-md shrink-0">{linkedWeeks.join(', ')}주차 연결됨</span>
                                   )}
                                 </div>
-                              </button>
-                              {(classInfo?.teacher_id === user?.id || classInfo?.assigned_teacher_id === user?.id) && (
-                                <>
-                                  <button
-                                    onClick={() => handleToggleEditorMatPublish(mat)}
-                                    disabled={togglingEditorMatId === mat.id}
-                                    title={mat.is_published ? '비공개로 전환' : '학생에게 공개'}
-                                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
-                                      mat.is_published
-                                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                                        : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
-                                    }`}
-                                  >
-                                    {togglingEditorMatId === mat.id ? (
-                                      <Loader2 size={13} className="animate-spin" />
-                                    ) : mat.is_published ? (
-                                      <><Unlock size={13} /> 공개 중</>
-                                    ) : (
-                                      <><Lock size={13} /> 비공개</>
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteEditorMat(mat.id)}
-                                    disabled={deletingEditorMatId === mat.id}
-                                    className="p-2.5 text-error bg-error/10 hover:bg-error/20 rounded-xl transition-all shrink-0"
-                                  >
-                                    {deletingEditorMatId === mat.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          );})}
-                        </div>
-                      )}
+                                {mat.week_number != null && (
+                                  <p className="text-[10px] text-on-surface-variant/50 truncate">{mat.week_number}주차</p>
+                                )}
+                              </div>
+                            </button>
+                            {(classInfo?.teacher_id === user?.id || classInfo?.assigned_teacher_id === user?.id) && (
+                              <>
+                                <button
+                                  onClick={() => handleToggleEditorMatPublish(mat)}
+                                  disabled={togglingEditorMatId === mat.id}
+                                  title={mat.is_published ? '비공개로 전환' : '학생에게 공개'}
+                                  className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                                    mat.is_published
+                                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                      : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
+                                  }`}
+                                >
+                                  {togglingEditorMatId === mat.id ? (
+                                    <Loader2 size={13} className="animate-spin" />
+                                  ) : mat.is_published ? (
+                                    <><Unlock size={13} /> 공개 중</>
+                                  ) : (
+                                    <><Lock size={13} /> 비공개</>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteEditorMat(mat.id)}
+                                  disabled={deletingEditorMatId === mat.id}
+                                  className="p-2.5 text-error bg-error/10 hover:bg-error/20 rounded-xl transition-all shrink-0"
+                                >
+                                  {deletingEditorMatId === mat.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        );
+
+                        return (
+                          <div className="space-y-1.5">
+                            {unlinkedMats.map(renderMatRow)}
+
+                            {linkedMats.length > 0 && (
+                              <div className="pt-1">
+                                <button
+                                  onClick={() => setShowLinkedEditorMats(v => !v)}
+                                  className="w-full flex items-center gap-1.5 px-1 py-1.5 text-[10px] font-black text-on-surface-variant/50 hover:text-on-surface-variant transition-colors"
+                                >
+                                  <ChevronDown size={12} className={`transition-transform ${showLinkedEditorMats ? '' : '-rotate-90'}`} />
+                                  주차에 연결된 자료 ({linkedMats.length})
+                                </button>
+                                {showLinkedEditorMats && (
+                                  <div className="space-y-1.5 mt-1.5">
+                                    {linkedMats.map(renderMatRow)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* ── 일반 자료 섹션 ── */}
