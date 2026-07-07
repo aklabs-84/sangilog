@@ -14,6 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../lib/auth';
 import { downloadFile } from '../lib/fileUtils';
+import Pagination from '../components/Pagination';
 
 const StudentView = () => {
   const { id } = useParams<{ id: string }>();
@@ -112,6 +113,20 @@ const StudentView = () => {
   // Result Evaluation States
   const [evalForms, setEvalForms] = useState<Record<string, { score: number; tags: string[]; note: string }>>({});
   const [savingEvalId, setSavingEvalId] = useState<string | null>(null);
+
+  // Pagination States
+  const TIMELINE_PAGE_SIZE = 5;
+  const RESULTS_PAGE_SIZE = 6;
+  const SUGGESTIONS_PAGE_SIZE = 5;
+  const UNITS_PAGE_SIZE = 5;
+  const NOTES_PAGE_SIZE = 5;
+  const [timelinePage, setTimelinePage] = useState(1);
+  const [resultsPage, setResultsPage] = useState(1);
+  const [suggestionsPage, setSuggestionsPage] = useState(1);
+  const [unitsPage, setUnitsPage] = useState(1);
+  const [notesPage, setNotesPage] = useState(1);
+
+  useEffect(() => { setTimelinePage(1); }, [timelineTab]);
 
   // Toast
   const [toasts, setToasts] = useState<{ id: string; msg: string; type: 'success' | 'error' }[]>([]);
@@ -568,6 +583,18 @@ const StudentView = () => {
     );
   }
 
+  const suggestionsTotalPages = Math.max(1, Math.ceil(studentSuggestions.length / SUGGESTIONS_PAGE_SIZE));
+  const suggestionsSafePage = Math.min(suggestionsPage, suggestionsTotalPages);
+  const pagedSuggestions = studentSuggestions.slice((suggestionsSafePage - 1) * SUGGESTIONS_PAGE_SIZE, suggestionsSafePage * SUGGESTIONS_PAGE_SIZE);
+
+  const unitsTotalPages = Math.max(1, Math.ceil(allUnits.length / UNITS_PAGE_SIZE));
+  const unitsSafePage = Math.min(unitsPage, unitsTotalPages);
+  const pagedUnits = allUnits.slice((unitsSafePage - 1) * UNITS_PAGE_SIZE, unitsSafePage * UNITS_PAGE_SIZE);
+
+  const notesTotalPages = Math.max(1, Math.ceil(studentNotes.length / NOTES_PAGE_SIZE));
+  const notesSafePage = Math.min(notesPage, notesTotalPages);
+  const pagedNotes = studentNotes.slice((notesSafePage - 1) * NOTES_PAGE_SIZE, notesSafePage * NOTES_PAGE_SIZE);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -773,9 +800,13 @@ const StudentView = () => {
                 timelineTab === 'teacher' ? !o.is_student_record :
                 o.is_student_record
               );
+              const timelineTotalPages = Math.max(1, Math.ceil(filtered.length / TIMELINE_PAGE_SIZE));
+              const timelineSafePage = Math.min(timelinePage, timelineTotalPages);
+              const pagedTimeline = filtered.slice((timelineSafePage - 1) * TIMELINE_PAGE_SIZE, timelineSafePage * TIMELINE_PAGE_SIZE);
               return filtered.length > 0 ? (
+              <>
               <div className="relative border-l-2 border-neutral-100 ml-4 space-y-10 pb-8">
-                {filtered.map((obs) => {
+                {pagedTimeline.map((obs) => {
                   const isEditing = editingId === obs.id;
                   const isDeleting = deletingId === obs.id;
 
@@ -1003,6 +1034,8 @@ const StudentView = () => {
                   );
                 })}
               </div>
+              <Pagination page={timelineSafePage} totalPages={timelineTotalPages} onChange={setTimelinePage} />
+              </>
             ) : (
               <div className="h-full flex flex-col items-center justify-center space-y-6 text-on-surface-variant/40 py-20">
                 <div className="w-24 h-24 rounded-full bg-neutral-50 flex items-center justify-center border border-neutral-100">
@@ -1059,10 +1092,14 @@ const StudentView = () => {
           const groupedEntries = Object.entries(groups).sort(([, a], [, b]) =>
             new Date(b[0].created_at).getTime() - new Date(a[0].created_at).getTime()
           );
+          const resultsTotalPages = Math.max(1, Math.ceil(groupedEntries.length / RESULTS_PAGE_SIZE));
+          const resultsSafePage = Math.min(resultsPage, resultsTotalPages);
+          const pagedResults = groupedEntries.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
 
           return (
+            <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {groupedEntries.map(([groupId, groupItems]) => {
+              {pagedResults.map(([groupId, groupItems]) => {
                 const firstItem = groupItems[0];
                 const isRejected = firstItem.status === 'rejected';
                 const isProcessing = processingGroupId === groupId;
@@ -1211,6 +1248,8 @@ const StudentView = () => {
                 );
               })}
             </div>
+            <Pagination page={resultsSafePage} totalPages={resultsTotalPages} onChange={setResultsPage} />
+            </>
           );
         })()}
       </div>
@@ -1235,8 +1274,9 @@ const StudentView = () => {
             <p className="font-black">등록된 건의사항이 없습니다.</p>
           </div>
         ) : (
+          <>
           <div className="space-y-3">
-            {studentSuggestions.map(s => {
+            {pagedSuggestions.map(s => {
               const isReplying = replyingId === s.id;
               return (
                 <div
@@ -1321,6 +1361,8 @@ const StudentView = () => {
               );
             })}
           </div>
+          <Pagination page={suggestionsSafePage} totalPages={suggestionsTotalPages} onChange={setSuggestionsPage} />
+          </>
         )}
       </div>
 
@@ -1345,8 +1387,9 @@ const StudentView = () => {
             <p className="text-xs font-bold text-center">선생님이 단원을 마무리하면 여기에 기록이 표시됩니다.</p>
           </div>
         ) : (
+          <>
           <div className="space-y-3">
-            {allUnits.map(unit => {
+            {pagedUnits.map(unit => {
               const sub = unitSubmissions.find((s: any) => s.unit_id === unit.id || s.units?.id === unit.id);
               const cfg: Record<string, boolean> = unit.form_config || {};
               const isExpanded = expandedUnitId === unit.id;
@@ -1474,6 +1517,8 @@ const StudentView = () => {
               );
             })}
           </div>
+          <Pagination page={unitsSafePage} totalPages={unitsTotalPages} onChange={setUnitsPage} />
+          </>
         )}
       </div>
 
@@ -1505,8 +1550,9 @@ const StudentView = () => {
             <p className="text-xs font-bold text-center">학생이 수업 중 노트를 작성하면 여기에 표시됩니다.</p>
           </div>
         ) : (
+          <>
           <div className="space-y-3">
-            {studentNotes.map(note => {
+            {pagedNotes.map(note => {
               const preview = note.content
                 .replace(/[#*_`>\[\]()\-!]/g, '')
                 .replace(/\n+/g, ' ')
@@ -1546,6 +1592,8 @@ const StudentView = () => {
               );
             })}
           </div>
+          <Pagination page={notesSafePage} totalPages={notesTotalPages} onChange={setNotesPage} />
+          </>
         )}
       </div>
 

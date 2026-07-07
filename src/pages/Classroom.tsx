@@ -39,6 +39,7 @@ import {
   Lock,
   Unlock,
   CalendarDays,
+  Clock,
   School,
   Copy,
   Megaphone,
@@ -105,6 +106,10 @@ const Classroom = () => {
     ai_review_enabled: true,
     start_date: '',
     end_date: '',
+    class_start_time: '',
+    class_end_time: '',
+    end_alarm_minutes: [] as number[],
+    break_times: [] as string[],
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -610,7 +615,11 @@ const Classroom = () => {
           weekly_plan: newClassData.weekly_plan.filter((item: any) => item.topic.trim()),
           entry_code: entryCode,
           start_date: newClassData.start_date || null,
-          end_date: newClassData.end_date || null
+          end_date: newClassData.end_date || null,
+          class_start_time: newClassData.class_start_time || null,
+          class_end_time: newClassData.class_end_time || null,
+          end_alarm_minutes: newClassData.end_alarm_minutes || [],
+          break_times: (newClassData.break_times || []).filter((t) => t)
         })
         .select()
         .single();
@@ -630,6 +639,10 @@ const Classroom = () => {
         ai_review_enabled: true,
         start_date: '',
         end_date: '',
+        class_start_time: '',
+        class_end_time: '',
+        end_alarm_minutes: [],
+        break_times: [],
       });
       await fetchClasses();
       if (data) setActiveClassId(data.id);
@@ -655,6 +668,10 @@ const Classroom = () => {
       start_date: updateClassData.start_date || null,
       end_date: updateClassData.end_date || null,
       is_closed: updateClassData.is_closed ?? false,
+      class_start_time: updateClassData.class_start_time || null,
+      class_end_time: updateClassData.class_end_time || null,
+      end_alarm_minutes: updateClassData.end_alarm_minutes || [],
+      break_times: (updateClassData.break_times || []).filter((t: string) => t),
     };
 
     try {
@@ -2726,6 +2743,92 @@ const Classroom = () => {
                   </div>
                   <p className="text-[11px] text-neutral-400 font-bold ml-1">종료일이 지나면 학생의 활동기록·결과 제출이 자동으로 차단됩니다.</p>
                 </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
+                    <Clock size={13} /> 수업 시간 & 종료 알람 (선택)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 space-y-1">
+                      <p className="text-[10px] font-black text-neutral-400 ml-1">시작 시각</p>
+                      <input
+                        type="time"
+                        value={newClassData.class_start_time}
+                        onChange={e => setNewClassData({...newClassData, class_start_time: e.target.value})}
+                        className="w-full px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                      />
+                    </div>
+                    <span className="text-neutral-400 font-black text-sm mt-5">~</span>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-[10px] font-black text-neutral-400 ml-1">종료 시각</p>
+                      <input
+                        type="time"
+                        value={newClassData.class_end_time}
+                        onChange={e => setNewClassData({...newClassData, class_end_time: e.target.value})}
+                        className="w-full px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                      />
+                    </div>
+                  </div>
+                  {newClassData.class_end_time && (
+                    <div className="flex items-center gap-4 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                      {[30, 15, 10].map((m) => (
+                        <label key={m} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newClassData.end_alarm_minutes.includes(m)}
+                            onChange={(e) => {
+                              const minutes = e.target.checked
+                                ? [...newClassData.end_alarm_minutes, m]
+                                : newClassData.end_alarm_minutes.filter((x) => x !== m);
+                              setNewClassData({ ...newClassData, end_alarm_minutes: minutes });
+                            }}
+                            className="w-3.5 h-3.5 rounded accent-primary"
+                          />
+                          <span className="text-xs font-black text-neutral-600">{m}분 전</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-neutral-400 font-bold ml-1">매일 설정한 종료 시각 기준으로 플로팅 알림이 울립니다.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
+                    <Clock size={13} /> 쉬는시간 알림 (선택)
+                  </label>
+                  <div className="space-y-2">
+                    {newClassData.break_times.map((time, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={time}
+                          onChange={e => {
+                            const times = [...newClassData.break_times];
+                            times[idx] = e.target.value;
+                            setNewClassData({ ...newClassData, break_times: times });
+                          }}
+                          className="flex-1 px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setNewClassData({ ...newClassData, break_times: newClassData.break_times.filter((_, i) => i !== idx) })}
+                          className="w-9 h-9 rounded-lg flex items-center justify-center text-neutral-400 hover:text-error hover:bg-error/10 transition-colors shrink-0"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNewClassData({ ...newClassData, break_times: [...newClassData.break_times, ''] })}
+                    className="flex items-center gap-1.5 text-xs font-black text-primary hover:text-primary/80 transition-colors ml-1"
+                  >
+                    <Plus size={13} /> 쉬는시간 추가
+                  </button>
+                  <p className="text-[11px] text-neutral-400 font-bold ml-1">매일 설정한 쉬는시간 시작 5분 전에 플로팅 알림이 울립니다.</p>
+                </div>
+
                 {newClassData.class_type === 'subject' && (
                   <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest">담당 과목</label>
@@ -2964,6 +3067,94 @@ const Classroom = () => {
                           </div>
                         </div>
                         <p className="text-[11px] text-neutral-400 font-bold ml-1">종료일이 지나면 학생의 활동기록·결과 제출이 자동으로 차단됩니다.</p>
+                      </div>
+
+                      {/* 수업 시간 & 종료 알람 */}
+                      <div className="space-y-2 pt-1">
+                        <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
+                          <Clock size={13} /> 수업 시간 & 종료 알람 (선택)
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 space-y-1">
+                            <p className="text-[10px] font-black text-neutral-400 ml-1">시작 시각</p>
+                            <input
+                              type="time"
+                              value={updateClassData.class_start_time || ''}
+                              onChange={e => setUpdateClassData({...updateClassData, class_start_time: e.target.value || null})}
+                              className="w-full px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                            />
+                          </div>
+                          <span className="text-neutral-400 font-black text-sm mt-5">~</span>
+                          <div className="flex-1 space-y-1">
+                            <p className="text-[10px] font-black text-neutral-400 ml-1">종료 시각</p>
+                            <input
+                              type="time"
+                              value={updateClassData.class_end_time || ''}
+                              onChange={e => setUpdateClassData({...updateClassData, class_end_time: e.target.value || null})}
+                              className="w-full px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                            />
+                          </div>
+                        </div>
+                        {updateClassData.class_end_time && (
+                          <div className="flex items-center gap-4 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {[30, 15, 10].map((m) => (
+                              <label key={m} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={(updateClassData.end_alarm_minutes || []).includes(m)}
+                                  onChange={(e) => {
+                                    const current: number[] = updateClassData.end_alarm_minutes || [];
+                                    const minutes = e.target.checked
+                                      ? [...current, m]
+                                      : current.filter((x) => x !== m);
+                                    setUpdateClassData({ ...updateClassData, end_alarm_minutes: minutes });
+                                  }}
+                                  className="w-3.5 h-3.5 rounded accent-primary"
+                                />
+                                <span className="text-xs font-black text-neutral-600">{m}분 전</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-[11px] text-neutral-400 font-bold ml-1">매일 설정한 종료 시각 기준으로 플로팅 알림이 울립니다.</p>
+                      </div>
+
+                      {/* 쉬는시간 알림 */}
+                      <div className="space-y-2 pt-1">
+                        <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
+                          <Clock size={13} /> 쉬는시간 알림 (선택)
+                        </label>
+                        <div className="space-y-2">
+                          {(updateClassData.break_times || []).map((time: string, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <input
+                                type="time"
+                                value={time}
+                                onChange={e => {
+                                  const times = [...(updateClassData.break_times || [])];
+                                  times[idx] = e.target.value;
+                                  setUpdateClassData({ ...updateClassData, break_times: times });
+                                }}
+                                className="flex-1 px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setUpdateClassData({ ...updateClassData, break_times: (updateClassData.break_times || []).filter((_: string, i: number) => i !== idx) })}
+                                className="w-9 h-9 rounded-lg flex items-center justify-center text-neutral-400 hover:text-error hover:bg-error/10 transition-colors shrink-0"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUpdateClassData({ ...updateClassData, break_times: [...(updateClassData.break_times || []), ''] })}
+                          className="flex items-center gap-1.5 text-xs font-black text-primary hover:text-primary/80 transition-colors ml-1"
+                        >
+                          <Plus size={13} /> 쉬는시간 추가
+                        </button>
+                        <p className="text-[11px] text-neutral-400 font-bold ml-1">매일 설정한 쉬는시간 시작 5분 전에 플로팅 알림이 울립니다.</p>
                       </div>
 
                       {/* 수업 종료 선언 */}

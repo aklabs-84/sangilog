@@ -6,12 +6,13 @@ import {
   PlusCircle, FileText, Bold, List, Paperclip, Pencil, Trash2,
   Loader2, Clock, BookOpen, User as UserIcon,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
 const ActivityLog = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [classes, setClasses] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [students, setStudents] = useState<any[]>([]);
@@ -48,9 +49,12 @@ const ActivityLog = () => {
         .from('classes').select('*').eq('teacher_id', user?.id).order('name');
       if (classesData) {
         setClasses(classesData);
-        if (classesData.length > 0) {
-          setSelectedClassId(classesData[0].id);
-          fetchStudents(classesData[0].id);
+        const requestedClassId = searchParams.get('classId');
+        const requestedClass = requestedClassId && classesData.find(c => c.id === requestedClassId);
+        const targetClass = requestedClass || classesData[0];
+        if (targetClass) {
+          setSelectedClassId(targetClass.id);
+          fetchStudents(targetClass.id);
         }
       }
     } catch (error) {

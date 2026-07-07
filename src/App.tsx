@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth, isAnonymousUser } from './lib/auth';
 import { supabase } from './lib/supabase';
 import { TimerProvider } from './lib/timerContext';
+import { ClassAlarmProvider } from './lib/classAlarmContext';
 
 // Supabase가 redirect_to 미허용 시 루트(/)로 fallback하는 경우 대응
 // 초대·복구 토큰이 해시에 있으면 /set-password로 즉시 리다이렉트
@@ -198,6 +199,7 @@ function App() {
   return (
     <AuthProvider>
       <TimerProvider>
+      <ClassAlarmProvider>
       <IdleWarningModal />
       <InstallPromptBanner />
       <div className="relative min-h-screen bg-surface overflow-hidden">
@@ -275,6 +277,7 @@ function App() {
           </div>
         </BrowserRouter>
       </div>
+      </ClassAlarmProvider>
       </TimerProvider>
     </AuthProvider>
   );

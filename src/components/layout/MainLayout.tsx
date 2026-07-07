@@ -4,6 +4,7 @@ import AnnouncementBanner from './AnnouncementBanner';
 import BetaWelcomeBanner from './BetaWelcomeBanner';
 import FloatingTimer from '../FloatingTimer';
 import FloatingAIProgress from '../FloatingAIProgress';
+import FloatingClassAlarm from '../FloatingClassAlarm';
 import ScrollToTopButton from './ScrollToTopButton';
 
 const MainLayout = () => {
@@ -21,6 +22,7 @@ const MainLayout = () => {
       </div>
       <FloatingTimer />
       <FloatingAIProgress />
+      <FloatingClassAlarm />
       <ScrollToTopButton />
     </div>
   );
