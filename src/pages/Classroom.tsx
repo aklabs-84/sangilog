@@ -3779,7 +3779,9 @@ const Classroom = () => {
                         </div>
                       ) : (
                         <div className="space-y-1.5">
-                          {classMaterials.map((mat: any) => (
+                          {classMaterials.map((mat: any) => {
+                            const linkedWeeks = effectivePlan.filter((p: any) => p.material_id === mat.id).map((p: any) => p.week);
+                            return (
                             <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                               <button
                                 onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '' })}
@@ -3789,7 +3791,12 @@ const Classroom = () => {
                                   <BookOpen size={14} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-black truncate group-hover:text-secondary transition-colors">{mat.title}</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="text-sm font-black truncate group-hover:text-secondary transition-colors">{mat.title}</p>
+                                    {linkedWeeks.length > 0 && (
+                                      <span className="text-[9px] font-black px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-md shrink-0">{linkedWeeks.join(', ')}주차 연결됨</span>
+                                    )}
+                                  </div>
                                   {mat.week_number != null && (
                                     <p className="text-[10px] text-on-surface-variant/50 truncate">{mat.week_number}주차</p>
                                   )}
@@ -3825,7 +3832,7 @@ const Classroom = () => {
                                 </>
                               )}
                             </div>
-                          ))}
+                          );})}
                         </div>
                       )}
                     </div>
