@@ -1,8 +1,9 @@
 // 구글 드라이브 폴더 내 이미지/영상 목록 조회 프록시
-// 교사 본인의 OAuth refresh_token으로 access_token을 갱신해 files.list 호출 (Bearer 인증)
+// 서비스 계정(access_token)으로 files.list 호출 — 교사는 폴더를 서비스 계정 이메일에 뷰어로 공유해두면 됨
 
 import { createClient } from '@supabase/supabase-js';
-import { refreshGoogleAccessToken, GoogleReconnectRequiredError } from './_lib/googleToken.js';
+import { getServiceAccountAccessToken } from './_lib/googleServiceAccount.js';
+import { createSignedDriveFileUrl } from './_lib/mediaSignature.js';
 
 interface DriveApiFile {
   id: string;
@@ -16,6 +17,7 @@ export interface DriveFolderItem {
   name: string;
   type: 'image' | 'video';
   createdTime: string;
+  proxyUrl?: string;
 }
 
 export default async function handler(req: any, res: any) {
@@ -45,27 +47,12 @@ export default async function handler(req: any, res: any) {
 
   res.setHeader('Cache-Control', 'private, no-store');
 
-  const { data: connection } = await supabaseAdmin
-    .from('teacher_google_connections')
-    .select('refresh_token')
-    .eq('teacher_id', caller.id)
-    .maybeSingle();
-
-  if (!connection) {
-    return res.status(401).json({ error: 'GOOGLE_RECONNECT_REQUIRED' });
-  }
-
   let accessToken: string;
   try {
-    const result = await refreshGoogleAccessToken(connection.refresh_token);
-    accessToken = result.accessToken;
+    accessToken = await getServiceAccountAccessToken();
   } catch (err) {
-    if (err instanceof GoogleReconnectRequiredError) {
-      await supabaseAdmin.from('teacher_google_connections').delete().eq('teacher_id', caller.id);
-      return res.status(401).json({ error: 'GOOGLE_RECONNECT_REQUIRED' });
-    }
-    console.error('[api/drive-folder] token refresh failed:', err);
-    return res.status(502).json({ error: 'Google 인증 갱신에 실패했습니다.' });
+    console.error('[api/drive-folder] service account auth failed:', err);
+    return res.status(502).json({ error: 'Google 서비스 계정 인증에 실패했습니다.' });
   }
 
   const q = encodeURIComponent(
@@ -81,16 +68,22 @@ export default async function handler(req: any, res: any) {
     const data = await driveRes.json();
 
     if (!driveRes.ok) {
-      return res.status(404).json({ error: '폴더에 접근할 수 없습니다. 폴더를 다시 선택해주세요.' });
+      return res.status(404).json({
+        error: '폴더에 접근할 수 없습니다. 폴더를 서비스 계정과 공유했는지 확인해주세요.',
+      });
     }
 
     const files: DriveApiFile[] = data.files ?? [];
-    const items: DriveFolderItem[] = files.map(f => ({
-      id: f.id,
-      name: f.name,
-      type: f.mimeType.startsWith('video/') ? 'video' : 'image',
-      createdTime: f.createdTime,
-    }));
+    const items: DriveFolderItem[] = files.map(f => {
+      const type = f.mimeType.startsWith('video/') ? 'video' : 'image';
+      return {
+        id: f.id,
+        name: f.name,
+        type,
+        createdTime: f.createdTime,
+        ...(type === 'image' ? { proxyUrl: createSignedDriveFileUrl(f.id) } : {}),
+      };
+    });
 
     return res.status(200).json({ items });
   } catch {

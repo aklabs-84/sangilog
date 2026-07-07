@@ -143,7 +143,6 @@ export async function addVideoLink(
 export interface DriveFolderLink {
   folder_url: string;
   folder_id: string;
-  folder_name?: string;
 }
 
 export interface DriveFolderApiItem {
@@ -151,6 +150,18 @@ export interface DriveFolderApiItem {
   name: string;
   type: 'image' | 'video';
   createdTime: string;
+  proxyUrl?: string;
+}
+
+// https://drive.google.com/drive/folders/{id}, ?id={id}, 순수 ID 등 다양한 형태 지원
+export function extractDriveFolderId(input: string): string | null {
+  const trimmed = input.trim();
+  const folderMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (folderMatch) return folderMatch[1];
+  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idParamMatch) return idParamMatch[1];
+  if (/^[a-zA-Z0-9_-]+$/.test(trimmed)) return trimmed;
+  return null;
 }
 
 export async function fetchDriveFolderItems(folderId: string): Promise<DriveFolderApiItem[]> {
@@ -186,10 +197,12 @@ export async function setDriveFolderLink(
   teacherId: string,
   classId: string,
   weekNumber: number | null,
-  folderId: string,
-  folderName: string
+  folderUrl: string
 ): Promise<DriveFolderLink> {
-  const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
+  const folderId = extractDriveFolderId(folderUrl);
+  if (!folderId) throw new Error('올바른 구글 드라이브 폴더 링크가 아닙니다.');
+
+  const normalizedUrl = `https://drive.google.com/drive/folders/${folderId}`;
 
   const { error } = await supabase
     .from('class_gallery_drive_folders')
@@ -198,14 +211,13 @@ export async function setDriveFolderLink(
         teacher_id: teacherId,
         class_id: classId,
         week_number: weekNumber,
-        folder_url: folderUrl,
+        folder_url: normalizedUrl,
         folder_id: folderId,
       },
       { onConflict: 'class_id, week_number' }
     );
   if (error) throw error;
-  // folder_name은 DB에 저장하지 않음 (선택 직후 UI 표시용) — Picker에서 다시 선택하면 항상 최신 이름을 받는다.
-  return { folder_url: folderUrl, folder_id: folderId, folder_name: folderName };
+  return { folder_url: normalizedUrl, folder_id: folderId };
 }
 
 export async function removeDriveFolderLink(classId: string, weekNumber: number | null): Promise<void> {
@@ -229,7 +241,7 @@ export function driveItemToGalleryItem(
     week_number: weekNumber,
     file_url:
       item.type === 'image'
-        ? `https://drive.google.com/thumbnail?id=${item.id}&sz=w1600`
+        ? (item.proxyUrl ?? `https://drive.google.com/thumbnail?id=${item.id}&sz=w1600`)
         : `https://drive.google.com/file/d/${item.id}/view`,
     file_type: item.type,
     file_name: item.name,

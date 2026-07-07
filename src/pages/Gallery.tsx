@@ -15,9 +15,9 @@ import {
   fetchDriveFolderItems, driveItemToGalleryItem,
   type GalleryItem, type VideoUrlInfo, type DriveFolderLink
 } from '../lib/gallery';
-import { getGoogleAccessToken, pickDriveFolder } from '../lib/googleDrivePicker';
 
 const FREE_IMAGE_LIMIT = 100;
+const DRIVE_SERVICE_ACCOUNT_EMAIL = 'saengilog-drive@saengilog-drive.iam.gserviceaccount.com';
 
 interface Class {
   id: string;
@@ -58,8 +58,8 @@ export default function Gallery() {
   const [driveItems, setDriveItems] = useState<GalleryItem[]>([]);
   const [driveLoading, setDriveLoading] = useState(false);
   const [driveError, setDriveError] = useState<string | null>(null);
-  const [driveReconnectRequired, setDriveReconnectRequired] = useState(false);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
+  const [folderUrlInput, setFolderUrlInput] = useState('');
   const [folderAddingLoading, setFolderAddingLoading] = useState(false);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -105,7 +105,6 @@ export default function Gallery() {
   const loadDriveFolder = useCallback(async () => {
     if (!user || !selectedClassId || !isPro) { setDriveFolderLinkState(null); setDriveItems([]); return; }
     setDriveError(null);
-    setDriveReconnectRequired(false);
     try {
       const link = await getDriveFolderLink(selectedClassId, selectedWeek);
       setDriveFolderLinkState(link);
@@ -114,11 +113,7 @@ export default function Gallery() {
       const apiItems = await fetchDriveFolderItems(link.folder_id);
       setDriveItems(apiItems.map(i => driveItemToGalleryItem(i, user.id, selectedClassId, selectedWeek)));
     } catch (e: any) {
-      if (e?.message === 'GOOGLE_RECONNECT_REQUIRED') {
-        setDriveReconnectRequired(true);
-      } else {
-        setDriveError(e?.message ?? '구글 드라이브 폴더를 불러오는데 실패했습니다.');
-      }
+      setDriveError(e?.message ?? '구글 드라이브 폴더를 불러오는데 실패했습니다.');
       setDriveItems([]);
     } finally {
       setDriveLoading(false);
@@ -200,18 +195,15 @@ export default function Gallery() {
     }
   };
 
-  // 구글 드라이브 폴더 연결 (Google 로그인 → Picker에서 폴더 선택)
+  // 구글 드라이브 폴더 연결 (폴더 링크를 서비스 계정과 공유한 뒤 링크를 붙여넣는 방식)
   const handleConnectFolder = async () => {
-    if (!user || !selectedClassId) return;
+    if (!user || !selectedClassId || !folderUrlInput.trim()) return;
     setDriveError(null);
     setFolderAddingLoading(true);
     try {
-      const accessToken = await getGoogleAccessToken();
-      const folder = await pickDriveFolder(accessToken);
-      if (!folder) return; // 사용자가 Picker에서 취소
-      await setDriveFolderLink(user.id, selectedClassId, selectedWeek, folder.id, folder.name);
+      await setDriveFolderLink(user.id, selectedClassId, selectedWeek, folderUrlInput);
       setFolderModalOpen(false);
-      setDriveReconnectRequired(false);
+      setFolderUrlInput('');
       await loadDriveFolder();
     } catch (e: any) {
       setDriveError(e?.message ?? '폴더 연결에 실패했습니다.');
@@ -373,34 +365,17 @@ export default function Gallery() {
           >
             연결된 폴더 열기
           </a>
-          {driveReconnectRequired ? (
-            <>
-              <span className="text-blue-400">·</span>
-              <span className="text-amber-600 font-bold">Google 계정 연결이 끊어졌습니다</span>
-              <button
-                onClick={handleConnectFolder}
-                disabled={folderAddingLoading}
-                className="ml-auto flex items-center gap-1 text-amber-600 hover:text-amber-800 font-bold disabled:opacity-40"
-              >
-                {folderAddingLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Google 계정 다시 연결
-              </button>
-            </>
-          ) : (
-            <>
-              <span className="text-blue-400">·</span>
-              <span className="text-blue-600/80 font-medium">
-                {driveLoading ? '불러오는 중...' : `${driveItems.length}개 항목`}
-              </span>
-              <button
-                onClick={loadDriveFolder}
-                disabled={driveLoading}
-                className="ml-auto flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold disabled:opacity-40"
-              >
-                <RefreshCw size={12} className={driveLoading ? 'animate-spin' : ''} /> 새로고침
-              </button>
-            </>
-          )}
+          <span className="text-blue-400">·</span>
+          <span className="text-blue-600/80 font-medium">
+            {driveLoading ? '불러오는 중...' : `${driveItems.length}개 항목`}
+          </span>
+          <button
+            onClick={loadDriveFolder}
+            disabled={driveLoading}
+            className="ml-auto flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold disabled:opacity-40"
+          >
+            <RefreshCw size={12} className={driveLoading ? 'animate-spin' : ''} /> 새로고침
+          </button>
           <button
             onClick={handleDisconnectFolder}
             className="flex items-center gap-1 text-on-surface-variant hover:text-error font-bold"
@@ -578,7 +553,7 @@ export default function Gallery() {
                 <FolderOpen size={18} className="text-primary" /> 구글 드라이브 폴더 연결
               </h3>
               <p className="text-xs text-on-surface-variant mb-1">
-                Google 계정으로 로그인해 폴더를 선택하면, 폴더 안 이미지·영상을 자동으로 불러와 갤러리에 표시합니다
+                드라이브 폴더를 아래 계정과 공유(뷰어)한 뒤, 폴더 링크를 붙여넣으면 폴더 안 이미지·영상을 자동으로 불러와 갤러리에 표시합니다
               </p>
               {selectedClass && (
                 <p className="text-xs font-bold text-primary mb-3">
@@ -586,8 +561,34 @@ export default function Gallery() {
                 </p>
               )}
 
+              <div className="mb-3 px-3 py-2 bg-surface-container-low rounded-lg">
+                <p className="text-[11px] text-on-surface-variant mb-1">1. 이 계정을 폴더 공유(뷰어)에 추가하세요</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs font-mono text-primary flex-1 truncate">{DRIVE_SERVICE_ACCOUNT_EMAIL}</code>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(DRIVE_SERVICE_ACCOUNT_EMAIL)}
+                    className="text-[11px] font-bold text-primary hover:underline shrink-0"
+                  >
+                    복사
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <label className="text-[11px] text-on-surface-variant mb-1 block">2. 폴더 링크를 붙여넣으세요</label>
+                <input
+                  type="text"
+                  value={folderUrlInput}
+                  onChange={e => setFolderUrlInput(e.target.value)}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  className="w-full px-3 py-2.5 rounded-xl border border-on-surface/10 text-sm focus:outline-none focus:border-primary"
+                />
+              </div>
+
               <div className="text-xs text-on-surface-variant/70 mb-5 space-y-1">
                 <p>• 선택한 폴더 안 이미지·영상만 자동으로 표시되며, 다른 파일은 무시됩니다</p>
+                <p>• 사진은 서버를 통해 비공개로 전달되지만, 영상은 재생을 위해 해당 파일을 "링크가 있는 모든 사용자"로 별도 공유해야 합니다</p>
                 <p>• 이후 폴더에 새로 추가한 파일도 갤러리 새로고침 시 함께 표시됩니다</p>
               </div>
 
@@ -601,11 +602,11 @@ export default function Gallery() {
                 </button>
                 <button
                   onClick={handleConnectFolder}
-                  disabled={folderAddingLoading}
+                  disabled={folderAddingLoading || !folderUrlInput.trim()}
                   className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {folderAddingLoading ? <Loader2 size={14} className="animate-spin" /> : <FolderOpen size={14} />}
-                  Google 계정으로 폴더 선택
+                  폴더 연결
                 </button>
               </div>
             </motion.div>
