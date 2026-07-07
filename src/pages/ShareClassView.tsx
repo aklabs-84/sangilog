@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
+import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem } from '../lib/gallery';
 import {
   GraduationCap,
   RefreshCw,
@@ -218,13 +219,16 @@ const ShareClassView = () => {
         setEvalMap({});
       }
 
-      // 갤러리
-      const { data: gallery } = await supabase
-        .from('class_gallery_items')
-        .select('id, file_url, file_type, file_name, caption, week_number, created_at')
-        .eq('class_id', classId)
-        .order('created_at', { ascending: false });
-      setGalleryItems(gallery || []);
+      // 갤러리 (업로드된 사진 + 구글 드라이브 연동 폴더)
+      const [{ data: gallery }, driveItems] = await Promise.all([
+        supabase
+          .from('class_gallery_items')
+          .select('id, file_url, file_type, file_name, caption, week_number, created_at')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false }),
+        fetchPublicDriveFolderItems(classId).catch(() => []),
+      ]);
+      setGalleryItems([...(gallery || []), ...driveItems.map(driveItemToPublicGalleryItem)]);
 
       setLastUpdated(new Date());
     } catch (err) {

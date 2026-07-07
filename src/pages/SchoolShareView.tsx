@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
+import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem } from '../lib/gallery';
 import {
   RefreshCw,
   Users,
@@ -229,11 +230,14 @@ const SchoolShareView = () => {
         }));
       }
 
-      const { data: gallery } = await supabase
-        .from('class_gallery_items')
-        .select('id, file_url, file_type, file_name, caption, week_number, created_at')
-        .eq('class_id', classId)
-        .order('created_at', { ascending: false });
+      const [{ data: gallery }, driveItems] = await Promise.all([
+        supabase
+          .from('class_gallery_items')
+          .select('id, file_url, file_type, file_name, caption, week_number, created_at')
+          .eq('class_id', classId)
+          .order('created_at', { ascending: false }),
+        fetchPublicDriveFolderItems(classId).catch(() => []),
+      ]);
 
       // 세특(학급 기록) 데이터
       let evalMap: Record<string, EvalRow> = {};
@@ -253,7 +257,7 @@ const SchoolShareView = () => {
           subject: cls.subject,
           weekly_plan: cls.weekly_plan,
           studentData,
-          galleryItems: gallery || [],
+          galleryItems: [...(gallery || []), ...driveItems.map(driveItemToPublicGalleryItem)],
           evalMap,
           loaded: true,
         },

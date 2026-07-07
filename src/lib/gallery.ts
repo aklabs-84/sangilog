@@ -151,6 +151,7 @@ export interface DriveFolderApiItem {
   type: 'image' | 'video';
   createdTime: string;
   proxyUrl?: string;
+  week_number?: number | null;
 }
 
 // https://drive.google.com/drive/folders/{id}, ?id={id}, 순수 ID 등 다양한 형태 지원
@@ -174,6 +175,15 @@ export async function fetchDriveFolderItems(folderId: string): Promise<DriveFold
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error ?? '구글 드라이브 폴더 조회에 실패했습니다.');
+  return data.items ?? [];
+}
+
+// 비인증 공유 페이지(ShareClassView/SchoolShareView)용 — classId만으로 조회
+// 서버가 학급 공유 상태를 확인하고, 연결된 폴더를 DB에서 직접 찾아 조회한다
+export async function fetchPublicDriveFolderItems(classId: string): Promise<DriveFolderApiItem[]> {
+  const res = await fetch(`/api/drive-folder?classId=${encodeURIComponent(classId)}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? '구글 드라이브 갤러리 조회에 실패했습니다.');
   return data.items ?? [];
 }
 
@@ -249,6 +259,32 @@ export function driveItemToGalleryItem(
     caption: null,
     created_at: item.createdTime,
     source: 'drive',
+  };
+}
+
+export interface PublicGalleryItem {
+  id: string;
+  file_url: string;
+  file_type: 'image' | 'video';
+  file_name: string | null;
+  caption: string | null;
+  week_number: number | null;
+  created_at: string;
+}
+
+// 비인증 공유 페이지용 — item.week_number는 서버가 연결된 폴더의 주차를 그대로 담아 응답한다
+export function driveItemToPublicGalleryItem(item: DriveFolderApiItem): PublicGalleryItem {
+  return {
+    id: `drive-${item.id}`,
+    file_url:
+      item.type === 'image'
+        ? (item.proxyUrl ?? `https://drive.google.com/thumbnail?id=${item.id}&sz=w1600`)
+        : `https://drive.google.com/file/d/${item.id}/view`,
+    file_type: item.type,
+    file_name: item.name,
+    caption: null,
+    week_number: item.week_number ?? null,
+    created_at: item.createdTime,
   };
 }
 
