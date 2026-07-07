@@ -830,12 +830,14 @@ const LinkToClassModal = ({
   material,
   classes,
   userId,
+  publishOnLink = false,
   onClose,
   onLinked,
 }: {
   material: Material;
   classes: any[];
   userId: string;
+  publishOnLink?: boolean;
   onClose: () => void;
   onLinked: () => void;
 }) => {
@@ -874,7 +876,7 @@ const LinkToClassModal = ({
         title: material.title,
         content: material.content ?? '',
         ai_versions: material.ai_versions ?? [],
-        is_published: false,
+        is_published: publishOnLink,
         source_material_id: material.id,
       }));
       const { error } = await supabase.from('class_materials').insert(rows);
@@ -900,8 +902,10 @@ const LinkToClassModal = ({
         {/* 헤더 */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container shrink-0">
           <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-on-surface truncate">"{material.title}" 연결하기</p>
-            <p className="text-xs text-on-surface-variant mt-0.5">연결할 클래스를 선택하세요 (여러 개 가능)</p>
+            <p className="font-black text-sm text-on-surface truncate">"{material.title}" {publishOnLink ? '공개하기' : '연결하기'}</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              {publishOnLink ? '공개할 클래스를 선택하세요 (여러 개 가능)' : '연결할 클래스를 선택하세요 (여러 개 가능)'}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -969,8 +973,8 @@ const LinkToClassModal = ({
             disabled={selected.size === 0 || saving}
             className="flex items-center gap-2 px-5 py-2.5 btn-gradient rounded-xl font-black text-sm text-white shadow hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-40"
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
-            연결하기
+            {saving ? <Loader2 size={14} className="animate-spin" /> : (publishOnLink ? <Globe size={14} /> : <Link2 size={14} />)}
+            {publishOnLink ? '선택한 클래스에 공개' : '연결하기'}
           </button>
         </div>
       </div>
@@ -1340,6 +1344,7 @@ const MaterialEditor = () => {
   // 공통 자료함 — 클래스 선택 없이 만들어두고 나중에 원하는 클래스에 연결
   const [libraryMode, setLibraryMode] = useState(false);
   const [linkingMaterial, setLinkingMaterial] = useState<Material | null>(null);
+  const [linkAsPublish, setLinkAsPublish] = useState(false);
 
   // 자료 목록
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -1670,6 +1675,7 @@ const MaterialEditor = () => {
         material={linkingMaterial}
         classes={classes}
         userId={user.id}
+        publishOnLink={linkAsPublish}
         onLinked={() => fetchLibraryMaterials()}
         onClose={() => setLinkingMaterial(null)}
       />
@@ -2102,14 +2108,24 @@ const MaterialEditor = () => {
                       {expandedId === material.id ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
                     {libraryMode ? (
-                      /* 클래스에 연결 */
-                      <button
-                        onClick={() => setLinkingMaterial(material)}
-                        title="이 공통 자료를 원하는 클래스에 연결(복사)"
-                        className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 font-black text-xs transition-colors"
-                      >
-                        <Link2 size={13} /> 클래스에 연결
-                      </button>
+                      <>
+                        {/* 클래스 선택해서 바로 공개 */}
+                        <button
+                          onClick={() => { setLinkingMaterial(material); setLinkAsPublish(true); }}
+                          title="클래스를 선택해 그 클래스 학생에게 바로 공개"
+                          className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-black text-xs transition-colors"
+                        >
+                          <Globe size={13} /> 공개 처리
+                        </button>
+                        {/* 클래스에 연결(비공개) */}
+                        <button
+                          onClick={() => { setLinkingMaterial(material); setLinkAsPublish(false); }}
+                          title="이 공통 자료를 원하는 클래스에 연결(복사, 비공개)"
+                          className="shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 font-black text-xs transition-colors"
+                        >
+                          <Link2 size={13} /> 클래스에 연결
+                        </button>
+                      </>
                     ) : (
                       <>
                         {/* 공개/비공개 토글 */}
