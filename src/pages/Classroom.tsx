@@ -190,6 +190,9 @@ const Classroom = () => {
   const [generalMatForm, setGeneralMatForm] = useState<{ title: string; type: 'link' | 'file'; url: string; file: File | null }>({ title: '', type: 'link', url: '', file: null });
   const [generalMatUploading, setGeneralMatUploading] = useState(false);
   const [deletingGeneralMatId, setDeletingGeneralMatId] = useState<string | null>(null);
+  const [showEditorMatPicker, setShowEditorMatPicker] = useState(false);
+  const [togglingEditorMatId, setTogglingEditorMatId] = useState<string | null>(null);
+  const [deletingEditorMatId, setDeletingEditorMatId] = useState<string | null>(null);
 
   // 공지사항 상태
   const [announcements, setAnnouncements] = useState<any[]>([]);
@@ -1587,6 +1590,65 @@ const Classroom = () => {
       showToast('삭제 중 오류가 발생했습니다.');
     } finally {
       setDeletingGeneralMatId(null);
+    }
+  };
+
+  const handleToggleEditorMatPublish = async (mat: any) => {
+    setTogglingEditorMatId(mat.id);
+    try {
+      const next = !mat.is_published;
+      const { error } = await supabase.from('class_materials').update({ is_published: next, updated_at: new Date().toISOString() }).eq('id', mat.id);
+      if (error) throw error;
+      setClassMaterials(prev => prev.map(m => m.id === mat.id ? { ...m, is_published: next } : m));
+    } catch (err) {
+      console.error('handleToggleEditorMatPublish error:', err);
+      showToast('공개 설정 변경 중 오류가 발생했습니다.');
+    } finally {
+      setTogglingEditorMatId(null);
+    }
+  };
+
+  const handleDeleteEditorMat = async (id: string) => {
+    setDeletingEditorMatId(id);
+    try {
+      const { error } = await supabase.from('class_materials').delete().eq('id', id);
+      if (error) throw error;
+      setClassMaterials(prev => prev.filter(m => m.id !== id));
+      showToast('자료가 삭제되었습니다.');
+    } catch (err) {
+      console.error('handleDeleteEditorMat error:', err);
+      showToast('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingEditorMatId(null);
+    }
+  };
+
+  // ImportMaterialModal에서 선택한 자료를 이 클래스의 "자료 에디터" 자료로 추가
+  // 이미 이 클래스 소속이면 공개 처리만, 다른 클래스/공통 자료함이면 복사본을 만들어 연결
+  const handleImportEditorMat = async (m: ImportableMaterial) => {
+    if (!activeClassId || !user) return;
+    try {
+      if (m.class_id === activeClassId) {
+        const { error } = await supabase.from('class_materials').update({ is_published: true, updated_at: new Date().toISOString() }).eq('id', m.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('class_materials').insert({
+          class_id: activeClassId,
+          teacher_id: user.id,
+          title: m.title,
+          content: m.content,
+          week_number: null,
+          is_published: true,
+          source_material_id: m.id,
+          ai_versions: m.ai_versions ?? [],
+        });
+        if (error) throw error;
+      }
+      await fetchResources(activeClassId);
+      showToast('자료가 추가되었습니다.');
+    } catch (err) {
+      console.error('handleImportEditorMat error:', err);
+      showToast('자료를 추가하는 중 오류가 발생했습니다.');
     }
   };
 
@@ -3676,6 +3738,76 @@ const Classroom = () => {
                       </div>
                     )}
 
+                    {/* ── 자료 에디터 섹션 ── */}
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between mb-2 px-1">
+                        <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">자료 에디터</p>
+                        <button
+                          onClick={() => setShowEditorMatPicker(true)}
+                          className="flex items-center gap-1 text-[10px] font-black text-secondary hover:bg-secondary/10 px-2 py-1 rounded-lg transition-all"
+                        >
+                          <Plus size={11} /> 추가
+                        </button>
+                      </div>
+
+                      {classMaterials.length === 0 ? (
+                        <div className="text-center py-6 text-on-surface-variant/30">
+                          <BookOpen size={28} className="mx-auto mb-2 opacity-30" />
+                          <p className="text-xs font-black">등록된 자료 에디터 자료가 없습니다</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {classMaterials.map((mat: any) => (
+                            <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
+                              <button
+                                onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '' })}
+                                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                              >
+                                <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                                  <BookOpen size={14} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-black truncate group-hover:text-secondary transition-colors">{mat.title}</p>
+                                  {mat.week_number != null && (
+                                    <p className="text-[10px] text-on-surface-variant/50 truncate">{mat.week_number}주차</p>
+                                  )}
+                                </div>
+                              </button>
+                              {(classInfo?.teacher_id === user?.id || classInfo?.assigned_teacher_id === user?.id) && (
+                                <>
+                                  <button
+                                    onClick={() => handleToggleEditorMatPublish(mat)}
+                                    disabled={togglingEditorMatId === mat.id}
+                                    title={mat.is_published ? '비공개로 전환' : '학생에게 공개'}
+                                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-colors ${
+                                      mat.is_published
+                                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                        : 'bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary'
+                                    }`}
+                                  >
+                                    {togglingEditorMatId === mat.id ? (
+                                      <Loader2 size={13} className="animate-spin" />
+                                    ) : mat.is_published ? (
+                                      <><Unlock size={13} /> 공개 중</>
+                                    ) : (
+                                      <><Lock size={13} /> 비공개</>
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteEditorMat(mat.id)}
+                                    disabled={deletingEditorMatId === mat.id}
+                                    className="p-2.5 text-error bg-error/10 hover:bg-error/20 rounded-xl transition-all shrink-0"
+                                  >
+                                    {deletingEditorMatId === mat.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     {/* ── 일반 자료 섹션 ── */}
                     <div className="pt-2">
                       <div className="flex items-center justify-between mb-2 px-1">
@@ -3840,6 +3972,14 @@ const Classroom = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {showEditorMatPicker && user && (
+        <ImportMaterialModal
+          userId={user.id}
+          onClose={() => setShowEditorMatPicker(false)}
+          onSelect={(m: ImportableMaterial) => { handleImportEditorMat(m); }}
+        />
+      )}
 
       <UpgradeModal
         isOpen={!!upgradeModalReason}
