@@ -72,6 +72,49 @@ import SchoolProjectHub from '../components/classroom/SchoolProjectHub';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import ImportMaterialModal, { type ImportableMaterial } from '../components/slidedeck/ImportMaterialModal';
 
+type BreakGenSettings = {
+  periodMinutes: number;
+  breakMinutes: number;
+  lunchEnabled: boolean;
+  lunchAfterPeriod: number;
+  lunchMinutes: number;
+};
+
+const DEFAULT_BREAK_GEN: BreakGenSettings = {
+  periodMinutes: 0,
+  breakMinutes: 10,
+  lunchEnabled: false,
+  lunchAfterPeriod: 3,
+  lunchMinutes: 50,
+};
+
+// 참고용 기본값이며 학교마다 다르므로 생성 전 자유롭게 수정 가능
+const SCHOOL_LEVEL_PRESETS = [
+  { label: '초등학교', periodMinutes: 40, breakMinutes: 10 },
+  { label: '중학교', periodMinutes: 45, breakMinutes: 10 },
+  { label: '고등학교', periodMinutes: 50, breakMinutes: 10 },
+];
+
+// 시작~종료 시각 사이를 (수업시간+쉬는시간) 단위로 나눠 쉬는시간 시작 시각 목록을 생성
+const generateBreakTimes = (startTime: string, endTime: string, gen: BreakGenSettings): string[] => {
+  if (!startTime || !endTime || !gen.periodMinutes) return [];
+  const toMin = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const toStr = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+  const endMin = toMin(endTime);
+  let cur = toMin(startTime);
+  const times: string[] = [];
+  let period = 0;
+  while (cur + gen.periodMinutes < endMin) {
+    period += 1;
+    cur += gen.periodMinutes;
+    times.push(toStr(cur));
+    cur += gen.lunchEnabled && period === gen.lunchAfterPeriod ? gen.lunchMinutes : gen.breakMinutes;
+  }
+  return times;
+};
 
 const Classroom = () => {
   const { user, profile } = useAuth();
@@ -112,6 +155,8 @@ const Classroom = () => {
     break_times: [] as string[],
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
+  const [breakGenNew, setBreakGenNew] = useState<BreakGenSettings>(DEFAULT_BREAK_GEN);
+  const [breakGenEdit, setBreakGenEdit] = useState<BreakGenSettings>(DEFAULT_BREAK_GEN);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [activeTab, setActiveTab] = useState<'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials'>(
     (searchParams.get('tab') as 'list' | 'ai' | 'units' | 'attendance' | 'board' | 'groups' | 'notice' | 'teacher_materials') || 'list'
@@ -719,6 +764,7 @@ const Classroom = () => {
   // 학급 설정(수정) 모달 열기 — ClassSelector와 종료된 학급 탭에서 공용으로 사용
   const handleOpenEditClass = async (c: any) => {
     setUpdateClassData(c);
+    setBreakGenEdit(DEFAULT_BREAK_GEN);
     setIsUpdateModalOpen(true);
     setMaterialDropdownIdx(null);
     setIsArchiveModalOpen(false);
@@ -1783,7 +1829,7 @@ const Classroom = () => {
         classes={classes}
         activeClassId={activeClassId}
         onSelectClass={setActiveClassId}
-        onCreateClass={() => setIsCreateModalOpen(true)}
+        onCreateClass={() => { setBreakGenNew(DEFAULT_BREAK_GEN); setIsCreateModalOpen(true); }}
         schoolName={profile?.school_name || ''}
         onSchoolSettings={() => navigate('/settings')}
         onEditClass={handleOpenEditClass}
@@ -2796,6 +2842,91 @@ const Classroom = () => {
                   <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
                     <Clock size={13} /> 쉬는시간 알림 (선택)
                   </label>
+
+                  <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2.5">
+                    <div className="flex items-center gap-1.5">
+                      {SCHOOL_LEVEL_PRESETS.map((p) => (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={() => setBreakGenNew({ ...breakGenNew, periodMinutes: p.periodMinutes, breakMinutes: p.breakMinutes })}
+                          className={`flex-1 py-2 text-[11px] font-black rounded-lg border transition-all ${breakGenNew.periodMinutes === p.periodMinutes && breakGenNew.breakMinutes === p.breakMinutes ? 'bg-white shadow-sm text-primary border-primary/30' : 'text-neutral-500 border-transparent hover:text-neutral-700 hover:bg-white'}`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 space-y-1">
+                        <p className="text-[10px] font-black text-neutral-400 ml-1">1교시 수업시간(분)</p>
+                        <input
+                          type="number"
+                          min={1}
+                          value={breakGenNew.periodMinutes || ''}
+                          onChange={e => setBreakGenNew({ ...breakGenNew, periodMinutes: parseInt(e.target.value, 10) || 0 })}
+                          className="w-full px-3 py-2 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-lg font-bold text-sm text-neutral-900 transition-all outline-none"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-[10px] font-black text-neutral-400 ml-1">쉬는시간(분)</p>
+                        <input
+                          type="number"
+                          min={0}
+                          value={breakGenNew.breakMinutes}
+                          onChange={e => setBreakGenNew({ ...breakGenNew, breakMinutes: parseInt(e.target.value, 10) || 0 })}
+                          className="w-full px-3 py-2 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-lg font-bold text-sm text-neutral-900 transition-all outline-none"
+                        />
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer ml-1">
+                      <input
+                        type="checkbox"
+                        checked={breakGenNew.lunchEnabled}
+                        onChange={e => setBreakGenNew({ ...breakGenNew, lunchEnabled: e.target.checked })}
+                        className="w-3.5 h-3.5 rounded accent-primary"
+                      />
+                      <span className="text-xs font-black text-neutral-600">점심시간 포함</span>
+                    </label>
+                    {breakGenNew.lunchEnabled && (
+                      <div className="flex items-center gap-3 pl-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex-1 space-y-1">
+                          <p className="text-[10px] font-black text-neutral-400 ml-1">몇 교시 후</p>
+                          <input
+                            type="number"
+                            min={1}
+                            value={breakGenNew.lunchAfterPeriod}
+                            onChange={e => setBreakGenNew({ ...breakGenNew, lunchAfterPeriod: parseInt(e.target.value, 10) || 1 })}
+                            className="w-full px-3 py-2 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-lg font-bold text-sm text-neutral-900 transition-all outline-none"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-[10px] font-black text-neutral-400 ml-1">점심시간(분)</p>
+                          <input
+                            type="number"
+                            min={1}
+                            value={breakGenNew.lunchMinutes}
+                            onChange={e => setBreakGenNew({ ...breakGenNew, lunchMinutes: parseInt(e.target.value, 10) || 0 })}
+                            className="w-full px-3 py-2 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-lg font-bold text-sm text-neutral-900 transition-all outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newClassData.class_start_time || !newClassData.class_end_time) {
+                          showToast('먼저 수업 시작·종료 시각을 입력해주세요.');
+                          return;
+                        }
+                        const times = generateBreakTimes(newClassData.class_start_time, newClassData.class_end_time, breakGenNew);
+                        setNewClassData({ ...newClassData, break_times: times });
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-primary/10 hover:bg-primary/15 text-primary text-xs font-black rounded-lg transition-colors"
+                    >
+                      <Sparkles size={13} /> 쉬는시간 자동 생성
+                    </button>
+                  </div>
+
                   <div className="space-y-2">
                     {newClassData.break_times.map((time, idx) => (
                       <div key={idx} className="flex items-center gap-2">
@@ -3124,6 +3255,91 @@ const Classroom = () => {
                         <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
                           <Clock size={13} /> 쉬는시간 알림 (선택)
                         </label>
+
+                        <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2.5">
+                          <div className="flex items-center gap-1.5">
+                            {SCHOOL_LEVEL_PRESETS.map((p) => (
+                              <button
+                                key={p.label}
+                                type="button"
+                                onClick={() => setBreakGenEdit({ ...breakGenEdit, periodMinutes: p.periodMinutes, breakMinutes: p.breakMinutes })}
+                                className={`flex-1 py-2 text-[11px] font-black rounded-lg border transition-all ${breakGenEdit.periodMinutes === p.periodMinutes && breakGenEdit.breakMinutes === p.breakMinutes ? 'bg-white shadow-sm text-primary border-primary/30' : 'text-neutral-500 border-transparent hover:text-neutral-700 hover:bg-white'}`}
+                              >
+                                {p.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 space-y-1">
+                              <p className="text-[10px] font-black text-neutral-400 ml-1">1교시 수업시간(분)</p>
+                              <input
+                                type="number"
+                                min={1}
+                                value={breakGenEdit.periodMinutes || ''}
+                                onChange={e => setBreakGenEdit({ ...breakGenEdit, periodMinutes: parseInt(e.target.value, 10) || 0 })}
+                                className="w-full px-3 py-2 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-lg font-bold text-sm text-neutral-900 transition-all outline-none"
+                              />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-[10px] font-black text-neutral-400 ml-1">쉬는시간(분)</p>
+                              <input
+                                type="number"
+                                min={0}
+                                value={breakGenEdit.breakMinutes}
+                                onChange={e => setBreakGenEdit({ ...breakGenEdit, breakMinutes: parseInt(e.target.value, 10) || 0 })}
+                                className="w-full px-3 py-2 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-lg font-bold text-sm text-neutral-900 transition-all outline-none"
+                              />
+                            </div>
+                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer ml-1">
+                            <input
+                              type="checkbox"
+                              checked={breakGenEdit.lunchEnabled}
+                              onChange={e => setBreakGenEdit({ ...breakGenEdit, lunchEnabled: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded accent-primary"
+                            />
+                            <span className="text-xs font-black text-neutral-600">점심시간 포함</span>
+                          </label>
+                          {breakGenEdit.lunchEnabled && (
+                            <div className="flex items-center gap-3 pl-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                              <div className="flex-1 space-y-1">
+                                <p className="text-[10px] font-black text-neutral-400 ml-1">몇 교시 후</p>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={breakGenEdit.lunchAfterPeriod}
+                                  onChange={e => setBreakGenEdit({ ...breakGenEdit, lunchAfterPeriod: parseInt(e.target.value, 10) || 1 })}
+                                  className="w-full px-3 py-2 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-lg font-bold text-sm text-neutral-900 transition-all outline-none"
+                                />
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <p className="text-[10px] font-black text-neutral-400 ml-1">점심시간(분)</p>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={breakGenEdit.lunchMinutes}
+                                  onChange={e => setBreakGenEdit({ ...breakGenEdit, lunchMinutes: parseInt(e.target.value, 10) || 0 })}
+                                  className="w-full px-3 py-2 bg-white border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 rounded-lg font-bold text-sm text-neutral-900 transition-all outline-none"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!updateClassData.class_start_time || !updateClassData.class_end_time) {
+                                showToast('먼저 수업 시작·종료 시각을 입력해주세요.');
+                                return;
+                              }
+                              const times = generateBreakTimes(updateClassData.class_start_time, updateClassData.class_end_time, breakGenEdit);
+                              setUpdateClassData({ ...updateClassData, break_times: times });
+                            }}
+                            className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-primary/10 hover:bg-primary/15 text-primary text-xs font-black rounded-lg transition-colors"
+                          >
+                            <Sparkles size={13} /> 쉬는시간 자동 생성
+                          </button>
+                        </div>
+
                         <div className="space-y-2">
                           {(updateClassData.break_times || []).map((time: string, idx: number) => (
                             <div key={idx} className="flex items-center gap-2">
