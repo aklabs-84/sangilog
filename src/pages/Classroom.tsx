@@ -1760,7 +1760,7 @@ const Classroom = () => {
       </div>,
       document.body
     )}
-    <div className="flex flex-col relative bg-surface-container-low/20 rounded-[3rem] border border-white/40 shadow-2xl">
+    <div className="flex flex-col relative bg-surface-container-low/20 rounded-[2rem] border border-white/40 shadow-2xl">
       {/* 1. 상단 학급 선택기 (기존 사이드바에서 수평형으로 전환) */}
       <ClassSelector
         classes={classes}
@@ -1794,7 +1794,7 @@ const Classroom = () => {
                 initial={{ opacity: 0, x: 60, scale: 0.9 }}
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 60, scale: 0.9 }}
-                className="bg-neutral-900/90 backdrop-blur-xl text-white px-8 py-5 rounded-[2rem] shadow-2xl text-sm font-black flex items-center gap-4 pointer-events-auto border border-white/10"
+                className="bg-neutral-900/90 backdrop-blur-xl text-white px-8 py-5 rounded-[1.5rem] shadow-2xl text-sm font-black flex items-center gap-4 pointer-events-auto border border-white/10"
               >
                 <div className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse shadow-[0_0_12px_rgba(var(--primary-rgb),0.8)]" />
                 {toast.msg}
@@ -1874,7 +1874,7 @@ const Classroom = () => {
           {(!classInfo?.school_project_id || classInfo?.parent_class_id) && (
           <>
           <div className="flex justify-center mb-8 md:mb-16">
-            <div className="p-1 md:p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[2rem] md:rounded-[2.5rem] flex items-center border border-white/40 shadow-soft relative overflow-x-auto max-w-full custom-scrollbar">
+            <div className="p-1 md:p-1.5 bg-surface-container/50 backdrop-blur-xl rounded-[1.5rem] md:rounded-[1.75rem] flex items-center border border-white/40 shadow-soft relative overflow-x-auto max-w-full custom-scrollbar">
               {[
                 { id: 'list', label: '전체 명단', icon: LayoutDashboard },
                 { id: 'units', label: '단원 관리', icon: BookOpen },
@@ -1896,14 +1896,14 @@ const Classroom = () => {
                       if (tab.id === 'teacher_materials' && activeClassId) fetchPrivateMaterials(activeClassId);
                     }}
                     className={`
-                      relative z-10 flex items-center gap-1.5 md:gap-3 px-4 md:px-8 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] font-black text-xs md:text-sm transition-all duration-500 whitespace-nowrap shrink-0
+                      relative z-10 flex items-center gap-1.5 md:gap-3 px-4 md:px-8 py-3 md:py-4 rounded-[1.5rem] md:rounded-[1.5rem] font-black text-xs md:text-sm transition-all duration-500 whitespace-nowrap shrink-0
                       ${isActive ? 'text-surface' : 'text-on-surface-variant hover:text-on-surface hover:bg-white/30'}
                     `}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="active-pill"
-                        className="absolute inset-0 bg-on-surface rounded-[2rem] shadow-elevated -z-10"
+                        className="absolute inset-0 bg-on-surface rounded-[1.5rem] shadow-elevated -z-10"
                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                       />
                     )}
@@ -2046,7 +2046,7 @@ const Classroom = () => {
                     });
                     if (filtered.length === 0) return (
                       <div className="flex flex-col items-center py-24 space-y-4">
-                        <div className="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center">
+                        <div className="w-20 h-20 rounded-2xl bg-indigo-50 flex items-center justify-center">
                           <StickyNote size={36} className="text-indigo-200" />
                         </div>
                         <p className="font-black text-on-surface opacity-60">아직 승인된 게시물이 없어요</p>
@@ -2063,7 +2063,7 @@ const Classroom = () => {
                               initial={{ opacity: 0, scale: 0.95 }}
                               animate={{ opacity: 1, scale: 1 }}
                               onClick={() => setBoardSelectedPost(post)}
-                              className={`break-inside-avoid rounded-3xl border-2 p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${
+                              className={`break-inside-avoid rounded-2xl border-2 p-5 space-y-3 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg ${
                                 isObs ? 'bg-violet-50 border-violet-100 hover:border-violet-300 hover:bg-violet-50/80' : 'bg-emerald-50 border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50/80'
                               }`}
                             >
@@ -2166,7 +2166,7 @@ const Classroom = () => {
                   {/* 작성 폼 */}
                   {showAnnouncementForm && (
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-                      className="p-5 bg-amber-50 border border-amber-200 rounded-3xl space-y-3">
+                      className="p-5 bg-amber-50 border border-amber-200 rounded-2xl space-y-3">
                       <input
                         value={announcementForm.title}
                         onChange={e => setAnnouncementForm(f => ({ ...f, title: e.target.value }))}
@@ -2207,7 +2207,7 @@ const Classroom = () => {
                     <div className="space-y-3">
                       {announcements.map(a => (
                         <motion.div key={a.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                          className={`p-5 rounded-3xl border-2 ${a.is_pinned ? 'border-amber-400 bg-amber-50' : 'border-surface-container bg-white'}`}>
+                          className={`p-5 rounded-2xl border-2 ${a.is_pinned ? 'border-amber-400 bg-amber-50' : 'border-surface-container bg-white'}`}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -2276,7 +2276,7 @@ const Classroom = () => {
                   {/* 작성 폼 */}
                   {showPrivateMatForm && (
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-                      className="p-5 bg-violet-50 border border-violet-200 rounded-3xl space-y-3">
+                      className="p-5 bg-violet-50 border border-violet-200 rounded-2xl space-y-3">
                       <div className="flex gap-2">
                         {(['note', 'link', 'file', 'material'] as const).map(t => (
                           <button key={t} onClick={() => setPrivateMatForm(f => ({ ...f, type: t, file: null, materialId: t === 'material' ? f.materialId : null }))}
@@ -2389,7 +2389,7 @@ const Classroom = () => {
                     <div className="space-y-3">
                       {privateMatList.map(m => (
                         <motion.div key={m.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                          className="p-5 rounded-3xl border border-violet-200 bg-white">
+                          className="p-5 rounded-2xl border border-violet-200 bg-white">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3 flex-1 min-w-0">
                               <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${m.type === 'link' ? 'bg-blue-100' : m.type === 'file' ? 'bg-amber-100' : m.type === 'material' ? 'bg-secondary/10' : 'bg-violet-100'}`}>
@@ -2621,7 +2621,7 @@ const Classroom = () => {
             exit={{ y: 100, opacity: 0 }}
             className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-xl px-4"
           >
-            <div className="bg-neutral-900/90 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between gap-8">
+            <div className="bg-neutral-900/90 backdrop-blur-2xl p-6 rounded-[1.75rem] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between gap-8">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/20">
                   <Users size={20} />
@@ -2690,7 +2690,7 @@ const Classroom = () => {
       <AnimatePresence>
         {isCreateModalOpen && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-on-surface/20 backdrop-blur-sm overflow-y-auto" onClick={() => setIsCreateModalOpen(false)}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-white p-8 md:p-10 rounded-[2.5rem] space-y-8 shadow-2xl border border-neutral-200 my-auto" onClick={e => e.stopPropagation()}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-white p-8 md:p-10 rounded-[1.75rem] space-y-8 shadow-2xl border border-neutral-200 my-auto" onClick={e => e.stopPropagation()}>
               <h3 className="text-2xl font-black text-center text-neutral-900">새 학급 만들기</h3>
               <form onSubmit={handleCreateClass} className="space-y-5">
                 <div className="space-y-1.5">
@@ -2896,7 +2896,7 @@ const Classroom = () => {
 
         {isUpdateModalOpen && updateClassData && (
           <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-black/30 backdrop-blur-md overflow-y-auto" onClick={() => { setIsUpdateModalOpen(false); setEditModalTab('basic'); }}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-white p-8 md:p-10 rounded-[3rem] space-y-8 shadow-2xl border border-neutral-200 my-auto" onClick={e => e.stopPropagation()}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-white p-8 md:p-10 rounded-[2rem] space-y-8 shadow-2xl border border-neutral-200 my-auto" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-black text-neutral-900">학급 정보 관리</h3>
                 <div className="flex p-1 bg-neutral-100 rounded-2xl border border-neutral-200">
@@ -3153,7 +3153,7 @@ const Classroom = () => {
                             </div>
                           ))}
                           {(!updateClassData.weekly_plan || updateClassData.weekly_plan.length === 0) && (
-                            <div className="py-10 text-center border-2 border-dashed border-neutral-100 rounded-[2rem]">
+                            <div className="py-10 text-center border-2 border-dashed border-neutral-100 rounded-[1.5rem]">
                               <p className="text-xs font-bold text-neutral-400">등록된 주차별 계획이 없습니다. 상단 [+ 주차 추가] 버튼을 눌러보세요!</p>
                             </div>
                           )}
@@ -3334,16 +3334,16 @@ const Classroom = () => {
 
         {isQRModalOpen && classInfo && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsQRModalOpen(false)}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm glass p-10 rounded-[3rem] text-center space-y-8 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm glass p-10 rounded-[2rem] text-center space-y-8 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
               <button onClick={() => setIsQRModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
               <div className="space-y-2">
                 <h3 className="text-3xl font-black font-manrope">{classInfo.name}</h3>
                 <p className="text-on-surface-variant font-bold">학생 입장용 QR 코드</p>
               </div>
-              <div className="bg-white p-6 rounded-[2.5rem] shadow-inner inline-block aspect-square">
+              <div className="bg-white p-6 rounded-[1.75rem] shadow-inner inline-block aspect-square">
                 <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://sangilog.vercel.app/classroom-entry?code=${classInfo.entry_code}`)}`} alt="QR Code" className="w-full h-full object-contain" />
               </div>
-              <div className="bg-primary/5 p-6 rounded-3xl space-y-2">
+              <div className="bg-primary/5 p-6 rounded-2xl space-y-2">
                 <p className="text-xs font-black text-primary uppercase tracking-widest">입장 코드</p>
                 <p className="text-4xl font-black font-manrope text-primary tracking-[0.2em]">{classInfo.entry_code}</p>
               </div>
@@ -3354,7 +3354,7 @@ const Classroom = () => {
         {/* 학생 명찰 관리 모달 (개별 추가/일괄 등록) */}
         {isStudentModalOpen && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsStudentModalOpen(false)}>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg surface-card shadow-2xl p-10 rounded-[3rem] space-y-8 relative" onClick={e => e.stopPropagation()}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg surface-card shadow-2xl p-10 rounded-[2rem] space-y-8 relative" onClick={e => e.stopPropagation()}>
               <button onClick={() => setIsStudentModalOpen(false)} className="absolute top-8 right-8 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
               <h3 className="text-3xl font-black font-manrope">학생 명단 관리</h3>
               <div className="flex p-1 bg-surface-container rounded-2xl mb-6">
@@ -3382,7 +3382,7 @@ const Classroom = () => {
           const today = getTodayStr();
           return (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsArchiveModalOpen(false)}>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl glass p-10 rounded-[3rem] space-y-6 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-2xl glass p-10 rounded-[2rem] space-y-6 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
               <button onClick={() => setIsArchiveModalOpen(false)} className="absolute top-8 right-8 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center text-secondary shadow-sm">
@@ -3421,7 +3421,7 @@ const Classroom = () => {
                     </div>
                   ) : archivedClasses.length > 0 ? (
                     archivedClasses.map(c => (
-                      <div key={c.id} className="flex items-center justify-between p-6 bg-white/60 rounded-[2rem] border border-surface-container-high transition-all hover:bg-white hover:shadow-soft">
+                      <div key={c.id} className="flex items-center justify-between p-6 bg-white/60 rounded-[1.5rem] border border-surface-container-high transition-all hover:bg-white hover:shadow-soft">
                         <div className="flex items-center gap-5">
                            <div className="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-on-surface-variant/60"><GraduationCap size={24} /></div>
                            <div className="flex flex-col">
@@ -3441,7 +3441,7 @@ const Classroom = () => {
                     ))
                   ) : (
                     <div className="py-20 text-center space-y-6 flex flex-col items-center">
-                      <div className="w-20 h-20 bg-surface-container rounded-[2rem] flex items-center justify-center opacity-50"><Archive size={32} /></div>
+                      <div className="w-20 h-20 bg-surface-container rounded-[1.5rem] flex items-center justify-center opacity-50"><Archive size={32} /></div>
                       <div className="space-y-2">
                         <p className="text-base font-black tracking-tight">아카이브함이 비어 있습니다.</p>
                         <p className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">아카이브된 학급이 없습니다.</p>
@@ -3454,7 +3454,7 @@ const Classroom = () => {
                       const autoClosedByDate = c.end_date && c.end_date < today;
                       const canResume = c.is_closed && !autoClosedByDate;
                       return (
-                        <div key={c.id} className="flex items-center justify-between p-6 bg-white/60 rounded-[2rem] border border-surface-container-high transition-all hover:bg-white hover:shadow-soft gap-4">
+                        <div key={c.id} className="flex items-center justify-between p-6 bg-white/60 rounded-[1.5rem] border border-surface-container-high transition-all hover:bg-white hover:shadow-soft gap-4">
                           <div className="flex items-center gap-5 min-w-0">
                              <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center text-rose-400 shrink-0"><Lock size={20} /></div>
                              <div className="flex flex-col min-w-0">
@@ -3484,7 +3484,7 @@ const Classroom = () => {
                     })
                   ) : (
                     <div className="py-20 text-center space-y-6 flex flex-col items-center">
-                      <div className="w-20 h-20 bg-surface-container rounded-[2rem] flex items-center justify-center opacity-50"><Lock size={32} /></div>
+                      <div className="w-20 h-20 bg-surface-container rounded-[1.5rem] flex items-center justify-center opacity-50"><Lock size={32} /></div>
                       <div className="space-y-2">
                         <p className="text-base font-black tracking-tight">종료된 학급이 없습니다.</p>
                         <p className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">진행 중인 학급만 있어요.</p>
@@ -3495,7 +3495,7 @@ const Classroom = () => {
               </div>
 
               {archiveModalTab === 'archived' && (
-                <div className="bg-error/5 p-6 rounded-3xl flex items-start gap-4 border border-error/10">
+                <div className="bg-error/5 p-6 rounded-2xl flex items-start gap-4 border border-error/10">
                   <AlertCircle size={20} className="text-error/70 mt-0.5" />
                   <p className="text-xs text-error/70 leading-relaxed font-bold">
                     아카이브함의 학급을 영구 삭제하면 학생 명단과 해당 학급에 기록된 모든 관찰 데이터가 영구적으로 손실됩니다. <br />
@@ -3539,7 +3539,7 @@ const Classroom = () => {
               >
                 <div
                   onClick={e => e.stopPropagation()}
-                  className={`pointer-events-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl border-2 shadow-2xl bg-white ${
+                  className={`pointer-events-auto w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border-2 shadow-2xl bg-white ${
                     isObs ? 'border-violet-200' : 'border-emerald-200'
                   }`}
                 >
@@ -3658,7 +3658,7 @@ const Classroom = () => {
         {/* 수업 자료실 모달 */}
         {isResourceModalOpen && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg glass p-8 rounded-[3rem] space-y-6 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg glass p-8 rounded-[2rem] space-y-6 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
               <button onClick={() => { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={22} /></button>
 
               {/* 헤더 */}
@@ -4038,7 +4038,7 @@ const Classroom = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
               {/* 헤더 */}
@@ -4260,10 +4260,10 @@ const Classroom = () => {
 
 const DashboardSkeleton = () => (
   <div className="space-y-8 animate-pulse">
-    <div className="h-44 bg-surface-container rounded-[2.5rem]" />
+    <div className="h-44 bg-surface-container rounded-[1.75rem]" />
     <div className="grid grid-cols-12 gap-8">
-      <div className="col-span-3 h-96 bg-surface-container rounded-[2.5rem]" />
-      <div className="col-span-9 h-96 bg-surface-container rounded-[2.5rem]" />
+      <div className="col-span-3 h-96 bg-surface-container rounded-[1.75rem]" />
+      <div className="col-span-9 h-96 bg-surface-container rounded-[1.75rem]" />
     </div>
   </div>
 );

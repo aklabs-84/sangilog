@@ -2245,7 +2245,7 @@ ${guidePrompt}
       </div>,
       document.body
     )}
-    <div className={`min-h-screen bg-surface flex flex-col p-6 pb-28 lg:pb-6 transition-[padding] duration-200 ${isSidebarCollapsed ? 'lg:pl-24' : 'lg:pl-64'}`}>
+    <div className={`min-h-screen bg-surface flex flex-col p-6 pb-28 lg:pb-6 transition-[padding] duration-200 ${isSidebarCollapsed ? 'lg:pl-28' : 'lg:pl-72'}`}>
       {/* Top Navbar */}
       <header className="flex items-center justify-between px-6 py-4 mb-4">
         <div className="flex items-center gap-3">
@@ -2294,7 +2294,7 @@ ${guidePrompt}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.96 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-80 z-40 bg-white rounded-3xl shadow-2xl border border-neutral-100 overflow-hidden"
+                    className="absolute right-0 top-full mt-2 w-80 z-40 bg-white rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden"
                   >
                     <div className="px-5 py-4 border-b border-neutral-100 flex items-center justify-between">
                       <span className="font-black text-sm">알림</span>
@@ -2371,7 +2371,7 @@ ${guidePrompt}
       <div className="max-w-6xl mx-auto w-full py-10 space-y-12">
         {/* Session Card & Identity */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          <div className="col-span-1 md:col-span-8 glass p-12 rounded-[3.5rem] flex items-center justify-between relative overflow-hidden border border-white/20 shadow-ambient h-[280px] group">
+          <div className="col-span-1 md:col-span-8 glass p-12 rounded-[2.5rem] flex items-center justify-between relative overflow-hidden border border-white/20 shadow-ambient h-[280px] group">
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform duration-1000" />
             <div className="relative z-10 space-y-4">
               <div className="flex items-center gap-3">
@@ -2386,7 +2386,7 @@ ${guidePrompt}
             </div>
           </div>
 
-          <div className="col-span-1 md:col-span-4 glass p-10 rounded-[3rem] border border-white/20 shadow-ambient flex flex-col justify-center relative overflow-hidden">
+          <div className="col-span-1 md:col-span-4 glass p-10 rounded-[2rem] border border-white/20 shadow-ambient flex flex-col justify-center relative overflow-hidden">
             <div className="absolute -top-10 -left-10 text-primary/5"><User size={120} /></div>
             <div className="relative z-10 space-y-6">
               <div className="space-y-1">
@@ -2417,7 +2417,7 @@ ${guidePrompt}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="surface-card rounded-[3.5rem] shadow-ambient overflow-hidden border border-surface-container-highest"
+          className="surface-card rounded-[2.5rem] shadow-ambient overflow-hidden border border-surface-container-highest"
         >
 
           {/* Tab Contents */}
@@ -2720,7 +2720,7 @@ ${guidePrompt}
                       <select
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        className={`w-full px-10 py-6 rounded-3xl text-xl font-black focus:ring-8 transition-all border-2 appearance-none cursor-pointer ${
+                        className={`w-full px-10 py-6 rounded-2xl text-xl font-black focus:ring-8 transition-all border-2 appearance-none cursor-pointer ${
                           title
                             ? 'bg-primary/5 border-primary/30 text-primary focus:ring-primary/10 focus:border-primary/50'
                             : 'bg-neutral-100 border-neutral-200/50 text-neutral-400 focus:ring-primary/10 focus:border-primary/30'
@@ -2747,7 +2747,7 @@ ${guidePrompt}
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="예: 구운몽의 환상 구조와 주제 의식 탐구"
-                      className="w-full px-10 py-6 bg-neutral-100 rounded-3xl text-xl font-black focus:ring-8 focus:ring-primary/10 transition-all border-2 border-neutral-200/50 focus:border-primary/30 shadow-inner"
+                      className="w-full px-10 py-6 bg-neutral-100 rounded-2xl text-xl font-black focus:ring-8 focus:ring-primary/10 transition-all border-2 border-neutral-200/50 focus:border-primary/30 shadow-inner"
                     />
                   </div>
                 )}
@@ -2759,7 +2759,7 @@ ${guidePrompt}
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="오늘 수업에서 내가 어떤 역할을 맡았고, 어떤 구체적인 활동 과정을 거쳤는지 자세히 입력하세요..."
-                      className={`w-full min-h-[350px] p-10 bg-neutral-100/80 backdrop-blur-sm rounded-[2.5rem] text-base leading-relaxed font-semibold focus:ring-8 transition-all border-2 resize-none shadow-sm ${
+                      className={`w-full min-h-[350px] p-10 bg-neutral-100/80 backdrop-blur-sm rounded-[1.75rem] text-base leading-relaxed font-semibold focus:ring-8 transition-all border-2 resize-none shadow-sm ${
                         minObsChars > 0 && content.trim().length < minObsChars && content.trim().length > 0
                           ? 'border-amber-300 focus:border-amber-400 focus:ring-amber-100'
                           : minObsChars > 0 && content.trim().length >= minObsChars
@@ -2805,11 +2805,11 @@ ${guidePrompt}
                         value={feeling}
                         onChange={(e) => setFeeling(e.target.value)}
                         placeholder="활동을 통해 새롭게 깨달은 지식, 확장된 호기심, 또는 어려웠던 점을 어떻게 해결했는지 기록하세요."
-                        className="w-full min-h-[220px] p-10 bg-neutral-100/80 backdrop-blur-sm rounded-[2.5rem] text-sm leading-relaxed font-bold focus:ring-8 focus:ring-primary/10 transition-all border-2 border-neutral-200/50 focus:border-primary/30 resize-none shadow-sm"
+                        className="w-full min-h-[220px] p-10 bg-neutral-100/80 backdrop-blur-sm rounded-[1.75rem] text-sm leading-relaxed font-bold focus:ring-8 focus:ring-primary/10 transition-all border-2 border-neutral-200/50 focus:border-primary/30 resize-none shadow-sm"
                       />
                     </div>
 
-                    <div className="glass p-10 rounded-[2.5rem] flex items-start gap-6 border border-primary/10 relative overflow-hidden group">
+                    <div className="glass p-10 rounded-[1.75rem] flex items-start gap-6 border border-primary/10 relative overflow-hidden group">
                       <div className="absolute top-0 left-0 w-2 h-full bg-primary/20 group-hover:bg-primary transition-all duration-500" />
                       <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-primary shadow-sm mt-1 shrink-0">
                         <Lightbulb size={24} />
@@ -2944,7 +2944,7 @@ ${guidePrompt}
                               initial={{ opacity: 0, x: -10 }}
                               animate={{ opacity: 1, x: 0 }}
                               onClick={() => { if (!isEditing) setDetailItem(log); }}
-                              className={`rounded-3xl border transition-all group ${
+                              className={`rounded-2xl border transition-all group ${
                                 isEditing
                                   ? 'p-6 border-primary/30 bg-primary/[0.02] cursor-default'
                                   : 'p-6 bg-surface-container-low border-surface-container hover:border-violet-200 cursor-pointer'
@@ -3089,7 +3089,7 @@ ${guidePrompt}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             onClick={() => setDetailItem({ ...r, _isGroupCard: true })}
-                            className="p-6 bg-surface-container-low border border-surface-container hover:border-emerald-200 rounded-3xl transition-all group cursor-pointer"
+                            className="p-6 bg-surface-container-low border border-surface-container hover:border-emerald-200 rounded-2xl transition-all group cursor-pointer"
                           >
                             <div className="flex items-start gap-4">
                               <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 mt-1">
@@ -3529,7 +3529,7 @@ ${guidePrompt}
                 )}
 
                 {/* ── 통합 입력 폼 ── */}
-                <div className="space-y-4 bg-surface-container-low rounded-3xl p-6 border border-surface-container">
+                <div className="space-y-4 bg-surface-container-low rounded-2xl p-6 border border-surface-container">
                   <input
                     type="text"
                     value={resultTitle}
@@ -4133,7 +4133,7 @@ ${guidePrompt}
                     onChange={e => setSuggestionContent(e.target.value)}
                     placeholder="수업 방식, 과제, 환경 등 자유롭게 의견을 작성해 주세요. 선생님께 전달됩니다."
                     rows={5}
-                    className="w-full p-6 bg-neutral-100 rounded-[2rem] text-sm font-bold leading-relaxed focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all"
+                    className="w-full p-6 bg-neutral-100 rounded-[1.5rem] text-sm font-bold leading-relaxed focus:outline-none focus:ring-4 focus:ring-primary/10 border-2 border-transparent focus:border-primary/20 resize-none transition-all"
                   />
                   <button
                     onClick={handleSubmitSuggestion}
@@ -4176,7 +4176,7 @@ ${guidePrompt}
                             key={s.id}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className={`rounded-3xl border transition-all group cursor-default ${
+                            className={`rounded-2xl border transition-all group cursor-default ${
                               isEditing
                                 ? 'p-6 border-primary/30 bg-primary/[0.02]'
                                 : 'p-6 bg-surface-container-low border-surface-container hover:border-primary/20'
@@ -4312,7 +4312,7 @@ ${guidePrompt}
 
                   if (playCount === 0 && !quizHistoryLoading) return null;
                   return (
-                    <div className="rounded-3xl border border-purple-100 bg-gradient-to-br from-purple-50/80 to-violet-50/60 p-5 space-y-4">
+                    <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/80 to-violet-50/60 p-5 space-y-4">
                       <div className="flex items-center justify-between">
                         <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest">나의 퀴즈 기록</p>
                         {rankBadge && (
@@ -4365,7 +4365,7 @@ ${guidePrompt}
                   </div>
                 ) : activeQuizSessions.length === 0 ? (
                   <div className="flex flex-col items-center py-20 space-y-4">
-                    <div className="w-20 h-20 rounded-3xl bg-purple-50 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-2xl bg-purple-50 flex items-center justify-center">
                       <Gamepad2 size={36} className="text-purple-300" />
                     </div>
                     <div className="text-center space-y-1">
@@ -4397,7 +4397,7 @@ ${guidePrompt}
                           key={qs.id}
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="rounded-3xl border-2 border-purple-100 bg-gradient-to-r from-purple-50 to-violet-50 p-6 flex items-center justify-between gap-4"
+                          className="rounded-2xl border-2 border-purple-100 bg-gradient-to-r from-purple-50 to-violet-50 p-6 flex items-center justify-between gap-4"
                         >
                           <div className="flex items-center gap-4 min-w-0">
                             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center shadow-lg shadow-purple-200 shrink-0">
@@ -4468,7 +4468,7 @@ ${guidePrompt}
                   </div>
                 ) : activeSurveyForms.length === 0 ? (
                   <div className="flex flex-col items-center py-20 space-y-4">
-                    <div className="w-20 h-20 rounded-3xl bg-teal-50 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-2xl bg-teal-50 flex items-center justify-center">
                       <BarChart2 size={36} className="text-teal-300" />
                     </div>
                     <div className="text-center space-y-1">
@@ -4490,7 +4490,7 @@ ${guidePrompt}
                         key={sf.id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="rounded-3xl border-2 border-teal-100 bg-gradient-to-r from-teal-50 to-emerald-50 p-6 flex items-center justify-between gap-4"
+                        className="rounded-2xl border-2 border-teal-100 bg-gradient-to-r from-teal-50 to-emerald-50 p-6 flex items-center justify-between gap-4"
                       >
                         <div className="flex items-center gap-4 min-w-0">
                           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-200 shrink-0">
@@ -4556,7 +4556,7 @@ ${guidePrompt}
                   </div>
                 ) : meetingHistory.length === 0 ? (
                   <div className="flex flex-col items-center py-20 space-y-4">
-                    <div className="w-20 h-20 rounded-3xl bg-rose-50 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-2xl bg-rose-50 flex items-center justify-center">
                       <ExternalLink size={36} className="text-rose-300" />
                     </div>
                     <div className="text-center space-y-1">
@@ -4571,7 +4571,7 @@ ${guidePrompt}
                         key={m.id}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className={`rounded-3xl border-2 p-6 flex items-center justify-between gap-4 ${
+                        className={`rounded-2xl border-2 p-6 flex items-center justify-between gap-4 ${
                           m.is_active
                             ? 'border-rose-100 bg-gradient-to-r from-rose-50 to-orange-50'
                             : 'border-surface-container bg-surface-container-low opacity-60'
@@ -4639,7 +4639,7 @@ ${guidePrompt}
                           key={bs.id}
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="rounded-3xl border-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 flex items-center justify-between gap-4"
+                          className="rounded-2xl border-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 flex items-center justify-between gap-4"
                         >
                           <div className="flex items-center gap-4 min-w-0">
                             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
@@ -4758,7 +4758,7 @@ ${guidePrompt}
                   if (filtered.length === 0) {
                     return (
                       <div className="flex flex-col items-center py-20 space-y-4">
-                        <div className="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center">
+                        <div className="w-20 h-20 rounded-2xl bg-indigo-50 flex items-center justify-center">
                           <StickyNote size={36} className="text-indigo-200" />
                         </div>
                         <div className="text-center space-y-1">
@@ -4782,7 +4782,7 @@ ${guidePrompt}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             onClick={() => setBoardSelectedPost(post)}
-                            className={`break-inside-avoid rounded-3xl border-2 p-5 space-y-3 transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
+                            className={`break-inside-avoid rounded-2xl border-2 p-5 space-y-3 transition-all cursor-pointer hover:scale-[1.02] hover:shadow-md ${
                               isMe
                                 ? isObs
                                   ? 'bg-violet-50 border-violet-200 hover:border-violet-300'
@@ -4903,7 +4903,7 @@ ${guidePrompt}
               <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
-                  className="bg-white rounded-3xl shadow-2xl p-7 w-80 mx-4"
+                  className="bg-white rounded-2xl shadow-2xl p-7 w-80 mx-4"
                 >
                   <div className="flex flex-col items-center gap-2 mb-5">
                     <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center mb-1">
@@ -5102,7 +5102,7 @@ ${guidePrompt}
                         </div>
                       ) : noteList.length === 0 ? (
                         <div className="flex flex-col items-center gap-4 py-12 text-center">
-                          <div className="w-16 h-16 rounded-3xl bg-emerald-50 flex items-center justify-center">
+                          <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center">
                             <NotebookPen size={28} className="text-emerald-300" />
                           </div>
                           <div>
@@ -5339,7 +5339,7 @@ ${guidePrompt}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 350 }}
-              className="lg:hidden fixed bottom-[68px] left-0 right-0 z-40 bg-white rounded-t-[2rem] shadow-2xl border-t border-slate-200 overflow-hidden"
+              className="lg:hidden fixed bottom-[68px] left-0 right-0 z-40 bg-white rounded-t-[1.5rem] shadow-2xl border-t border-slate-200 overflow-hidden"
             >
               {/* 핸들 */}
               <div className="flex justify-center pt-3 pb-2">
@@ -5443,7 +5443,7 @@ ${guidePrompt}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               onClick={e => e.stopPropagation()}
-              className="w-full max-w-lg bg-white p-10 rounded-[3rem] space-y-8 shadow-2xl relative overflow-hidden"
+              className="w-full max-w-lg bg-white p-10 rounded-[2rem] space-y-8 shadow-2xl relative overflow-hidden"
             >
               {/* 상단 색상 바 */}
               <div className={`absolute top-0 left-0 w-full h-2 bg-gradient-to-r ${
@@ -5453,7 +5453,7 @@ ${guidePrompt}
               }`} />
 
               <div className="flex justify-center mb-4">
-                <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-inner border ${
+                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center shadow-inner border ${
                   rejectModalType === 'auto_reject'
                     ? 'bg-amber-50 text-amber-500 border-amber-100'
                     : 'bg-error/5 text-error border-error/10'
@@ -5477,7 +5477,7 @@ ${guidePrompt}
               </div>
 
               <div className="space-y-4 pt-2">
-                <div className="space-y-2 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                <div className="space-y-2 bg-slate-50 p-6 rounded-2xl border border-slate-100">
                   <h4 className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 ${
                     rejectModalType === 'auto_reject' ? 'text-amber-600' : 'text-error'
                   }`}>
@@ -5489,7 +5489,7 @@ ${guidePrompt}
                   <p className="text-sm font-bold text-slate-600 leading-relaxed">{aiFeedback.reason}</p>
                 </div>
                 {aiFeedback.guide && (
-                  <div className="space-y-2 bg-primary/5 p-6 rounded-3xl border border-primary/10">
+                  <div className="space-y-2 bg-primary/5 p-6 rounded-2xl border border-primary/10">
                     <h4 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-primary" /> 이렇게 수정해보세요
                     </h4>
@@ -5547,7 +5547,7 @@ ${guidePrompt}
                 exit={{ opacity: 0, y: 60 }}
                 transition={{ type: 'spring', damping: 28, stiffness: 320 }}
                 onClick={e => e.stopPropagation()}
-                className="w-full sm:max-w-lg bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                className="w-full sm:max-w-lg bg-white rounded-t-[1.75rem] sm:rounded-[1.75rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
               >
                 {/* 헤더 */}
                 <div className={`px-8 pt-8 pb-6 shrink-0 ${isObs ? 'bg-violet-50 border-b border-violet-100' : 'bg-emerald-50 border-b border-emerald-100'}`}>
@@ -5816,7 +5816,7 @@ ${guidePrompt}
               >
                 <div
                   onClick={e => e.stopPropagation()}
-                  className={`pointer-events-auto w-full max-w-lg max-h-[75vh] overflow-y-auto rounded-3xl border-2 shadow-2xl bg-white ${
+                  className={`pointer-events-auto w-full max-w-lg max-h-[75vh] overflow-y-auto rounded-2xl border-2 shadow-2xl bg-white ${
                     isMe
                       ? isObs ? 'border-violet-200' : 'border-emerald-200'
                       : 'border-slate-200'
@@ -5960,7 +5960,7 @@ ${guidePrompt}
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-blue-400"
+              className="relative w-full max-w-lg bg-white rounded-t-2xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-blue-400"
             >
               <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
               <div className="flex items-start gap-4 mb-6">
@@ -6008,7 +6008,7 @@ ${guidePrompt}
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-violet-400"
+              className="relative w-full max-w-lg bg-white rounded-t-2xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-violet-400"
             >
               <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
               <div className="flex items-start gap-4 mb-6">
@@ -6060,7 +6060,7 @@ ${guidePrompt}
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-red-400"
+              className="relative w-full max-w-lg bg-white rounded-t-2xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-red-400"
             >
               <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
               <div className="flex items-start gap-4 mb-6">
@@ -6115,7 +6115,7 @@ ${guidePrompt}
             <motion.div
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-green-400"
+              className="relative w-full max-w-lg bg-white rounded-t-2xl px-6 pt-5 pb-8 shadow-2xl border-t-4 border-green-400"
             >
               <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
               <div className="flex items-start gap-4 mb-6">
@@ -6168,7 +6168,7 @@ ${guidePrompt}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="relative w-full max-w-lg bg-white rounded-t-3xl px-6 pt-5 pb-8 shadow-2xl"
+              className="relative w-full max-w-lg bg-white rounded-t-2xl px-6 pt-5 pb-8 shadow-2xl"
             >
               {/* 드래그 핸들 */}
               <div className="w-10 h-1.5 bg-neutral-200 rounded-full mx-auto mb-5" />
