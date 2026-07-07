@@ -143,6 +143,7 @@ export async function addVideoLink(
 export interface DriveFolderLink {
   folder_url: string;
   folder_id: string;
+  folder_name?: string;
 }
 
 export interface DriveFolderApiItem {
@@ -152,17 +153,14 @@ export interface DriveFolderApiItem {
   createdTime: string;
 }
 
-export function extractDriveFolderId(url: string): string | null {
-  const trimmed = url.trim();
-  const folderMatch = trimmed.match(/drive\.google\.com\/drive\/folders\/([a-zA-Z0-9_-]+)/);
-  if (folderMatch) return folderMatch[1];
-  const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (idParamMatch) return idParamMatch[1];
-  return null;
-}
-
 export async function fetchDriveFolderItems(folderId: string): Promise<DriveFolderApiItem[]> {
-  const res = await fetch(`/api/drive-folder?folderId=${encodeURIComponent(folderId)}`);
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error('로그인이 필요합니다.');
+
+  const res = await fetch(`/api/drive-folder?folderId=${encodeURIComponent(folderId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error ?? '구글 드라이브 폴더 조회에 실패했습니다.');
   return data.items ?? [];
@@ -188,10 +186,10 @@ export async function setDriveFolderLink(
   teacherId: string,
   classId: string,
   weekNumber: number | null,
-  folderUrl: string
+  folderId: string,
+  folderName: string
 ): Promise<DriveFolderLink> {
-  const folderId = extractDriveFolderId(folderUrl);
-  if (!folderId) throw new Error('올바른 구글 드라이브 폴더 링크가 아닙니다.');
+  const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
 
   const { error } = await supabase
     .from('class_gallery_drive_folders')
@@ -200,13 +198,14 @@ export async function setDriveFolderLink(
         teacher_id: teacherId,
         class_id: classId,
         week_number: weekNumber,
-        folder_url: folderUrl.trim(),
+        folder_url: folderUrl,
         folder_id: folderId,
       },
       { onConflict: 'class_id, week_number' }
     );
   if (error) throw error;
-  return { folder_url: folderUrl.trim(), folder_id: folderId };
+  // folder_name은 DB에 저장하지 않음 (선택 직후 UI 표시용) — Picker에서 다시 선택하면 항상 최신 이름을 받는다.
+  return { folder_url: folderUrl, folder_id: folderId, folder_name: folderName };
 }
 
 export async function removeDriveFolderLink(classId: string, weekNumber: number | null): Promise<void> {
