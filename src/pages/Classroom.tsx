@@ -1609,8 +1609,26 @@ const Classroom = () => {
   };
 
   const handleDeleteEditorMat = async (id: string) => {
+    // 주차별 자료(weekly_plan)에 연결된 자료인지 확인 — 연결된 채로 삭제하면 주차별 자료실에서 끊어진 링크가 남는다
+    const effectivePlan: any[] = classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || []);
+    const linkedWeeks = effectivePlan.filter((p: any) => p.material_id === id).map((p: any) => p.week);
+    if (linkedWeeks.length > 0) {
+      const ok = confirm(`이 자료는 ${linkedWeeks.join(', ')}주차 주차별 자료에 연결되어 있습니다.\n삭제하면 해당 주차에서 자료를 열 수 없게 됩니다. 그래도 삭제하시겠습니까?`);
+      if (!ok) return;
+    }
     setDeletingEditorMatId(id);
     try {
+      if (linkedWeeks.length > 0) {
+        const ownerClassId = classInfo?.parent_class_id || activeClassId;
+        const newPlan = effectivePlan.map((p: any) => p.material_id === id ? { ...p, material_id: '' } : p);
+        const { error: planError } = await supabase.from('classes').update({ weekly_plan: newPlan }).eq('id', ownerClassId);
+        if (planError) throw planError;
+        if (classInfo?.parent_class_id) {
+          setParentWeeklyPlan(newPlan);
+        } else {
+          setClassInfo((prev: any) => prev ? { ...prev, weekly_plan: newPlan } : prev);
+        }
+      }
       const { error } = await supabase.from('class_materials').delete().eq('id', id);
       if (error) throw error;
       setClassMaterials(prev => prev.filter(m => m.id !== id));
@@ -3678,14 +3696,18 @@ const Classroom = () => {
                             <button
                               key={`plan-${item.week}`}
                               onClick={() => {
-                                if (isMaterial && matInfo) {
-                                  setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '' });
+                                if (isMaterial) {
+                                  if (matInfo) {
+                                    setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '' });
+                                  } else {
+                                    showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
+                                  }
                                 } else {
                                   window.open(item.url, '_blank');
                                 }
                               }}
                               className={`w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container-high group transition-all text-left ${
-                                isMaterial ? 'hover:bg-secondary/5' : 'hover:bg-primary/5'
+                                isMaterial && !matInfo ? 'opacity-50' : isMaterial ? 'hover:bg-secondary/5' : 'hover:bg-primary/5'
                               }`}
                             >
                               {/* 아이콘 */}
@@ -3702,7 +3724,7 @@ const Classroom = () => {
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-black truncate">
                                   {isMaterial
-                                    ? (matInfo?.title || '수업 자료 에디터')
+                                    ? (matInfo ? (matInfo.title || '수업 자료 에디터') : '연결된 자료가 삭제됨')
                                     : (item.topic || item.url)
                                   }
                                 </p>
