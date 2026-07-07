@@ -4,7 +4,7 @@ import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
-import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem } from '../lib/gallery';
+import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl } from '../lib/gallery';
 import {
   GraduationCap,
   RefreshCw,
@@ -885,7 +885,18 @@ const ShareClassView = () => {
                         </div>
                       ) : (
                         <div className="rounded-2xl overflow-hidden bg-gray-100 shadow-sm">
-                          <video src={item.file_url} controls className="w-full" />
+                          {(() => {
+                            const info = parseVideoUrl(item.file_url);
+                            return info && info.platform !== 'direct' ? (
+                              <iframe
+                                src={info.embedUrl}
+                                className="w-full aspect-video"
+                                allow="autoplay; fullscreen; picture-in-picture"
+                              />
+                            ) : (
+                              <video src={item.file_url} controls className="w-full" />
+                            );
+                          })()}
                           {item.caption && <p className="text-xs font-semibold text-gray-600 px-3 py-2 truncate">{item.caption}</p>}
                         </div>
                       )}
