@@ -857,16 +857,19 @@ function VideoGalleryCard({
           allow="autoplay; fullscreen; picture-in-picture"
         />
       ) : (
-        <video
-          src={item.file_url}
-          controls
-          style={aspectStyle}
-          className="w-full"
-          onLoadedMetadata={e => {
-            const v = e.currentTarget;
-            if (v.videoWidth && v.videoHeight) setDirectRatio(v.videoWidth / v.videoHeight);
-          }}
-        />
+        // aspect-ratio를 video 태그에 직접 주면 네이티브 컨트롤 바 높이 계산이 어긋나 하단이 잘리는
+        // 브라우저 버그가 있어, 비율은 래퍼 div에 주고 video는 절대 위치로 100% 채움
+        <div className="relative w-full bg-black" style={aspectStyle}>
+          <video
+            src={item.file_url}
+            controls
+            className="absolute inset-0 w-full h-full"
+            onLoadedMetadata={e => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) setDirectRatio(v.videoWidth / v.videoHeight);
+            }}
+          />
+        </div>
       )}
 
       {item.source === 'drive' && (

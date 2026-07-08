@@ -328,8 +328,6 @@ const ShareClassView = () => {
   const allGalleryImgs = filteredGallery.filter((g) => g.file_type === 'image');
   const allGalleryImgUrls = allGalleryImgs.map((g) => g.file_url);
   const allGalleryImgNames = allGalleryImgs.map((g, i) => g.file_name || `image_${i + 1}.webp`);
-  const allGalleryVideos = filteredGallery.filter((g) => g.file_type === 'video');
-
   const handleZipDownload = async () => {
     if (zipping || allGalleryImgs.length === 0) return;
     setZipping(true);
@@ -947,46 +945,38 @@ const ShareClassView = () => {
                   <p className="font-black text-gray-400 text-sm">등록된 갤러리 항목이 없습니다</p>
                 </div>
               ) : (
-                <>
-                  {allGalleryVideos.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                      {allGalleryVideos.map((item) => (
-                        <ShareGalleryVideo key={item.id} item={item} />
-                      ))}
-                    </div>
-                  )}
-                  {allGalleryImgs.length > 0 && (
-                    <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 space-y-3">
-                      {allGalleryImgs.map((item) => (
-                        <div key={item.id} className="break-inside-avoid">
-                          <div
-                            className="relative group cursor-pointer rounded-2xl overflow-hidden bg-gray-100 shadow-sm hover:shadow-md transition-all"
-                            onClick={() => setLightbox({ urls: allGalleryImgUrls, names: allGalleryImgNames, index: allGalleryImgUrls.indexOf(item.file_url) })}
-                          >
-                            <img src={item.file_url} alt={item.caption || item.file_name || '갤러리'} className="w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
-                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <ZoomIn size={22} className="text-white" />
-                            </div>
-                            <button
-                              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-indigo-600 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all"
-                              onClick={(e) => { e.stopPropagation(); blobDownload(item.file_url, item.file_name || 'image.webp'); }}
-                              title="개별 다운로드"
-                            >
-                              <Download size={13} />
-                            </button>
-                            {(item.caption || item.week_number) && (
-                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {item.week_number && <p className="text-[10px] font-bold text-white/80">{item.week_number}주차</p>}
-                                {item.caption && <p className="text-xs font-semibold text-white truncate">{item.caption}</p>}
-                              </div>
-                            )}
-                          </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                  {filteredGallery.map((item) =>
+                    item.file_type === 'video' ? (
+                      <ShareGalleryVideo key={item.id} item={item} />
+                    ) : (
+                      <div
+                        key={item.id}
+                        className="relative group cursor-pointer aspect-square rounded-2xl overflow-hidden bg-gray-100 shadow-sm hover:shadow-md transition-all"
+                        onClick={() => setLightbox({ urls: allGalleryImgUrls, names: allGalleryImgNames, index: allGalleryImgUrls.indexOf(item.file_url) })}
+                      >
+                        <img src={item.file_url} alt={item.caption || item.file_name || '갤러리'} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ZoomIn size={22} className="text-white" />
                         </div>
-                      ))}
-                    </div>
+                        <button
+                          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 hover:bg-indigo-600 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all"
+                          onClick={(e) => { e.stopPropagation(); blobDownload(item.file_url, item.file_name || 'image.webp'); }}
+                          title="개별 다운로드"
+                        >
+                          <Download size={13} />
+                        </button>
+                        {(item.caption || item.week_number) && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {item.week_number && <p className="text-[10px] font-bold text-white/80">{item.week_number}주차</p>}
+                            {item.caption && <p className="text-xs font-semibold text-white truncate">{item.caption}</p>}
+                          </div>
+                        )}
+                      </div>
+                    )
                   )}
-                </>
+                </div>
               )}
             </>
           )}
@@ -1350,7 +1340,7 @@ function ShareGalleryVideo({ item }: { item: GalleryItem }) {
     : { aspectRatio: isVerticalVideoUrl(item.file_url) ? 9 / 16 : 16 / 9 };
 
   return (
-    <div className="rounded-2xl overflow-hidden bg-gray-100 shadow-sm">
+    <div className="col-span-2 rounded-2xl overflow-hidden bg-gray-100 shadow-sm">
       {info && info.platform !== 'direct' ? (
         <iframe
           src={info.embedUrl}
@@ -1359,16 +1349,19 @@ function ShareGalleryVideo({ item }: { item: GalleryItem }) {
           allow="autoplay; fullscreen; picture-in-picture"
         />
       ) : (
-        <video
-          src={item.file_url}
-          controls
-          style={aspectStyle}
-          className="w-full"
-          onLoadedMetadata={(e) => {
-            const v = e.currentTarget;
-            if (v.videoWidth && v.videoHeight) setDirectRatio(v.videoWidth / v.videoHeight);
-          }}
-        />
+        // aspect-ratio를 video 태그에 직접 주면 네이티브 컨트롤 바 높이 계산이 어긋나 하단이 잘리는
+        // 브라우저 버그가 있어, 비율은 래퍼 div에 주고 video는 절대 위치로 100% 채움
+        <div className="relative w-full bg-black" style={aspectStyle}>
+          <video
+            src={item.file_url}
+            controls
+            className="absolute inset-0 w-full h-full"
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) setDirectRatio(v.videoWidth / v.videoHeight);
+            }}
+          />
+        </div>
       )}
       {item.caption && <p className="text-xs font-semibold text-gray-600 px-3 py-2 truncate">{item.caption}</p>}
     </div>
