@@ -276,6 +276,7 @@ const ResizableImage = ImageExtension.extend({
             ? ` "width:${node.attrs.width}"`
             : node.attrs.title ? ` "${node.attrs.title}"` : '';
           state.write(`![${alt}](${src}${titlePart})`);
+          state.closeBlock(node);
         },
         parse: {},
       },
