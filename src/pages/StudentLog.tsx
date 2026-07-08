@@ -866,7 +866,7 @@ const StudentLog = () => {
 
       if (data) {
         setTeacherId(data.teacher_id);
-        setGuidePrompt(data.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요.');
+        setGuidePrompt(data.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 글의 일부에라도 같은 글자·자음·모음이 의미 없이 반복되는 부분이 있다면, 앞부분에 정상적인 내용이 있더라도 반드시 반려 처리해 주세요.');
         setMinObsChars(data.min_obs_chars || 0);
         setBlockedKeywords(data.blocked_keywords || []);
         setAiReviewEnabled(data.ai_review_enabled ?? true);
@@ -988,13 +988,14 @@ const StudentLog = () => {
   };
 
   const handleSaveEditLog = async (logId: string) => {
-    if (!editLogForm.activity_name.trim()) {
-      showToast('활동 제목을 입력해주세요.', 'error'); return;
+    const hasTopics = classResources && classResources.length > 0 && classResources[0]?.topic;
+    const normE = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
+    const editWeekMatch = (classResources as any[]).find(r => normE(r.topic) === normE(editLogForm.activity_name.trim()));
+    if (!editLogForm.activity_name.trim() || (hasTopics && !editWeekMatch)) {
+      showToast(hasTopics ? '주차를 선택해주세요.' : '활동 제목을 입력해주세요.', 'error'); return;
     }
     setSavingLogId(logId);
     try {
-      const normE = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
-      const editWeekMatch = (classResources as any[]).find(r => normE(r.topic) === normE(editLogForm.activity_name.trim()));
       const editWeekNumber = editWeekMatch?.week ?? null;
       const { error } = await supabase
         .from('observations')
@@ -2025,8 +2026,10 @@ const StudentLog = () => {
   };
 
   const handleSubmit = async () => {
-    if (!title) {
-      const hasTopics = classResources && classResources.length > 0 && classResources[0]?.topic;
+    const hasTopics = classResources && classResources.length > 0 && classResources[0]?.topic;
+    const normTitle = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
+    const titleWeekMatch = hasTopics ? (classResources as any[]).find(r => normTitle(r.topic) === normTitle(title)) : null;
+    if (!title || (hasTopics && !titleWeekMatch)) {
       showToast(hasTopics ? '주차를 선택해주세요.' : '활동 제목을 입력해주세요.', 'error');
       return;
     }
@@ -2083,13 +2086,15 @@ ${guidePrompt}
    - 교사 지침의 핵심 요구사항을 명백히 충족하지 못한 경우
    - 수업과 무관하거나 구체적 활동 없이 단순 감상·감정만 나열한 경우
    - 의미 없는 문장 반복으로 분량만 채운 경우
+   - 같은 글자·자음·모음이 의미 없이 반복되는 부분(예: "아아아아", "ㅋㅋㅋㅋㅋ", "ㅠㅠㅠㅠㅠ" 등)이 내용에 조금이라도 포함된 경우
+     → 앞부분에 정상적인 내용이 있어 전체적으로는 승인할 만해 보이더라도, 이 경우는 예외 없이 반드시 review_needed로 처리하세요.
    → reason: 학생에게 보여줄 반려 사유 (한두 문장, 구체적으로)
    → guide: 어떻게 수정하면 좋을지 친절한 개선 방향 (한두 문장)
 
 2. good (승인):
    - 교사 지침을 어느 정도 충족하거나 수업과 관련된 내용이 있으면 승인
    - 분량·문체·맞춤법 무관, 진정성 있는 내용이면 승인
-   - 애매한 경우는 반드시 good으로 처리
+   - 위 review_needed 사유(특히 무의미한 문자 반복)에 해당하지 않는 한, 애매한 경우는 반드시 good으로 처리
 
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
 {"status":"good","reason":"","guide":""}
@@ -2116,8 +2121,7 @@ ${guidePrompt}
       // ── 1. 관찰 기록 저장 ──────────────────────────────────────────────────
       // review_needed → rejected 자동 반려 (teacher_feedback = AI 사유)
       const obsStatus = aiReviewFlag === 'review_needed' ? 'rejected' : 'approved';
-      const normW = (s: string) => s?.replace(/\s+/g, '').toLowerCase() || '';
-      const weekMatch = (classResources as any[]).find(r => normW(r.topic) === normW(title));
+      const weekMatch = titleWeekMatch ?? (classResources as any[]).find(r => normTitle(r.topic) === normTitle(title));
       const { error: obsError } = await supabase
         .from('observations')
         .insert({
