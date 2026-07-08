@@ -41,6 +41,17 @@ const RESULT_TYPE_BADGE: Record<string, { icon: JSX.Element; color: string; labe
   file:  { icon: <FileIcon size={11} />,  color: 'text-amber-500 bg-amber-50',     label: '파일' },
 };
 
+const CONTENT_TYPE_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'image/bmp': 'bmp',
+  'image/tiff': 'tiff',
+};
+
 async function blobDownload(url: string, filename: string) {
   const res = await fetch(url);
   const blob = await res.blob();
@@ -328,8 +339,16 @@ const ShareClassView = () => {
         allGalleryImgs.map(async (item, i) => {
           const res = await fetch(item.file_url);
           const blob = await res.blob();
-          const ext = item.file_url.split('.').pop()?.split('?')[0] || 'webp';
-          const name = `${String(i + 1).padStart(3, '0')}_${item.file_name?.replace(/\.[^.]+$/, '') || `image_${i + 1}`}.${ext}`;
+          // 드라이브 연동 이미지는 file_url이 확장자 없는 프록시 주소(/api/drive-file?...)라
+          // Content-Type/파일명 기준으로 확장자를 판별해야 함 (그렇지 않으면 파일명에 '/'가
+          // 섞여 zip 안에 엉뚱한 폴더 구조가 생김)
+          const ext =
+            CONTENT_TYPE_EXT[(res.headers.get('content-type') || '').split(';')[0].trim()] ||
+            item.file_name?.match(/\.([a-zA-Z0-9]+)$/)?.[1] ||
+            item.file_url.split('?')[0].match(/\.([a-zA-Z0-9]+)$/)?.[1] ||
+            'jpg';
+          const baseName = (item.file_name?.replace(/\.[^./]+$/, '') || `image_${i + 1}`).replace(/[\\/]/g, '_');
+          const name = `${String(i + 1).padStart(3, '0')}_${baseName}.${ext}`;
           zip.file(name, blob);
         })
       );
