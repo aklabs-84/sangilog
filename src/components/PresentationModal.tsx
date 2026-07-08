@@ -214,12 +214,21 @@ const PresentationModal = ({
         if (e.key === 'Escape') setEditMode(false);
         return;
       }
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      if (!isTyping) {
+        if (e.key === '1') { setTheme(t => (t === 'dark' ? 'light' : 'dark')); return; }
+        if (e.key === '2') { selectTool('zoom'); return; }
+        if (e.key === '3') { selectTool('pen'); return; }
+        if (e.key === '4') { selectTool('spotlight'); return; }
+        if (e.key === '5') { timer.toggle(); return; }
+      }
       if (tool !== 'none' && e.key === 'Escape') { setTool('none'); return; }
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose, editMode, tool, zoomedImage]);
+  }, [onClose, editMode, tool, zoomedImage, timer]);
 
   // ── 문서 스크롤 영역 크기/스크롤 위치 추적 (돋보기·스포트라이트가 "지금 화면에
   // 보이는 부분"을 계산하는 데 필요) — 편집모드로 전환되어도 캔버스가 리셋되지
@@ -348,7 +357,8 @@ const PresentationModal = ({
     setCanUndo(false);
   };
 
-  const SPOTLIGHT_RADIUS = 130;
+  const SPOTLIGHT_RADIUS = 190;
+  const SPOTLIGHT_ZOOM = 1.6;
 
   return createPortal(
     <SlideImageZoomContext.Provider value={setZoomedImage}>
@@ -398,15 +408,27 @@ const PresentationModal = ({
             >
               <Flashlight size={16} />
             </button>
-            <button
-              onClick={timer.toggle}
-              title="타이머"
-              className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-black tabular-nums transition-all ${timer.isRunning ? 'bg-primary text-white' : dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
-            >
-              {timer.isRunning ? <Pause size={14} /> : <Play size={14} />}
-              <TimerIcon size={14} />
-              {String(Math.floor(timer.remainingSeconds / 60)).padStart(2, '0')}:{String(timer.remainingSeconds % 60).padStart(2, '0')}
-            </button>
+            <div className={`flex items-center rounded-xl ${dark ? 'bg-white/10' : 'bg-slate-900/5'}`}>
+              <button
+                onClick={timer.toggle}
+                title="타이머 시작/정지 (5)"
+                className={`flex items-center gap-1.5 pl-2.5 pr-1.5 py-2 rounded-l-xl text-xs font-black tabular-nums transition-all ${timer.isRunning ? 'bg-primary text-white' : dark ? 'text-white/70 hover:bg-white/20' : 'text-slate-600 hover:bg-slate-900/10'}`}
+              >
+                {timer.isRunning ? <Pause size={14} /> : <Play size={14} />}
+                <TimerIcon size={14} />
+                {String(Math.floor(timer.remainingSeconds / 60)).padStart(2, '0')}:{String(timer.remainingSeconds % 60).padStart(2, '0')}
+              </button>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                value={Math.floor(timer.totalSeconds / 60)}
+                onChange={(e) => timer.applyTime(Math.max(0, Math.min(99, Number(e.target.value) || 0)), 0)}
+                title="타이머 시간(분) 직접 입력"
+                className={`w-9 text-center text-xs font-black bg-transparent focus:outline-none py-2 ${dark ? 'text-white/70' : 'text-slate-600'}`}
+              />
+              <span className={`text-[10px] font-bold pr-2 ${dark ? 'text-white/40' : 'text-slate-400'}`}>분</span>
+            </div>
           </div>
         )}
 
@@ -491,47 +513,62 @@ const PresentationModal = ({
             );
           })()}
 
-          {/* 스포트라이트 (레이저 포인터) — 원 안쪽은 지금 보이는 내용을 밝기/대비만 높여 다시 그려 또렷하게, 바깥은 짙게 어둡게 */}
-          {!editMode && tool === 'spotlight' && lensPos && (
-            <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
-              {/* 원 안쪽 — 같은 스크롤 위치의 같은 콘텐츠를 밝기/대비 필터만 올려 복제 */}
-              <div
-                className="absolute inset-0 overflow-hidden"
-                style={{
-                  clipPath: `circle(${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px)`,
-                  WebkitClipPath: `circle(${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px)`,
-                }}
-              >
+          {/* 스포트라이트 (레이저 포인터) — 원 안쪽은 커서 위치를 중심으로 확대해서 선명하게, 바깥은 짙게 어둡게 */}
+          {!editMode && tool === 'spotlight' && lensPos && paneSize.width > 0 && docHeight > 0 && (() => {
+            const panelW = paneSize.width;
+            const panelH = paneSize.height;
+            const scaledW = panelW * SPOTLIGHT_ZOOM;
+            const scaledH = docHeight * SPOTLIGHT_ZOOM;
+            let tx = lensPos.x - lensPos.x * SPOTLIGHT_ZOOM;
+            let ty = lensPos.y - (lensPos.y + scrollTop) * SPOTLIGHT_ZOOM;
+            tx = Math.min(0, Math.max(panelW - scaledW, tx));
+            ty = Math.min(0, Math.max(panelH - scaledH, ty));
+            return (
+              <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
+                {/* 원 안쪽 — 같은 콘텐츠를 커서 중심으로 확대 복제 (그라데이션 없이 테두리까지 선명) */}
                 <div
-                  className={`absolute inset-x-0 ${dark ? 'bg-[#0a0a14]' : 'bg-slate-50'}`}
-                  style={{ top: -scrollTop, filter: dark ? 'brightness(1.8) contrast(1.15) saturate(1.1)' : 'brightness(1.1) contrast(1.05)' }}
+                  className="absolute inset-0 overflow-hidden"
+                  style={{
+                    clipPath: `circle(${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px)`,
+                    WebkitClipPath: `circle(${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px)`,
+                  }}
                 >
-                  <div className="max-w-6xl mx-auto px-8 md:px-16 py-14">
-                    {docInner}
+                  <div
+                    className={`absolute inset-x-0 ${dark ? 'bg-[#0a0a14]' : 'bg-slate-50'}`}
+                    style={{
+                      width: panelW,
+                      transform: `translate(${tx}px, ${ty}px) scale(${SPOTLIGHT_ZOOM})`,
+                      transformOrigin: '0 0',
+                      filter: dark ? 'brightness(1.3) contrast(1.08) saturate(1.05)' : 'brightness(1.03) contrast(1.02)',
+                    }}
+                  >
+                    <div className="max-w-6xl mx-auto px-8 md:px-16 py-14">
+                      {docInner}
+                    </div>
                   </div>
                 </div>
+                {/* 원 바깥쪽을 짙게 어둡게 — 안쪽은 테두리 직전까지 완전히 선명하고, 테두리에서만 살짝 페더 처리 */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: 'rgba(0,0,0,0.92)',
+                    WebkitMaskImage: `radial-gradient(circle ${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px, transparent 0px, transparent ${SPOTLIGHT_RADIUS - 3}px, black ${SPOTLIGHT_RADIUS}px)`,
+                    maskImage: `radial-gradient(circle ${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px, transparent 0px, transparent ${SPOTLIGHT_RADIUS - 3}px, black ${SPOTLIGHT_RADIUS}px)`,
+                  } as CSSProperties}
+                />
+                <div
+                  className="absolute rounded-full"
+                  style={{
+                    width: SPOTLIGHT_RADIUS * 2,
+                    height: SPOTLIGHT_RADIUS * 2,
+                    left: lensPos.x - SPOTLIGHT_RADIUS,
+                    top: lensPos.y - SPOTLIGHT_RADIUS,
+                    boxShadow: '0 0 0 4px rgba(255,255,255,0.95), 0 0 50px 12px rgba(255,255,255,0.6)',
+                  }}
+                />
               </div>
-              {/* 원 바깥쪽을 짙게 어둡게 */}
-              <div
-                className="absolute inset-0"
-                style={{
-                  background: 'rgba(0,0,0,0.92)',
-                  WebkitMaskImage: `radial-gradient(circle ${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
-                  maskImage: `radial-gradient(circle ${SPOTLIGHT_RADIUS}px at ${lensPos.x}px ${lensPos.y}px, transparent 0%, transparent 42%, black 78%)`,
-                } as CSSProperties}
-              />
-              <div
-                className="absolute rounded-full"
-                style={{
-                  width: SPOTLIGHT_RADIUS * 2,
-                  height: SPOTLIGHT_RADIUS * 2,
-                  left: lensPos.x - SPOTLIGHT_RADIUS,
-                  top: lensPos.y - SPOTLIGHT_RADIUS,
-                  boxShadow: '0 0 0 4px rgba(255,255,255,0.95), 0 0 50px 12px rgba(255,255,255,0.6)',
-                }}
-              />
-            </div>
-          )}
+            );
+          })()}
 
           {/* 펜 그리기 캔버스 — 이 영역(발표 화면)에 고정, 문서를 스크롤해도 그림은 화면에 그대로 남는다 */}
           <canvas
