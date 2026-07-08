@@ -929,7 +929,11 @@ const ShareClassView = () => {
               ) : (
                 <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 space-y-3">
                   {filteredGallery.map((item) => (
-                    <div key={item.id} className="break-inside-avoid">
+                    <div
+                      key={item.id}
+                      className="break-inside-avoid"
+                      style={item.file_type === 'video' ? { columnSpan: 'all' } : undefined}
+                    >
                       {item.file_type === 'image' ? (
                         <div
                           className="relative group cursor-pointer rounded-2xl overflow-hidden bg-gray-100 shadow-sm hover:shadow-md transition-all"

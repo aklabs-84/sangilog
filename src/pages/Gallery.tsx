@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Images, Upload, X, ChevronLeft, ChevronRight, Trash2,
-  Play, Crown, AlertCircle, Loader2, ImageOff, Plus, Check,
+  Crown, AlertCircle, Loader2, ImageOff, Plus, Check,
   BadgeCheck, Link, Video, HardDrive, ExternalLink, FolderOpen,
   RefreshCw, Unlink
 } from 'lucide-react';
@@ -61,6 +61,7 @@ export default function Gallery() {
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderUrlInput, setFolderUrlInput] = useState('');
   const [folderAddingLoading, setFolderAddingLoading] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -429,14 +430,22 @@ export default function Gallery() {
           />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {displayItems.map((item, idx) => (
-              <GalleryCard
-                key={item.id}
-                item={item}
-                onClick={() => setLightboxIndex(idx)}
-                onDelete={() => setDeleteTarget(item.id)}
-              />
-            ))}
+            {displayItems.map((item, idx) =>
+              item.file_type === 'image' ? (
+                <GalleryCard
+                  key={item.id}
+                  item={item}
+                  onClick={() => setLightboxIndex(idx)}
+                  onDelete={() => setDeleteTarget(item.id)}
+                />
+              ) : (
+                <VideoGalleryCard
+                  key={item.id}
+                  item={item}
+                  onDelete={() => setDeleteTarget(item.id)}
+                />
+              )
+            )}
           </div>
         )}
       </div>
@@ -567,10 +576,14 @@ export default function Gallery() {
                   <code className="text-xs font-mono text-primary flex-1 truncate">{DRIVE_SERVICE_ACCOUNT_EMAIL}</code>
                   <button
                     type="button"
-                    onClick={() => navigator.clipboard.writeText(DRIVE_SERVICE_ACCOUNT_EMAIL)}
-                    className="text-[11px] font-bold text-primary hover:underline shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(DRIVE_SERVICE_ACCOUNT_EMAIL);
+                      setEmailCopied(true);
+                      setTimeout(() => setEmailCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-1 text-[11px] font-bold text-primary hover:underline shrink-0"
                   >
-                    복사
+                    {emailCopied ? <><Check size={12} /> 복사되었습니다</> : '복사'}
                   </button>
                 </div>
               </div>
@@ -750,7 +763,7 @@ function VideoPlayer({ fileUrl }: { fileUrl: string }) {
   );
 }
 
-// 갤러리 카드
+// 갤러리 카드 (이미지 전용)
 function GalleryCard({
   item,
   onClick,
@@ -760,8 +773,6 @@ function GalleryCard({
   onClick: () => void;
   onDelete: () => void;
 }) {
-  const videoInfo = item.file_type === 'video' ? getVideoInfo(item.file_url) : null;
-
   return (
     <motion.div
       layout
@@ -771,72 +782,26 @@ function GalleryCard({
       className="group relative aspect-square rounded-2xl overflow-hidden bg-surface-container-low border border-on-surface/5 cursor-pointer hover:shadow-lg transition-all duration-200"
       onClick={onClick}
     >
-      {item.file_type === 'image' ? (
-        <div className="relative w-full h-full">
-          <img
-            src={item.file_url}
-            alt={item.file_name ?? ''}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-          {item.source === 'drive' && (
-            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-blue-600/80 text-white text-[10px] font-bold flex items-center gap-1">
-              <HardDrive size={10} /> 드라이브
-            </div>
-          )}
-        </div>
-      ) : videoInfo?.platform === 'youtube' && videoInfo.thumbnailUrl ? (
-        // YouTube 썸네일
-        <div className="relative w-full h-full bg-black">
-          <img
-            src={videoInfo.thumbnailUrl}
-            alt="YouTube 썸네일"
-            className="w-full h-full object-cover opacity-90"
-            loading="lazy"
-          />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-12 h-12 rounded-full bg-red-600/90 flex items-center justify-center shadow-lg">
-              <Play size={20} className="text-white fill-white ml-1" />
-            </div>
+      <div className="relative w-full h-full">
+        <img
+          src={item.file_url}
+          alt={item.file_name ?? ''}
+          className="w-full h-full object-cover"
+          loading="lazy"
+        />
+        {item.source === 'drive' && (
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-blue-600/80 text-white text-[10px] font-bold flex items-center gap-1">
+            <HardDrive size={10} /> 드라이브
           </div>
-          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-600/80 text-white text-[10px] font-bold flex items-center gap-1">
-            <Video size={10} /> YouTube
-          </div>
-        </div>
-      ) : videoInfo?.platform === 'drive' ? (
-        // 구글 드라이브
-        <div className="w-full h-full bg-gradient-to-br from-blue-50 to-blue-100 flex flex-col items-center justify-center gap-2">
-          <HardDrive size={32} className="text-blue-500" />
-          <span className="text-xs font-bold text-blue-600">구글 드라이브</span>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center mt-8">
-              <Play size={16} className="text-blue-600 fill-blue-600 ml-0.5" />
-            </div>
-          </div>
-        </div>
-      ) : (
-        // 직접 링크 / 기존 Supabase 영상
-        <div className="relative w-full h-full bg-black/80">
-          <video
-            src={item.file_url}
-            className="w-full h-full object-cover opacity-70"
-            muted
-            preload="metadata"
-          />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
-              <Play size={18} className="text-white fill-white ml-0.5" />
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
 
       {item.source !== 'drive' && (
         <button
           onClick={e => { e.stopPropagation(); onDelete(); }}
-          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-error"
+          className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-error transition-colors"
         >
           <Trash2 size={12} />
         </button>
@@ -846,6 +811,62 @@ function GalleryCard({
         <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
           {item.week_number}주차
         </div>
+      )}
+    </motion.div>
+  );
+}
+
+// 영상 카드 (share 페이지와 동일하게 전체 너비 · 원본 비율로 바로 재생 가능하게 표시)
+function VideoGalleryCard({
+  item,
+  onDelete,
+}: {
+  item: GalleryItem;
+  onDelete: () => void;
+}) {
+  const info = getVideoInfo(item.file_url);
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="col-span-full relative rounded-2xl overflow-hidden bg-black shadow-sm border border-on-surface/5"
+    >
+      {info.platform !== 'direct' ? (
+        <iframe
+          src={info.embedUrl}
+          className="w-full aspect-video"
+          allow="autoplay; fullscreen; picture-in-picture"
+        />
+      ) : (
+        <video src={item.file_url} controls className="w-full aspect-video" />
+      )}
+
+      {item.source === 'drive' && (
+        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-blue-600/80 text-white text-[10px] font-bold flex items-center gap-1">
+          <HardDrive size={10} /> 드라이브
+        </div>
+      )}
+
+      {item.source !== 'drive' && (
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+          className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-error transition-colors"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
+
+      {item.week_number != null && (
+        <div className="absolute bottom-2 left-2 z-10 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
+          {item.week_number}주차
+        </div>
+      )}
+
+      {item.caption && (
+        <p className="text-xs font-semibold text-white/90 px-3 py-2 bg-black">{item.caption}</p>
       )}
     </motion.div>
   );
