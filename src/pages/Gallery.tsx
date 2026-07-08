@@ -816,7 +816,7 @@ function GalleryCard({
   );
 }
 
-// 영상 카드 (share 페이지와 동일하게 전체 너비 · 원본 비율로 바로 재생 가능하게 표시)
+// 영상 카드 (이미지와 같은 그리드 칸 크기로 바로 재생 가능하게 표시)
 function VideoGalleryCard({
   item,
   onDelete,
@@ -832,16 +832,16 @@ function VideoGalleryCard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className="col-span-full relative rounded-2xl overflow-hidden bg-black shadow-sm border border-on-surface/5"
+      className="relative self-start rounded-2xl overflow-hidden bg-black shadow-sm border border-on-surface/5"
     >
       {info.platform !== 'direct' ? (
         <iframe
           src={info.embedUrl}
-          className="w-full aspect-video"
+          className="w-full aspect-square"
           allow="autoplay; fullscreen; picture-in-picture"
         />
       ) : (
-        <video src={item.file_url} controls className="w-full aspect-video" />
+        <video src={item.file_url} controls className="w-full aspect-square object-cover" />
       )}
 
       {item.source === 'drive' && (
@@ -863,10 +863,6 @@ function VideoGalleryCard({
         <div className="absolute bottom-2 left-2 z-10 px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-bold backdrop-blur-sm">
           {item.week_number}주차
         </div>
-      )}
-
-      {item.caption && (
-        <p className="text-xs font-semibold text-white/90 px-3 py-2 bg-black">{item.caption}</p>
       )}
     </motion.div>
   );
