@@ -4,7 +4,7 @@ import {
   Images, Upload, X, ChevronLeft, ChevronRight, Trash2,
   Crown, AlertCircle, Loader2, ImageOff, Plus, Check,
   BadgeCheck, Link, Video, HardDrive, ExternalLink, FolderOpen,
-  RefreshCw, Unlink
+  RefreshCw, Unlink, Copy
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -62,6 +62,7 @@ export default function Gallery() {
   const [folderUrlInput, setFolderUrlInput] = useState('');
   const [folderAddingLoading, setFolderAddingLoading] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [folderUrlCopied, setFolderUrlCopied] = useState(false);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -370,6 +371,16 @@ export default function Gallery() {
           <span className="text-blue-600/80 font-medium">
             {driveLoading ? '불러오는 중...' : `${driveItems.length}개 항목`}
           </span>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(driveFolderLink.folder_url);
+              setFolderUrlCopied(true);
+              setTimeout(() => setFolderUrlCopied(false), 2000);
+            }}
+            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold"
+          >
+            {folderUrlCopied ? <><Check size={12} /> 복사됨</> : <><Copy size={12} /> URL 복사</>}
+          </button>
           <button
             onClick={loadDriveFolder}
             disabled={driveLoading}
