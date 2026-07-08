@@ -53,6 +53,7 @@ import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
 import CodeBlock from '../components/CodeBlock';
+import { renderMaterialCallout } from '../components/MaterialCallout';
 
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
@@ -1816,6 +1817,7 @@ const Classroom = () => {
                     <span className="text-primary text-xs">▶</span> {children}
                   </summary>
                 ),
+                div: (props: any) => renderMaterialCallout(props),
               }}
             >
               {fullscreenMaterial.content}

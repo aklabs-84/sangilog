@@ -59,6 +59,7 @@ import { observationReviewAI } from '../lib/gemini';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import CodeBlock from '../components/CodeBlock';
+import { renderMaterialCallout } from '../components/MaterialCallout';
 import TourGuide, { type TourStep } from '../components/TourGuide';
 import RichEditor from '../components/RichEditor';
 
@@ -147,6 +148,7 @@ const MATERIAL_MD_COMPONENTS = {
       <span className="text-primary text-xs transition-transform duration-200 group-open:rotate-90">▶</span> {children}
     </summary>
   ),
+  div: (props: any) => renderMaterialCallout(props),
 };
 
 interface NoteItem {
@@ -2216,6 +2218,10 @@ ${guidePrompt}
     );
   }
 
+  // 주차별 자료 탭에 이미 노출되는(주차에 연결된) 에디터 자료는 자료 에디터 탭에서 중복 표시하지 않음
+  const linkedEditorMaterialIds = new Set((classResources as any[]).map(r => r.material_id).filter(Boolean));
+  const unlinkedEditorMaterials = editorMaterials.filter((mat: any) => !linkedEditorMaterialIds.has(mat.id));
+
   return (
     <>
     {fullscreenMaterial && createPortal(
@@ -3226,8 +3232,8 @@ ${guidePrompt}
                     className={`flex-1 py-2.5 rounded-xl text-xs font-black border-2 transition-all ${materialsSubTab === 'editor' ? 'border-violet-500 bg-violet-500 text-white' : 'border-neutral-200 text-neutral-400 hover:border-violet-200'}`}
                   >
                     자료 에디터
-                    {editorMaterials.length > 0 && (
-                      <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-md ${materialsSubTab === 'editor' ? 'bg-white/20' : 'bg-violet-500/10 text-violet-600'}`}>{editorMaterials.length}</span>
+                    {unlinkedEditorMaterials.length > 0 && (
+                      <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-md ${materialsSubTab === 'editor' ? 'bg-white/20' : 'bg-violet-500/10 text-violet-600'}`}>{unlinkedEditorMaterials.length}</span>
                     )}
                   </button>
                   <button
@@ -3318,8 +3324,8 @@ ${guidePrompt}
                     </div>
                   );
                 })() : materialsSubTab === 'editor' ? (
-                  /* ── 자료 에디터 탭 (공통 자료함에서 연결된 자료 포함) ── */
-                  editorMaterials.length === 0 ? (
+                  /* ── 자료 에디터 탭 (주차에 연결된 자료는 '주차별 자료' 탭에 표시되므로 제외) ── */
+                  unlinkedEditorMaterials.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-24 space-y-4 opacity-30">
                       <BookOpen size={64} />
                       <p className="font-black text-lg">공개된 자료가 없습니다.</p>
@@ -3327,7 +3333,7 @@ ${guidePrompt}
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {editorMaterials.map((mat: any) => (
+                      {unlinkedEditorMaterials.map((mat: any) => (
                         <button
                           key={mat.id}
                           className="w-full flex items-center gap-3 p-4 text-left bg-white rounded-2xl border border-surface-container hover:border-violet-200 hover:shadow-sm transition-all"
