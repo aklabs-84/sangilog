@@ -88,7 +88,7 @@ const SlideImg = ({ src, alt, title }: { src?: string; alt?: string; title?: str
 // false면 밝은 배경 위 어두운 글자로 색상 세트 전체를 바꿔 반환한다.
 const getSlideComponents = (
   dark: boolean,
-  openDetailsKeys: Set<number>,
+  openDetailsKeysRef: { current: Set<number> },
   onToggleDetails: (key: number, isOpen: boolean) => void,
 ): any => {
   const SlideSummary = ({ children }: any) => (
@@ -167,7 +167,7 @@ const getSlideComponents = (
     const key = node?.position?.start?.offset ?? 0;
     return (
       <details
-        open={openDetailsKeys.has(key)}
+        open={openDetailsKeysRef.current.has(key)}
         onToggle={(e) => onToggleDetails(key, (e.currentTarget as HTMLDetailsElement).open)}
         className={`my-4 rounded-2xl border overflow-hidden ${dark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white shadow-sm'}`}
       >
@@ -203,7 +203,13 @@ const PresentationModal = ({
 
   // 토글(<details>) 열림 상태 — 돋보기/스포트라이트 복제본과 원본이 같은 상태를
   // 공유하도록 상위에서 제어. 키는 마크다운 소스 내 <details> 위치(offset).
+  // ref로 최신값을 들고 있어야 하는 이유: 아래 slideComponents를 이 state에 의존해
+  // 재생성하면 <details>/<summary>가 매 토글마다 통째로 리마운트되고, 이미 열린
+  // <details>가 open 속성을 가진 채로 다시 마운트되며 브라우저가 toggle 이벤트를
+  // 한 번 더 쏴 버려 무한 재열림 루프에 빠진다(펼치기는 되는데 접히지 않는 원인).
   const [openDetailsKeys, setOpenDetailsKeys] = useState<Set<number>>(new Set());
+  const openDetailsKeysRef = useRef(openDetailsKeys);
+  openDetailsKeysRef.current = openDetailsKeys;
   const toggleDetailsKey = (key: number, isOpen: boolean) => {
     setOpenDetailsKeys(prev => {
       const next = new Set(prev);
@@ -295,8 +301,8 @@ const PresentationModal = ({
 
   // ── 문서 본문(돋보기/스포트라이트 복제본에도 동일하게 재사용) ─────────────────
   const slideComponents = useMemo(
-    () => getSlideComponents(dark, openDetailsKeys, toggleDetailsKey),
-    [dark, openDetailsKeys],
+    () => getSlideComponents(dark, openDetailsKeysRef, toggleDetailsKey),
+    [dark],
   );
   const docInner = (
     <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
@@ -389,7 +395,7 @@ const PresentationModal = ({
 
   return createPortal(
     <SlideImageZoomContext.Provider value={setZoomedImage}>
-    <div className={`fixed inset-0 z-[9999] flex flex-col select-none ${dark ? 'bg-[#0a0a14]' : 'bg-slate-50'}`}>
+    <div className={`fixed inset-0 z-[9999] flex flex-col ${tool === 'none' ? '' : 'select-none'} ${dark ? 'bg-[#0a0a14]' : 'bg-slate-50'}`}>
 
       {/* 상단 바 */}
       <div className={`flex items-center gap-3 px-5 py-3 border-b shrink-0 ${dark ? 'border-white/10 bg-white/5' : 'border-slate-900/10 bg-white'}`}>
