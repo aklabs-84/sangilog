@@ -707,7 +707,7 @@ const Dashboard = () => {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
         {/* Classes Section */}
-        <div className="col-span-12 lg:col-span-7 space-y-4">
+        <div className="col-span-12 space-y-4">
           {/* 헤더 */}
           <div className="flex items-center justify-between px-2">
             <div>
@@ -821,7 +821,7 @@ const Dashboard = () => {
           </div>
 
           {/* 클래스 그리드 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:gap-6">
             {loading ? (
               [1, 2].map(i => <div key={i} className="h-[160px] md:h-[200px] surface-card animate-pulse" />)
             ) : (() => {
@@ -833,7 +833,7 @@ const Dashboard = () => {
 
               if (filteredClasses.length === 0) {
                 return (
-                  <div className="col-span-2 surface-zone p-10 text-center text-on-surface-variant">
+                  <div className="col-span-full surface-zone p-10 text-center text-on-surface-variant">
                     {activeFolderId === '__closed__' ? '종료된 학급이 없습니다.' : activeFolderId ? '이 폴더에 학급이 없습니다. 학급 카드의 폴더 버튼으로 이동하세요.' : '등록된 학급이 없습니다. 학급을 먼저 추가해주세요.'}
                   </div>
                 );
