@@ -1,7 +1,4 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import ReactMarkdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,8 +28,6 @@ import {
   Download,
   Headphones,
   Search,
-  ArrowLeft,
-  Eye,
   Upload,
   FileText,
   CheckCircle2,
@@ -52,8 +47,7 @@ import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 
-import CodeBlock from '../components/CodeBlock';
-import { renderMaterialCallout } from '../components/MaterialCallout';
+import PresentationModal from '../components/PresentationModal';
 
 // Modular Components
 import ClassSelector from '../components/classroom/ClassSelector';
@@ -1762,70 +1756,11 @@ const Classroom = () => {
 
   return (
     <>
-    {fullscreenMaterial && createPortal(
-      <div className="fixed inset-0 z-[9999] bg-white flex flex-col overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-3 bg-slate-800 shrink-0">
-          <button
-            onClick={() => setFullscreenMaterial(null)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-slate-800 font-black text-sm hover:bg-slate-100 active:scale-95 transition-all shadow"
-          >
-            <ArrowLeft size={15} /> 나가기
-          </button>
-          <div className="flex items-center gap-2 ml-2">
-            <Eye size={15} className="text-white/60" />
-            <span className="font-black text-sm text-white/80 truncate max-w-xs">{fullscreenMaterial.title}</span>
-          </div>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-8 py-10">
-            <ReactMarkdown
-              rehypePlugins={[rehypeRaw]}
-              components={{
-                h1: ({ children }: any) => <h1 className="text-2xl font-black mb-4 mt-6">{children}</h1>,
-                h2: ({ children }: any) => <h2 className="text-xl font-black mb-3 mt-5">{children}</h2>,
-                h3: ({ children }: any) => <h3 className="text-lg font-black mb-2 mt-4">{children}</h3>,
-                p: ({ children }: any) => <p className="mb-3 text-sm leading-relaxed">{children}</p>,
-                ul: ({ children }: any) => <ul className="list-disc pl-6 mb-3 space-y-1">{children}</ul>,
-                ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-3 space-y-1">{children}</ol>,
-                li: ({ children }: any) => <li className="text-sm">{children}</li>,
-                blockquote: ({ children }: any) => (
-                  <blockquote className="border-l-4 border-primary pl-4 italic text-on-surface-variant my-3 bg-surface-container-low py-2 rounded-r-xl text-sm">{children}</blockquote>
-                ),
-                code: ({ children, className }: any) => {
-                  if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
-                  return <code className={className}>{children}</code>;
-                },
-                pre: ({ children }: any) => {
-                  const child = (Array.isArray(children) ? children[0] : children) as any;
-                  const code = String(child?.props?.children ?? '').replace(/\n$/, '');
-                  const langMatch = (child?.props?.className ?? '').match(/language-(\w+)/);
-                  const lang = langMatch ? langMatch[1] : 'text';
-                  return <CodeBlock lang={lang} code={code} />;
-                },
-                img: ({ src, alt, title }: any) => {
-                  const wm = (title || '').match(/^width:(\d+)$/);
-                  const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
-                  return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-3 shadow" />;
-                },
-                a: ({ href, children }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm">{children}</a>,
-                hr: () => <hr className="border-surface-container my-5" />,
-                strong: ({ children }: any) => <strong className="font-black">{children}</strong>,
-                em: ({ children }: any) => <em className="italic">{children}</em>,
-                details: ({ children }: any) => <details className="my-3 rounded-xl border border-surface-container overflow-hidden">{children}</details>,
-                summary: ({ children }: any) => (
-                  <summary className="px-4 py-2.5 bg-surface-container-low cursor-pointer font-black text-sm list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
-                    <span className="text-primary text-xs">▶</span> {children}
-                  </summary>
-                ),
-                div: (props: any) => renderMaterialCallout(props),
-              }}
-            >
-              {fullscreenMaterial.content}
-            </ReactMarkdown>
-          </div>
-        </div>
-      </div>,
-      document.body
+    {fullscreenMaterial && (
+      <PresentationModal
+        material={fullscreenMaterial}
+        onClose={() => setFullscreenMaterial(null)}
+      />
     )}
     <div className="flex flex-col relative bg-surface-container-low/20 rounded-[2rem] border border-white/40 shadow-2xl">
       {/* 1. 상단 학급 선택기 (기존 사이드바에서 수평형으로 전환) */}
