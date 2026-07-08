@@ -22,6 +22,11 @@ export interface VideoUrlInfo {
   label: string;
 }
 
+// 임베드(iframe)는 실제 프레임 크기를 알 수 없으므로, URL 패턴으로 세로형(9:16, 예: YouTube Shorts) 여부만 추정
+export function isVerticalVideoUrl(url: string): boolean {
+  return /\/shorts\//.test(url);
+}
+
 export function parseVideoUrl(url: string): VideoUrlInfo | null {
   const trimmed = url.trim();
   if (!trimmed) return null;

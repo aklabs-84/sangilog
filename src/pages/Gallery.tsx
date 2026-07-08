@@ -10,7 +10,7 @@ import { useAuth, checkIsPro } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import {
   fetchGalleryItems, uploadGalleryItem, deleteGalleryItem, countGalleryItems,
-  addVideoLink, parseVideoUrl,
+  addVideoLink, parseVideoUrl, isVerticalVideoUrl,
   getDriveFolderLink, setDriveFolderLink, removeDriveFolderLink,
   fetchDriveFolderItems, driveItemToGalleryItem,
   type GalleryItem, type VideoUrlInfo, type DriveFolderLink
@@ -816,7 +816,7 @@ function GalleryCard({
   );
 }
 
-// 영상 카드 (이미지와 같은 그리드 칸 크기로 바로 재생 가능하게 표시)
+// 영상 카드 (16:9 / 9:16 원본 비율을 유지한 채 그리드 2칸 크기로 표시)
 function VideoGalleryCard({
   item,
   onDelete,
@@ -825,6 +825,10 @@ function VideoGalleryCard({
   onDelete: () => void;
 }) {
   const info = getVideoInfo(item.file_url);
+  const [directRatio, setDirectRatio] = useState<number | null>(null);
+  const aspectStyle = info.platform === 'direct'
+    ? { aspectRatio: directRatio ?? 16 / 9 }
+    : { aspectRatio: isVerticalVideoUrl(item.file_url) ? 9 / 16 : 16 / 9 };
 
   return (
     <motion.div
@@ -832,16 +836,26 @@ function VideoGalleryCard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className="relative self-start rounded-2xl overflow-hidden bg-black shadow-sm border border-on-surface/5"
+      className="col-span-2 relative self-start rounded-2xl overflow-hidden bg-black shadow-sm border border-on-surface/5"
     >
       {info.platform !== 'direct' ? (
         <iframe
           src={info.embedUrl}
-          className="w-full aspect-square"
+          style={aspectStyle}
+          className="w-full"
           allow="autoplay; fullscreen; picture-in-picture"
         />
       ) : (
-        <video src={item.file_url} controls className="w-full aspect-square object-cover" />
+        <video
+          src={item.file_url}
+          controls
+          style={aspectStyle}
+          className="w-full"
+          onLoadedMetadata={e => {
+            const v = e.currentTarget;
+            if (v.videoWidth && v.videoHeight) setDirectRatio(v.videoWidth / v.videoHeight);
+          }}
+        />
       )}
 
       {item.source === 'drive' && (
