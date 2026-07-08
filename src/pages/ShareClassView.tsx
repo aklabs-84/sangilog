@@ -5,6 +5,7 @@ import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
 import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl } from '../lib/gallery';
+import Pagination from '../components/Pagination';
 import {
   GraduationCap,
   RefreshCw,
@@ -27,7 +28,18 @@ import {
   Lock,
   ArrowRight,
   BookOpen,
+  AlignLeft,
+  Link2,
+  ImageIcon,
+  File as FileIcon,
 } from 'lucide-react';
+
+const RESULT_TYPE_BADGE: Record<string, { icon: JSX.Element; color: string; label: string }> = {
+  text:  { icon: <AlignLeft size={11} />, color: 'text-primary bg-primary/10',     label: '텍스트' },
+  link:  { icon: <Link2 size={11} />,     color: 'text-blue-500 bg-blue-50',       label: '링크' },
+  image: { icon: <ImageIcon size={11} />, color: 'text-emerald-500 bg-emerald-50', label: '이미지' },
+  file:  { icon: <FileIcon size={11} />,  color: 'text-amber-500 bg-amber-50',     label: '파일' },
+};
 
 async function blobDownload(url: string, filename: string) {
   const res = await fetch(url);
@@ -116,6 +128,11 @@ const ShareClassView = () => {
   // ── UI 상태 ────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech'>('results');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [studentSubTab, setStudentSubTab] = useState<Record<string, 'obs' | 'results'>>({});
+  const [obsPageByStudent, setObsPageByStudent] = useState<Record<string, number>>({});
+  const [resultsPageByStudent, setResultsPageByStudent] = useState<Record<string, number>>({});
+  const OBS_PAGE_SIZE = 1;
+  const RESULTS_PAGE_SIZE = 1;
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [lightbox, setLightbox] = useState<{ urls: string[]; names: string[]; index: number } | null>(null);
   const [zipping, setZipping] = useState(false);
@@ -743,58 +760,112 @@ const ShareClassView = () => {
                         {hasActivity && <div className="shrink-0 text-gray-400">{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>}
                       </button>
 
-                      {isExpanded && (
-                        <div className="border-t border-gray-100 px-5 py-4 space-y-3 bg-gray-50/50">
-                          {obs.map((o) => (
-                            <div key={o.id} className="bg-white rounded-xl border border-violet-100 p-4">
-                              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
-                                {o.week_number && <span className="text-[10px] font-bold text-gray-400">{o.week_number}주차</span>}
-                                <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
-                              </div>
-                              {o.activity_name && <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
-                              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
-                            </div>
-                          ))}
+                      {isExpanded && (() => {
+                        const subTab = studentSubTab[student.id] ?? (obs.length > 0 ? 'obs' : 'results');
 
-                          {results.map((r) => {
-                            const allImgResults = results.filter((x) => x.image_url);
-                            const allImgUrls = allImgResults.map((x) => x.image_url as string);
-                            const allImgNames = allImgResults.map((x) => `${x.title || '결과물'}.webp`);
-                            return (
-                              <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
-                                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
-                                  {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
-                                  <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
-                                </div>
-                                {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
-                                {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
-                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
-                                )}
-                                {r.image_url && (
-                                  <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, names: allImgNames, index: allImgUrls.indexOf(r.image_url as string) })}>
-                                    <img src={r.image_url} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
-                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
-                                    </div>
+                        const obsTotalPages = Math.max(1, Math.ceil(obs.length / OBS_PAGE_SIZE));
+                        const obsSafePage = Math.min(obsPageByStudent[student.id] ?? 1, obsTotalPages);
+                        const pagedObs = obs.slice((obsSafePage - 1) * OBS_PAGE_SIZE, obsSafePage * OBS_PAGE_SIZE);
+
+                        const resultsTotalPages = Math.max(1, Math.ceil(results.length / RESULTS_PAGE_SIZE));
+                        const resultsSafePage = Math.min(resultsPageByStudent[student.id] ?? 1, resultsTotalPages);
+                        const pagedResults = results.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
+
+                        return (
+                          <div className="border-t border-gray-100 bg-gray-50/50">
+                            <div className="flex gap-1 px-5 pt-3">
+                              <button
+                                onClick={() => setStudentSubTab((prev) => ({ ...prev, [student.id]: 'obs' }))}
+                                disabled={obs.length === 0}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                                  subTab === 'obs' ? 'bg-violet-100 text-violet-700 border border-violet-200' : 'bg-white text-gray-400 border border-gray-200 hover:text-gray-600'
+                                }`}
+                              >
+                                📝 활동 기록 {obs.length}건
+                              </button>
+                              <button
+                                onClick={() => setStudentSubTab((prev) => ({ ...prev, [student.id]: 'results' }))}
+                                disabled={results.length === 0}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                                  subTab === 'results' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-white text-gray-400 border border-gray-200 hover:text-gray-600'
+                                }`}
+                              >
+                                📁 결과물 {results.length}건
+                              </button>
+                            </div>
+                            <div className="px-5 py-4 space-y-3">
+                              {subTab === 'obs' && pagedObs.map((o) => (
+                                <div key={o.id} className="bg-white rounded-xl border border-violet-100 p-4">
+                                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                    <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
+                                    {o.week_number && <span className="text-[10px] font-bold text-gray-400">{o.week_number}주차</span>}
+                                    <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
                                   </div>
-                                )}
-                                {r.link_url && (
-                                  <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-                                    <ExternalLink size={14} /> 링크 열기
-                                  </a>
-                                )}
-                                {r.file_url && (
-                                  <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-                                    <Download size={14} /> 파일 다운로드
-                                  </a>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                                  {o.activity_name && <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
+                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                                </div>
+                              ))}
+                              {subTab === 'obs' && (
+                                <Pagination
+                                  page={obsSafePage}
+                                  totalPages={obsTotalPages}
+                                  onChange={(p) => setObsPageByStudent((prev) => ({ ...prev, [student.id]: p }))}
+                                />
+                              )}
+
+                              {subTab === 'results' && pagedResults.map((r) => {
+                                const allImgResults = results.filter((x) => x.image_url);
+                                const allImgUrls = allImgResults.map((x) => x.image_url as string);
+                                const allImgNames = allImgResults.map((x) => `${x.title || '결과물'}.webp`);
+                                const typeBadge = RESULT_TYPE_BADGE[r.result_type];
+                                return (
+                                  <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
+                                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
+                                      {typeBadge && (
+                                        <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge.color}`}>
+                                          {typeBadge.icon} {typeBadge.label}
+                                        </span>
+                                      )}
+                                      {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
+                                      <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                                    </div>
+                                    {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
+                                    {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
+                                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
+                                    )}
+                                    {r.image_url && (
+                                      <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, names: allImgNames, index: allImgUrls.indexOf(r.image_url as string) })}>
+                                        <img src={r.image_url} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {r.link_url && (
+                                      <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                                        <ExternalLink size={14} /> 링크 열기
+                                      </a>
+                                    )}
+                                    {r.file_url && (
+                                      <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                                        <Download size={14} /> 파일 다운로드
+                                      </a>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {subTab === 'results' && (
+                                <Pagination
+                                  page={resultsSafePage}
+                                  totalPages={resultsTotalPages}
+                                  onChange={(p) => setResultsPageByStudent((prev) => ({ ...prev, [student.id]: p }))}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

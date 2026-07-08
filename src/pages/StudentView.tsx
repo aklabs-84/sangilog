@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -115,11 +115,11 @@ const StudentView = () => {
   const [savingEvalId, setSavingEvalId] = useState<string | null>(null);
 
   // Pagination States
-  const TIMELINE_PAGE_SIZE = 5;
-  const RESULTS_PAGE_SIZE = 6;
-  const SUGGESTIONS_PAGE_SIZE = 5;
-  const UNITS_PAGE_SIZE = 5;
-  const NOTES_PAGE_SIZE = 5;
+  const TIMELINE_PAGE_SIZE = 1;
+  const RESULTS_PAGE_SIZE = 1;
+  const SUGGESTIONS_PAGE_SIZE = 1;
+  const UNITS_PAGE_SIZE = 1;
+  const NOTES_PAGE_SIZE = 1;
   const [timelinePage, setTimelinePage] = useState(1);
   const [resultsPage, setResultsPage] = useState(1);
   const [suggestionsPage, setSuggestionsPage] = useState(1);
@@ -127,6 +127,33 @@ const StudentView = () => {
   const [notesPage, setNotesPage] = useState(1);
 
   useEffect(() => { setTimelinePage(1); }, [timelineTab]);
+
+  const timelineFiltered = useMemo(() => observations.filter(o =>
+    timelineTab === 'all' ? true :
+    timelineTab === 'teacher' ? !o.is_student_record :
+    o.is_student_record
+  ), [observations, timelineTab]);
+  const timelineTotalPages = Math.max(1, Math.ceil(timelineFiltered.length / TIMELINE_PAGE_SIZE));
+
+  // 타임라인 좌우 방향키 이동 (입력 중이거나 수정 폼이 열려있을 땐 비활성화)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      if (editingId) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+
+      setTimelinePage(prev => {
+        const safePage = Math.min(prev, timelineTotalPages);
+        return e.key === 'ArrowLeft'
+          ? Math.max(1, safePage - 1)
+          : Math.min(timelineTotalPages, safePage + 1);
+      });
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [timelineTotalPages, editingId]);
 
   // Toast
   const [toasts, setToasts] = useState<{ id: string; msg: string; type: 'success' | 'error' }[]>([]);
@@ -795,12 +822,7 @@ const StudentView = () => {
 
           <div className="flex-1 space-y-8">
             {(() => {
-              const filtered = observations.filter(o =>
-                timelineTab === 'all' ? true :
-                timelineTab === 'teacher' ? !o.is_student_record :
-                o.is_student_record
-              );
-              const timelineTotalPages = Math.max(1, Math.ceil(filtered.length / TIMELINE_PAGE_SIZE));
+              const filtered = timelineFiltered;
               const timelineSafePage = Math.min(timelinePage, timelineTotalPages);
               const pagedTimeline = filtered.slice((timelineSafePage - 1) * TIMELINE_PAGE_SIZE, timelineSafePage * TIMELINE_PAGE_SIZE);
               return filtered.length > 0 ? (
@@ -1052,6 +1074,9 @@ const StudentView = () => {
         </div>
       </div>
 
+      {/* ─── 결과 제출 / 건의사항 / 단원 마무리 기록 / 나의 노트: 2단 그리드 ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
       {/* ─── 결과 제출 목록 ─── */}
       <div className="surface-card p-8 shadow-ambient border border-white/60">
         <div className="flex items-center justify-between mb-6 pb-5 border-b border-surface-container">
@@ -1098,7 +1123,7 @@ const StudentView = () => {
 
           return (
             <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {pagedResults.map(([groupId, groupItems]) => {
                 const firstItem = groupItems[0];
                 const isRejected = firstItem.status === 'rejected';
@@ -1595,6 +1620,8 @@ const StudentView = () => {
           <Pagination page={notesSafePage} totalPages={notesTotalPages} onChange={setNotesPage} />
           </>
         )}
+      </div>
+
       </div>
 
       {/* ─── 노트 상세 모달 ─── */}
