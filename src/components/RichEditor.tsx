@@ -1,4 +1,5 @@
 import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer, ReactRenderer } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
 import type { NodeViewProps } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
@@ -8,7 +9,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockExt from '@tiptap/extension-code-block';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Node, Extension, mergeAttributes } from '@tiptap/core';
-import { Plugin } from '@tiptap/pm/state';
+import { Plugin, NodeSelection } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import { TextStyle, Color } from '@tiptap/extension-text-style';
 import Suggestion from '@tiptap/suggestion';
@@ -1523,6 +1524,33 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           </button>
         </div>
       )}
+
+      {/* ── 선택 영역 플로팅 툴바 ── */}
+      <BubbleMenu
+        editor={editor}
+        shouldShow={({ editor: ed, state }) => {
+          const { selection } = state;
+          if (selection instanceof NodeSelection) return false; // 이미지/표/임베드는 자체 UI 사용
+          if (ed.isActive('codeBlock')) return false;
+          return !selection.empty;
+        }}
+        className="flex items-center gap-0.5 bg-white rounded-xl shadow-xl border border-surface-container p-1"
+      >
+        <button onClick={() => editor.chain().focus().toggleBold().run()} title="굵게 (Ctrl+B)" className={btnCls(isActive('bold'))}><Bold size={14} /></button>
+        <button onClick={() => editor.chain().focus().toggleItalic().run()} title="기울임 (Ctrl+I)" className={btnCls(isActive('italic'))}><Italic size={14} /></button>
+        <button onClick={() => editor.chain().focus().toggleCode().run()} title="인라인 코드" className={btnCls(isActive('code'))}><Code size={14} /></button>
+        <div className="w-px h-4 bg-surface-container mx-0.5" />
+        <button onClick={() => setColorModalType('text')} title="글자 색상" className={btnCls(false) + ' relative'}>
+          <span className="flex flex-col items-center gap-0 leading-none">
+            <span className="text-[10px] font-black" style={{ color: editor.getAttributes('textStyle').color || 'currentColor' }}>A</span>
+            <span
+              className="block h-[2px] w-[12px] rounded-full mt-[1px]"
+              style={{ backgroundColor: editor.getAttributes('textStyle').color || '#1e293b' }}
+            />
+          </span>
+        </button>
+        <button onClick={() => setLinkDialogOpen(true)} title="링크 삽입" className={btnCls(isActive('link'))}><Link2 size={14} /></button>
+      </BubbleMenu>
 
       {/* ── 에디터 본문 ── */}
       <div
