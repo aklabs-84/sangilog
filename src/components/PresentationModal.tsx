@@ -86,7 +86,11 @@ const SlideImg = ({ src, alt, title }: { src?: string; alt?: string; title?: str
 // ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
 // 발표 화면은 다크/라이트 두 테마를 지원한다 — dark=true면 짙은 배경 위 흰 글자,
 // false면 밝은 배경 위 어두운 글자로 색상 세트 전체를 바꿔 반환한다.
-const getSlideComponents = (dark: boolean): any => {
+const getSlideComponents = (
+  dark: boolean,
+  openDetailsKeys: Set<number>,
+  onToggleDetails: (key: number, isOpen: boolean) => void,
+): any => {
   const SlideSummary = ({ children }: any) => (
     <summary className={`px-6 py-4 cursor-pointer font-black text-lg list-none flex items-center gap-3 select-none transition-colors [&::-webkit-details-marker]:hidden ${dark ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}>
       <span className="text-sm opacity-70 shrink-0">▶</span> <span>{children}</span>
@@ -148,7 +152,7 @@ const getSlideComponents = (dark: boolean): any => {
   td: ({ children }: any) => (
     <td className={`border px-3 py-2 ${dark ? 'border-white/15' : 'border-slate-900/10'}`}>{children}</td>
   ),
-  details: ({ children }: any) => {
+  details: ({ children, node }: any) => {
     // 원문에서 <details>와 <summary>가 줄바꿈으로 떨어져 있으면 그 사이 개행이
     // children 배열의 첫 항목(공백 텍스트 노드)으로 끼어든다. 자리(0번 인덱스)가
     // 아니라 실제 summary 타입으로 찾아야 <summary>가 <details>의 직계 자식으로
@@ -156,8 +160,17 @@ const getSlideComponents = (dark: boolean): any => {
     const arr = Array.isArray(children) ? children : [children];
     const summaryEl = arr.find((c: any) => c?.type === SlideSummary);
     const rest = arr.filter((c: any) => c !== summaryEl);
+    // 돋보기/스포트라이트는 같은 마크다운을 별도의 DOM 트리로 다시 그린 "복제본"이라
+    // <details>의 열림 상태가 브라우저 기본(비제어) 방식으로는 원본과 따로 논다.
+    // 원문 소스 위치(offset)를 키로 삼아 열림 상태를 상위에서 공유 제어하면
+    // 원본에서 펼친 토글이 복제본에도 그대로 반영된다.
+    const key = node?.position?.start?.offset ?? 0;
     return (
-      <details className={`my-4 rounded-2xl border overflow-hidden ${dark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white shadow-sm'}`}>
+      <details
+        open={openDetailsKeys.has(key)}
+        onToggle={(e) => onToggleDetails(key, (e.currentTarget as HTMLDetailsElement).open)}
+        className={`my-4 rounded-2xl border overflow-hidden ${dark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white shadow-sm'}`}
+      >
         {summaryEl}
         <div className="px-6 py-5">{rest}</div>
       </details>
@@ -187,6 +200,17 @@ const PresentationModal = ({
   const [editedContent, setEditedContent] = useState(material.content);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const dark = theme === 'dark';
+
+  // 토글(<details>) 열림 상태 — 돋보기/스포트라이트 복제본과 원본이 같은 상태를
+  // 공유하도록 상위에서 제어. 키는 마크다운 소스 내 <details> 위치(offset).
+  const [openDetailsKeys, setOpenDetailsKeys] = useState<Set<number>>(new Set());
+  const toggleDetailsKey = (key: number, isOpen: boolean) => {
+    setOpenDetailsKeys(prev => {
+      const next = new Set(prev);
+      if (isOpen) next.add(key); else next.delete(key);
+      return next;
+    });
+  };
 
   const handleSaveEdits = () => {
     onSave?.(editedContent);
@@ -270,7 +294,10 @@ const PresentationModal = ({
   };
 
   // ── 문서 본문(돋보기/스포트라이트 복제본에도 동일하게 재사용) ─────────────────
-  const slideComponents = useMemo(() => getSlideComponents(dark), [dark]);
+  const slideComponents = useMemo(
+    () => getSlideComponents(dark, openDetailsKeys, toggleDetailsKey),
+    [dark, openDetailsKeys],
+  );
   const docInner = (
     <ReactMarkdown components={slideComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
       {normalizeStandaloneHr(material.content)}
@@ -481,7 +508,7 @@ const PresentationModal = ({
           {!editMode && tool === 'zoom' && lensPos && paneSize.width > 0 && docHeight > 0 && (() => {
             const ZOOM = 2.6;
             const panelW = paneSize.width;
-            const panelH = Math.min(340, Math.round(paneSize.height * 0.46));
+            const panelH = Math.min(760, Math.round(paneSize.height * 0.82));
             const scaledW = panelW * ZOOM;
             const scaledH = docHeight * ZOOM;
             let tx = panelW / 2 - lensPos.x * ZOOM;
