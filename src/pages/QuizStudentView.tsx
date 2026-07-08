@@ -391,7 +391,7 @@ const QuizStudentView = () => {
       <div className="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] bg-violet-400/20 rounded-full blur-[100px] pointer-events-none" />
       <div className="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-indigo-400/20 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="w-full max-w-md relative z-10">
+      <div className={`w-full relative z-10 ${session?.state === 'QUIZ' ? 'max-w-md md:max-w-3xl lg:max-w-4xl' : 'max-w-md'}`}>
         <AnimatePresence mode="wait">
 
           {/* ── STEP: PIN 입력 ── */}
@@ -598,26 +598,26 @@ const QuizStudentView = () => {
                     </div>
 
                     {/* 문제 */}
-                    <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                      <p className="text-white font-black text-center text-2xl leading-relaxed break-words">
+                    <div className="bg-white/15 backdrop-blur-md rounded-2xl p-6 md:p-8 lg:p-10 border border-white/20">
+                      <p className="text-white font-black text-center text-2xl md:text-3xl lg:text-4xl leading-relaxed break-words">
                         {currentQuestion.text}
                       </p>
                     </div>
 
                     {/* 선택지 또는 완료 표시 */}
                     {myAnswer === null ? (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:gap-5">
                         {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4].map((opt, idx) => (
                           <motion.button
                             key={idx}
                             whileTap={{ scale: 0.94 }}
                             onClick={() => handleAnswer(idx)}
-                            className={`min-h-32 rounded-2xl bg-gradient-to-br ${OPTION_BG[idx]} shadow-xl ${OPTION_SHADOW[idx]} flex flex-col items-center justify-center gap-2 transition-all active:brightness-90 p-4`}
+                            className={`min-h-32 md:min-h-40 lg:min-h-48 rounded-2xl bg-gradient-to-br ${OPTION_BG[idx]} shadow-xl ${OPTION_SHADOW[idx]} flex flex-col items-center justify-center gap-2 md:gap-3 transition-all active:brightness-90 p-4 md:p-6 lg:p-8`}
                           >
-                            <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white font-black text-xl shrink-0">
+                            <span className="w-11 h-11 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-xl bg-white/20 flex items-center justify-center text-white font-black text-xl md:text-2xl lg:text-3xl shrink-0">
                               {OPTION_LABELS[idx]}
                             </span>
-                            <span className="text-white font-bold text-base text-center leading-snug break-words w-full">{opt}</span>
+                            <span className="text-white font-bold text-base md:text-lg lg:text-xl text-center leading-snug break-words w-full">{opt}</span>
                           </motion.button>
                         ))}
                       </div>
