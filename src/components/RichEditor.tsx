@@ -339,6 +339,12 @@ const ResizableImage = ImageExtension.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      // alt는 커스텀 parseHTML이 없으면 tiptap 코어가 숫자로만 된 문자열을 자동으로
+      // Number로 변환해버려(fromString), 순수 숫자 alt를 가진 이미지의 마크다운 직렬화가 깨짐 — 항상 문자열로 고정
+      alt: {
+        default: null,
+        parseHTML: el => el.getAttribute('alt'),
+      },
       title: {
         default: null,
         parseHTML: el => {
@@ -380,7 +386,7 @@ const ResizableImage = ImageExtension.extend({
       markdown: {
         serialize(state: any, node: any) {
           const src = (node.attrs.src || '').replace(/[\(\)]/g, '\\$&');
-          const alt = state.esc(node.attrs.alt || '');
+          const alt = state.esc(String(node.attrs.alt ?? ''));
           const dims = [
             node.attrs.width ? `width:${node.attrs.width}` : null,
             node.attrs.height ? `height:${node.attrs.height}` : null,
