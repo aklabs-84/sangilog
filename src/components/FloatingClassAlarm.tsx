@@ -19,7 +19,14 @@ const FloatingClassAlarm = () => {
             exit={{ opacity: 0, x: 40, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 300, damping: 24 }}
             className="pointer-events-auto rounded-2xl shadow-2xl border border-white/30 backdrop-blur-xl overflow-hidden"
-            style={{ background: alert.type === 'break' ? 'rgba(245,158,11,0.95)' : 'rgba(239,68,68,0.95)' }}
+            style={{
+              background:
+                alert.type === 'break'
+                  ? 'rgba(245,158,11,0.95)'
+                  : alert.type === 'attendance'
+                    ? 'rgba(37,99,235,0.95)'
+                    : 'rgba(239,68,68,0.95)',
+            }}
           >
             <div className="p-4">
               <div className="flex items-start gap-3">
@@ -35,7 +42,9 @@ const FloatingClassAlarm = () => {
                   <p className="text-white/90 text-xs font-bold mt-0.5">
                     {alert.type === 'break'
                       ? `쉬는시간 ${alert.minutesLeft}분 전이에요! 잠시 정리할 시간입니다.`
-                      : `수업 종료 ${alert.minutesLeft}분 전! 활동 기록을 작성해주세요.`}
+                      : alert.type === 'attendance'
+                        ? '수업 시작 시간이에요! 출석체크를 진행해주세요.'
+                        : `수업 종료 ${alert.minutesLeft}분 전! 활동 기록을 작성해주세요.`}
                   </p>
                 </div>
                 <button
@@ -49,11 +58,15 @@ const FloatingClassAlarm = () => {
               <button
                 onClick={() => {
                   dismissAlert(alert.key);
-                  navigate(`/activity-log?classId=${alert.classId}`);
+                  navigate(
+                    alert.type === 'attendance'
+                      ? `/classroom?id=${alert.classId}&tab=attendance`
+                      : `/activity-log?classId=${alert.classId}`
+                  );
                 }}
-                className={`mt-3 w-full py-2.5 rounded-xl bg-white font-black text-xs flex items-center justify-center gap-1.5 hover:bg-white/90 transition-all ${alert.type === 'break' ? 'text-amber-600' : 'text-red-600'}`}
+                className={`mt-3 w-full py-2.5 rounded-xl bg-white font-black text-xs flex items-center justify-center gap-1.5 hover:bg-white/90 transition-all ${alert.type === 'break' ? 'text-amber-600' : alert.type === 'attendance' ? 'text-blue-600' : 'text-red-600'}`}
               >
-                지금 작성하러 가기 <ArrowRight size={13} />
+                {alert.type === 'attendance' ? '지금 출석체크 하러 가기' : '지금 작성하러 가기'} <ArrowRight size={13} />
               </button>
             </div>
           </motion.div>

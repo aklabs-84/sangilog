@@ -2731,7 +2731,7 @@ const Classroom = () => {
 
                 <div className="space-y-2">
                   <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                    <Clock size={13} /> 수업 시간 & 종료 알람 (선택)
+                    <Clock size={13} /> 수업 시간 & 시작·종료 알람 (선택)
                   </label>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 space-y-1">
@@ -2754,6 +2754,9 @@ const Classroom = () => {
                       />
                     </div>
                   </div>
+                  {newClassData.class_start_time && (
+                    <p className="text-[11px] text-blue-500 font-bold ml-1">매일 시작 시각이 되면 출석체크 알림이 자동으로 울립니다.</p>
+                  )}
                   {newClassData.class_end_time && (
                     <div className="flex items-center gap-4 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
                       {[30, 15, 10].map((m) => (
@@ -3139,10 +3142,10 @@ const Classroom = () => {
                         <p className="text-[11px] text-neutral-400 font-bold ml-1">종료일이 지나면 학생의 활동기록·결과 제출이 자동으로 차단됩니다.</p>
                       </div>
 
-                      {/* 수업 시간 & 종료 알람 */}
+                      {/* 수업 시간 & 시작·종료 알람 */}
                       <div className="space-y-2 pt-1">
                         <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
-                          <Clock size={13} /> 수업 시간 & 종료 알람 (선택)
+                          <Clock size={13} /> 수업 시간 & 시작·종료 알람 (선택)
                         </label>
                         <div className="flex items-center gap-3">
                           <div className="flex-1 space-y-1">
@@ -3165,6 +3168,9 @@ const Classroom = () => {
                             />
                           </div>
                         </div>
+                        {updateClassData.class_start_time && (
+                          <p className="text-[11px] text-blue-500 font-bold ml-1">매일 시작 시각이 되면 출석체크 알림이 자동으로 울립니다.</p>
+                        )}
                         {updateClassData.class_end_time && (
                           <div className="flex items-center gap-4 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
                             {[30, 15, 10].map((m) => (

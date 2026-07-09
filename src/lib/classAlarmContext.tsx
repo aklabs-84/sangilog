@@ -6,6 +6,7 @@ import { playAlarm } from './timerContext';
 interface ClassAlarmRow {
   id: string;
   name: string;
+  class_start_time: string | null;
   class_end_time: string | null;
   end_alarm_minutes: number[] | null;
   break_times: string[] | null;
@@ -19,7 +20,7 @@ export interface ClassAlarmAlert {
   key: string;
   classId: string;
   className: string;
-  type: 'class_end' | 'break';
+  type: 'class_end' | 'break' | 'attendance';
   minutesLeft: number;
 }
 
@@ -89,14 +90,15 @@ export const ClassAlarmProvider = ({ children }: { children: ReactNode }) => {
     }
     const { data } = await supabase
       .from('classes')
-      .select('id, name, class_end_time, end_alarm_minutes, break_times, start_date, end_date, is_closed, is_archived')
+      .select('id, name, class_start_time, class_end_time, end_alarm_minutes, break_times, start_date, end_date, is_closed, is_archived')
       .eq('teacher_id', user.id)
       .eq('is_closed', false);
     setClasses((data || []).filter((c) => {
       if (c.is_archived) return false;
+      const hasStartAlarm = !!c.class_start_time;
       const hasEndAlarm = !!c.class_end_time && (c.end_alarm_minutes || []).length > 0;
       const hasBreakAlarm = (c.break_times || []).length > 0;
-      return hasEndAlarm || hasBreakAlarm;
+      return hasStartAlarm || hasEndAlarm || hasBreakAlarm;
     }));
   }, [user]);
 
@@ -156,6 +158,15 @@ export const ClassAlarmProvider = ({ children }: { children: ReactNode }) => {
       classes.forEach((cls) => {
         if (cls.start_date && cls.start_date > todayStr) return;
         if (cls.end_date && cls.end_date < todayStr) return;
+
+        if (cls.class_start_time) {
+          const [startH, startM] = cls.class_start_time.split(':').map((v) => parseInt(v, 10));
+          const startTotalMin = startH * 60 + startM;
+          if (minutesToHHMM(startTotalMin) === nowHHMM) {
+            const triggerKey = `${cls.id}_start_${todayStr}`;
+            triggerAlarm(triggerKey, { key: triggerKey, classId: cls.id, className: cls.name, type: 'attendance', minutesLeft: 0 });
+          }
+        }
 
         if (cls.class_end_time) {
           const [endH, endM] = cls.class_end_time.split(':').map((v) => parseInt(v, 10));
