@@ -19,7 +19,7 @@ import {
   Bold, Italic, List, ListOrdered, Quote, Code, Code2,
   Link2, ImageIcon, Minus, Loader2, Globe, ChevronRight, X,
   Copy, Check, Table2, Plus, Trash2, ArrowRightToLine, ArrowDownToLine,
-  MonitorPlay, Palette, Lightbulb,
+  MonitorPlay, Palette, Lightbulb, Scissors, Lock, Unlock, ClipboardPaste,
 } from 'lucide-react';
 
 // ── 슬래시 명령어 목록 ────────────────────────────────────────────────────────
@@ -176,6 +176,38 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
   const isResizing = useRef(false);
   const startX = useRef(0);
   const startW = useRef(0);
+  const naturalSizeRef = useRef<{ w: number; h: number } | null>(null);
+  const [ratioLocked, setRatioLocked] = useState(true);
+
+  const width = node.attrs.width as number | null;
+  const height = node.attrs.height as number | null;
+
+  const getRatio = () => {
+    const nat = naturalSizeRef.current;
+    if (nat && nat.w && nat.h) return nat.w / nat.h;
+    if (width && height) return width / height;
+    return null;
+  };
+
+  const applyWidth = (newW: number) => {
+    if (!Number.isFinite(newW) || newW < 20) return;
+    const w = Math.round(newW);
+    if (ratioLocked) {
+      const ratio = getRatio();
+      if (ratio) { updateAttributes({ width: w, height: Math.round(w / ratio) }); return; }
+    }
+    updateAttributes({ width: w });
+  };
+
+  const applyHeight = (newH: number) => {
+    if (!Number.isFinite(newH) || newH < 20) return;
+    const h = Math.round(newH);
+    if (ratioLocked) {
+      const ratio = getRatio();
+      if (ratio) { updateAttributes({ height: h, width: Math.round(h * ratio) }); return; }
+    }
+    updateAttributes({ height: h });
+  };
 
   const onResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -187,6 +219,10 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
     const onMove = (ev: MouseEvent) => {
       if (!isResizing.current) return;
       const newW = Math.max(80, Math.round(startW.current + (ev.clientX - startX.current)));
+      if (ratioLocked && node.attrs.height) {
+        const ratio = getRatio();
+        if (ratio) { updateAttributes({ width: newW, height: Math.round(newW / ratio) }); return; }
+      }
       updateAttributes({ width: newW });
     };
     const onUp = () => {
@@ -198,20 +234,70 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
     window.addEventListener('mouseup', onUp);
   };
 
-  const width = node.attrs.width as number | null;
-
   return (
-    <NodeViewWrapper className="relative inline-block my-3" style={{ maxWidth: '100%' }}>
+    <NodeViewWrapper as="span" className="relative inline-block align-top mx-1 my-1" style={{ maxWidth: '100%' }}>
       <img
         ref={imgRef}
         src={node.attrs.src}
         alt={node.attrs.alt ?? ''}
-        style={{ width: width ? `${width}px` : 'auto', maxWidth: '100%', display: 'block' }}
+        onLoad={() => { if (imgRef.current) naturalSizeRef.current = { w: imgRef.current.naturalWidth, h: imgRef.current.naturalHeight }; }}
+        style={{ width: width ? `${width}px` : 'auto', height: height ? `${height}px` : 'auto', maxWidth: '100%', display: 'block' }}
         className={`rounded-xl shadow transition-all select-none ${selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
         draggable={false}
       />
       {selected && (
         <>
+          <div
+            className="absolute -top-11 left-0 flex items-center gap-1 bg-surface border border-surface-container rounded-xl shadow-lg px-1.5 py-1 z-20"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <input
+              type="number"
+              value={width ?? ''}
+              onChange={e => { const v = parseInt(e.target.value); if (!Number.isNaN(v)) applyWidth(v); }}
+              placeholder="W"
+              title="너비 (px)"
+              className="w-12 px-1 py-0.5 text-[11px] font-bold bg-surface-container rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-center"
+            />
+            <span className="text-[10px] text-on-surface-variant">×</span>
+            <input
+              type="number"
+              value={height ?? ''}
+              onChange={e => { const v = parseInt(e.target.value); if (!Number.isNaN(v)) applyHeight(v); }}
+              placeholder="H"
+              title="높이 (px)"
+              className="w-12 px-1 py-0.5 text-[11px] font-bold bg-surface-container rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-center"
+            />
+            <button
+              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRatioLocked(v => !v); }}
+              title={ratioLocked ? '가로세로 비율 고정됨 (클릭하여 해제)' : '비율 고정 해제됨 (클릭하여 고정)'}
+              className={`p-1 rounded-md transition-colors ${ratioLocked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+            >
+              {ratioLocked ? <Lock size={12} /> : <Unlock size={12} />}
+            </button>
+            <div className="w-px h-4 bg-surface-container mx-0.5" />
+            <button
+              onMouseDown={e => {
+                e.preventDefault(); e.stopPropagation();
+                (editor as any).emit('image-clipboard', { mode: 'copy', attrs: { ...node.attrs } });
+              }}
+              title="이미지 복사"
+              className="p-1 rounded-md text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors"
+            >
+              <Copy size={12} />
+            </button>
+            <button
+              onMouseDown={e => {
+                e.preventDefault(); e.stopPropagation();
+                (editor as any).emit('image-clipboard', { mode: 'cut', attrs: { ...node.attrs } });
+                deleteNodeAt(editor, getPos, node.nodeSize);
+              }}
+              title="이미지 잘라내기"
+              className="p-1 rounded-md text-on-surface-variant hover:bg-surface-container hover:text-red-500 transition-colors"
+            >
+              <Scissors size={12} />
+            </button>
+          </div>
           <button
             onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
             className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center z-10 transition-colors"
@@ -228,9 +314,9 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
               <path d="M1 8L8 1M4 8L8 4M7 8L8 7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </div>
-          {width && (
+          {(width || height) && (
             <div className="absolute top-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-mono pointer-events-none">
-              {width}px
+              {width ?? '자동'}×{height ?? '자동'}
             </div>
           )}
         </>
@@ -248,7 +334,7 @@ const ResizableImage = ImageExtension.extend({
         default: null,
         parseHTML: el => {
           const t = el.getAttribute('title') || '';
-          return t.replace(/^width:\d+$/, '').trim() || null;
+          return t.replace(/^(width:\d+)?,?(height:\d+)?$/, '').trim() || null;
         },
         renderHTML: attrs => attrs.title ? { title: attrs.title } : {},
       },
@@ -257,12 +343,25 @@ const ResizableImage = ImageExtension.extend({
         parseHTML: el => {
           const w = el.getAttribute('width');
           if (w) return parseInt(w);
-          const m = (el.getAttribute('title') || '').match(/^width:(\d+)$/);
+          const m = (el.getAttribute('title') || '').match(/(?:^|,)width:(\d+)/);
           return m ? parseInt(m[1]) : null;
         },
         renderHTML: attrs => {
           if (!attrs.width) return {};
           return { width: attrs.width, style: `width:${attrs.width}px;max-width:100%` };
+        },
+      },
+      height: {
+        default: null,
+        parseHTML: el => {
+          const h = el.getAttribute('height');
+          if (h) return parseInt(h);
+          const m = (el.getAttribute('title') || '').match(/(?:^|,)height:(\d+)/);
+          return m ? parseInt(m[1]) : null;
+        },
+        renderHTML: attrs => {
+          if (!attrs.height) return {};
+          return { height: attrs.height, style: `height:${attrs.height}px` };
         },
       },
     };
@@ -273,8 +372,12 @@ const ResizableImage = ImageExtension.extend({
         serialize(state: any, node: any) {
           const src = (node.attrs.src || '').replace(/[\(\)]/g, '\\$&');
           const alt = state.esc(node.attrs.alt || '');
-          const titlePart = node.attrs.width
-            ? ` "width:${node.attrs.width}"`
+          const dims = [
+            node.attrs.width ? `width:${node.attrs.width}` : null,
+            node.attrs.height ? `height:${node.attrs.height}` : null,
+          ].filter(Boolean);
+          const titlePart = dims.length
+            ? ` "${dims.join(',')}"`
             : node.attrs.title ? ` "${node.attrs.title}"` : '';
           state.write(`![${alt}](${src}${titlePart})`);
           state.closeBlock(node);
@@ -1146,6 +1249,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
   const [embedUrlInput, setEmbedUrlInput] = useState('');
   const [embedPreview, setEmbedPreview] = useState<EmbedInfo | null>(null);
+  const [pendingImage, setPendingImage] = useState<{ mode: 'copy' | 'cut'; attrs: Record<string, unknown> } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastMarkdownRef = useRef(value);
   const uploadFnRef = useRef<((file: File) => Promise<void>) | null>(null);
@@ -1168,7 +1272,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
         transformCopiedText: false,
       }),
       LinkExtension.configure({ openOnClick: false }),
-      ResizableImage,
+      ResizableImage.configure({ inline: true }),
       DetailsExtension,
       CalloutExtension,
       ColorableTable.configure({ resizable: true, HTMLAttributes: { class: 'rich-table' } }),
@@ -1296,6 +1400,20 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
     (window as any).__openEmbedDialog = () => setEmbedDialogOpen(true);
     return () => { delete (window as any).__openEmbedDialog; };
   }, []);
+
+  // 이미지 노드뷰에서 복사/잘라내기한 이미지를 받아 대기시킴
+  useEffect(() => {
+    if (!editor) return;
+    const handler = (payload: { mode: 'copy' | 'cut'; attrs: Record<string, unknown> }) => setPendingImage(payload);
+    (editor as any).on('image-clipboard', handler);
+    return () => { (editor as any).off('image-clipboard', handler); };
+  }, [editor]);
+
+  const handlePasteImageHere = () => {
+    if (!pendingImage || !editor) return;
+    editor.chain().focus().setImage({ ...pendingImage.attrs } as any).run();
+    if (pendingImage.mode === 'cut') setPendingImage(null);
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1426,6 +1544,20 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           {uploading ? <Loader2 size={15} className="animate-spin" /> : <ImageIcon size={15} />}
         </button>
         <button onClick={() => setImageUrlDialogOpen(true)} title="이미지 URL로 추가" className={btnCls(false)}><Globe size={15} /></button>
+        {pendingImage && (
+          <>
+            <button
+              onClick={handlePasteImageHere}
+              title={`${pendingImage.mode === 'cut' ? '잘라낸' : '복사한'} 이미지를 커서 위치에 붙여넣기`}
+              className={btnCls(false) + ' text-primary'}
+            >
+              <ClipboardPaste size={15} />
+            </button>
+            <button onClick={() => setPendingImage(null)} title="붙여넣기 대기 취소" className={btnCls(false)}>
+              <X size={15} />
+            </button>
+          </>
+        )}
         {sep}
         <button onClick={handleInsertToggle} title="토글 블록 삽입" className={btnCls(isActive('details'))}>
           <ChevronRight size={15} />
