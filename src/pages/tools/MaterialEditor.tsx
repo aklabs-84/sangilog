@@ -1439,7 +1439,7 @@ const MaterialEditor = () => {
 
       {/* 자동 저장 상태 — 본문을 스크롤해도 항상 보이도록 화면에 고정 */}
       {isEditorOpen && autoSaveStatus !== 'idle' && (
-        <div className="fixed bottom-5 right-5 z-[60] flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-lg font-bold text-xs bg-white border border-surface-container">
+        <div className="fixed bottom-24 right-5 z-[60] flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-lg font-bold text-xs bg-white border border-surface-container">
           {autoSaveStatus === 'saving' ? (
             <span className="text-on-surface-variant flex items-center gap-1.5">
               <Loader2 size={12} className="animate-spin" /> 자동 저장 중...
