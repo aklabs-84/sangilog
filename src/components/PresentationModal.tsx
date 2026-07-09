@@ -7,7 +7,7 @@ import { useTimer } from '../lib/timerContext';
 import {
   ArrowLeft, Save, Pencil, X as XIcon,
   ZoomIn, PenTool, Undo2, Highlighter, Flashlight, Timer as TimerIcon, Play, Pause,
-  Sun, Moon,
+  Sun, Moon, Copy, Check,
 } from 'lucide-react';
 
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
@@ -83,6 +83,41 @@ const SlideImg = ({ src, alt, title }: { src?: string; alt?: string; title?: str
   );
 };
 
+// 발표 화면 코드박스 — 다른 화면(자료 에디터/학생 뷰)과 달리 우상단 복사 버튼이 없어서
+// 발표 중 학생들이 코드를 그대로 복사할 수 없다는 문의로 추가.
+const SlidePre = ({ dark, code }: { dark: boolean; code: string }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code).catch(() => {
+      const el = document.createElement('textarea');
+      el.value = code;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    });
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="relative my-4">
+      <button
+        onClick={handleCopy}
+        className={`absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all ${
+          copied
+            ? 'bg-emerald-500/20 text-emerald-400'
+            : dark ? 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white' : 'bg-slate-900/10 text-slate-500 hover:bg-slate-900/20 hover:text-slate-800'
+        }`}
+      >
+        {copied ? <><Check size={11} strokeWidth={3} /> 복사됨</> : <><Copy size={11} /> 복사</>}
+      </button>
+      <pre style={slideFontSize(1)} className={`rounded-2xl p-5 whitespace-pre-wrap break-words font-mono border ${dark ? 'bg-white/5 text-white/80 border-white/10' : 'bg-slate-900/[0.03] text-slate-700 border-slate-900/10'}`}>
+        {code}
+      </pre>
+    </div>
+  );
+};
+
 // ── 프레젠테이션 슬라이드 마크다운 렌더러 ────────────────────────────────────
 // 발표 화면은 다크/라이트 두 테마를 지원한다 — dark=true면 짙은 배경 위 흰 글자,
 // false면 밝은 배경 위 어두운 글자로 색상 세트 전체를 바꿔 반환한다.
@@ -130,11 +165,7 @@ const getSlideComponents = (
   pre: ({ children }: any) => {
     const child = (Array.isArray(children) ? children[0] : children) as any;
     const code = String(child?.props?.children ?? '').replace(/\n$/, '');
-    return (
-      <pre style={slideFontSize(1)} className={`rounded-2xl p-5 whitespace-pre-wrap break-words font-mono my-4 border ${dark ? 'bg-white/5 text-white/80 border-white/10' : 'bg-slate-900/[0.03] text-slate-700 border-slate-900/10'}`}>
-        {code}
-      </pre>
-    );
+    return <SlidePre dark={dark} code={code} />;
   },
   strong: ({ children }: any) => <strong className={`font-black ${dark ? 'text-white' : 'text-slate-900'}`}>{children}</strong>,
   em: ({ children }: any) => <em className="italic text-primary">{children}</em>,
