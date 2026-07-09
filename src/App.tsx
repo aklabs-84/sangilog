@@ -201,7 +201,6 @@ function App() {
     <AuthProvider>
       <TimerProvider>
       <ClassAlarmProvider>
-      <FloatingClassAlarm />
       <IdleWarningModal />
       <InstallPromptBanner />
       <div className="relative min-h-screen bg-surface overflow-hidden">
@@ -210,6 +209,7 @@ function App() {
         <div className="fixed top-[20%] right-[-5%] w-[30%] h-[30%] bg-accent/5 rounded-full blur-[100px] pointer-events-none" />
 
         <BrowserRouter>
+          <FloatingClassAlarm />
           <div className="relative z-10">
             <Routes>
               {/* 공개 라우트 */}
