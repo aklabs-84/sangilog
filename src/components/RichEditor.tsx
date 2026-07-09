@@ -241,6 +241,15 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
         src={node.attrs.src}
         alt={node.attrs.alt ?? ''}
         onLoad={() => { if (imgRef.current) naturalSizeRef.current = { w: imgRef.current.naturalWidth, h: imgRef.current.naturalHeight }; }}
+        onMouseDown={e => {
+          // 인접한 이미지 사이 경계에서 브라우저의 기본 클릭 판정이 애매해지는 것을 막기 위해
+          // 클릭한 이미지를 명시적으로 NodeSelection으로 지정 (엉뚱한 위치로 스크롤되는 문제도 함께 방지)
+          if (typeof getPos !== 'function') return;
+          e.preventDefault();
+          e.stopPropagation();
+          const pos = getPos();
+          if (typeof pos === 'number') editor.chain().setNodeSelection(pos).focus().run();
+        }}
         style={{ width: width ? `${width}px` : 'auto', height: height ? `${height}px` : 'auto', maxWidth: '100%', display: 'block' }}
         className={`rounded-xl shadow transition-all select-none ${selected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
         draggable={false}

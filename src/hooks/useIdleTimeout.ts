@@ -63,11 +63,13 @@ export function useIdleTimeout({ idleMs, warningMs, onTimeout, enabled }: UseIdl
     resetRef.current = reset;
     reset();
 
-    ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    // capture 단계로 등록 — scroll 이벤트는 버블링되지 않으므로, 내부 스크롤 영역(overflow-y-auto 등)에서
+    // 발생한 스크롤도 활동으로 감지하려면 capture: true가 필요함
+    ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, reset, { passive: true, capture: true }));
 
     return () => {
       clearAll();
-      ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, reset));
+      ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, reset, { capture: true }));
     };
   }, [enabled, idleMs, warningMs]);
 

@@ -766,6 +766,10 @@ const MaterialEditor = () => {
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  // 에디터를 열 때(신규/수정 진입) 폼 필드가 초기값으로 세팅되면서 발생하는 최초 1회 변경은
+  // 자동저장 대상이 아니므로 건너뛰기 위한 플래그
+  const autosaveSkipRef = useRef(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [presentingMaterial, setPresentingMaterial] = useState<Material | null>(null);
@@ -853,6 +857,8 @@ const MaterialEditor = () => {
 
   const handleNew = () => {
     resetForm();
+    autosaveSkipRef.current = true;
+    setAutoSaveStatus('idle');
     setIsEditorOpen(true);
   };
 
@@ -864,6 +870,8 @@ const MaterialEditor = () => {
     setIsPublished(material.is_published || false);
     setViewMode('edit');
     setAiVersions(material.ai_versions ?? []);
+    autosaveSkipRef.current = true;
+    setAutoSaveStatus('idle');
     setIsEditorOpen(true);
   };
 
@@ -931,6 +939,57 @@ const MaterialEditor = () => {
     }
     finally { setSaving(false); }
   };
+
+  // ── 자동 저장 ─────────────────────────────────────────────────────────────
+  // 수동 저장(handleSave)과 달리 창을 닫거나 폼을 리셋하지 않고, 조용히 DB에만 반영한다.
+  const doAutoSave = async () => {
+    if (saving) return; // 수동 저장이 진행 중이면 충돌 방지를 위해 건너뜀
+    if (!libraryMode && !selectedClass) return;
+    if (!title.trim()) return;
+    setAutoSaveStatus('saving');
+    try {
+      const payload = {
+        class_id: libraryMode ? null : selectedClass.id,
+        teacher_id: user!.id,
+        week_number: weekNumber,
+        title: title.trim(),
+        content: (content ?? '').trim(),
+        is_published: libraryMode ? false : isPublished,
+        ai_versions: aiVersions,
+        updated_at: new Date().toISOString(),
+      };
+      if (editingMaterial) {
+        const { error } = await supabase.from('class_materials').update(payload).eq('id', editingMaterial.id);
+        if (error) throw error;
+        if (libraryMode) {
+          const { error: syncError } = await supabase
+            .from('class_materials')
+            .update({ content: payload.content, ai_versions: payload.ai_versions, updated_at: payload.updated_at })
+            .eq('source_material_id', editingMaterial.id);
+          if (syncError) console.error('[MaterialEditor] linked materials sync error:', syncError);
+        }
+      } else {
+        // 아직 한 번도 저장된 적 없는 새 자료 — 첫 자동저장 시 생성하고, 이후엔 위 update 경로를 탄다
+        const { data, error } = await supabase.from('class_materials').insert(payload).select().single();
+        if (error) throw error;
+        if (data) setEditingMaterial(data as Material);
+      }
+      if (libraryMode) fetchLibraryMaterials(); else if (selectedClass) fetchMaterials(selectedClass.id);
+      setAutoSaveStatus('saved');
+    } catch (err) {
+      console.error('[MaterialEditor] autosave error:', err);
+      setAutoSaveStatus('idle');
+    }
+  };
+
+  // 제목/주차/내용/공개여부 변경 시 1.5초 debounce 후 자동 저장
+  useEffect(() => {
+    if (!isEditorOpen) return;
+    if (autosaveSkipRef.current) { autosaveSkipRef.current = false; return; }
+    const timer = setTimeout(() => { doAutoSave(); }, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, weekNumber, content, isPublished]);
 
   // ── 삭제 ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
@@ -1359,7 +1418,18 @@ const MaterialEditor = () => {
                 </p>
               </>
             )}
-            <div className="flex-1" />
+            <div className="flex-1 flex items-center justify-center">
+              {autoSaveStatus === 'saving' && (
+                <span className="text-xs font-bold text-on-surface-variant flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> 자동 저장 중...
+                </span>
+              )}
+              {autoSaveStatus === 'saved' && (
+                <span className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
+                  <Save size={12} /> 자동 저장됨
+                </span>
+              )}
+            </div>
             <button
               onClick={() => { setIsEditorOpen(false); resetForm(); }}
               className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
