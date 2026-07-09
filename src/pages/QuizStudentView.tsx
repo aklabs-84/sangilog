@@ -175,6 +175,18 @@ const QuizStudentView = () => {
     setLoading(false);
   };
 
+  // 세션 업데이트 적용 (Realtime 이벤트 / 폴백 폴링 공용)
+  const applySessionUpdate = useCallback((updated: Session) => {
+    setSession(prev => {
+      // 문제가 바뀌면 내 답변 초기화
+      if (prev && updated.current_question_index !== prev.current_question_index) {
+        setMyAnswer(null);
+        setLastResult(null);
+      }
+      return updated;
+    });
+  }, []);
+
   // ── Realtime 구독 ──────────────────────────────────────────────────────────
   const startRealtimeSync = useCallback((sessionId: string, participantId: string) => {
     if (channelRef.current) supabase.removeChannel(channelRef.current);
@@ -185,15 +197,7 @@ const QuizStudentView = () => {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'quiz_sessions', filter: `id=eq.${sessionId}` },
         (payload) => {
-          const updated = payload.new as Session;
-          setSession(prev => {
-            // 문제가 바뀌면 내 답변 초기화
-            if (prev && updated.current_question_index !== prev.current_question_index) {
-              setMyAnswer(null);
-              setLastResult(null);
-            }
-            return updated;
-          });
+          applySessionUpdate(payload.new as Session);
           setIsConnected(true);
         }
       )
@@ -236,6 +240,35 @@ const QuizStudentView = () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     };
   }, []);
+
+  // Realtime 유실 대비 폴백 폴링 — postgres_changes는 웹소켓이 잠깐 끊기면
+  // 유실된 이벤트를 재전송하지 않으므로, 주기적으로 직접 재조회해 어긋난 상태를 복구한다.
+  // (참가자가 많을수록 웹소켓 순간 끊김 확률이 높아져 특정 학생만 타이머가 멈추거나
+  //  응답시간이 비정상적으로 누적되는 원인이었음)
+  useEffect(() => {
+    if (step !== 'game' || !session?.id || !participant?.id) return;
+    const sessionId = session.id;
+    const participantId = participant.id;
+
+    const poll = async () => {
+      const { data: sessData } = await supabase
+        .from('quiz_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
+      if (sessData) applySessionUpdate(sessData as Session);
+
+      const { data: pData } = await supabase
+        .from('quiz_participants')
+        .select('id, student_name, score')
+        .eq('id', participantId)
+        .single();
+      if (pData) setParticipant(prev => (prev ? { ...prev, ...pData } : (pData as Participant)));
+    };
+
+    const t = setInterval(poll, 4000);
+    return () => clearInterval(t);
+  }, [step, session?.id, participant?.id, applySessionUpdate]);
 
   // 타이머 동기화 (서버 시간 기준)
   useEffect(() => {
@@ -336,8 +369,10 @@ const QuizStudentView = () => {
     const isCorrect = optionIdx === currentQuestion.correct_answer;
     const BASE = 500;
     const MAX_BONUS = 500;
+    // responseTime이 세션 동기화 지연 등으로 time_limit의 2배를 넘으면 점수가 음수가 되어
+    // 아래 "score > 0" 체크에 걸려 DB 반영 자체가 통째로 스킵되는 문제가 있었음 → 0으로 클램프
     const score = isCorrect
-      ? BASE + Math.floor((1 - responseTime / currentQuestion.time_limit) * MAX_BONUS)
+      ? Math.max(0, BASE + Math.floor((1 - responseTime / currentQuestion.time_limit) * MAX_BONUS))
       : 0;
 
     setLastResult({ isCorrect, score, correctAnswer: currentQuestion.correct_answer });

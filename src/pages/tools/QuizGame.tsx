@@ -424,12 +424,32 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
     channelRef.current = channel;
   }, []);
 
+  // 참가자 목록을 DB에서 직접 재조회 (Realtime 유실 대비 폴백/최종 기록용)
+  const fetchParticipantsFresh = useCallback(async (sessionId: string) => {
+    const { data } = await supabase
+      .from('quiz_participants')
+      .select('id, student_name, score, joined_at')
+      .eq('session_id', sessionId)
+      .order('joined_at', { ascending: true });
+    if (data) setParticipants(data as Participant[]);
+    return (data as Participant[] | null) ?? null;
+  }, []);
+
   useEffect(() => {
     return () => {
       if (channelRef.current) supabase.removeChannel(channelRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
+
+  // Realtime 유실 대비 폴백 폴링 — postgres_changes는 웹소켓이 잠깐 끊기면
+  // 유실된 이벤트를 재전송하지 않으므로, 주기적으로 참가자 목록을 직접 재동기화한다.
+  useEffect(() => {
+    if (view !== 'game' || !session?.id) return;
+    const sessionId = session.id;
+    const t = setInterval(() => { fetchParticipantsFresh(sessionId); }, 4000);
+    return () => clearInterval(t);
+  }, [view, session?.id, fetchParticipantsFresh]);
 
   // 최종 결과 도달 시 폭죽 + 효과음 + 누적 점수 저장
   useEffect(() => {
@@ -442,18 +462,23 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
     // 누적 점수 히스토리 저장 (중복 저장 방지)
     if (!savedHistoryRef.current) {
       savedHistoryRef.current = true;
-      const ranked = [...participants].sort((a, b) => b.score - a.score);
-      const rows = ranked.map((p, i) => ({
-        class_id: selectedClass?.id ?? null,
-        session_id: session.id,
-        quiz_set_title: selectedQuizSet?.title ?? '',
-        student_name: p.student_name,
-        rank: i + 1,
-        score: p.score,
-      }));
-      supabase.from('quiz_score_history').insert(rows).then(({ error }) => {
+      const sessionId = session.id;
+      // 로컬 state는 Realtime 이벤트 유실로 일부 학생 점수가 어긋나 있을 수 있으므로
+      // 기록 직전 DB에서 최신 점수를 다시 조회한 뒤 저장한다.
+      (async () => {
+        const fresh = (await fetchParticipantsFresh(sessionId)) ?? participants;
+        const ranked = [...fresh].sort((a, b) => b.score - a.score);
+        const rows = ranked.map((p, i) => ({
+          class_id: selectedClass?.id ?? null,
+          session_id: sessionId,
+          quiz_set_title: selectedQuizSet?.title ?? '',
+          student_name: p.student_name,
+          rank: i + 1,
+          score: p.score,
+        }));
+        const { error } = await supabase.from('quiz_score_history').insert(rows);
         if (error) console.warn('[QuizHistory] 저장 실패 (테이블 없음?):', error.message);
-      });
+      })();
     }
 
     return () => clearTimeout(t);
