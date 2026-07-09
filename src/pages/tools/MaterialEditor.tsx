@@ -974,7 +974,6 @@ const MaterialEditor = () => {
         if (error) throw error;
         if (data) setEditingMaterial(data as Material);
       }
-      if (libraryMode) fetchLibraryMaterials(); else if (selectedClass) fetchMaterials(selectedClass.id);
       setAutoSaveStatus('saved');
     } catch (err) {
       console.error('[MaterialEditor] autosave error:', err);
@@ -1418,18 +1417,7 @@ const MaterialEditor = () => {
                 </p>
               </>
             )}
-            <div className="flex-1 flex items-center justify-center">
-              {autoSaveStatus === 'saving' && (
-                <span className="text-xs font-bold text-on-surface-variant flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" /> 자동 저장 중...
-                </span>
-              )}
-              {autoSaveStatus === 'saved' && (
-                <span className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
-                  <Save size={12} /> 자동 저장됨
-                </span>
-              )}
-            </div>
+            <div className="flex-1" />
             <button
               onClick={() => { setIsEditorOpen(false); resetForm(); }}
               className="px-4 py-2 rounded-xl font-bold text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
@@ -1446,6 +1434,21 @@ const MaterialEditor = () => {
               {uploading ? '이미지 업로드 중...' : editingMaterial ? '수정 완료' : '저장'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 자동 저장 상태 — 본문을 스크롤해도 항상 보이도록 화면에 고정 */}
+      {isEditorOpen && autoSaveStatus !== 'idle' && (
+        <div className="fixed bottom-5 right-5 z-[60] flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-lg font-bold text-xs bg-white border border-surface-container">
+          {autoSaveStatus === 'saving' ? (
+            <span className="text-on-surface-variant flex items-center gap-1.5">
+              <Loader2 size={12} className="animate-spin" /> 자동 저장 중...
+            </span>
+          ) : (
+            <span className="text-emerald-600 flex items-center gap-1.5">
+              <Save size={12} /> 자동 저장됨
+            </span>
+          )}
         </div>
       )}
 

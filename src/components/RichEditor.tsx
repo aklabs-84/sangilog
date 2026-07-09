@@ -389,7 +389,6 @@ const ResizableImage = ImageExtension.extend({
             ? ` "${dims.join(',')}"`
             : node.attrs.title ? ` "${node.attrs.title}"` : '';
           state.write(`![${alt}](${src}${titlePart})`);
-          state.closeBlock(node);
         },
         parse: {},
       },
@@ -1252,7 +1251,6 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const [imageAltInput, setImageAltInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
-  const [isInTable, setIsInTable] = useState(false);
   const [colorModalType, setColorModalType] = useState<'header' | 'cell' | 'text' | null>(null);
   const lastInTablePosRef = useRef<number>(-1); // 표 안에 커서가 있을 때 실시간으로 갱신
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
@@ -1303,9 +1301,7 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
       onChange(md);
     },
     onSelectionUpdate: ({ editor }) => {
-      const inTable = editor.isActive('table');
-      setIsInTable(inTable);
-      if (inTable) {
+      if (editor.isActive('table')) {
         lastInTablePosRef.current = editor.state.selection.from;
       }
     },
@@ -1604,67 +1600,69 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
         <span className="ml-auto text-[10px] text-on-surface-variant font-bold opacity-60">/ 입력 → 블록 삽입</span>
       </div>
 
-      {/* ── 표 편집 툴바 (커서가 표 안에 있을 때) ── */}
-      {isInTable && (
-        <div className="flex flex-wrap items-center gap-1 px-4 py-1.5 border-b border-primary/20 bg-primary/5">
-          <span className="text-[10px] font-black text-primary mr-1">표 편집</span>
-          <button onClick={() => editor.chain().focus().addRowBefore().run()} className={tableBtnCls} title="위에 행 추가">
-            <Plus size={11} /><ArrowDownToLine size={11} className="rotate-180" />위 행
-          </button>
-          <button onClick={() => editor.chain().focus().addRowAfter().run()} className={tableBtnCls} title="아래에 행 추가">
-            <Plus size={11} /><ArrowDownToLine size={11} />아래 행
-          </button>
-          <button onClick={() => editor.chain().focus().addColumnBefore().run()} className={tableBtnCls} title="왼쪽에 열 추가">
-            <Plus size={11} /><ArrowRightToLine size={11} className="rotate-180" />왼쪽 열
-          </button>
-          <button onClick={() => editor.chain().focus().addColumnAfter().run()} className={tableBtnCls} title="오른쪽에 열 추가">
-            <Plus size={11} /><ArrowRightToLine size={11} />오른쪽 열
-          </button>
-          <div className="w-px h-4 bg-primary/20 mx-0.5" />
-          <button onClick={() => editor.chain().focus().toggleHeaderRow().run()} className={tableBtnCls} title="헤더 행 토글">
-            헤더
-          </button>
-          <div className="w-px h-4 bg-primary/20 mx-0.5" />
-          {/* 헤더 색상 */}
-          <button
-            onClick={() => setColorModalType('header')}
-            className={tableBtnCls}
-            title="헤더 전체 배경색 변경"
-          >
-            <Palette size={11} />헤더색
-          </button>
-          {/* 셀 색상 */}
-          <button
-            onClick={() => setColorModalType('cell')}
-            className={tableBtnCls}
-            title="현재 셀 배경색 변경"
-          >
-            <Palette size={11} />셀색
-          </button>
-          <div className="w-px h-4 bg-primary/20 mx-0.5" />
-          <button
-            onClick={() => editor.chain().focus().deleteRow().run()}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-500 hover:bg-red-50 transition-colors"
-            title="현재 행 삭제"
-          >
-            <Trash2 size={11} />행 삭제
-          </button>
-          <button
-            onClick={() => editor.chain().focus().deleteColumn().run()}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-500 hover:bg-red-50 transition-colors"
-            title="현재 열 삭제"
-          >
-            <Trash2 size={11} />열 삭제
-          </button>
-          <button
-            onClick={() => editor.chain().focus().deleteTable().run()}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-600 hover:bg-red-50 transition-colors ml-1"
-            title="표 전체 삭제"
-          >
-            <Trash2 size={11} />표 삭제
-          </button>
-        </div>
-      )}
+      {/* ── 표 편집 플로팅 메뉴 (커서가 표 안에 있을 때, 표 근처에 표시) ── */}
+      <BubbleMenu
+        editor={editor}
+        shouldShow={({ editor: ed }) => ed.isActive('table')}
+        className="flex flex-wrap items-center gap-1 bg-white rounded-xl shadow-xl border border-surface-container p-1.5 max-w-[min(90vw,480px)]"
+      >
+        <span className="text-[10px] font-black text-primary mr-1 pl-1">표 편집</span>
+        <button onClick={() => editor.chain().focus().addRowBefore().run()} className={tableBtnCls} title="위에 행 추가">
+          <Plus size={11} /><ArrowDownToLine size={11} className="rotate-180" />위 행
+        </button>
+        <button onClick={() => editor.chain().focus().addRowAfter().run()} className={tableBtnCls} title="아래에 행 추가">
+          <Plus size={11} /><ArrowDownToLine size={11} />아래 행
+        </button>
+        <button onClick={() => editor.chain().focus().addColumnBefore().run()} className={tableBtnCls} title="왼쪽에 열 추가">
+          <Plus size={11} /><ArrowRightToLine size={11} className="rotate-180" />왼쪽 열
+        </button>
+        <button onClick={() => editor.chain().focus().addColumnAfter().run()} className={tableBtnCls} title="오른쪽에 열 추가">
+          <Plus size={11} /><ArrowRightToLine size={11} />오른쪽 열
+        </button>
+        <div className="w-px h-4 bg-surface-container mx-0.5" />
+        <button onClick={() => editor.chain().focus().toggleHeaderRow().run()} className={tableBtnCls} title="헤더 행 토글">
+          헤더
+        </button>
+        <div className="w-px h-4 bg-surface-container mx-0.5" />
+        {/* 헤더 색상 */}
+        <button
+          onClick={() => setColorModalType('header')}
+          className={tableBtnCls}
+          title="헤더 전체 배경색 변경"
+        >
+          <Palette size={11} />헤더색
+        </button>
+        {/* 셀 색상 */}
+        <button
+          onClick={() => setColorModalType('cell')}
+          className={tableBtnCls}
+          title="현재 셀 배경색 변경"
+        >
+          <Palette size={11} />셀색
+        </button>
+        <div className="w-px h-4 bg-surface-container mx-0.5" />
+        <button
+          onClick={() => editor.chain().focus().deleteRow().run()}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-500 hover:bg-red-50 transition-colors"
+          title="현재 행 삭제"
+        >
+          <Trash2 size={11} />행 삭제
+        </button>
+        <button
+          onClick={() => editor.chain().focus().deleteColumn().run()}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-500 hover:bg-red-50 transition-colors"
+          title="현재 열 삭제"
+        >
+          <Trash2 size={11} />열 삭제
+        </button>
+        <button
+          onClick={() => editor.chain().focus().deleteTable().run()}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-red-600 hover:bg-red-50 transition-colors ml-1"
+          title="표 전체 삭제"
+        >
+          <Trash2 size={11} />표 삭제
+        </button>
+      </BubbleMenu>
 
       {/* ── 선택 영역 플로팅 툴바 ── */}
       <BubbleMenu
