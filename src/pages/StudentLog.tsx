@@ -1067,7 +1067,7 @@ const StudentLog = () => {
   const resetResultForm = () => {
     setResultTitle(''); setResultText(''); setResultUrl('');
     setResultImageFile(null); setResultFileUpload(null); setImagePreview(null);
-    setEditingResult(null); setEditingGroupResults([]);
+    setEditingResult(null); setEditingGroupResults([]); setIsGroupSubmission(false);
     if (resultImageInputRef.current) resultImageInputRef.current.value = '';
     if (resultFileInputRef.current) resultFileInputRef.current.value = '';
   };
@@ -1176,13 +1176,50 @@ const StudentLog = () => {
             .eq('student_id', session!.student_id);
         }
 
-        // 조별 제출이면 다른 조원 rows도 동기화 (SECURITY DEFINER RPC)
-        if (editingResult.is_group_submission && editingResult.submission_group) {
-          const { error: syncErr } = await supabase.rpc('sync_group_submission', {
+        // 조별 제출 상태 전환 처리 (SECURITY DEFINER RPC)
+        const wasGroup = !!editingResult.is_group_submission;
+        const nowGroup = isGroupSubmission && !!myClassGroup;
+
+        if (nowGroup) {
+          // 본인 row에 조 정보 반영
+          await supabase.from('student_results')
+            .update({ group_id: myClassGroup!.id, is_group_submission: true })
+            .eq('submission_group', groupId)
+            .eq('student_id', session!.student_id);
+
+          if (wasGroup) {
+            // 기존 조원들과 내용 동기화
+            const { error: syncErr } = await supabase.rpc('sync_group_submission', {
+              p_submission_group: editingResult.submission_group,
+              p_submitter_id: session!.student_id,
+            });
+            if (syncErr) console.error('[sync_group_submission 오류]', syncErr);
+          } else {
+            // 개별 제출 → 조별 제출 전환: 다른 조원에게 새로 복사
+            const { data: myRows } = await supabase
+              .from('student_results').select('*')
+              .eq('submission_group', groupId).eq('student_id', session!.student_id);
+            if (myRows && myRows.length > 0) {
+              const { error: rpcError } = await supabase.rpc('submit_group_results', {
+                p_group_id: myClassGroup!.id,
+                p_submitter_id: session!.student_id,
+                p_rows: myRows,
+              });
+              if (rpcError) console.error('[submit_group_results 오류]', rpcError);
+            }
+          }
+        } else if (wasGroup) {
+          // 조별 제출 → 개별 제출 전환: 본인 row 조 정보 해제 + 다른 조원 row 삭제
+          await supabase.from('student_results')
+            .update({ group_id: null, is_group_submission: false })
+            .eq('submission_group', editingResult.submission_group)
+            .eq('student_id', session!.student_id);
+
+          const { error: unlinkErr } = await supabase.rpc('unlink_group_submission', {
             p_submission_group: editingResult.submission_group,
-            p_submitter_id: session!.student_id,
+            p_requester_id: session!.student_id,
           });
-          if (syncErr) console.error('[sync_group_submission 오류]', syncErr);
+          if (unlinkErr) console.error('[unlink_group_submission 오류]', unlinkErr);
         }
 
         resetResultForm();
@@ -1282,6 +1319,7 @@ const StudentLog = () => {
 
   const handleEditResult = async (result: any) => {
     setEditingResult(result);
+    setIsGroupSubmission(!!result.is_group_submission);
     setResultTitle(result.title || '');
     setResultImageFile(null); setResultFileUpload(null); setImagePreview(null);
     if (resultImageInputRef.current) resultImageInputRef.current.value = '';
@@ -3679,7 +3717,7 @@ ${guidePrompt}
                 </div>
 
                 {/* 조별 제출 토글 — 조가 있는 경우만 표시 */}
-                {myClassGroup && !editingResult && (
+                {myClassGroup && (
                   <div
                     onClick={() => setIsGroupSubmission(v => !v)}
                     className={`flex items-center justify-between px-4 py-3.5 rounded-2xl border-2 cursor-pointer transition-all select-none ${
@@ -3698,7 +3736,9 @@ ${guidePrompt}
                         </p>
                         <p className="text-[10px] text-on-surface-variant/50 mt-0.5">
                           {isGroupSubmission
-                            ? `조원 전체에게 같은 결과가 제출됩니다`
+                            ? (editingResult && editingResult.is_group_submission
+                                ? `끄면 다른 조원의 제출 기록이 삭제되고 본인 제출만 남습니다`
+                                : `조원 전체에게 같은 결과가 제출됩니다`)
                             : `켜면 ${myClassGroup.name} 조원 전체에게 동일 제출`}
                         </p>
                       </div>
