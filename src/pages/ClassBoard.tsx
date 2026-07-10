@@ -155,7 +155,22 @@ const ClassBoard = () => {
         })
       );
 
-      const all = [...obsPosts, ...resultPosts].sort(
+      // 3단계: 같은 학생 + 같은 주차 + 같은 날짜(달력 기준)에 여러 번 제출한 건을
+      // 하나의 카드로 합침 — 가장 먼저 제출한 건을 대표로, 나머지는 모달에서 시간순 표시
+      const dayMergeMap: Record<string, any[]> = {};
+      resultPosts.forEach((post: any) => {
+        const d = new Date(post.created_at);
+        const dayStr = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        const key = `${post.student_id}_w${post.week_number ?? 0}_${dayStr}`;
+        if (!dayMergeMap[key]) dayMergeMap[key] = [];
+        dayMergeMap[key].push(post);
+      });
+      const mergedResultPosts = Object.values(dayMergeMap).map((subs: any[]) => {
+        const sorted = [...subs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        return { ...sorted[0], _submissions: sorted };
+      });
+
+      const all = [...obsPosts, ...mergedResultPosts].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       setPosts(all);
@@ -357,6 +372,11 @@ const ClassBoard = () => {
                             조별
                           </span>
                         )}
+                        {!isObs && post._submissions?.length > 1 && (
+                          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                            총 {post._submissions.length}회 제출
+                          </span>
+                        )}
                         <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
                           isObs
                             ? 'bg-violet-100 dark:bg-violet-700/40 text-violet-700 dark:text-violet-300'
@@ -533,80 +553,92 @@ const ClassBoard = () => {
                       </div>
                     )}
 
-                    {!isObs && selectedPost.text_content && (
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">내용</p>
-                        <p className="text-sm text-on-surface font-bold leading-relaxed whitespace-pre-wrap">
-                          {selectedPost.text_content}
-                        </p>
+                    {!isObs && (selectedPost._submissions || [selectedPost]).map((sub: any, idx: number, arr: any[]) => (
+                      <div
+                        key={sub.id}
+                        className={arr.length > 1 ? `space-y-3 ${idx > 0 ? 'pt-4 border-t border-dashed border-surface-container-high' : ''}` : 'space-y-3'}
+                      >
+                        {arr.length > 1 && (
+                          <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">
+                            {idx + 1}번째 제출 · {new Date(sub.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
+                        {sub.text_content && (
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">내용</p>
+                            <p className="text-sm text-on-surface font-bold leading-relaxed whitespace-pre-wrap">
+                              {sub.text_content}
+                            </p>
+                          </div>
+                        )}
+
+                        {sub.image_url && (
+                          <a
+                            href={sub.image_original_url || sub.image_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block relative group"
+                          >
+                            <img
+                              src={sub.image_url}
+                              alt=""
+                              className="w-full rounded-2xl object-contain max-h-96 cursor-zoom-in"
+                              loading="lazy"
+                              decoding="async"
+                              onError={e => {
+                                if (sub.image_original_url) {
+                                  (e.target as HTMLImageElement).src = sub.image_original_url;
+                                }
+                              }}
+                            />
+                            <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
+                              <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-black bg-black/40 px-3 py-1.5 rounded-full transition-all">
+                                새 탭에서 보기
+                              </span>
+                            </div>
+                          </a>
+                        )}
+
+                        {sub.link_url && (
+                          <a
+                            href={sub.link_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
+                          >
+                            <ExternalLink size={15} />
+                            <span className="truncate">{sub.link_url}</span>
+                          </a>
+                        )}
+
+                        {/* 추가 링크 항목들 (같은 그룹 내 여러 링크) */}
+                        {sub._group && sub._group.filter((r: any) => r.result_type === 'link' && r.link_url !== sub.link_url).map((r: any) => (
+                          <a
+                            key={r.id}
+                            href={r.link_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
+                          >
+                            <ExternalLink size={15} />
+                            <span className="truncate">{r.link_url}</span>
+                          </a>
+                        ))}
+
+                        {sub.file_url && (
+                          <button
+                            onClick={() => openFile(sub.file_url, sub.display_name || '첨부파일')}
+                            className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-2xl hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all group text-left"
+                          >
+                            <File size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                            <span className="text-sm font-black text-amber-700 dark:text-amber-300 truncate flex-1">
+                              {sub.display_name || '첨부 파일'}
+                            </span>
+                            <Download size={14} className="text-amber-500/60 shrink-0 group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors" />
+                          </button>
+                        )}
                       </div>
-                    )}
-
-                    {!isObs && selectedPost.image_url && (
-                      <a
-                        href={selectedPost.image_original_url || selectedPost.image_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block relative group"
-                      >
-                        <img
-                          src={selectedPost.image_url}
-                          alt=""
-                          className="w-full rounded-2xl object-contain max-h-96 cursor-zoom-in"
-                          loading="lazy"
-                          decoding="async"
-                          onError={e => {
-                            if (selectedPost.image_original_url) {
-                              (e.target as HTMLImageElement).src = selectedPost.image_original_url;
-                            }
-                          }}
-                        />
-                        <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
-                          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-black bg-black/40 px-3 py-1.5 rounded-full transition-all">
-                            새 탭에서 보기
-                          </span>
-                        </div>
-                      </a>
-                    )}
-
-                    {!isObs && selectedPost.link_url && (
-                      <a
-                        href={selectedPost.link_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
-                      >
-                        <ExternalLink size={15} />
-                        <span className="truncate">{selectedPost.link_url}</span>
-                      </a>
-                    )}
-
-                    {/* 추가 링크 항목들 (같은 그룹 내 여러 링크) */}
-                    {!isObs && selectedPost._group && selectedPost._group.filter((r: any) => r.result_type === 'link' && r.link_url !== selectedPost.link_url).map((r: any) => (
-                      <a
-                        key={r.id}
-                        href={r.link_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
-                      >
-                        <ExternalLink size={15} />
-                        <span className="truncate">{r.link_url}</span>
-                      </a>
                     ))}
-
-                    {!isObs && selectedPost.file_url && (
-                      <button
-                        onClick={() => openFile(selectedPost.file_url, selectedPost.display_name || '첨부파일')}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-2xl hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all group text-left"
-                      >
-                        <File size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span className="text-sm font-black text-amber-700 dark:text-amber-300 truncate flex-1">
-                          {selectedPost.display_name || '첨부 파일'}
-                        </span>
-                        <Download size={14} className="text-amber-500/60 shrink-0 group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors" />
-                      </button>
-                    )}
                   </div>
                 </div>
               </motion.div>

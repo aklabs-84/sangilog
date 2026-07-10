@@ -146,12 +146,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isTeacher = !!user && !isAnonymousUser(user);
+  const userId = user?.id ?? null;
+
+  // 오늘 수업 시작을 체크했고 아직 종료를 체크하지 않은 학급이 하나라도 있으면
+  // 수업 중 자리를 비운 것으로 오인해 자동 로그아웃되지 않도록 유휴 타이머를 비활성화
+  const [hasActiveClassToday, setHasActiveClassToday] = useState(false);
+
+  useEffect(() => {
+    if (!isTeacher || !userId) {
+      setHasActiveClassToday(false);
+      return;
+    }
+
+    const toLocalDateStr = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const checkActiveSession = async () => {
+      const todayStr = toLocalDateStr(new Date());
+      const { data } = await supabase
+        .from('classes')
+        .select('today_started_at, today_ended_at')
+        .eq('teacher_id', userId)
+        .eq('is_closed', false);
+
+      const active = (data || []).some((c: { today_started_at: string | null; today_ended_at: string | null }) => {
+        const startedToday = c.today_started_at && toLocalDateStr(new Date(c.today_started_at)) === todayStr;
+        const endedToday = c.today_ended_at && toLocalDateStr(new Date(c.today_ended_at)) === todayStr;
+        return startedToday && !endedToday;
+      });
+      setHasActiveClassToday(active);
+    };
+
+    checkActiveSession();
+    const interval = setInterval(checkActiveSession, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isTeacher, userId]);
 
   const { showWarning: showIdleWarning, secondsLeft: idleSecondsLeft, resetTimer: dismissIdleWarning } = useIdleTimeout({
     idleMs: IDLE_MS,
     warningMs: WARNING_MS,
     onTimeout: signOut,
-    enabled: isTeacher,
+    enabled: isTeacher && !hasActiveClassToday,
   });
 
   const value = { user, session, profile, loading, isTeacher, signOut, refreshProfile, showIdleWarning, idleSecondsLeft, dismissIdleWarning };

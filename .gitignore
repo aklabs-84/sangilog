@@ -36,3 +36,10 @@ Docs/
 
 # Playwright MCP (자동 생성 로그/스크린샷)
 .playwright-mcp/
+
+# Supabase CLI 로컬 캐시 (DB 연결 정보 포함, 로컬 전용)
+supabase/.temp/
+supabase/.branches/
+
+# bkit 플러그인 로컬 진행 상태 파일
+.bkit-memory.json

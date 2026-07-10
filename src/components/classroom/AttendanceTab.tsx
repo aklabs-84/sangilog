@@ -103,6 +103,63 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
 
   useEffect(() => { fetchAttendance(selectedDate); }, [selectedDate, fetchAttendance]);
 
+  // ── 오늘 수업 시작/종료 체크 ─────────────────────────────────────────────
+  // (학기 전체를 닫는 is_closed와 별개 — 그날그날 리셋되는 상태)
+  const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
+  const [sessionEndedAt, setSessionEndedAt] = useState<string | null>(null);
+  const [sessionSaving, setSessionSaving] = useState(false);
+
+  const fetchSession = useCallback(async () => {
+    if (!classId) return;
+    const { data } = await supabase
+      .from('classes')
+      .select('today_started_at, today_ended_at')
+      .eq('id', classId)
+      .single();
+    setSessionStartedAt(data?.today_started_at ?? null);
+    setSessionEndedAt(data?.today_ended_at ?? null);
+  }, [classId]);
+
+  useEffect(() => { fetchSession(); }, [fetchSession]);
+
+  const isStartedToday = !!sessionStartedAt && toDateStr(new Date(sessionStartedAt)) === today;
+  const isEndedToday = !!sessionEndedAt && toDateStr(new Date(sessionEndedAt)) === today;
+
+  const toggleSessionStart = async () => {
+    setSessionSaving(true);
+    try {
+      if (isStartedToday) {
+        // 시작 취소 시 종료도 함께 취소 (시작 없이 종료만 있는 상태 방지)
+        await supabase.from('classes').update({ today_started_at: null, today_ended_at: null }).eq('id', classId);
+        setSessionStartedAt(null);
+        setSessionEndedAt(null);
+      } else {
+        const now = new Date().toISOString();
+        await supabase.from('classes').update({ today_started_at: now }).eq('id', classId);
+        setSessionStartedAt(now);
+      }
+    } finally {
+      setSessionSaving(false);
+    }
+  };
+
+  const toggleSessionEnd = async () => {
+    if (!isStartedToday) return;
+    setSessionSaving(true);
+    try {
+      if (isEndedToday) {
+        await supabase.from('classes').update({ today_ended_at: null }).eq('id', classId);
+        setSessionEndedAt(null);
+      } else {
+        const now = new Date().toISOString();
+        await supabase.from('classes').update({ today_ended_at: now }).eq('id', classId);
+        setSessionEndedAt(now);
+      }
+    } finally {
+      setSessionSaving(false);
+    }
+  };
+
   // 달력 바깥 클릭 시 닫기
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -451,6 +508,46 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
             출석 기록만
           </button>
         </div>
+
+        {/* ── 오늘 수업 시작/종료 체크 ── */}
+        {isToday && !showOnlyAttended && (
+          <div className="flex items-center gap-3 flex-wrap justify-center">
+            <button
+              type="button"
+              onClick={toggleSessionStart}
+              disabled={sessionSaving}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-50 ${
+                isStartedToday
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white text-blue-600 border-blue-200 hover:border-blue-400'
+              }`}
+            >
+              {isStartedToday ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+              오늘 수업 시작
+            </button>
+            <button
+              type="button"
+              onClick={toggleSessionEnd}
+              disabled={sessionSaving || !isStartedToday}
+              title={!isStartedToday ? '먼저 수업 시작을 체크해주세요' : undefined}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                isEndedToday
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                  : 'bg-white text-rose-500 border-rose-200 hover:border-rose-400'
+              }`}
+            >
+              {isEndedToday ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+              오늘 수업 종료
+            </button>
+            <span className="text-[11px] font-bold text-on-surface-variant/50">
+              {isEndedToday
+                ? '오늘 수업이 종료되어 쉬는시간·수업종료 알람이 더 이상 울리지 않습니다.'
+                : isStartedToday
+                ? '수업 진행 중 — 자동 로그아웃이 해제되고 쉬는시간·수업종료 알람이 작동합니다.'
+                : '수업 시작을 체크해야 쉬는시간·수업종료 알람이 작동합니다.'}
+            </span>
+          </div>
+        )}
 
         {/* Summary badges */}
         {!showOnlyAttended && (

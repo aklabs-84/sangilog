@@ -13,7 +13,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import { useAuth } from '../lib/auth';
-import { downloadFile } from '../lib/fileUtils';
+import { downloadFile, openFile } from '../lib/fileUtils';
 import Pagination from '../components/Pagination';
 
 const StudentView = () => {
@@ -299,6 +299,25 @@ const StudentView = () => {
     return `${day}일 전`;
   };
 
+  // 모달이 여러 제출(_subGroups)을 병합해 보여줄 때, 특정 제출(groupId)의 상태 변경을
+  // 대표 필드/groupItems/_subGroups 전체에 반영해 모달을 닫지 않고도 최신 상태로 유지
+  const patchSelectedResultGroup = (groupId: string, patch: any) => {
+    setSelectedResult((prev: any) => {
+      if (!prev) return prev;
+      const applyPatch = (arr: any[]) =>
+        arr.map((r: any) => (r.submission_group || r.id) === groupId ? { ...r, ...patch } : r);
+      const isRep = prev.groupId === groupId;
+      return {
+        ...prev,
+        ...(isRep ? patch : {}),
+        groupItems: prev.groupItems ? applyPatch(prev.groupItems) : prev.groupItems,
+        _subGroups: prev._subGroups
+          ? prev._subGroups.map((sg: any) => sg.groupId === groupId ? { ...sg, groupItems: applyPatch(sg.groupItems) } : sg)
+          : prev._subGroups,
+      };
+    });
+  };
+
   const handleDeleteGroup = async (groupId: string) => {
     if (!confirm('이 결과물을 삭제하시겠습니까?\n복구할 수 없습니다.')) return;
     setProcessingGroupId(groupId);
@@ -317,7 +336,14 @@ const StudentView = () => {
         await supabase.from('student_results').delete().eq('id', groupId);
       }
       setResults((prev: any[]) => prev.filter((r: any) => (r.submission_group || r.id) !== groupId));
-      setSelectedResult(null);
+      setSelectedResult((prev: any) => {
+        if (!prev) return prev;
+        const remaining = (prev._subGroups || [{ groupId: prev.groupId, groupItems: prev.groupItems }])
+          .filter((sg: any) => sg.groupId !== groupId);
+        if (remaining.length === 0) return null;
+        const rep = remaining[0];
+        return { ...rep.groupItems[0], groupId: rep.groupId, groupItems: rep.groupItems, _subGroups: remaining };
+      });
       showToast('삭제되었습니다.');
     } catch {
       showToast('삭제 중 오류가 발생했습니다.', 'error');
@@ -346,11 +372,7 @@ const StudentView = () => {
           ? { ...r, status: 'rejected', rejection_feedback: feedback.trim() || null }
           : r
       ));
-      setSelectedResult((prev: any) =>
-        prev && (prev.submission_group || prev.id) === groupId
-          ? { ...prev, status: 'rejected', rejection_feedback: feedback.trim() || null }
-          : prev
-      );
+      patchSelectedResultGroup(groupId, { status: 'rejected', rejection_feedback: feedback.trim() || null });
       setRejectModal(null);
       setRejectFeedback('');
       showToast('반려 처리됐습니다. 학생이 수정 후 재제출할 수 있습니다.');
@@ -381,11 +403,7 @@ const StudentView = () => {
       setResults((prev: any[]) => prev.map((r: any) =>
         (r.submission_group || r.id) === groupId ? { ...r, teacher_feedback: feedback } : r
       ));
-      setSelectedResult((prev: any) =>
-        prev && (prev.submission_group || prev.id) === groupId
-          ? { ...prev, teacher_feedback: feedback }
-          : prev
-      );
+      patchSelectedResultGroup(groupId, { teacher_feedback: feedback });
       const classId = fromClassId || student?.class_id;
       if (id && classId) {
         const { error: notifErr } = await supabase.from('student_notifications').insert({
@@ -426,11 +444,7 @@ const StudentView = () => {
       setResults((prev: any[]) => prev.map((r: any) =>
         (r.submission_group || r.id) === groupId ? { ...r, teacher_feedback: null } : r
       ));
-      setSelectedResult((prev: any) =>
-        prev && (prev.submission_group || prev.id) === groupId
-          ? { ...prev, teacher_feedback: null }
-          : prev
-      );
+      patchSelectedResultGroup(groupId, { teacher_feedback: null });
       setFeedbackGroupId(null);
       setResultFeedbackText('');
       showToast('피드백이 삭제되었습니다.');
@@ -444,6 +458,11 @@ const StudentView = () => {
   const handleDownloadResult = (result: any) => {
     const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
     downloadFile(data.publicUrl, result.display_name || 'download');
+  };
+
+  const handleOpenResultFile = (result: any) => {
+    const { data } = supabase.storage.from('student-attachments').getPublicUrl(result.storage_path);
+    openFile(data.publicUrl, result.display_name || 'file');
   };
 
   const handleApprove = async (obsId: string) => {
@@ -1117,14 +1136,32 @@ const StudentView = () => {
           const groupedEntries = Object.entries(groups).sort(([, a], [, b]) =>
             new Date(b[0].created_at).getTime() - new Date(a[0].created_at).getTime()
           );
-          const resultsTotalPages = Math.max(1, Math.ceil(groupedEntries.length / RESULTS_PAGE_SIZE));
+
+          // 같은 주차 + 같은 날짜(달력 기준)에 여러 번 제출한 건은 하나의 카드로 합침
+          // — 가장 먼저 제출한 건을 대표로 표시하고, 나머지는 모달에서 각각 확인/처리
+          const dayMap: Record<string, { groupId: string; groupItems: any[] }[]> = {};
+          groupedEntries.forEach(([groupId, groupItems]) => {
+            const weekNum = groupItems.find((r: any) => r.week_number)?.week_number ?? 0;
+            const d = new Date(groupItems[0].created_at);
+            const dayKey = `w${weekNum}_${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+            if (!dayMap[dayKey]) dayMap[dayKey] = [];
+            dayMap[dayKey].push({ groupId, groupItems });
+          });
+          const dayEntries = Object.values(dayMap).map(subGroups => {
+            const sorted = [...subGroups].sort((a, b) =>
+              new Date(a.groupItems[0].created_at).getTime() - new Date(b.groupItems[0].created_at).getTime()
+            );
+            return { groupId: sorted[0].groupId, groupItems: sorted[0].groupItems, subGroups: sorted };
+          }).sort((a, b) => new Date(b.groupItems[0].created_at).getTime() - new Date(a.groupItems[0].created_at).getTime());
+
+          const resultsTotalPages = Math.max(1, Math.ceil(dayEntries.length / RESULTS_PAGE_SIZE));
           const resultsSafePage = Math.min(resultsPage, resultsTotalPages);
-          const pagedResults = groupedEntries.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
+          const pagedResults = dayEntries.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
 
           return (
             <>
             <div className="grid grid-cols-1 gap-4">
-              {pagedResults.map(([groupId, groupItems]) => {
+              {pagedResults.map(({ groupId, groupItems, subGroups }) => {
                 const firstItem = groupItems[0];
                 const isRejected = firstItem.status === 'rejected';
                 const isProcessing = processingGroupId === groupId;
@@ -1143,7 +1180,7 @@ const StudentView = () => {
                 return (
                   <div
                     key={groupId}
-                    onClick={() => setSelectedResult({ ...firstItem, groupItems, groupId })}
+                    onClick={() => setSelectedResult({ ...firstItem, groupItems, groupId, _subGroups: subGroups })}
                     className={`p-5 rounded-2xl border-2 bg-surface-container-low hover:shadow-md transition-all group cursor-pointer ${
                       isRejected
                         ? 'border-red-200 bg-red-50/30 hover:border-red-300'
@@ -1169,6 +1206,11 @@ const StudentView = () => {
                       {weekNumber && (
                         <span className="text-xs font-black px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20">
                           {weekNumber}주차
+                        </span>
+                      )}
+                      {subGroups.length > 1 && (
+                        <span className="text-xs font-black px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 border border-amber-200">
+                          총 {subGroups.length}회 제출
                         </span>
                       )}
                       {isRejected && (
@@ -1755,6 +1797,11 @@ const StudentView = () => {
                               {modalWeek}주차
                             </span>
                           )}
+                          {selectedResult._subGroups?.length > 1 && (
+                            <span className="text-xs font-black px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 border border-amber-200">
+                              총 {selectedResult._subGroups.length}회 제출
+                            </span>
+                          )}
                         </>
                       );
                     })()}
@@ -1771,20 +1818,36 @@ const StudentView = () => {
                 </button>
               </div>
 
-              {/* 모달 내용 */}
+              {/* 모달 내용 — 병합된 제출 각각을 독립적으로 렌더링 */}
               <div className="px-8 pb-8 space-y-4 flex-1 overflow-y-auto overflow-x-hidden">
-                {(() => {
-                  const items: any[] = selectedResult.groupItems || [selectedResult];
-                  const textItem = items.find((r: any) => r.result_type === 'text');
-                  const linkItem = items.find((r: any) => r.result_type === 'link');
-                  const imageItem = items.find((r: any) => r.result_type === 'image');
-                  const fileItem = items.find((r: any) => r.result_type === 'file');
+                {(selectedResult._subGroups || [{ groupId: selectedResult.groupId, groupItems: selectedResult.groupItems }]).map((sub: any, idx: number, arr: any[]) => {
+                  const subItems: any[] = sub.groupItems || [selectedResult];
+                  const subFirst = subItems[0];
+                  const gId = sub.groupId;
+                  const isSubRejected = subFirst.status === 'rejected';
+                  const isProcessing = processingGroupId === gId;
+                  const ev = getEval(gId);
+                  const isEditingFeedback = feedbackGroupId === gId;
+
+                  const textItem = subItems.find((r: any) => r.result_type === 'text');
+                  const linkItem = subItems.find((r: any) => r.result_type === 'link');
+                  const imageItem = subItems.find((r: any) => r.result_type === 'image');
+                  const fileItem = subItems.find((r: any) => r.result_type === 'file');
                   const imageUrl = imageItem?.storage_path
                     ? supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path).data.publicUrl
-                    : selectedResult.publicUrl;
+                    : null;
 
                   return (
-                    <>
+                    <div
+                      key={gId}
+                      className={arr.length > 1 ? `space-y-4 ${idx > 0 ? 'pt-5 mt-1 border-t-2 border-dashed border-neutral-200' : ''}` : 'space-y-4'}
+                    >
+                      {arr.length > 1 && (
+                        <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">
+                          {idx + 1}번째 제출 · {new Date(subFirst.created_at).toLocaleString('ko-KR')}
+                        </p>
+                      )}
+
                       {textItem?.text_content && (
                         <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-100">
                           <p className="text-[10px] font-black text-primary/60 uppercase tracking-widest mb-2">텍스트</p>
@@ -1817,7 +1880,7 @@ const StudentView = () => {
                           <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest">이미지</p>
                           <img
                             src={imageUrl}
-                            alt={selectedResult.title || '이미지'}
+                            alt={subFirst.title || '이미지'}
                             className="w-full rounded-2xl object-contain border border-neutral-100 cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => window.open(imageUrl, '_blank')}
                           />
@@ -1841,191 +1904,187 @@ const StudentView = () => {
                               <p className="text-xs font-bold text-amber-500 mt-0.5">{formatFileSize(fileItem.file_size)}</p>
                             )}
                           </div>
-                          <button
-                            onClick={() => handleDownloadResult(fileItem)}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl transition-all shadow-sm"
-                          >
-                            <Upload size={14} className="rotate-180" /> 다운로드
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-                {/* 교사 평가 (세특 참고용) */}
-                {(() => {
-                  const gId = selectedResult.groupId || selectedResult.submission_group || selectedResult.id;
-                  const ev = getEval(gId);
-                  return (
-                    <div className="p-5 bg-violet-50/50 rounded-2xl border border-violet-100 space-y-4">
-                      <p className="text-[11px] font-black text-violet-700 uppercase tracking-widest">교사 평가 — 나이스 세특 참고용</p>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-on-surface-variant/70">성취 수준</label>
-                        <div className="flex items-center gap-1">
-                          {[1,2,3,4,5].map(star => (
-                            <button key={star}
-                              onClick={() => setEvalForms(prev => ({ ...prev, [gId]: { ...ev, score: ev.score === star ? 0 : star } }))}
-                              className={`text-2xl transition-colors leading-none ${star <= ev.score ? 'text-amber-400' : 'text-neutral-200 hover:text-amber-200'}`}
-                            >★</button>
-                          ))}
-                          {ev.score > 0 && <span className="text-xs font-black text-amber-500 ml-2">{ev.score}점</span>}
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-on-surface-variant/70">역량 태그 (중복 선택)</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {['자기주도', '논리적사고', '표현력', '창의성', '협력', '성실성', '탐구력', '문제해결'].map(tag => (
-                            <button key={tag} onClick={() => toggleEvalTag(gId, tag)}
-                              className={`px-3 py-1 rounded-full text-[11px] font-black border transition-all ${
-                                ev.tags.includes(tag)
-                                  ? 'bg-violet-500 text-white border-violet-500'
-                                  : 'bg-white text-neutral-400 border-neutral-200 hover:border-violet-300 hover:text-violet-500'
-                              }`}
-                            >{tag}</button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-on-surface-variant/70">평가 코멘트</label>
-                        <textarea
-                          value={ev.note}
-                          onChange={e => setEvalForms(prev => ({ ...prev, [gId]: { ...ev, note: e.target.value } }))}
-                          placeholder="이 결과물에 대한 평가 메모 (세특 작성 시 AI 참고 자료로 활용됩니다)"
-                          rows={2}
-                          className="w-full px-4 py-3 bg-white rounded-xl text-sm border border-violet-100 focus:border-violet-300 focus:outline-none resize-none transition-all"
-                        />
-                      </div>
-                      <button onClick={() => saveEvaluation(gId)} disabled={savingEvalId === gId}
-                        className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-xs font-black transition-all disabled:opacity-50">
-                        {savingEvalId === gId ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                        평가 저장
-                      </button>
-                    </div>
-                  );
-                })()}
-
-                {/* 반려됨 피드백 표시 */}
-                {selectedResult.status === 'rejected' && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
-                    <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-black text-red-600 mb-1">반려된 결과물</p>
-                      {selectedResult.rejection_feedback && (
-                        <p className="text-xs font-bold text-red-700 leading-relaxed">{selectedResult.rejection_feedback}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* 선생님 피드백 (반려 아닌 일반 피드백) */}
-                {(() => {
-                  const gId = selectedResult.groupId || selectedResult.submission_group || selectedResult.id;
-                  const isEditing = feedbackGroupId === gId;
-                  return (
-                    <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[11px] font-black text-indigo-600 flex items-center gap-1.5">
-                          <MessageSquare size={13} /> 선생님 피드백
-                        </p>
-                        {!isEditing && selectedResult.teacher_feedback && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/\.html?$/i.test(fileItem.display_name || '') && (
+                              <button
+                                onClick={() => handleOpenResultFile(fileItem)}
+                                className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-black text-xs rounded-xl transition-all shadow-sm"
+                              >
+                                <ExternalLink size={14} /> 실행
+                              </button>
+                            )}
                             <button
-                              onClick={() => { setFeedbackGroupId(gId); setResultFeedbackText(selectedResult.teacher_feedback || ''); }}
-                              className="p-1.5 rounded-lg hover:bg-indigo-100 text-indigo-500 transition-colors"
+                              onClick={() => handleDownloadResult(fileItem)}
+                              className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl transition-all shadow-sm"
                             >
-                              <Pencil size={13} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteResultFeedback(gId)}
-                              disabled={savingResultFeedback}
-                              className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 transition-colors"
-                            >
-                              <Trash2 size={13} />
+                              <Upload size={14} className="rotate-180" /> 다운로드
                             </button>
                           </div>
+                        </div>
+                      )}
+
+                      {/* 교사 평가 (세특 참고용) */}
+                      <div className="p-5 bg-violet-50/50 rounded-2xl border border-violet-100 space-y-4">
+                        <p className="text-[11px] font-black text-violet-700 uppercase tracking-widest">교사 평가 — 나이스 세특 참고용</p>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-on-surface-variant/70">성취 수준</label>
+                          <div className="flex items-center gap-1">
+                            {[1,2,3,4,5].map(star => (
+                              <button key={star}
+                                onClick={() => setEvalForms(prev => ({ ...prev, [gId]: { ...ev, score: ev.score === star ? 0 : star } }))}
+                                className={`text-2xl transition-colors leading-none ${star <= ev.score ? 'text-amber-400' : 'text-neutral-200 hover:text-amber-200'}`}
+                              >★</button>
+                            ))}
+                            {ev.score > 0 && <span className="text-xs font-black text-amber-500 ml-2">{ev.score}점</span>}
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-on-surface-variant/70">역량 태그 (중복 선택)</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {['자기주도', '논리적사고', '표현력', '창의성', '협력', '성실성', '탐구력', '문제해결'].map(tag => (
+                              <button key={tag} onClick={() => toggleEvalTag(gId, tag)}
+                                className={`px-3 py-1 rounded-full text-[11px] font-black border transition-all ${
+                                  ev.tags.includes(tag)
+                                    ? 'bg-violet-500 text-white border-violet-500'
+                                    : 'bg-white text-neutral-400 border-neutral-200 hover:border-violet-300 hover:text-violet-500'
+                                }`}
+                              >{tag}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-on-surface-variant/70">평가 코멘트</label>
+                          <textarea
+                            value={ev.note}
+                            onChange={e => setEvalForms(prev => ({ ...prev, [gId]: { ...ev, note: e.target.value } }))}
+                            placeholder="이 결과물에 대한 평가 메모 (세특 작성 시 AI 참고 자료로 활용됩니다)"
+                            rows={2}
+                            className="w-full px-4 py-3 bg-white rounded-xl text-sm border border-violet-100 focus:border-violet-300 focus:outline-none resize-none transition-all"
+                          />
+                        </div>
+                        <button onClick={() => saveEvaluation(gId)} disabled={savingEvalId === gId}
+                          className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-xs font-black transition-all disabled:opacity-50">
+                          {savingEvalId === gId ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                          평가 저장
+                        </button>
+                      </div>
+
+                      {/* 반려됨 피드백 표시 */}
+                      {isSubRejected && (
+                        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
+                          <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-black text-red-600 mb-1">반려된 결과물</p>
+                            {subFirst.rejection_feedback && (
+                              <p className="text-xs font-bold text-red-700 leading-relaxed">{subFirst.rejection_feedback}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 선생님 피드백 (반려 아닌 일반 피드백) */}
+                      <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[11px] font-black text-indigo-600 flex items-center gap-1.5">
+                            <MessageSquare size={13} /> 선생님 피드백
+                          </p>
+                          {!isEditingFeedback && subFirst.teacher_feedback && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => { setFeedbackGroupId(gId); setResultFeedbackText(subFirst.teacher_feedback || ''); }}
+                                className="p-1.5 rounded-lg hover:bg-indigo-100 text-indigo-500 transition-colors"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteResultFeedback(gId)}
+                                disabled={savingResultFeedback}
+                                className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 transition-colors"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {isEditingFeedback ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={resultFeedbackText}
+                              onChange={e => setResultFeedbackText(e.target.value)}
+                              placeholder="이 결과물에 대한 피드백을 입력하세요. 저장 시 학생에게 알림이 전달됩니다."
+                              rows={3}
+                              autoFocus
+                              className="w-full px-4 py-3 bg-white rounded-xl text-sm border border-indigo-200 focus:border-indigo-400 focus:outline-none resize-none transition-all"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleSaveResultFeedback(gId)}
+                                disabled={savingResultFeedback || !resultFeedbackText.trim()}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-black transition-all disabled:opacity-50"
+                              >
+                                {savingResultFeedback ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                                저장
+                              </button>
+                              <button
+                                onClick={() => { setFeedbackGroupId(null); setResultFeedbackText(''); }}
+                                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-500 rounded-xl text-xs font-black transition-all"
+                              >
+                                취소
+                              </button>
+                            </div>
+                          </div>
+                        ) : subFirst.teacher_feedback ? (
+                          <p className="text-sm font-bold text-indigo-700 leading-relaxed">{subFirst.teacher_feedback}</p>
+                        ) : (
+                          <button
+                            onClick={() => { setFeedbackGroupId(gId); setResultFeedbackText(''); }}
+                            className="text-xs font-black text-indigo-500 hover:text-indigo-600 transition-colors"
+                          >
+                            피드백 남기기 +
+                          </button>
                         )}
                       </div>
-                      {isEditing ? (
-                        <div className="space-y-2">
-                          <textarea
-                            value={resultFeedbackText}
-                            onChange={e => setResultFeedbackText(e.target.value)}
-                            placeholder="이 결과물에 대한 피드백을 입력하세요. 저장 시 학생에게 알림이 전달됩니다."
-                            rows={3}
-                            autoFocus
-                            className="w-full px-4 py-3 bg-white rounded-xl text-sm border border-indigo-200 focus:border-indigo-400 focus:outline-none resize-none transition-all"
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleSaveResultFeedback(gId)}
-                              disabled={savingResultFeedback || !resultFeedbackText.trim()}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-black transition-all disabled:opacity-50"
-                            >
-                              {savingResultFeedback ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                              저장
-                            </button>
-                            <button
-                              onClick={() => { setFeedbackGroupId(null); setResultFeedbackText(''); }}
-                              className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-500 rounded-xl text-xs font-black transition-all"
-                            >
-                              취소
-                            </button>
-                          </div>
-                        </div>
-                      ) : selectedResult.teacher_feedback ? (
-                        <p className="text-sm font-bold text-indigo-700 leading-relaxed">{selectedResult.teacher_feedback}</p>
-                      ) : (
+
+                      {/* 반려 / 반려취소 / 삭제 액션 — 이 제출 건에만 적용 */}
+                      <div className="flex gap-3 pt-1">
+                        {!isSubRejected ? (
+                          <button
+                            onClick={() => { setRejectModal({ groupId: gId }); setRejectFeedback(''); }}
+                            disabled={!!processingGroupId}
+                            className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 rounded-2xl font-black text-sm transition-all"
+                          >
+                            <RotateCw size={14} /> 반려 (재작성 요청)
+                          </button>
+                        ) : (
+                          <button
+                            onClick={async () => {
+                              await supabase.from('student_results')
+                                .update({ status: 'approved', rejection_feedback: null })
+                                .eq(subFirst.submission_group ? 'submission_group' : 'id', gId);
+                              setResults((prev: any[]) => prev.map((r: any) =>
+                                (r.submission_group || r.id) === gId
+                                  ? { ...r, status: 'approved', rejection_feedback: null } : r
+                              ));
+                              patchSelectedResultGroup(gId, { status: 'approved', rejection_feedback: null });
+                              showToast('반려를 취소했습니다.');
+                            }}
+                            disabled={isProcessing}
+                            className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-2xl font-black text-sm transition-all"
+                          >
+                            <Check size={14} /> 반려 취소
+                          </button>
+                        )}
                         <button
-                          onClick={() => { setFeedbackGroupId(gId); setResultFeedbackText(''); }}
-                          className="text-xs font-black text-indigo-500 hover:text-indigo-600 transition-colors"
+                          onClick={() => handleDeleteGroup(gId)}
+                          disabled={isProcessing}
+                          className="flex items-center justify-center gap-2 px-6 py-3 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-2xl font-black text-sm transition-all"
                         >
-                          피드백 남기기 +
+                          {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} 삭제
                         </button>
-                      )}
+                      </div>
                     </div>
                   );
-                })()}
-              </div>
-              {/* 모달 액션 푸터 */}
-              <div className="px-8 pb-6 pt-4 border-t border-neutral-100 flex gap-3 shrink-0">
-                {selectedResult.status !== 'rejected' ? (
-                  <button
-                    onClick={() => {
-                      setRejectModal({ groupId: selectedResult.groupId || selectedResult.submission_group || selectedResult.id });
-                      setRejectFeedback('');
-                    }}
-                    disabled={!!processingGroupId}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 rounded-2xl font-black text-sm transition-all"
-                  >
-                    <RotateCw size={14} /> 반려 (재작성 요청)
-                  </button>
-                ) : (
-                  <button
-                    onClick={async () => {
-                      const gId = selectedResult.groupId || selectedResult.submission_group || selectedResult.id;
-                      await supabase.from('student_results')
-                        .update({ status: 'approved', rejection_feedback: null })
-                        .eq(selectedResult.submission_group ? 'submission_group' : 'id', gId);
-                      setResults((prev: any[]) => prev.map((r: any) =>
-                        (r.submission_group || r.id) === gId
-                          ? { ...r, status: 'approved', rejection_feedback: null } : r
-                      ));
-                      setSelectedResult((prev: any) => prev ? { ...prev, status: 'approved', rejection_feedback: null } : null);
-                      showToast('반려를 취소했습니다.');
-                    }}
-                    disabled={!!processingGroupId}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-2xl font-black text-sm transition-all"
-                  >
-                    <Check size={14} /> 반려 취소
-                  </button>
-                )}
-                <button
-                  onClick={() => handleDeleteGroup(selectedResult.groupId || selectedResult.submission_group || selectedResult.id)}
-                  disabled={!!processingGroupId}
-                  className="flex items-center justify-center gap-2 px-6 py-3 bg-red-50 hover:bg-red-100 text-red-500 border border-red-200 rounded-2xl font-black text-sm transition-all"
-                >
-                  {processingGroupId ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} 삭제
-                </button>
+                })}
               </div>
             </motion.div>
           </div>

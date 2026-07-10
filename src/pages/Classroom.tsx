@@ -148,6 +148,9 @@ const Classroom = () => {
     class_end_time: '',
     end_alarm_minutes: [] as number[],
     break_times: [] as string[],
+    schedule_mode: null as 'weekday' | 'dates' | null,
+    class_days_of_week: [] as number[],
+    class_specific_dates: [] as string[],
   });
   const [updateClassData, setUpdateClassData] = useState<any>(null);
   const [breakGenNew, setBreakGenNew] = useState<BreakGenSettings>(DEFAULT_BREAK_GEN);
@@ -661,7 +664,10 @@ const Classroom = () => {
           class_start_time: newClassData.class_start_time || null,
           class_end_time: newClassData.class_end_time || null,
           end_alarm_minutes: newClassData.end_alarm_minutes || [],
-          break_times: (newClassData.break_times || []).filter((t) => t)
+          break_times: (newClassData.break_times || []).filter((t) => t),
+          schedule_mode: newClassData.schedule_mode,
+          class_days_of_week: newClassData.class_days_of_week || [],
+          class_specific_dates: (newClassData.class_specific_dates || []).filter((d) => d)
         })
         .select()
         .single();
@@ -685,6 +691,9 @@ const Classroom = () => {
         class_end_time: '',
         end_alarm_minutes: [],
         break_times: [],
+        schedule_mode: null,
+        class_days_of_week: [],
+        class_specific_dates: [],
       });
       await fetchClasses();
       if (data) setActiveClassId(data.id);
@@ -714,6 +723,9 @@ const Classroom = () => {
       class_end_time: updateClassData.class_end_time || null,
       end_alarm_minutes: updateClassData.end_alarm_minutes || [],
       break_times: (updateClassData.break_times || []).filter((t: string) => t),
+      schedule_mode: updateClassData.schedule_mode || null,
+      class_days_of_week: updateClassData.class_days_of_week || [],
+      class_specific_dates: (updateClassData.class_specific_dates || []).filter((d: string) => d),
     };
 
     try {
@@ -1397,7 +1409,22 @@ const Classroom = () => {
         };
       });
 
-      setBoardPosts([...obsPosts, ...resPosts].sort(
+      // 3단계: 같은 학생 + 같은 주차 + 같은 날짜(달력 기준)에 여러 번 제출한 건을
+      // 하나의 카드로 합침 — 가장 먼저 제출한 건을 대표로, 나머지는 모달에서 시간순 표시
+      const dayMergeMap: Record<string, any[]> = {};
+      resPosts.forEach((post: any) => {
+        const d = new Date(post.created_at);
+        const dayStr = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        const key = `${post.student_id}_w${post.week_number ?? 0}_${dayStr}`;
+        if (!dayMergeMap[key]) dayMergeMap[key] = [];
+        dayMergeMap[key].push(post);
+      });
+      const mergedResPosts = Object.values(dayMergeMap).map((subs: any[]) => {
+        const sorted = [...subs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        return { ...sorted[0], _submissions: sorted };
+      });
+
+      setBoardPosts([...obsPosts, ...mergedResPosts].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       ));
     } catch (err) {
@@ -2087,6 +2114,11 @@ const Classroom = () => {
                                   {!isObs && post._isGroupSub && (
                                     <span className="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-600">
                                       조별
+                                    </span>
+                                  )}
+                                  {!isObs && post._submissions?.length > 1 && (
+                                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
+                                      총 {post._submissions.length}회 제출
                                     </span>
                                   )}
                                   <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
@@ -2782,6 +2814,81 @@ const Classroom = () => {
 
                 <div className="space-y-2">
                   <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
+                    <CalendarDays size={13} /> 출석 알림 요일 (선택)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {([
+                      { mode: null, label: '매일' },
+                      { mode: 'weekday', label: '요일 지정' },
+                      { mode: 'dates', label: '날짜 지정' },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() => setNewClassData({ ...newClassData, schedule_mode: opt.mode })}
+                        className={`flex-1 py-2 text-[11px] font-black rounded-lg border transition-all ${newClassData.schedule_mode === opt.mode ? 'bg-white shadow-sm text-primary border-primary/30' : 'text-neutral-500 border-transparent hover:text-neutral-700 hover:bg-neutral-100'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {newClassData.schedule_mode === 'weekday' && (
+                    <div className="flex items-center gap-1.5 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                      {['일', '월', '화', '수', '목', '금', '토'].map((label, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            const current = newClassData.class_days_of_week || [];
+                            const days = current.includes(idx) ? current.filter((d) => d !== idx) : [...current, idx];
+                            setNewClassData({ ...newClassData, class_days_of_week: days });
+                          }}
+                          className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${(newClassData.class_days_of_week || []).includes(idx) ? 'bg-primary text-white border-primary' : 'bg-neutral-100 text-neutral-500 border-neutral-200 hover:border-neutral-300'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {newClassData.schedule_mode === 'dates' && (
+                    <div className="space-y-2 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                      {newClassData.class_specific_dates.map((date, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="date"
+                            value={date}
+                            onChange={e => {
+                              const dates = [...newClassData.class_specific_dates];
+                              dates[idx] = e.target.value;
+                              setNewClassData({ ...newClassData, class_specific_dates: dates });
+                            }}
+                            className="flex-1 px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setNewClassData({ ...newClassData, class_specific_dates: newClassData.class_specific_dates.filter((_, i) => i !== idx) })}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center text-neutral-400 hover:text-error hover:bg-error/10 transition-colors shrink-0"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setNewClassData({ ...newClassData, class_specific_dates: [...newClassData.class_specific_dates, ''] })}
+                        className="flex items-center gap-1.5 text-xs font-black text-primary hover:text-primary/80 transition-colors ml-1"
+                      >
+                        <Plus size={13} /> 날짜 추가
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-neutral-400 font-bold ml-1">
+                    {newClassData.schedule_mode === 'weekday' ? '선택한 요일에만 출석체크 알림이 울립니다.' : newClassData.schedule_mode === 'dates' ? '선택한 날짜에만 출석체크 알림이 울립니다.' : '수업 기간 내 매일 출석체크 알림이 울립니다.'}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
                     <Clock size={13} /> 쉬는시간 알림 (선택)
                   </label>
 
@@ -3193,6 +3300,82 @@ const Classroom = () => {
                           </div>
                         )}
                         <p className="text-[11px] text-neutral-400 font-bold ml-1">매일 설정한 종료 시각 기준으로 플로팅 알림이 울립니다.</p>
+                      </div>
+
+                      {/* 출석 알림 요일 */}
+                      <div className="space-y-2 pt-1">
+                        <label className="text-xs font-black text-neutral-600 ml-1 uppercase tracking-widest flex items-center gap-1.5">
+                          <CalendarDays size={13} /> 출석 알림 요일 (선택)
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          {([
+                            { mode: null, label: '매일' },
+                            { mode: 'weekday', label: '요일 지정' },
+                            { mode: 'dates', label: '날짜 지정' },
+                          ] as const).map((opt) => (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              onClick={() => setUpdateClassData({ ...updateClassData, schedule_mode: opt.mode })}
+                              className={`flex-1 py-2 text-[11px] font-black rounded-lg border transition-all ${(updateClassData.schedule_mode || null) === opt.mode ? 'bg-white shadow-sm text-primary border-primary/30' : 'text-neutral-500 border-transparent hover:text-neutral-700 hover:bg-neutral-100'}`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        {updateClassData.schedule_mode === 'weekday' && (
+                          <div className="flex items-center gap-1.5 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {['일', '월', '화', '수', '목', '금', '토'].map((label, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  const current: number[] = updateClassData.class_days_of_week || [];
+                                  const days = current.includes(idx) ? current.filter((d: number) => d !== idx) : [...current, idx];
+                                  setUpdateClassData({ ...updateClassData, class_days_of_week: days });
+                                }}
+                                className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${(updateClassData.class_days_of_week || []).includes(idx) ? 'bg-primary text-white border-primary' : 'bg-neutral-100 text-neutral-500 border-neutral-200 hover:border-neutral-300'}`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {updateClassData.schedule_mode === 'dates' && (
+                          <div className="space-y-2 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {(updateClassData.class_specific_dates || []).map((date: string, idx: number) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <input
+                                  type="date"
+                                  value={date}
+                                  onChange={e => {
+                                    const dates = [...(updateClassData.class_specific_dates || [])];
+                                    dates[idx] = e.target.value;
+                                    setUpdateClassData({ ...updateClassData, class_specific_dates: dates });
+                                  }}
+                                  className="flex-1 px-4 py-3 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-sm text-neutral-900 transition-all outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setUpdateClassData({ ...updateClassData, class_specific_dates: (updateClassData.class_specific_dates || []).filter((_: string, i: number) => i !== idx) })}
+                                  className="w-9 h-9 rounded-lg flex items-center justify-center text-neutral-400 hover:text-error hover:bg-error/10 transition-colors shrink-0"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => setUpdateClassData({ ...updateClassData, class_specific_dates: [...(updateClassData.class_specific_dates || []), ''] })}
+                              className="flex items-center gap-1.5 text-xs font-black text-primary hover:text-primary/80 transition-colors ml-1"
+                            >
+                              <Plus size={13} /> 날짜 추가
+                            </button>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-neutral-400 font-bold ml-1">
+                          {updateClassData.schedule_mode === 'weekday' ? '선택한 요일에만 출석체크 알림이 울립니다.' : updateClassData.schedule_mode === 'dates' ? '선택한 날짜에만 출석체크 알림이 울립니다.' : '수업 기간 내 매일 출석체크 알림이 울립니다.'}
+                        </p>
                       </div>
 
                       {/* 쉬는시간 알림 */}
@@ -3954,52 +4137,67 @@ const Classroom = () => {
                         <p className="text-sm text-on-surface-variant/70 font-bold italic leading-relaxed">💬 {p.feeling}</p>
                       </div>
                     )}
-                    {!isObs && p.text_content && (
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">내용</p>
-                        <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{p.text_content}</p>
+                    {!isObs && (p._submissions || [p]).map((sub: any, idx: number, arr: any[]) => (
+                      <div key={sub.id} className={arr.length > 1 ? `space-y-3 ${idx > 0 ? 'pt-4 border-t border-dashed border-surface-container-high' : ''}` : 'space-y-3'}>
+                        {arr.length > 1 && (
+                          <p className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">
+                            {idx + 1}번째 제출 · {new Date(sub.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
+                        {sub.text_content && (
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">내용</p>
+                            <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{sub.text_content}</p>
+                          </div>
+                        )}
+                        {sub.image_url && (
+                          <a
+                            href={sub.image_original_url || sub.image_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block relative group"
+                          >
+                            <img
+                              src={sub.image_url}
+                              alt=""
+                              className="w-full rounded-2xl object-contain max-h-96 cursor-zoom-in"
+                              loading="lazy"
+                              decoding="async"
+                              onError={e => {
+                                if (sub.image_original_url) (e.target as HTMLImageElement).src = sub.image_original_url;
+                              }}
+                            />
+                            <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
+                              <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-black bg-black/50 px-3 py-1.5 rounded-full transition-all">
+                                새 탭에서 보기
+                              </span>
+                            </div>
+                          </a>
+                        )}
+                        {sub.link_url && (
+                          <a href={sub.link_url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
+                            <ExternalLink size={15} /><span className="truncate">{sub.link_url}</span>
+                          </a>
+                        )}
+                        {sub._group && sub._group.filter((r: any) => r.result_type === 'link' && r.link_url !== sub.link_url).map((r: any) => (
+                          <a key={r.id} href={r.link_url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
+                            <ExternalLink size={15} /><span className="truncate">{r.link_url}</span>
+                          </a>
+                        ))}
+                        {sub.file_url && (
+                          <button
+                            onClick={() => openFile(sub.file_url, sub.display_name || '첨부파일')}
+                            className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl hover:bg-amber-100 transition-all group text-left"
+                          >
+                            <File size={16} className="text-amber-500 shrink-0" />
+                            <span className="text-sm font-black text-amber-700 truncate flex-1">{sub.display_name || '첨부 파일'}</span>
+                            <Download size={14} className="text-amber-400 shrink-0 group-hover:text-amber-600 transition-colors" />
+                          </button>
+                        )}
                       </div>
-                    )}
-                    {!isObs && p.image_url && (
-                      <a
-                        href={p.image_original_url || p.image_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block relative group"
-                      >
-                        <img
-                          src={p.image_url}
-                          alt=""
-                          className="w-full rounded-2xl object-contain max-h-96 cursor-zoom-in"
-                          loading="lazy"
-                          decoding="async"
-                          onError={e => {
-                            if (p.image_original_url) (e.target as HTMLImageElement).src = p.image_original_url;
-                          }}
-                        />
-                        <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
-                          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-black bg-black/50 px-3 py-1.5 rounded-full transition-all">
-                            새 탭에서 보기
-                          </span>
-                        </div>
-                      </a>
-                    )}
-                    {!isObs && p.link_url && (
-                      <a href={p.link_url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 font-black text-sm hover:bg-blue-100 transition-all">
-                        <ExternalLink size={15} /><span className="truncate">{p.link_url}</span>
-                      </a>
-                    )}
-                    {!isObs && p.file_url && (
-                      <button
-                        onClick={() => openFile(p.file_url, p.display_name || '첨부파일')}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 bg-amber-50 border border-amber-100 rounded-2xl hover:bg-amber-100 transition-all group text-left"
-                      >
-                        <File size={16} className="text-amber-500 shrink-0" />
-                        <span className="text-sm font-black text-amber-700 truncate flex-1">{p.display_name || '첨부 파일'}</span>
-                        <Download size={14} className="text-amber-400 shrink-0 group-hover:text-amber-600 transition-colors" />
-                      </button>
-                    )}
+                    ))}
                   </div>
                 </div>
               </motion.div>
