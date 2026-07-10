@@ -1752,7 +1752,7 @@ const StudentView = () => {
       <AnimatePresence>
         {selectedResult && (
           <div className="fixed inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm overflow-y-auto overflow-x-hidden" onClick={() => setSelectedResult(null)}>
-          <div className="min-h-full flex items-center justify-center p-6">
+          <div className="min-h-full flex items-start justify-center p-6 py-10">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
