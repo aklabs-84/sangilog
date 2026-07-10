@@ -598,18 +598,21 @@ const StudentView = () => {
     });
   };
 
-  const saveEvaluation = async (groupId: string) => {
+  // groupId: 평가가 저장되는 대표 키 (모달의 첫 제출 건). allGroupIds: 같은 모달에 묶인 제출 건 전체
+  // — 주차(모달) 전체에 대해 평가를 1회만 입력하되, DB에는 묶인 제출 건 전체 행에 동일하게 반영한다.
+  const saveEvaluation = async (groupId: string, allGroupIds: string[] = [groupId]) => {
     const evalData = evalForms[groupId];
     if (!evalData) return;
     setSavingEvalId(groupId);
     try {
-      const groupItems = results.filter((r: any) => (r.submission_group || r.id) === groupId);
-      for (const item of groupItems) {
+      const groupItems = results.filter((r: any) => allGroupIds.includes(r.submission_group || r.id));
+      const ids = groupItems.map((item: any) => item.id);
+      if (ids.length > 0) {
         await supabase.from('student_results').update({
           teacher_eval_score: evalData.score || null,
           teacher_eval_tags: evalData.tags.length > 0 ? evalData.tags : null,
           teacher_eval_note: evalData.note.trim() || null,
-        }).eq('id', item.id);
+        }).in('id', ids);
       }
       showToast('평가가 저장되었습니다. ✅');
     } catch {
@@ -1218,11 +1221,14 @@ const StudentView = () => {
                           <X size={11} /> 반려됨
                         </span>
                       )}
-                      {(evalForms[groupId]?.score ?? 0) > 0 && (
-                        <span className="text-xs font-black text-amber-500 flex items-center gap-0.5">
-                          {'★'.repeat(evalForms[groupId].score)}<span className="text-[10px] text-amber-400/60 ml-0.5">평가됨</span>
-                        </span>
-                      )}
+                      {(() => {
+                        const cardEv = subGroups.map((s: any) => evalForms[s.groupId]).find((e: any) => (e?.score ?? 0) > 0);
+                        return (cardEv?.score ?? 0) > 0 && (
+                          <span className="text-xs font-black text-amber-500 flex items-center gap-0.5">
+                            {'★'.repeat(cardEv.score)}<span className="text-[10px] text-amber-400/60 ml-0.5">평가됨</span>
+                          </span>
+                        );
+                      })()}
                       {firstItem.teacher_feedback && (
                         <span className="flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-md bg-indigo-100 text-indigo-600 border border-indigo-200">
                           <MessageSquare size={11} /> 피드백
@@ -1820,13 +1826,69 @@ const StudentView = () => {
 
               {/* 모달 내용 — 병합된 제출 각각을 독립적으로 렌더링 */}
               <div className="px-8 pb-8 space-y-4 flex-1 overflow-y-auto overflow-x-hidden">
+                {(() => {
+                  const weekSubGroups = selectedResult._subGroups || [{ groupId: selectedResult.groupId, groupItems: selectedResult.groupItems }];
+                  const weekGroupId = selectedResult.groupId;
+                  const weekGroupIds = weekSubGroups.map((s: any) => s.groupId);
+                  // 과거에 제출 건별로 평가가 저장된 레거시 데이터도 놓치지 않도록, 대표 키에 값이 없으면
+                  // 같은 모달에 묶인 다른 제출 건의 기존 평가를 찾아 보여준다.
+                  const weekEv = weekGroupIds
+                    .map((gid: string) => evalForms[gid])
+                    .find((e: any) => e && (e.score || e.tags?.length || e.note))
+                    || getEval(weekGroupId);
+                  return (
+                    <div className="p-5 bg-violet-50/50 rounded-2xl border border-violet-100 space-y-4">
+                      <p className="text-[11px] font-black text-violet-700 uppercase tracking-widest">교사 평가 — 나이스 세특 참고용 (이번 제출 전체 기준 1회)</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant/70">성취 수준</label>
+                        <div className="flex items-center gap-1">
+                          {[1,2,3,4,5].map(star => (
+                            <button key={star}
+                              onClick={() => setEvalForms(prev => ({ ...prev, [weekGroupId]: { ...weekEv, score: weekEv.score === star ? 0 : star } }))}
+                              className={`text-2xl transition-colors leading-none ${star <= weekEv.score ? 'text-amber-400' : 'text-neutral-200 hover:text-amber-200'}`}
+                            >★</button>
+                          ))}
+                          {weekEv.score > 0 && <span className="text-xs font-black text-amber-500 ml-2">{weekEv.score}점</span>}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant/70">역량 태그 (중복 선택)</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {['자기주도', '논리적사고', '표현력', '창의성', '협력', '성실성', '탐구력', '문제해결'].map(tag => (
+                            <button key={tag} onClick={() => toggleEvalTag(weekGroupId, tag)}
+                              className={`px-3 py-1 rounded-full text-[11px] font-black border transition-all ${
+                                weekEv.tags.includes(tag)
+                                  ? 'bg-violet-500 text-white border-violet-500'
+                                  : 'bg-white text-neutral-400 border-neutral-200 hover:border-violet-300 hover:text-violet-500'
+                              }`}
+                            >{tag}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant/70">평가 코멘트</label>
+                        <textarea
+                          value={weekEv.note}
+                          onChange={e => setEvalForms(prev => ({ ...prev, [weekGroupId]: { ...weekEv, note: e.target.value } }))}
+                          placeholder="이번 제출물 전체에 대한 평가 메모 (세특 작성 시 AI 참고 자료로 활용됩니다)"
+                          rows={2}
+                          className="w-full px-4 py-3 bg-white rounded-xl text-sm border border-violet-100 focus:border-violet-300 focus:outline-none resize-none transition-all"
+                        />
+                      </div>
+                      <button onClick={() => saveEvaluation(weekGroupId, weekGroupIds)} disabled={savingEvalId === weekGroupId}
+                        className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-xs font-black transition-all disabled:opacity-50">
+                        {savingEvalId === weekGroupId ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                        평가 저장
+                      </button>
+                    </div>
+                  );
+                })()}
                 {(selectedResult._subGroups || [{ groupId: selectedResult.groupId, groupItems: selectedResult.groupItems }]).map((sub: any, idx: number, arr: any[]) => {
                   const subItems: any[] = sub.groupItems || [selectedResult];
                   const subFirst = subItems[0];
                   const gId = sub.groupId;
                   const isSubRejected = subFirst.status === 'rejected';
                   const isProcessing = processingGroupId === gId;
-                  const ev = getEval(gId);
                   const isEditingFeedback = feedbackGroupId === gId;
 
                   const textItem = subItems.find((r: any) => r.result_type === 'text');
@@ -1922,52 +1984,6 @@ const StudentView = () => {
                           </div>
                         </div>
                       )}
-
-                      {/* 교사 평가 (세특 참고용) */}
-                      <div className="p-5 bg-violet-50/50 rounded-2xl border border-violet-100 space-y-4">
-                        <p className="text-[11px] font-black text-violet-700 uppercase tracking-widest">교사 평가 — 나이스 세특 참고용</p>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-on-surface-variant/70">성취 수준</label>
-                          <div className="flex items-center gap-1">
-                            {[1,2,3,4,5].map(star => (
-                              <button key={star}
-                                onClick={() => setEvalForms(prev => ({ ...prev, [gId]: { ...ev, score: ev.score === star ? 0 : star } }))}
-                                className={`text-2xl transition-colors leading-none ${star <= ev.score ? 'text-amber-400' : 'text-neutral-200 hover:text-amber-200'}`}
-                              >★</button>
-                            ))}
-                            {ev.score > 0 && <span className="text-xs font-black text-amber-500 ml-2">{ev.score}점</span>}
-                          </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-on-surface-variant/70">역량 태그 (중복 선택)</label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {['자기주도', '논리적사고', '표현력', '창의성', '협력', '성실성', '탐구력', '문제해결'].map(tag => (
-                              <button key={tag} onClick={() => toggleEvalTag(gId, tag)}
-                                className={`px-3 py-1 rounded-full text-[11px] font-black border transition-all ${
-                                  ev.tags.includes(tag)
-                                    ? 'bg-violet-500 text-white border-violet-500'
-                                    : 'bg-white text-neutral-400 border-neutral-200 hover:border-violet-300 hover:text-violet-500'
-                                }`}
-                              >{tag}</button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-on-surface-variant/70">평가 코멘트</label>
-                          <textarea
-                            value={ev.note}
-                            onChange={e => setEvalForms(prev => ({ ...prev, [gId]: { ...ev, note: e.target.value } }))}
-                            placeholder="이 결과물에 대한 평가 메모 (세특 작성 시 AI 참고 자료로 활용됩니다)"
-                            rows={2}
-                            className="w-full px-4 py-3 bg-white rounded-xl text-sm border border-violet-100 focus:border-violet-300 focus:outline-none resize-none transition-all"
-                          />
-                        </div>
-                        <button onClick={() => saveEvaluation(gId)} disabled={savingEvalId === gId}
-                          className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-xs font-black transition-all disabled:opacity-50">
-                          {savingEvalId === gId ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                          평가 저장
-                        </button>
-                      </div>
 
                       {/* 반려됨 피드백 표시 */}
                       {isSubRejected && (
