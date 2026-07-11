@@ -108,16 +108,21 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
   const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
   const [sessionEndedAt, setSessionEndedAt] = useState<string | null>(null);
   const [sessionSaving, setSessionSaving] = useState(false);
+  const [weeklyPlan, setWeeklyPlan] = useState<any[]>([]);
+  const [activeWeek, setActiveWeek] = useState<number | null>(null);
+  const [selectedStartWeek, setSelectedStartWeek] = useState<number | ''>('');
 
   const fetchSession = useCallback(async () => {
     if (!classId) return;
     const { data } = await supabase
       .from('classes')
-      .select('today_started_at, today_ended_at')
+      .select('today_started_at, today_ended_at, weekly_plan, active_week')
       .eq('id', classId)
       .single();
     setSessionStartedAt(data?.today_started_at ?? null);
     setSessionEndedAt(data?.today_ended_at ?? null);
+    setWeeklyPlan(Array.isArray(data?.weekly_plan) ? data.weekly_plan : []);
+    setActiveWeek(data?.active_week ?? null);
   }, [classId]);
 
   useEffect(() => { fetchSession(); }, [fetchSession]);
@@ -129,14 +134,18 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
     setSessionSaving(true);
     try {
       if (isStartedToday) {
-        // 시작 취소 시 종료도 함께 취소 (시작 없이 종료만 있는 상태 방지)
-        await supabase.from('classes').update({ today_started_at: null, today_ended_at: null }).eq('id', classId);
+        // 시작 취소 시 종료·진행 주차도 함께 취소 (시작 없이 종료만 있는 상태 방지)
+        await supabase.from('classes').update({ today_started_at: null, today_ended_at: null, active_week: null }).eq('id', classId);
         setSessionStartedAt(null);
         setSessionEndedAt(null);
+        setActiveWeek(null);
+        setSelectedStartWeek('');
       } else {
         const now = new Date().toISOString();
-        await supabase.from('classes').update({ today_started_at: now }).eq('id', classId);
+        const weekToStart = weeklyPlan.length > 0 ? (selectedStartWeek || null) : null;
+        await supabase.from('classes').update({ today_started_at: now, active_week: weekToStart }).eq('id', classId);
         setSessionStartedAt(now);
+        setActiveWeek(weekToStart);
       }
     } finally {
       setSessionSaving(false);
@@ -512,11 +521,29 @@ export default function AttendanceTab({ classId, students }: AttendanceTabProps)
         {/* ── 오늘 수업 시작/종료 체크 ── */}
         {isToday && !showOnlyAttended && (
           <div className="flex items-center gap-3 flex-wrap justify-center">
+            {!isStartedToday && weeklyPlan.length > 0 && (
+              <select
+                value={selectedStartWeek}
+                onChange={(e) => setSelectedStartWeek(e.target.value ? Number(e.target.value) : '')}
+                className="px-3 py-2 rounded-xl text-xs font-black border-2 border-blue-200 text-blue-600 bg-white cursor-pointer"
+              >
+                <option value="">오늘 진행 주차 선택...</option>
+                {weeklyPlan.map((w: any, idx: number) => (
+                  <option key={idx} value={w.week}>{w.week}주차{w.topic ? `: ${w.topic}` : ''}</option>
+                ))}
+              </select>
+            )}
+            {isStartedToday && activeWeek && (
+              <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-blue-50 text-blue-600 border-2 border-blue-200">
+                {activeWeek}주차 진행 중
+              </span>
+            )}
             <button
               type="button"
               onClick={toggleSessionStart}
-              disabled={sessionSaving}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-50 ${
+              disabled={sessionSaving || (!isStartedToday && weeklyPlan.length > 0 && !selectedStartWeek)}
+              title={!isStartedToday && weeklyPlan.length > 0 && !selectedStartWeek ? '먼저 오늘 진행 주차를 선택해주세요' : undefined}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                 isStartedToday
                   ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                   : 'bg-white text-blue-600 border-blue-200 hover:border-blue-400'

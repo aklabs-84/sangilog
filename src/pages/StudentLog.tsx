@@ -234,6 +234,7 @@ const StudentLog = () => {
 
   // Resources State (weekly_plan + class_materials + general)
   const [classResources, setClassResources] = useState<any[]>([]);
+  const [activeWeek, setActiveWeek] = useState<number | null>(null);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string } | null>(null);
@@ -261,6 +262,17 @@ const StudentLog = () => {
   const [isGroupSubmission, setIsGroupSubmission] = useState(false);
   const [myClassGroup, setMyClassGroup] = useState<{ id: string; name: string; memberNames: string[] } | null>(null);
   const [filterWeek, setFilterWeek] = useState<number | null>(null);
+
+  // 오늘 진행 주차가 지정돼 있으면 신규 결과 제출 폼을 해당 주차로 고정
+  useEffect(() => {
+    if (!editingResult && activeWeek) setSelectedWeek(activeWeek);
+  }, [activeWeek, editingResult]);
+
+  // 오늘 진행 주차가 지정돼 있으면 신규 활동 기록 작성 폼의 주제를 해당 주차로 고정
+  const activeWeekTopic = activeWeek ? classResources.find((r: any) => r.week === activeWeek)?.topic : undefined;
+  useEffect(() => {
+    if (activeWeekTopic && !title) setTitle(activeWeekTopic);
+  }, [activeWeekTopic]);
   const [detailItem, setDetailItem] = useState<any>(null);
 
   // 가이드 투어 State
@@ -860,12 +872,15 @@ const StudentLog = () => {
     try {
       const { data } = await supabase
         .from('classes')
-        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled, start_date, end_date, is_closed, parent_class_id')
+        .select('teacher_id, student_guide_prompt, weekly_plan, min_obs_chars, blocked_keywords, ai_review_enabled, start_date, end_date, is_closed, parent_class_id, today_started_at, active_week')
         .eq('id', classId)
         .single();
 
       if (data) {
         setTeacherId(data.teacher_id);
+        const startedToday = data.today_started_at &&
+          new Date(data.today_started_at).toDateString() === new Date().toDateString();
+        setActiveWeek(startedToday ? (data.active_week ?? null) : null);
         setGuidePrompt(data.student_guide_prompt || '수업 시간에 배운 내용과 본인의 활동 역할을 구체적으로 작성하세요. 글의 일부에라도 같은 글자·자음·모음이 의미 없이 반복되는 부분이 있다면, 앞부분에 정상적인 내용이 있더라도 반드시 반려 처리해 주세요.');
         setMinObsChars(data.min_obs_chars || 0);
         setBlockedKeywords(data.blocked_keywords || []);
@@ -1085,6 +1100,9 @@ const StudentLog = () => {
 
     // 수정 모드: 그룹 전체 업데이트
     if (editingResult) {
+      if (!selectedWeek) {
+        showToast('주차를 선택해주세요.', 'error'); return;
+      }
       const hasText  = resultText.trim() !== '';
       const hasLink  = resultUrl.trim() !== '';
       const hasImage = resultImageFile !== null;
@@ -1097,7 +1115,7 @@ const StudentLog = () => {
         const base = {
           student_id:       editingResult.student_id,
           class_id:         editingResult.class_id,
-          week_number:      editingResult.week_number,
+          week_number:      selectedWeek,
           submission_group: groupId,
           title:            resultTitle.trim() || null,
         };
@@ -1112,7 +1130,7 @@ const StudentLog = () => {
         // ── 텍스트 ──
         if (hasText) {
           if (existingText) {
-            const { error } = await supabase.from('student_results').update({ title: base.title, text_content: resultText.trim() }).eq('id', existingText.id);
+            const { error } = await supabase.from('student_results').update({ title: base.title, week_number: base.week_number, text_content: resultText.trim() }).eq('id', existingText.id);
             if (error) throw error;
           } else {
             const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'text', text_content: resultText.trim() });
@@ -1126,7 +1144,7 @@ const StudentLog = () => {
         // ── 링크 ──
         if (hasLink) {
           if (existingLink) {
-            const { error } = await supabase.from('student_results').update({ title: base.title, link_url: resultUrl.trim() }).eq('id', existingLink.id);
+            const { error } = await supabase.from('student_results').update({ title: base.title, week_number: base.week_number, link_url: resultUrl.trim() }).eq('id', existingLink.id);
             if (error) throw error;
           } else {
             const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'link', link_url: resultUrl.trim() });
@@ -1141,15 +1159,15 @@ const StudentLog = () => {
           if (existingImage?.storage_path) await supabase.storage.from('student-attachments').remove([existingImage.storage_path]);
           const up = await uploadFile(resultImageFile!, 'image');
           if (existingImage) {
-            const { error } = await supabase.from('student_results').update({ title: base.title, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }).eq('id', existingImage.id);
+            const { error } = await supabase.from('student_results').update({ title: base.title, week_number: base.week_number, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }).eq('id', existingImage.id);
             if (error) throw error;
           } else {
             const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'image', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
             if (error) throw error;
           }
         } else if (existingImage && keepImg) {
-          // 기존 이미지 유지 — title만 반영
-          await supabase.from('student_results').update({ title: base.title }).eq('id', existingImage.id);
+          // 기존 이미지 유지 — title, 주차만 반영
+          await supabase.from('student_results').update({ title: base.title, week_number: base.week_number }).eq('id', existingImage.id);
         }
 
         // ── 파일 ──
@@ -1157,15 +1175,15 @@ const StudentLog = () => {
           if (existingFile?.storage_path) await supabase.storage.from('student-attachments').remove([existingFile.storage_path]);
           const up = await uploadFile(resultFileUpload!, 'file');
           if (existingFile) {
-            const { error } = await supabase.from('student_results').update({ title: base.title, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }).eq('id', existingFile.id);
+            const { error } = await supabase.from('student_results').update({ title: base.title, week_number: base.week_number, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }).eq('id', existingFile.id);
             if (error) throw error;
           } else {
             const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'file', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
             if (error) throw error;
           }
         } else if (existingFile) {
-          // 기존 파일 유지 — title만 반영
-          await supabase.from('student_results').update({ title: base.title }).eq('id', existingFile.id);
+          // 기존 파일 유지 — title, 주차만 반영
+          await supabase.from('student_results').update({ title: base.title, week_number: base.week_number }).eq('id', existingFile.id);
         }
 
         // 반려 상태였으면 승인 상태로 초기화 — student_id 필터로 본인 행만 처리
@@ -2491,7 +2509,7 @@ ${guidePrompt}
               const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
 
               // 기본 선택 주차: 마지막 주차
-              const displayWeek = selectedHomeWeek ?? (weeklyPlan.length > 0 ? weeklyPlan[weeklyPlan.length - 1].week : null);
+              const displayWeek = selectedHomeWeek ?? activeWeek ?? (weeklyPlan.length > 0 ? weeklyPlan[weeklyPlan.length - 1].week : null);
               const weekInfo = weeklyPlan.find(p => p.week === displayWeek);
 
               // 완료 여부
@@ -2779,11 +2797,17 @@ ${guidePrompt}
                       </label>
                       <span className="text-[10px] text-on-surface-variant/40 font-bold">주제를 선택해야 제출할 수 있습니다</span>
                     </div>
+                    {activeWeekTopic && (
+                      <p className="text-[11px] font-bold text-primary/60 ml-2">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
+                    )}
                     <div className="relative">
                       <select
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        className={`w-full px-10 py-6 rounded-2xl text-xl font-black focus:ring-8 transition-all border-2 appearance-none cursor-pointer ${
+                        disabled={!!activeWeekTopic}
+                        className={`w-full px-10 py-6 rounded-2xl text-xl font-black focus:ring-8 transition-all border-2 appearance-none ${
+                          activeWeekTopic ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'
+                        } ${
                           title
                             ? 'bg-primary/5 border-primary/30 text-primary focus:ring-primary/10 focus:border-primary/50'
                             : 'bg-neutral-100 border-neutral-200/50 text-neutral-400 focus:ring-primary/10 focus:border-primary/30'
@@ -3552,25 +3576,34 @@ ${guidePrompt}
                 {!isClassClosed && (<>
                 <div ref={resultFormRef} className="space-y-3">
                   <p className="text-[11px] font-black uppercase tracking-[0.2em] text-primary/70">
-                    주차 선택 {editingResult ? '' : '*'}
+                    주차 선택 *
                   </p>
+                  {!editingResult && activeWeek && (
+                    <p className="text-[11px] font-bold text-primary/60">오늘 선생님이 진행 중인 {activeWeek}주차로 고정되어 있습니다.</p>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {(classResources.length > 0
                       ? classResources.map((r: any) => ({ week: r.week, label: `${r.week}주차${r.topic ? `: ${r.topic}` : ''}` }))
                       : Array.from({ length: 16 }, (_, i) => ({ week: i + 1, label: `${i + 1}주차` }))
-                    ).map(({ week, label }) => (
-                      <button
-                        key={week}
-                        onClick={() => { if (!editingResult) setSelectedWeek(week); }}
-                        className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${
-                          selectedWeek === week
-                            ? 'bg-primary text-white border-primary shadow-md'
-                            : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
-                        } ${editingResult ? 'opacity-60 cursor-not-allowed' : ''}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                    ).map(({ week, label }) => {
+                      const weekLocked = !editingResult && !!activeWeek && week !== activeWeek;
+                      return (
+                        <button
+                          key={week}
+                          onClick={() => { if (!weekLocked) setSelectedWeek(week); }}
+                          disabled={weekLocked}
+                          className={`px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${
+                            selectedWeek === week
+                              ? 'bg-primary text-white border-primary shadow-md'
+                              : weekLocked
+                              ? 'bg-surface-container/50 text-on-surface-variant/30 border-transparent cursor-not-allowed'
+                              : 'bg-surface-container text-on-surface-variant border-transparent hover:border-primary/30'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
