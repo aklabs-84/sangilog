@@ -393,8 +393,7 @@ const StudentView = () => {
       if (firstItem?.submission_group) {
         await supabase.from('student_results')
           .update({ teacher_feedback: feedback })
-          .eq('submission_group', groupId)
-          .eq('student_id', id!);
+          .eq('submission_group', groupId);
       } else {
         await supabase.from('student_results')
           .update({ teacher_feedback: feedback })
@@ -405,15 +404,26 @@ const StudentView = () => {
       ));
       patchSelectedResultGroup(groupId, { teacher_feedback: feedback });
       const classId = fromClassId || student?.class_id;
-      if (id && classId) {
-        const { error: notifErr } = await supabase.from('student_notifications').insert({
-          student_id: id,
-          class_id: classId,
-          title: '결과 제출에 선생님 피드백이 도착했습니다',
-          content: `"${firstItem?.title || '결과 제출'}" — ${feedback}`,
-          type: 'feedback',
-          is_read: false,
-        });
+      if (classId) {
+        // 조별 제출이면 조원 전원에게, 개인 제출이면 본인에게만 알림
+        let memberIds: string[] = [id!];
+        if (firstItem?.submission_group) {
+          const { data: memberRows } = await supabase
+            .from('student_results')
+            .select('student_id')
+            .eq('submission_group', groupId);
+          memberIds = Array.from(new Set((memberRows || []).map((r: any) => r.student_id)));
+        }
+        const { error: notifErr } = await supabase.from('student_notifications').insert(
+          memberIds.map((studentId) => ({
+            student_id: studentId,
+            class_id: classId,
+            title: '결과 제출에 선생님 피드백이 도착했습니다',
+            content: `"${firstItem?.title || '결과 제출'}" — ${feedback}`,
+            type: 'feedback',
+            is_read: false,
+          }))
+        );
         if (notifErr) console.error('student_notifications insert error (result feedback):', notifErr);
       }
       setFeedbackGroupId(null);
@@ -434,8 +444,7 @@ const StudentView = () => {
       if (firstItem?.submission_group) {
         await supabase.from('student_results')
           .update({ teacher_feedback: null })
-          .eq('submission_group', groupId)
-          .eq('student_id', id!);
+          .eq('submission_group', groupId);
       } else {
         await supabase.from('student_results')
           .update({ teacher_feedback: null })
