@@ -2956,6 +2956,9 @@ ${guidePrompt}
                   _groupStatus: hasRejected ? 'rejected' : allApproved ? 'approved' : 'pending',
                   _rejectionFeedback: group.find((r: any) => r.rejection_feedback)?.rejection_feedback,
                   _teacherFeedback: group.find((r: any) => r.teacher_feedback)?.teacher_feedback,
+                  _teacherEvalScore: group.find((r: any) => r.teacher_eval_score)?.teacher_eval_score,
+                  _teacherEvalTags: group.find((r: any) => r.teacher_eval_tags?.length)?.teacher_eval_tags,
+                  _teacherEvalNote: group.find((r: any) => r.teacher_eval_note)?.teacher_eval_note,
                 };
               }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -3251,6 +3254,27 @@ ${guidePrompt}
                                   <MessageSquare size={11} /> 선생님 피드백
                                 </p>
                                 <p className="text-xs font-bold text-indigo-700 leading-relaxed">{r._teacherFeedback}</p>
+                              </div>
+                            )}
+                            {/* 선생님 평가 (성취수준/역량 태그/평가 코멘트) */}
+                            {r._groupStatus !== 'rejected' && (r._teacherEvalScore || r._teacherEvalTags?.length || r._teacherEvalNote) && (
+                              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-1.5">
+                                <p className="text-[10px] font-black text-amber-600 mb-0.5 flex items-center gap-1">
+                                  <Trophy size={11} /> 선생님 평가
+                                </p>
+                                {r._teacherEvalScore && (
+                                  <p className="text-xs font-black text-amber-600">{'★'.repeat(r._teacherEvalScore)}{'☆'.repeat(5 - r._teacherEvalScore)}</p>
+                                )}
+                                {r._teacherEvalTags?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {r._teacherEvalTags.map((tag: string) => (
+                                      <span key={tag} className="text-[10px] font-black text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md">{tag}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {r._teacherEvalNote && (
+                                  <p className="text-xs font-bold text-amber-800 leading-relaxed">{r._teacherEvalNote}</p>
+                                )}
                               </div>
                             )}
                             {/* 수정/삭제 버튼 */}
@@ -5858,6 +5882,27 @@ ${guidePrompt}
                             <MessageSquare size={12} /> 선생님 피드백
                           </p>
                           <p className="text-sm font-bold text-indigo-700 leading-relaxed">{detailItem._teacherFeedback}</p>
+                        </div>
+                      )}
+                      {/* 선생님 평가 (성취수준/역량 태그/평가 코멘트) */}
+                      {(detailItem._teacherEvalScore || detailItem._teacherEvalTags?.length || detailItem._teacherEvalNote) && (
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+                          <p className="text-[10px] font-black text-amber-600 mb-0.5 flex items-center gap-1">
+                            <Trophy size={12} /> 선생님 평가
+                          </p>
+                          {detailItem._teacherEvalScore && (
+                            <p className="text-sm font-black text-amber-600">{'★'.repeat(detailItem._teacherEvalScore)}{'☆'.repeat(5 - detailItem._teacherEvalScore)}</p>
+                          )}
+                          {detailItem._teacherEvalTags?.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {detailItem._teacherEvalTags.map((tag: string) => (
+                                <span key={tag} className="text-[10px] font-black text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md">{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                          {detailItem._teacherEvalNote && (
+                            <p className="text-sm font-bold text-amber-800 leading-relaxed">{detailItem._teacherEvalNote}</p>
+                          )}
                         </div>
                       )}
                     </>

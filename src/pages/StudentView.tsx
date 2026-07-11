@@ -615,13 +615,21 @@ const StudentView = () => {
     setSavingEvalId(groupId);
     try {
       const groupItems = results.filter((r: any) => allGroupIds.includes(r.submission_group || r.id));
-      const ids = groupItems.map((item: any) => item.id);
-      if (ids.length > 0) {
-        await supabase.from('student_results').update({
-          teacher_eval_score: evalData.score || null,
-          teacher_eval_tags: evalData.tags.length > 0 ? evalData.tags : null,
-          teacher_eval_note: evalData.note.trim() || null,
-        }).in('id', ids);
+      const payload = {
+        teacher_eval_score: evalData.score || null,
+        teacher_eval_tags: evalData.tags.length > 0 ? evalData.tags : null,
+        teacher_eval_note: evalData.note.trim() || null,
+      };
+      // 조별 제출이면 submission_group 전체(다른 조원 포함)에 반영, 개인 제출이면 본인 row만
+      const submissionGroups = Array.from(new Set(
+        groupItems.filter((r: any) => r.submission_group).map((r: any) => r.submission_group)
+      ));
+      const standaloneIds = groupItems.filter((r: any) => !r.submission_group).map((r: any) => r.id);
+      if (submissionGroups.length > 0) {
+        await supabase.from('student_results').update(payload).in('submission_group', submissionGroups);
+      }
+      if (standaloneIds.length > 0) {
+        await supabase.from('student_results').update(payload).in('id', standaloneIds);
       }
       showToast('평가가 저장되었습니다. ✅');
     } catch {
