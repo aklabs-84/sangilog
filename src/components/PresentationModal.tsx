@@ -70,7 +70,7 @@ const SlideImageZoomContext = createContext<((src: string) => void) | null>(null
 
 const SlideImg = ({ src, alt, title }: { src?: string; alt?: string; title?: string }) => {
   const zoom = useContext(SlideImageZoomContext);
-  const wm = (title || '').match(/^width:(\d+)$/);
+  const wm = (title || '').match(/(?:^|,)width:(\d+)/);
   const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
   return (
     <img
@@ -78,7 +78,7 @@ const SlideImg = ({ src, alt, title }: { src?: string; alt?: string; title?: str
       alt={alt}
       style={style}
       onClick={zoom ? () => zoom(src!) : undefined}
-      className={`w-full h-auto rounded-2xl my-4 shadow-xl ${zoom ? 'cursor-zoom-in hover:opacity-90 transition-opacity' : ''}`}
+      className={`max-w-full h-auto rounded-2xl my-4 shadow-xl ${zoom ? 'cursor-zoom-in hover:opacity-90 transition-opacity' : ''}`}
     />
   );
 };

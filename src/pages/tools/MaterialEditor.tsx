@@ -472,7 +472,7 @@ const mdComponents: any = {
     </a>
   ),
   img: ({ src, alt, title }: any) => {
-    const wm = (title || '').match(/^width:(\d+)$/);
+    const wm = (title || '').match(/(?:^|,)width:(\d+)/);
     const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
     return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-3 shadow" />;
   },
