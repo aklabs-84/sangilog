@@ -34,7 +34,7 @@ import {
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
-  Library, Link2,
+  Library, Link2, FileDown,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
@@ -990,6 +990,19 @@ const MaterialEditor = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, weekNumber, content, isPublished]);
 
+  // ── PDF 다운로드 (브라우저 인쇄 → PDF로 저장) ────────────────────────────────
+  const handlePrintPdf = () => {
+    if (!content.trim()) return;
+    const prevDocTitle = document.title;
+    document.title = title.trim() || '수업자료';
+    const restoreTitle = () => {
+      document.title = prevDocTitle;
+      window.removeEventListener('afterprint', restoreTitle);
+    };
+    window.addEventListener('afterprint', restoreTitle);
+    window.print();
+  };
+
   // ── 삭제 ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
     if (!confirm('이 수업 자료를 삭제하시겠습니까?')) return;
@@ -1070,6 +1083,16 @@ const MaterialEditor = () => {
 
   return (
     <>
+    {/* PDF 다운로드용 인쇄 전용 영역 — 화면엔 보이지 않고 인쇄(PDF 저장) 시에만 노출됨 */}
+    {isEditorOpen && createPortal(
+      <div className="print-only px-8 py-6">
+        <h1 className="text-2xl font-black mb-5 text-on-surface">{title.trim() || '(제목 없음)'}</h1>
+        <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+          {content}
+        </ReactMarkdown>
+      </div>,
+      document.body
+    )}
     {presentingMaterial && (
       <PresentationModal
         material={presentingMaterial}
@@ -1310,6 +1333,15 @@ const MaterialEditor = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary/15 font-black text-xs transition-colors border border-primary/15"
             >
               <Download size={12} /> 가져오기
+            </button>
+            {/* PDF 다운로드 — 화면에 보이는 서식 그대로 브라우저 인쇄를 통해 PDF로 저장 */}
+            <button
+              onClick={handlePrintPdf}
+              disabled={!content.trim()}
+              title={content.trim() ? '지금 작성된 내용을 PDF로 다운로드 (인쇄창에서 "PDF로 저장" 선택)' : '내용을 먼저 작성해주세요'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary/15 font-black text-xs transition-colors border border-primary/15 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <FileDown size={12} /> PDF 다운로드
             </button>
             {/* 저장 (상단에서도 바로 저장 가능) */}
             <button

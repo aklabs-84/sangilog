@@ -316,3 +316,25 @@
 
 /* 리사이즈 커서 */
 .resize-cursor { cursor: col-resize; }
+
+/* ── PDF/인쇄 전용 영역 — 화면엔 숨기고 인쇄 시에만 노출 ─────────────────── */
+.print-only { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  .print-only, .print-only * { visibility: visible; }
+  .print-only {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+@page {
+  size: A4;
+  margin: 15mm;
+}
