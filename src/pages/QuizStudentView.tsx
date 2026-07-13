@@ -6,6 +6,7 @@ import {
   Clock, Wifi, WifiOff, ArrowLeft,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getServerTimeOffsetMs } from '../lib/serverTime';
 import ConfettiEffect from '../components/quiz/ConfettiEffect';
 import { playVictoryFanfare, playRankFanfare, playCompleteSound } from '../lib/quizSound';
 
@@ -88,6 +89,10 @@ const QuizStudentView = () => {
   const prevQuestionIndex = useRef<number>(-1);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 기기 시계 - 서버 시계 오프셋(ms). 기기 시스템 시간이 틀려도 이 값을 Date.now()에
+  // 더하면 서버 기준 시각을 구할 수 있어, 타이머/응답시간이 교사 화면과 어긋나지 않는다.
+  const offsetMsRef = useRef(0);
+  const serverNow = () => Date.now() + offsetMsRef.current;
 
   // ── PIN 확인 & 입장 ──────────────────────────────────────────────────────
   const handleVerifyPin = async () => {
@@ -125,6 +130,9 @@ const QuizStudentView = () => {
     if (!name) { setErrorMsg('이름을 입력하세요'); return; }
     setLoading(true);
     setErrorMsg('');
+
+    // 서버-기기 시간 오프셋 조회 (백그라운드, 실패해도 0으로 폴백되어 진행에 영향 없음)
+    getServerTimeOffsetMs().then(ms => { offsetMsRef.current = ms; });
 
     // PIN으로 세션 다시 조회 (URL에서 온 경우)
     let sess = session;
@@ -278,7 +286,7 @@ const QuizStudentView = () => {
 
     const sync = () => {
       const started = new Date(session.question_started_at!).getTime();
-      const elapsed = Math.floor((Date.now() - started) / 1000);
+      const elapsed = Math.floor((serverNow() - started) / 1000);
       const remaining = Math.max(0, session.max_timer - elapsed);
       setTimer(remaining);
     };
@@ -355,6 +363,8 @@ const QuizStudentView = () => {
   const handleAnswer = async (optionIdx: number) => {
     if (!session || !participant || myAnswer !== null) return;
     if (session.state !== 'QUIZ') return;
+    // 서버시간 기준으로 동기화된 타이머가 이미 0이면(모든 학생이 동시에 마감) 더 이상 답변 불가
+    if (timer <= 0) return;
 
     setMyAnswer(optionIdx);
 
@@ -363,8 +373,8 @@ const QuizStudentView = () => {
 
     const started = session.question_started_at
       ? new Date(session.question_started_at).getTime()
-      : Date.now();
-    const responseTime = (Date.now() - started) / 1000;
+      : serverNow();
+    const responseTime = (serverNow() - started) / 1000;
 
     const isCorrect = optionIdx === currentQuestion.correct_answer;
     const BASE = 500;
@@ -641,21 +651,33 @@ const QuizStudentView = () => {
 
                     {/* 선택지 또는 완료 표시 */}
                     {myAnswer === null ? (
-                      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:gap-5">
-                        {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4].map((opt, idx) => (
-                          <motion.button
-                            key={idx}
-                            whileTap={{ scale: 0.94 }}
-                            onClick={() => handleAnswer(idx)}
-                            className={`min-h-32 md:min-h-40 lg:min-h-48 rounded-2xl bg-gradient-to-br ${OPTION_BG[idx]} shadow-xl ${OPTION_SHADOW[idx]} flex flex-col items-center justify-center gap-2 md:gap-3 transition-all active:brightness-90 p-4 md:p-6 lg:p-8`}
-                          >
-                            <span className="w-11 h-11 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-xl bg-white/20 flex items-center justify-center text-white font-black text-xl md:text-2xl lg:text-3xl shrink-0">
-                              {OPTION_LABELS[idx]}
-                            </span>
-                            <span className="text-white font-bold text-base md:text-lg lg:text-xl text-center leading-snug break-words w-full">{opt}</span>
-                          </motion.button>
-                        ))}
-                      </div>
+                      timer > 0 ? (
+                        <div className="grid grid-cols-2 gap-3 md:gap-4 lg:gap-5">
+                          {[currentQuestion.option_1, currentQuestion.option_2, currentQuestion.option_3, currentQuestion.option_4].map((opt, idx) => (
+                            <motion.button
+                              key={idx}
+                              whileTap={{ scale: 0.94 }}
+                              onClick={() => handleAnswer(idx)}
+                              className={`min-h-32 md:min-h-40 lg:min-h-48 rounded-2xl bg-gradient-to-br ${OPTION_BG[idx]} shadow-xl ${OPTION_SHADOW[idx]} flex flex-col items-center justify-center gap-2 md:gap-3 transition-all active:brightness-90 p-4 md:p-6 lg:p-8`}
+                            >
+                              <span className="w-11 h-11 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-xl bg-white/20 flex items-center justify-center text-white font-black text-xl md:text-2xl lg:text-3xl shrink-0">
+                                {OPTION_LABELS[idx]}
+                              </span>
+                              <span className="text-white font-bold text-base md:text-lg lg:text-xl text-center leading-snug break-words w-full">{opt}</span>
+                            </motion.button>
+                          ))}
+                        </div>
+                      ) : (
+                        <motion.div
+                          initial={{ scale: 0.85, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="bg-white/15 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center space-y-3"
+                        >
+                          <div className="text-5xl">⏱️</div>
+                          <p className="text-white font-black text-xl">시간이 종료되었습니다</p>
+                          <p className="text-white/60 text-sm">선생님이 결과를 확인하면 표시됩니다</p>
+                        </motion.div>
+                      )
                     ) : (
                       <motion.div
                         initial={{ scale: 0.85, opacity: 0 }}

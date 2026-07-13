@@ -8,6 +8,7 @@ import {
   ArrowRight, ListChecks, BookOpen, Wifi
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { getServerTimeOffsetMs } from '../../lib/serverTime';
 import { useAuth } from '../../lib/auth';
 import { quizGeneratorAI } from '../../lib/gemini';
 import ConfettiEffect from '../../components/quiz/ConfettiEffect';
@@ -119,6 +120,10 @@ const QuizGame = () => {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const savedHistoryRef = useRef(false);
+  // 기기 시계 - 서버 시계 오프셋(ms). 학생 화면과 동일한 방식으로 서버 기준 시각을 구해
+  // question_started_at을 저장하고 타이머를 계산해, 교사/학생 기기 시계가 달라도 어긋나지 않는다.
+  const offsetMsRef = useRef(0);
+  const serverNow = () => Date.now() + offsetMsRef.current;
 
   // ── 수업 자료 AI 생성 ──────────────────────────────────────────────────────
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
@@ -350,6 +355,9 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
     if (!selectedQuizSet || questions.length === 0) return;
     setLoading(true);
 
+    // 서버-기기 시간 오프셋 조회 (실패해도 0으로 폴백되어 진행에 영향 없음)
+    offsetMsRef.current = await getServerTimeOffsetMs();
+
     // 기존 활성 세션 종료
     await supabase
       .from('quiz_sessions')
@@ -451,6 +459,25 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
     return () => clearInterval(t);
   }, [view, session?.id, fetchParticipantsFresh]);
 
+  // 교사 화면 타이머 — 서버시간 기준 경과 시간을 매번 재계산(학생 화면과 동일 방식).
+  // 기존에는 1초마다 단순히 숫자를 깎는 방식이라 교사 기기 시계가 다르거나 브라우저
+  // 탭이 백그라운드로 밀려 setInterval이 지연되면 실제 경과 시간과 어긋날 수 있었음.
+  useEffect(() => {
+    if (!session || session.state !== 'QUIZ' || !session.question_started_at) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    const sync = () => {
+      const started = new Date(session.question_started_at!).getTime();
+      const elapsed = Math.floor((serverNow() - started) / 1000);
+      setTimer(Math.max(0, session.max_timer - elapsed));
+    };
+
+    sync();
+    timerRef.current = setInterval(sync, 250);
+
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [session?.state, session?.question_started_at, session?.max_timer]);
+
   // 최종 결과 도달 시 폭죽 + 효과음 + 누적 점수 저장
   useEffect(() => {
     if (session?.state !== 'FINAL' || participants.length === 0) return;
@@ -518,21 +545,14 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
   };
 
   const handleQuizStart = async () => {
-    const now = new Date().toISOString();
+    const now = new Date(serverNow()).toISOString();
     const q = questions[session!.current_question_index];
     const timeLimit = q?.time_limit ?? 20;
-    setTimer(timeLimit);
     setAnswers([]);
     await updateSessionState('QUIZ', undefined, {
       max_timer: timeLimit,
       question_started_at: now,
     });
-
-    // 선생님 로컬 타이머
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setTimer(t => (t > 0 ? t - 1 : 0));
-    }, 1000);
   };
 
   const handleShowResult = async () => {
@@ -550,20 +570,14 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
     if (nextIdx >= questions.length) {
       await updateSessionState('FINAL');
     } else {
-      const now = new Date().toISOString();
+      const now = new Date(serverNow()).toISOString();
       const q = questions[nextIdx];
       const timeLimit = q?.time_limit ?? 20;
-      setTimer(timeLimit);
       setAnswers([]);
       await updateSessionState('QUIZ', nextIdx, {
         max_timer: timeLimit,
         question_started_at: now,
       });
-
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = setInterval(() => {
-        setTimer(t => (t > 0 ? t - 1 : 0));
-      }, 1000);
     }
   };
 
