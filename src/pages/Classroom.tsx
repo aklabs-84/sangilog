@@ -42,6 +42,7 @@ import {
   NotebookPen,
   Library,
   Settings2,
+  Pencil,
 } from 'lucide-react';
 import { useAuth, getClassLimit, getStudentLimit } from '../lib/auth';
 import { validateTeacherPrompt, validateStudentGuidePrompt } from '../lib/gemini';
@@ -260,6 +261,7 @@ const Classroom = () => {
   const [showPrivateMatForm, setShowPrivateMatForm] = useState(false);
   const [savingPrivateMat, setSavingPrivateMat] = useState(false);
   const [deletingPrivateMatId, setDeletingPrivateMatId] = useState<string | null>(null);
+  const [editingPrivateMatId, setEditingPrivateMatId] = useState<string | null>(null);
   const [selectedPrivateMat, setSelectedPrivateMat] = useState<any | null>(null);
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
   const [openingPrivateMatId, setOpeningPrivateMatId] = useState<string | null>(null);
@@ -1533,32 +1535,47 @@ const Classroom = () => {
     }
   };
 
-  const handleAddPrivateMat = async () => {
+  const handleEditPrivateMat = (m: any) => {
+    setEditingPrivateMatId(m.id);
+    setPrivateMatForm({
+      title: m.title || '',
+      content: m.type === 'note' ? (m.content || '') : '',
+      type: m.type,
+      url: m.type === 'link' ? (m.url || '') : '',
+      file: null,
+      materialId: m.type === 'material' ? (m.material_id || null) : null,
+    });
+    setShowPrivateMatForm(true);
+  };
+
+  const handleSavePrivateMat = async () => {
     if (!activeClassId || !user) return;
     if (!privateMatForm.title.trim()) { showToast('제목을 입력해주세요.'); return; }
     if (privateMatForm.type === 'link' && !privateMatForm.url.trim()) { showToast('링크 URL을 입력해주세요.'); return; }
-    if (privateMatForm.type === 'file' && !privateMatForm.file) { showToast('파일을 선택해주세요.'); return; }
+    if (privateMatForm.type === 'file' && !editingPrivateMatId && !privateMatForm.file) { showToast('파일을 선택해주세요.'); return; }
     if (privateMatForm.type === 'file' && privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024) { showToast('파일 크기는 50MB 이하여야 합니다.'); return; }
     if (privateMatForm.type === 'material' && !privateMatForm.materialId) { showToast('자료에디터/공통자료함에서 자료를 선택해주세요.'); return; }
     setSavingPrivateMat(true);
     try {
-      let filePath: string | null = null;
-      let fileName: string | null = null;
-      let fileSize: number | null = null;
+      const editingTarget = editingPrivateMatId ? privateMatList.find(m => m.id === editingPrivateMatId) : null;
+      let filePath: string | null = editingTarget?.file_path ?? null;
+      let fileName: string | null = editingTarget?.file_name ?? null;
+      let fileSize: number | null = editingTarget?.file_size ?? null;
 
       if (privateMatForm.type === 'file' && privateMatForm.file) {
         const ext = privateMatForm.file.name.split('.').pop() || '';
         const path = `private-materials/${activeClassId}/${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage.from('student-attachments').upload(path, privateMatForm.file);
         if (upErr) throw upErr;
+        if (editingTarget?.file_path) {
+          await supabase.storage.from('student-attachments').remove([editingTarget.file_path]);
+        }
         filePath = path;
         fileName = privateMatForm.file.name;
         fileSize = privateMatForm.file.size;
       }
 
-      const { error } = await supabase.from('teacher_private_materials').insert({
-        class_id: activeClassId,
-        teacher_id: user.id,
+      const payload = {
         title: privateMatForm.title.trim(),
         content: privateMatForm.type === 'note' ? privateMatForm.content.trim() : '',
         type: privateMatForm.type,
@@ -1567,15 +1584,27 @@ const Classroom = () => {
         file_name: fileName,
         file_size: fileSize,
         material_id: privateMatForm.type === 'material' ? privateMatForm.materialId : null,
-      });
-      if (error) throw error;
+      };
+
+      if (editingPrivateMatId) {
+        const { error } = await supabase.from('teacher_private_materials').update(payload).eq('id', editingPrivateMatId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('teacher_private_materials').insert({
+          class_id: activeClassId,
+          teacher_id: user.id,
+          ...payload,
+        });
+        if (error) throw error;
+      }
       setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null, materialId: null });
+      setEditingPrivateMatId(null);
       setShowPrivateMatForm(false);
       await fetchPrivateMaterials(activeClassId);
-      showToast('자료가 등록되었습니다.');
+      showToast(editingPrivateMatId ? '자료가 수정되었습니다.' : '자료가 등록되었습니다.');
     } catch (err) {
-      console.error('handleAddPrivateMat error:', err);
-      showToast('등록 중 오류가 발생했습니다.');
+      console.error('handleSavePrivateMat error:', err);
+      showToast(editingPrivateMatId ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.');
     } finally {
       setSavingPrivateMat(false);
     }
@@ -1589,6 +1618,11 @@ const Classroom = () => {
       }
       await supabase.from('teacher_private_materials').delete().eq('id', id);
       setPrivateMatList(prev => prev.filter(m => m.id !== id));
+      if (editingPrivateMatId === id) {
+        setEditingPrivateMatId(null);
+        setShowPrivateMatForm(false);
+        setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null, materialId: null });
+      }
       showToast('자료가 삭제되었습니다.');
     } catch {
       showToast('삭제 중 오류가 발생했습니다.');
@@ -2300,7 +2334,15 @@ const Classroom = () => {
                       </div>
                     </div>
                     <button
-                      onClick={() => setShowPrivateMatForm(v => !v)}
+                      onClick={() => {
+                        if (showPrivateMatForm && !editingPrivateMatId) {
+                          setShowPrivateMatForm(false);
+                        } else {
+                          setEditingPrivateMatId(null);
+                          setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null, materialId: null });
+                          setShowPrivateMatForm(true);
+                        }
+                      }}
                       className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-2xl text-sm font-black hover:bg-violet-700 transition-all active:scale-95 shadow-sm"
                     >
                       <Plus size={16} /> 자료 추가
@@ -2311,10 +2353,15 @@ const Classroom = () => {
                   {showPrivateMatForm && (
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
                       className="p-5 bg-violet-50 border border-violet-200 rounded-2xl space-y-3">
+                      {editingPrivateMatId && (
+                        <p className="text-xs font-black text-violet-600">자료 수정 중</p>
+                      )}
                       <div className="flex gap-2">
                         {(['note', 'link', 'file', 'material'] as const).map(t => (
-                          <button key={t} onClick={() => setPrivateMatForm(f => ({ ...f, type: t, file: null, materialId: t === 'material' ? f.materialId : null }))}
-                            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${privateMatForm.type === t ? 'bg-violet-600 text-white' : 'bg-white text-on-surface-variant border border-violet-200 hover:bg-violet-100'}`}>
+                          <button key={t}
+                            disabled={!!editingPrivateMatId && privateMatForm.type !== t}
+                            onClick={() => setPrivateMatForm(f => ({ ...f, type: t, file: null, materialId: t === 'material' ? f.materialId : null }))}
+                            className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${privateMatForm.type === t ? 'bg-violet-600 text-white' : 'bg-white text-on-surface-variant border border-violet-200 hover:bg-violet-100'} ${!!editingPrivateMatId && privateMatForm.type !== t ? 'opacity-30 cursor-not-allowed hover:bg-white' : ''}`}>
                             {t === 'note' ? '📝 노트' : t === 'link' ? '🔗 링크' : t === 'file' ? '📎 파일' : '🔗 자료함'}
                           </button>
                         ))}
@@ -2365,19 +2412,23 @@ const Classroom = () => {
                         (() => {
                           const overLimit = !!privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024;
                           const sizeMB = privateMatForm.file ? (privateMatForm.file.size / (1024 * 1024)).toFixed(1) : null;
+                          const editingFileName = editingPrivateMatId ? privateMatList.find(m => m.id === editingPrivateMatId)?.file_name : null;
                           return (
                             <div className="space-y-1.5">
+                              {editingFileName && !privateMatForm.file && (
+                                <p className="text-[11px] font-bold text-on-surface-variant/60">현재 파일: {editingFileName} (새 파일을 선택하면 교체됩니다)</p>
+                              )}
                               <label className={`flex flex-col items-center gap-2 p-4 bg-white border-2 border-dashed rounded-2xl cursor-pointer transition-all ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-violet-200 hover:border-violet-400'}`}>
                                 <Upload size={20} className={overLimit ? 'text-red-400' : 'text-violet-400'} />
                                 <span className={`text-xs font-black ${overLimit ? 'text-red-500' : 'text-neutral-500'}`}>
-                                  {privateMatForm.file ? privateMatForm.file.name : '파일 선택 (PDF, PPT, HWP 등)'}
+                                  {privateMatForm.file ? privateMatForm.file.name : (editingFileName ? '새 파일 선택 (선택 안 하면 기존 파일 유지)' : '파일 선택 (PDF, PPT, HWP 등)')}
                                 </span>
                                 {sizeMB && (
                                   <span className={`text-[10px] font-bold ${overLimit ? 'text-red-500' : 'text-neutral-400'}`}>
                                     {sizeMB}MB {overLimit ? '— 50MB 초과! 더 작은 파일을 선택해주세요' : '/ 50MB'}
                                   </span>
                                 )}
-                                {!privateMatForm.file && (
+                                {!privateMatForm.file && !editingFileName && (
                                   <span className="text-[10px] text-neutral-300 font-bold">최대 50MB</span>
                                 )}
                                 <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setPrivateMatForm(prev => ({ ...prev, file: f })); }} />
@@ -2387,12 +2438,12 @@ const Classroom = () => {
                         })()
                       )}
                       <div className="flex gap-2 justify-end">
-                        <button onClick={() => { setShowPrivateMatForm(false); setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null, materialId: null }); }}
+                        <button onClick={() => { setShowPrivateMatForm(false); setEditingPrivateMatId(null); setPrivateMatForm({ title: '', content: '', type: 'note', url: '', file: null, materialId: null }); }}
                           className="px-4 py-2 rounded-xl text-sm font-black text-on-surface-variant hover:bg-violet-100 transition-all">취소</button>
-                        <button onClick={handleAddPrivateMat} disabled={savingPrivateMat || (privateMatForm.type === 'file' && !!privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024) || (privateMatForm.type === 'material' && !privateMatForm.materialId)}
+                        <button onClick={handleSavePrivateMat} disabled={savingPrivateMat || (privateMatForm.type === 'file' && !!privateMatForm.file && privateMatForm.file.size > 50 * 1024 * 1024) || (privateMatForm.type === 'material' && !privateMatForm.materialId)}
                           className="flex items-center gap-2 px-5 py-2 rounded-xl bg-violet-600 text-white text-sm font-black hover:bg-violet-700 transition-all disabled:opacity-50">
                           {savingPrivateMat ? <Loader2 size={14} className="animate-spin" /> : null}
-                          저장
+                          {editingPrivateMatId ? '수정 완료' : '저장'}
                         </button>
                       </div>
                     </motion.div>
@@ -2509,6 +2560,13 @@ const Classroom = () => {
                                   <Download size={13} />
                                 </button>
                               )}
+                            <button
+                              onClick={() => handleEditPrivateMat(m)}
+                              className="p-2 rounded-xl text-on-surface-variant/40 hover:bg-violet-100 hover:text-violet-600 transition-all"
+                              title="수정"
+                            >
+                              <Pencil size={13} />
+                            </button>
                             <button
                               onClick={() => handleDeletePrivateMat(m.id, m.file_path)}
                               disabled={deletingPrivateMatId === m.id}
