@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { GALLERY_PAGE_SIZE } from '../lib/gallery';
 import { BANNER_THEMES } from '../components/classroom/SchoolProjectModal';
 import {
   School, Users, ChevronDown, ChevronUp, ExternalLink,
@@ -69,6 +70,9 @@ const SchoolProjectShareView = () => {
   const [activeClassId, setActiveClassId] = useState<string | null>(null);
   const [classStudents, setClassStudents] = useState<Record<string, StudentWithData[]>>({});
   const [classGallery, setClassGallery] = useState<Record<string, GalleryItem[]>>({});
+  const [classGalleryHasMore, setClassGalleryHasMore] = useState<Record<string, boolean>>({});
+  const [galleryLoadingMore, setGalleryLoadingMore] = useState<string | null>(null);
+  const galleryOffsetRef = useRef<Record<string, number>>({});
   const [loadingClass, setLoadingClass] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
@@ -147,7 +151,8 @@ const SchoolProjectShareView = () => {
           .in('student_id', studentIds).order('created_at', { ascending: false }),
         supabase.from('class_gallery_items')
           .select('id, file_url, file_type, file_name, caption, week_number, created_at')
-          .eq('class_id', classId).order('created_at', { ascending: false }),
+          .eq('class_id', classId).order('created_at', { ascending: false })
+          .range(0, GALLERY_PAGE_SIZE - 1),
       ]);
 
       // 결과물 URL 처리
@@ -202,10 +207,31 @@ const SchoolProjectShareView = () => {
           resultGroups: groupResults(resultsMap[s.id] || []),
         })),
       }));
-      setClassGallery(prev => ({ ...prev, [classId]: galleryRes.data || [] }));
+      const galleryPage = galleryRes.data || [];
+      setClassGallery(prev => ({ ...prev, [classId]: galleryPage }));
+      galleryOffsetRef.current[classId] = galleryPage.length;
+      setClassGalleryHasMore(prev => ({ ...prev, [classId]: galleryPage.length === GALLERY_PAGE_SIZE }));
       setActiveClassId(classId);
     } finally {
       setLoadingClass(null);
+    }
+  };
+
+  const handleLoadMoreGallery = async (classId: string) => {
+    setGalleryLoadingMore(classId);
+    try {
+      const offset = galleryOffsetRef.current[classId] || 0;
+      const { data } = await supabase
+        .from('class_gallery_items')
+        .select('id, file_url, file_type, file_name, caption, week_number, created_at')
+        .eq('class_id', classId).order('created_at', { ascending: false })
+        .range(offset, offset + GALLERY_PAGE_SIZE - 1);
+      const page = data || [];
+      setClassGallery(prev => ({ ...prev, [classId]: [...(prev[classId] || []), ...page] }));
+      galleryOffsetRef.current[classId] = offset + page.length;
+      setClassGalleryHasMore(prev => ({ ...prev, [classId]: page.length === GALLERY_PAGE_SIZE }));
+    } finally {
+      setGalleryLoadingMore(null);
     }
   };
 
@@ -567,7 +593,7 @@ const SchoolProjectShareView = () => {
                                   else window.open(item.file_url, '_blank');
                                 }}>
                                 {item.file_type === 'image' ? (
-                                  <img src={item.file_url} alt={item.caption || ''} className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" />
+                                  <img src={item.file_url} alt={item.caption || ''} loading="lazy" className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" />
                                 ) : (
                                   <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-400">
                                     <FileText size={24} />
@@ -590,6 +616,20 @@ const SchoolProjectShareView = () => {
                               </div>
                             ))}
                           </div>
+                          {classGalleryHasMore[cls.id] && (
+                            <div className="flex justify-center mt-4">
+                              <button
+                                onClick={() => handleLoadMoreGallery(cls.id)}
+                                disabled={galleryLoadingMore === cls.id}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-50 hover:bg-violet-100 disabled:opacity-50 text-violet-600 text-xs font-black transition-all"
+                              >
+                                {galleryLoadingMore === cls.id
+                                  ? <><Loader2 size={13} className="animate-spin" /> 불러오는 중...</>
+                                  : '사진 더 보기'
+                                }
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
 

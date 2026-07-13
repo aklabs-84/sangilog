@@ -961,7 +961,7 @@ const ShareClassView = () => {
                         className="relative group cursor-pointer aspect-square rounded-2xl overflow-hidden bg-gray-100 shadow-sm hover:shadow-md transition-all"
                         onClick={() => setLightbox({ urls: allGalleryImgUrls, names: allGalleryImgNames, index: allGalleryImgUrls.indexOf(item.file_url) })}
                       >
-                        <img src={item.file_url} alt={item.caption || item.file_name || '갤러리'} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                        <img src={item.file_url} alt={item.caption || item.file_name || '갤러리'} loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <ZoomIn size={22} className="text-white" />
@@ -1352,6 +1352,7 @@ function ShareGalleryVideo({ item }: { item: GalleryItem }) {
           src={info.embedUrl}
           style={aspectStyle}
           className="w-full"
+          loading="lazy"
           allow="autoplay; fullscreen; picture-in-picture"
         />
       ) : (
@@ -1361,6 +1362,7 @@ function ShareGalleryVideo({ item }: { item: GalleryItem }) {
           <video
             src={item.file_url}
             controls
+            preload="metadata"
             className="absolute inset-0 w-full h-full"
             onLoadedMetadata={(e) => {
               const v = e.currentTarget;
