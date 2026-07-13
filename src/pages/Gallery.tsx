@@ -44,6 +44,9 @@ export default function Gallery() {
   const [totalCount, setTotalCount] = useState(0);
 
   const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const pageOffsetRef = useRef(0);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -94,14 +97,38 @@ export default function Gallery() {
   }, [user, isPro, items]);
 
   useEffect(() => {
-    if (!user || !selectedClassId) { setItems([]); return; }
+    if (!user || !selectedClassId) { setItems([]); setHasMore(false); return; }
     setLoading(true);
     setError(null);
-    fetchGalleryItems(user.id, selectedClassId, selectedWeek)
-      .then(setItems)
+    pageOffsetRef.current = 0;
+    fetchGalleryItems(user.id, selectedClassId, selectedWeek, 0)
+      .then(({ items: page, hasMore: more }) => {
+        setItems(page);
+        setHasMore(more);
+        pageOffsetRef.current = page.length;
+      })
       .catch(() => setError('갤러리를 불러오는데 실패했습니다.'))
       .finally(() => setLoading(false));
   }, [user, selectedClassId, selectedWeek]);
+
+  // 더 보기 — 페이지 단위로 다음 사진 묶음을 이어붙임 (업로드/삭제로 items가 변해도
+  // pageOffsetRef는 서버 조회 기준 커서를 별도로 유지하므로 어긋나지 않음)
+  const handleLoadMore = useCallback(async () => {
+    if (!user || !selectedClassId || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { items: page, hasMore: more } = await fetchGalleryItems(
+        user.id, selectedClassId, selectedWeek, pageOffsetRef.current
+      );
+      setItems(prev => [...prev, ...page]);
+      setHasMore(more);
+      pageOffsetRef.current += page.length;
+    } catch {
+      setError('추가 사진을 불러오는데 실패했습니다.');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [user, selectedClassId, selectedWeek, loadingMore]);
 
   // 구글 드라이브 폴더 연동 상태 + 목록 로드
   const loadDriveFolder = useCallback(async () => {
@@ -440,24 +467,38 @@ export default function Gallery() {
             onUpload={() => fileInputRef.current?.click()}
           />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {displayItems.map((item, idx) =>
-              item.file_type === 'image' ? (
-                <GalleryCard
-                  key={item.id}
-                  item={item}
-                  onClick={() => setLightboxIndex(idx)}
-                  onDelete={() => setDeleteTarget(item.id)}
-                />
-              ) : (
-                <VideoGalleryCard
-                  key={item.id}
-                  item={item}
-                  onDelete={() => setDeleteTarget(item.id)}
-                />
-              )
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {displayItems.map((item, idx) =>
+                item.file_type === 'image' ? (
+                  <GalleryCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => setLightboxIndex(idx)}
+                    onDelete={() => setDeleteTarget(item.id)}
+                  />
+                ) : (
+                  <VideoGalleryCard
+                    key={item.id}
+                    item={item}
+                    onDelete={() => setDeleteTarget(item.id)}
+                  />
+                )
+              )}
+            </div>
+            {hasMore && (
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-on-surface/10 text-sm font-bold text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50 transition-all"
+                >
+                  {loadingMore ? <Loader2 size={15} className="animate-spin" /> : null}
+                  더 보기
+                </button>
+              </div>
             )}
-          </div>
+          </>
         )}
       </div>
 
@@ -855,6 +896,7 @@ function VideoGalleryCard({
           style={aspectStyle}
           className="w-full"
           allow="autoplay; fullscreen; picture-in-picture"
+          loading="lazy"
         />
       ) : (
         // aspect-ratio를 video 태그에 직접 주면 네이티브 컨트롤 바 높이 계산이 어긋나 하단이 잘리는
@@ -863,6 +905,7 @@ function VideoGalleryCard({
           <video
             src={item.file_url}
             controls
+            preload="metadata"
             className="absolute inset-0 w-full h-full"
             onLoadedMetadata={e => {
               const v = e.currentTarget;

@@ -30,19 +30,32 @@ export interface DriveFolderItem {
   week_number?: number | null;
 }
 
+// 폴더 내 파일이 100개를 넘으면 한 번의 호출로는 전부 가져올 수 없으므로
+// nextPageToken을 따라가며 이어받는다. 비정상적으로 큰 폴더에서 함수가
+// 무한정 오래 걸리지 않도록 총 개수는 MAX_FILES로 제한한다.
+const MAX_FILES = 1000;
+
 async function listDriveFiles(folderId: string, accessToken: string): Promise<DriveFolderItem[]> {
   const q = encodeURIComponent(
     `'${folderId}' in parents and trashed = false and (mimeType contains 'image/' or mimeType contains 'video/')`
   );
-  const fields = encodeURIComponent('files(id,name,mimeType,createdTime)');
-  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&orderBy=createdTime desc&pageSize=100`;
+  const fields = encodeURIComponent('nextPageToken, files(id,name,mimeType,createdTime)');
 
-  const driveRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  const data = await driveRes.json();
-  if (!driveRes.ok) throw new Error('폴더에 접근할 수 없습니다.');
+  const files: DriveApiFile[] = [];
+  let pageToken: string | undefined;
+  do {
+    const pageTokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+    const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&orderBy=createdTime desc&pageSize=1000${pageTokenParam}`;
 
-  const files: DriveApiFile[] = data.files ?? [];
-  return files.map(f => {
+    const driveRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const data = await driveRes.json();
+    if (!driveRes.ok) throw new Error('폴더에 접근할 수 없습니다.');
+
+    files.push(...((data.files ?? []) as DriveApiFile[]));
+    pageToken = data.nextPageToken;
+  } while (pageToken && files.length < MAX_FILES);
+
+  return files.slice(0, MAX_FILES).map(f => {
     const type: 'image' | 'video' = f.mimeType.startsWith('video/') ? 'video' : 'image';
     return {
       id: f.id,

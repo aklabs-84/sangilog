@@ -64,17 +64,28 @@ export function parseVideoUrl(url: string): VideoUrlInfo | null {
   }
 }
 
+export const GALLERY_PAGE_SIZE = 60;
+
+export interface GalleryItemsPage {
+  items: GalleryItem[];
+  hasMore: boolean;
+}
+
+// 사진이 많은 클래스에서 첫 로딩에 전체를 한 번에 불러오지 않도록 offset/limit로 페이지 단위 조회
 export async function fetchGalleryItems(
   teacherId: string,
   classId: string,
-  weekNumber?: number | null
-): Promise<GalleryItem[]> {
+  weekNumber?: number | null,
+  offset = 0,
+  limit: number = GALLERY_PAGE_SIZE
+): Promise<GalleryItemsPage> {
   let query = supabase
     .from('class_gallery_items')
     .select('*')
     .eq('teacher_id', teacherId)
     .eq('class_id', classId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (weekNumber != null) {
     query = query.eq('week_number', weekNumber);
@@ -82,7 +93,8 @@ export async function fetchGalleryItems(
 
   const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
+  const items = data ?? [];
+  return { items, hasMore: items.length === limit };
 }
 
 export async function countGalleryItems(teacherId: string): Promise<number> {
