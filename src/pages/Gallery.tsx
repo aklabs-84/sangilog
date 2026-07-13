@@ -4,7 +4,7 @@ import {
   Images, Upload, X, ChevronLeft, ChevronRight, Trash2,
   Crown, AlertCircle, Loader2, ImageOff, Plus, Check,
   BadgeCheck, Link, Video, HardDrive, ExternalLink, FolderOpen,
-  RefreshCw, Unlink, Copy
+  RefreshCw, Unlink, Copy, Clapperboard
 } from 'lucide-react';
 import { useAuth, checkIsPro } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -15,6 +15,7 @@ import {
   fetchDriveFolderItems, driveItemToGalleryItem,
   type GalleryItem, type VideoUrlInfo, type DriveFolderLink
 } from '../lib/gallery';
+import GalleryScreening from '../components/gallery/GalleryScreening';
 
 const FREE_IMAGE_LIMIT = 100;
 const DRIVE_SERVICE_ACCOUNT_EMAIL = 'saengilog-drive@saengilog-drive.iam.gserviceaccount.com';
@@ -69,6 +70,7 @@ export default function Gallery() {
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [screeningOpen, setScreeningOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -340,6 +342,15 @@ export default function Gallery() {
 
         {/* 업로드 버튼 그룹 */}
         <div className="ml-auto flex gap-2">
+          {/* 상영회 시작 */}
+          <button
+            onClick={() => setScreeningOpen(true)}
+            disabled={displayItems.length === 0}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 text-primary text-sm font-bold hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
+          >
+            <Clapperboard size={15} />
+            상영회 시작
+          </button>
           {/* 영상 링크 추가 */}
           {isPro && (
             <button
@@ -789,6 +800,15 @@ export default function Gallery() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 상영회 모드 */}
+      {screeningOpen && displayItems.length > 0 && (
+        <GalleryScreening
+          items={displayItems}
+          initialIndex={lightboxIndex ?? 0}
+          onClose={() => setScreeningOpen(false)}
+        />
+      )}
     </div>
   );
 }
