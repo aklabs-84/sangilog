@@ -3498,31 +3498,27 @@ ${guidePrompt}
                           );
                         }
                         // 파일 자료
+                        const handleOpenMaterialFile = () => {
+                          const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
+                          openFile(data.publicUrl, mat.file_name || mat.title);
+                        };
                         return (
                           <div key={mat.id} className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-surface-container">
                             <button
-                              onClick={async () => {
-                                const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
-                                const fileName = (mat.file_name || '').toLowerCase();
-                                if (fileName.endsWith('.html') || fileName.endsWith('.htm')) {
-                                  const res = await fetch(data.publicUrl);
-                                  const text = await res.text();
-                                  const blob = new Blob([text], { type: 'text/html' });
-                                  window.open(URL.createObjectURL(blob), '_blank');
-                                } else {
-                                  window.open(data.publicUrl, '_blank');
-                                }
-                              }}
+                              onClick={handleOpenMaterialFile}
                               className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 hover:bg-amber-200 transition-all"
                             >
                               <File size={18} />
                             </button>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-black text-sm truncate">{mat.title}</p>
+                            <button
+                              onClick={handleOpenMaterialFile}
+                              className="flex-1 min-w-0 text-left"
+                            >
+                              <p className="font-black text-sm truncate hover:text-amber-600 transition-colors">{mat.title}</p>
                               <p className="text-[11px] text-on-surface-variant truncate opacity-60 font-medium">
                                 {mat.file_name}{mat.file_size ? ` · ${(mat.file_size / 1024).toFixed(0)}KB` : ''}
                               </p>
-                            </div>
+                            </button>
                             <button
                               onClick={async () => {
                                 const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
