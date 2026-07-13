@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Play, Pause, Music, Volume2, VolumeX } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Play, Pause, Music, Volume2, VolumeX, HardDrive } from 'lucide-react';
 import { parseVideoUrl, type GalleryItem } from '../../lib/gallery';
 
 const IMAGE_DURATION_MS = 4000;
-const DRIVE_VIDEO_DURATION_MS = 20000;
+const DRIVE_VIDEO_DURATION_MS = 5000;
 // 유튜브 IFrame API 로딩 실패 등 예외 상황에서 상영회가 멈추지 않도록 하는 안전장치
 const YOUTUBE_FALLBACK_MS = 60000;
 
@@ -205,17 +205,20 @@ function YoutubeSlide({
 
 function DriveSlide({
   embedUrl,
+  fileName,
   playing,
   onDone,
 }: {
   embedUrl: string;
+  fileName: string | null;
   playing: boolean;
   onDone: () => void;
 }) {
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
-  // 드라이브 미리보기(iframe)는 재생 종료를 감지할 API가 없어 고정 노출 시간 뒤 다음으로 넘어감
+  // 구글 드라이브 미리보기는 크로스오리진 iframe이라 JS로 자동재생을 걸 수 없음
+  // (재생하려면 드라이브 자체 UI를 사용자가 직접 클릭해야 함) → 안내만 보여주고 빠르게 다음으로 넘어감
   useEffect(() => {
     if (!playing) return;
     const t = setTimeout(() => onDoneRef.current(), DRIVE_VIDEO_DURATION_MS);
@@ -223,11 +226,19 @@ function DriveSlide({
   }, [playing, embedUrl]);
 
   return (
-    <iframe
-      src={embedUrl}
-      className="w-[80vw] max-w-[900px] aspect-video rounded-xl"
-      allow="autoplay; fullscreen; picture-in-picture"
-    />
+    <div className="w-[80vw] max-w-[900px] aspect-video rounded-xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-3 text-white/70 px-6 text-center">
+      <HardDrive size={32} className="opacity-60" />
+      <p className="text-sm font-bold truncate max-w-full">{fileName || '구글 드라이브 영상'}</p>
+      <p className="text-xs text-white/40">자동재생을 지원하지 않아 건너뜁니다</p>
+      <a
+        href={embedUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-1 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold transition-colors"
+      >
+        새 탭에서 보기
+      </a>
+    </div>
   );
 }
 
@@ -287,7 +298,7 @@ function ScreeningMedia({
       />
     );
   }
-  return <DriveSlide embedUrl={info.embedUrl} playing={playing} onDone={onMediaEnd} />;
+  return <DriveSlide embedUrl={info.embedUrl} fileName={item.file_name} playing={playing} onDone={onMediaEnd} />;
 }
 
 interface GalleryScreeningProps {

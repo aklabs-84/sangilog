@@ -145,6 +145,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
+  // 유휴 타이머로 인한 자동 로그아웃 전용 — scope: 'local'로 이 탭만 로그아웃시킴.
+  // 기본 signOut()은 scope: 'global'이라 다른 탭의 세션까지 함께 무효화되어,
+  // 한 탭이 무활동으로 자동 로그아웃될 때 다른 탭에서 활발히 작업 중이어도 같이 튕겨나가는 문제가 있었음.
+  const handleIdleTimeout = async () => {
+    cleanupProfileChannel();
+    await supabase.auth.signOut({ scope: 'local' });
+  };
+
   const isTeacher = !!user && !isAnonymousUser(user);
   const userId = user?.id ?? null;
 
@@ -185,7 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { showWarning: showIdleWarning, secondsLeft: idleSecondsLeft, resetTimer: dismissIdleWarning } = useIdleTimeout({
     idleMs: IDLE_MS,
     warningMs: WARNING_MS,
-    onTimeout: signOut,
+    onTimeout: handleIdleTimeout,
     enabled: isTeacher && !hasActiveClassToday,
   });
 
