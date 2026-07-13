@@ -51,44 +51,84 @@ function fadeVolume(audio: HTMLAudioElement, to: number, durationMs: number, onD
 function DirectVideoSlide({
   url,
   playing,
+  muted,
   onEnded,
+  onAutoplayBlocked,
+  onUnmute,
 }: {
   url: string;
   playing: boolean;
+  muted: boolean;
   onEnded: () => void;
+  onAutoplayBlocked: () => void;
+  onUnmute: () => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (playing) ref.current?.play().catch(() => {});
-    else ref.current?.pause();
-  }, [playing]);
+    const video = ref.current;
+    if (!video) return;
+    if (!playing) {
+      video.pause();
+      return;
+    }
+    // 소리 있는 자동재생이 브라우저 정책에 막히면 음소거로 전환해서라도 재생을 이어감
+    video.play().catch(() => {
+      if (!video.muted) {
+        video.muted = true;
+        onAutoplayBlocked();
+        video.play().catch(() => {});
+      }
+    });
+  }, [playing, muted]);
 
   return (
-    <video
-      ref={ref}
-      src={url}
-      autoPlay
-      playsInline
-      onEnded={onEnded}
-      className="max-w-full max-h-[80vh] rounded-xl"
-    />
+    <div className="relative flex items-center justify-center">
+      <video
+        ref={ref}
+        src={url}
+        muted={muted}
+        playsInline
+        onEnded={onEnded}
+        className="max-w-full max-h-[80vh] rounded-xl"
+      />
+      {muted && (
+        <button
+          onClick={() => {
+            if (ref.current) ref.current.muted = false;
+            onUnmute();
+          }}
+          className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/60 text-white text-xs font-bold hover:bg-black/80 transition-colors"
+        >
+          <VolumeX size={14} />
+          눌러서 소리 켜기
+        </button>
+      )}
+    </div>
   );
 }
 
 function YoutubeSlide({
   embedUrl,
   playing,
+  muted,
   onEnded,
+  onAutoplayBlocked,
+  onUnmute,
 }: {
   embedUrl: string;
   playing: boolean;
+  muted: boolean;
   onEnded: () => void;
+  onAutoplayBlocked: () => void;
+  onUnmute: () => void;
 }) {
   const elId = useMemo(() => `gallery-screening-yt-${Math.random().toString(36).slice(2)}`, [embedUrl]);
   const playerRef = useRef<any>(null);
   const onEndedRef = useRef(onEnded);
   onEndedRef.current = onEnded;
+  const onAutoplayBlockedRef = useRef(onAutoplayBlocked);
+  onAutoplayBlockedRef.current = onAutoplayBlocked;
 
   useEffect(() => {
     let destroyed = false;
@@ -107,8 +147,19 @@ function YoutubeSlide({
       if (destroyed) return;
       playerRef.current = new window.YT.Player(elId, {
         videoId,
-        playerVars: { autoplay: 1, playsinline: 1, rel: 0 },
+        playerVars: { autoplay: 1, playsinline: 1, rel: 0, mute: muted ? 1 : 0 },
         events: {
+          onReady: () => {
+            // 소리 켠 채로 자동재생을 시도했는데 유튜브 자체 정책으로 재생이 시작되지 않으면 음소거로 폴백
+            setTimeout(() => {
+              const p = playerRef.current;
+              if (!destroyed && !muted && p?.getPlayerState?.() !== window.YT.PlayerState.PLAYING) {
+                p?.mute?.();
+                p?.playVideo?.();
+                onAutoplayBlockedRef.current();
+              }
+            }, 1200);
+          },
           onStateChange: (e: any) => {
             if (e.data === window.YT.PlayerState.ENDED) {
               ended = true;
@@ -133,7 +184,23 @@ function YoutubeSlide({
     else p.pauseVideo();
   }, [playing]);
 
-  return <div id={elId} className="w-[80vw] max-w-[900px] aspect-video rounded-xl overflow-hidden" />;
+  return (
+    <div className="relative">
+      <div id={elId} className="w-[80vw] max-w-[900px] aspect-video rounded-xl overflow-hidden" />
+      {muted && (
+        <button
+          onClick={() => {
+            playerRef.current?.unMute?.();
+            onUnmute();
+          }}
+          className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/60 text-white text-xs font-bold hover:bg-black/80 transition-colors"
+        >
+          <VolumeX size={14} />
+          눌러서 소리 켜기
+        </button>
+      )}
+    </div>
+  );
 }
 
 function DriveSlide({
@@ -167,11 +234,17 @@ function DriveSlide({
 function ScreeningMedia({
   item,
   playing,
+  videoMuted,
   onMediaEnd,
+  onAutoplayBlocked,
+  onUnmute,
 }: {
   item: GalleryItem;
   playing: boolean;
+  videoMuted: boolean;
   onMediaEnd: () => void;
+  onAutoplayBlocked: () => void;
+  onUnmute: () => void;
 }) {
   if (item.file_type === 'image') {
     return (
@@ -191,10 +264,28 @@ function ScreeningMedia({
   };
 
   if (info.platform === 'direct') {
-    return <DirectVideoSlide url={info.embedUrl} playing={playing} onEnded={onMediaEnd} />;
+    return (
+      <DirectVideoSlide
+        url={info.embedUrl}
+        playing={playing}
+        muted={videoMuted}
+        onEnded={onMediaEnd}
+        onAutoplayBlocked={onAutoplayBlocked}
+        onUnmute={onUnmute}
+      />
+    );
   }
   if (info.platform === 'youtube') {
-    return <YoutubeSlide embedUrl={info.embedUrl} playing={playing} onEnded={onMediaEnd} />;
+    return (
+      <YoutubeSlide
+        embedUrl={info.embedUrl}
+        playing={playing}
+        muted={videoMuted}
+        onEnded={onMediaEnd}
+        onAutoplayBlocked={onAutoplayBlocked}
+        onUnmute={onUnmute}
+      />
+    );
   }
   return <DriveSlide embedUrl={info.embedUrl} playing={playing} onDone={onMediaEnd} />;
 }
@@ -210,6 +301,8 @@ export default function GalleryScreening({ items, initialIndex, onClose }: Galle
   const containerRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(() => Math.min(Math.max(initialIndex, 0), items.length - 1));
   const [playing, setPlaying] = useState(true);
+  // 소리 있는 영상 자동재생이 브라우저 정책에 막히면 true로 전환해 음소거 재생으로 폴백
+  const [videoMuted, setVideoMuted] = useState(false);
 
   const [bgmName, setBgmName] = useState<string | null>(null);
   const [bgmUrl, setBgmUrl] = useState<string | null>(null);
@@ -351,7 +444,14 @@ export default function GalleryScreening({ items, initialIndex, onClose }: Galle
             transition={{ duration: 0.6 }}
             className="flex items-center justify-center"
           >
-            <ScreeningMedia item={current} playing={playing} onMediaEnd={goNext} />
+            <ScreeningMedia
+              item={current}
+              playing={playing}
+              videoMuted={videoMuted}
+              onMediaEnd={goNext}
+              onAutoplayBlocked={() => setVideoMuted(true)}
+              onUnmute={() => setVideoMuted(false)}
+            />
           </motion.div>
         </AnimatePresence>
 
