@@ -2,6 +2,7 @@
 // <img src>는 Authorization 헤더를 못 실으므로, 서명된 단기 URL(id/exp/sig)로 접근 제어
 // 폴더를 "링크가 있는 모든 사용자에게 공개"하지 않고도 이미지를 화면에 표시하기 위함
 
+import heicConvert from 'heic-convert';
 import { getServiceAccountAccessToken } from './_lib/googleServiceAccount.js';
 import { verifySignedDriveFileParams } from './_lib/mediaSignature.js';
 
@@ -40,9 +41,21 @@ export default async function handler(req: any, res: any) {
       return res.status(404).json({ error: '파일을 가져올 수 없습니다.' });
     }
 
-    res.setHeader('Content-Type', driveRes.headers.get('content-type') ?? 'application/octet-stream');
+    const contentType = driveRes.headers.get('content-type') ?? 'application/octet-stream';
     res.setHeader('Cache-Control', 'private, max-age=3600');
 
+    // 브라우저가 <img>로 직접 디코딩하지 못하는 HEIC/HEIF(아이폰 사진 기본 형식)는
+    // 서버에서 JPEG로 변환해 전달한다 (업로드 경로는 heic2any로 클라이언트에서 이미 변환됨)
+    const isHeic = /^image\/hei[cf]/i.test(contentType);
+    if (isHeic) {
+      const inputBuffer = Buffer.from(await driveRes.arrayBuffer());
+      const outputBuffer = await heicConvert({ buffer: inputBuffer, format: 'JPEG', quality: 0.9 });
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.end(Buffer.from(outputBuffer));
+      return;
+    }
+
+    res.setHeader('Content-Type', contentType);
     const reader = driveRes.body.getReader();
     while (true) {
       const { done, value } = await reader.read();
