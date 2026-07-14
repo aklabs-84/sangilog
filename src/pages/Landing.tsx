@@ -166,7 +166,7 @@ const Landing = () => {
 
     // 슬랙 알림 (실패해도 신청은 이미 저장됐으므로 무시)
     try {
-      const slackRes = await fetch('/api/slack-notify', {
+      const slackRes = await fetch('/api/slack?type=notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, school_name: schoolName, role, message: message || null }),

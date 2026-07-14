@@ -1114,7 +1114,7 @@ const Admin = () => {
 
       // Slack 알림 발송 (실패해도 공지 저장은 성공으로 처리)
       supabase.auth.getSession().then(({ data: { session } }) => {
-        fetch('/api/slack-announcement', {
+        fetch('/api/slack?type=announcement', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
