@@ -4613,7 +4613,7 @@ const Classroom = () => {
                         </div>
                       ) : (
                         <div className="space-y-1.5">
-                          {generalMaterials.map(mat => (
+                          {[...generalMaterials].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ko', { numeric: true, sensitivity: 'base' })).map(mat => (
                             <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                               <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${mat.type === 'file' ? 'bg-amber-100' : 'bg-cyan-100'}`}>
                                 {mat.type === 'file' ? <File size={14} className="text-amber-600" /> : <Link2 size={14} className="text-cyan-600" />}
