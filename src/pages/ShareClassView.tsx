@@ -367,7 +367,7 @@ const ShareClassView = () => {
     setDownloading(true);
     try {
       const className = classInfo?.name || '클래스';
-      const sl = (s?: string | null) => (s === 'done' ? '완료' : s === 'draft' ? '초안' : '미작성');
+      const sl = (s?: string | null) => (s === 'done' || s === 'final' ? '완료' : s === 'draft' ? '초안' : '미작성');
 
       // 시트 1: 전체학생
       const sheet1Rows: XCell[][] = [
@@ -489,7 +489,7 @@ const ShareClassView = () => {
     const headers = ['번호', '이름', '활동기록 수', '결과물 수', '세특 상태', '성취도', '세특 글자수'];
     const rows = studentData.map(({ student, obs, results }) => {
       const ev = evalMap[student.id];
-      const sl = ev?.status === 'done' ? '완료' : ev?.status === 'draft' ? '초안' : '미작성';
+      const sl = ev?.status === 'done' || ev?.status === 'final' ? '완료' : ev?.status === 'draft' ? '초안' : '미작성';
       return [
         student.student_number ?? '',
         student.full_name,
@@ -993,14 +993,14 @@ const ShareClassView = () => {
               student: sd.student,
               eval: evalMap[sd.student.id] ?? null,
             }));
-            const doneCount = setechRows.filter((r) => r.eval?.status === 'done').length;
+            const doneCount = setechRows.filter((r) => r.eval?.status === 'done' || r.eval?.status === 'final').length;
             const draftCount = setechRows.filter((r) => r.eval?.status === 'draft').length;
             const emptyCount = setechRows.filter((r) => !r.eval?.setech_content).length;
             const charCounts = setechRows.map((r) => (r.eval?.setech_content || '').length);
             const avgChars = charCounts.length > 0 ? Math.round(charCounts.reduce((a, b) => a + b, 0) / charCounts.length) : 0;
 
             const statusLabel = (s: string | null | undefined) => {
-              if (s === 'done') return { label: '완료', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+              if (s === 'done' || s === 'final') return { label: '완료', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
               if (s === 'draft') return { label: '초안', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
               return { label: '미작성', cls: 'bg-gray-100 text-gray-400 border-gray-200' };
             };
@@ -1287,7 +1287,7 @@ const ShareClassView = () => {
           ev: evalMap[sd.student.id] ?? null,
         }));
         const statusLabel = (s: string | null | undefined) => {
-          if (s === 'done') return '완료';
+          if (s === 'done' || s === 'final') return '완료';
           if (s === 'draft') return '초안';
           return '미작성';
         };
@@ -1309,7 +1309,7 @@ const ShareClassView = () => {
                       <span className="font-black text-gray-900 text-sm">{student.full_name}</span>
                       <div className="ml-auto flex items-center gap-3 text-[10px] font-bold">
                         {ev?.achievement_level && <span className="text-blue-700">성취도 {ev.achievement_level}</span>}
-                        <span className={ev?.status === 'done' ? 'text-emerald-600' : 'text-gray-400'}>{statusLabel(ev?.status)}</span>
+                        <span className={ev?.status === 'done' || ev?.status === 'final' ? 'text-emerald-600' : 'text-gray-400'}>{statusLabel(ev?.status)}</span>
                         {content && <span className="text-gray-400">{content.length}자</span>}
                       </div>
                     </div>
