@@ -239,6 +239,7 @@ const Classroom = () => {
   const [generalMatForm, setGeneralMatForm] = useState<{ title: string; type: 'link' | 'file'; url: string; file: File | null }>({ title: '', type: 'link', url: '', file: null });
   const [generalMatUploading, setGeneralMatUploading] = useState(false);
   const [deletingGeneralMatId, setDeletingGeneralMatId] = useState<string | null>(null);
+  const [editingGeneralMatId, setEditingGeneralMatId] = useState<string | null>(null);
   const [showEditorMatPicker, setShowEditorMatPicker] = useState(false);
   const [togglingEditorMatId, setTogglingEditorMatId] = useState<string | null>(null);
   // 자료 에디터 목록에서 주차별 자료에 이미 연결된 항목을 접어서 보여줄지 여부 (기본 접힘)
@@ -1649,49 +1650,74 @@ const Classroom = () => {
     }
   };
 
+  const handleEditGeneralMat = (m: any) => {
+    setEditingGeneralMatId(m.id);
+    setGeneralMatForm({
+      title: m.title || '',
+      type: m.type,
+      url: m.type === 'link' ? (m.url || '') : '',
+      file: null,
+    });
+    setShowAddGeneralForm(true);
+  };
+
   const handleAddGeneralMat = async () => {
     if (!activeClassId || !user) return;
     if (!generalMatForm.title.trim()) { showToast('제목을 입력해주세요.'); return; }
     if (generalMatForm.type === 'link' && !generalMatForm.url.trim()) { showToast('링크 URL을 입력해주세요.'); return; }
-    if (generalMatForm.type === 'file' && !generalMatForm.file) { showToast('파일을 선택해주세요.'); return; }
+    if (generalMatForm.type === 'file' && !editingGeneralMatId && !generalMatForm.file) { showToast('파일을 선택해주세요.'); return; }
     if (generalMatForm.type === 'file' && generalMatForm.file && generalMatForm.file.size > 50 * 1024 * 1024) { showToast('파일 크기는 50MB 이하여야 합니다.'); return; }
 
     setGeneralMatUploading(true);
     try {
-      let filePath: string | null = null;
-      let fileName: string | null = null;
-      let fileSize: number | null = null;
+      const editingTarget = editingGeneralMatId ? generalMaterials.find(m => m.id === editingGeneralMatId) : null;
+      let filePath: string | null = editingTarget?.file_path ?? null;
+      let fileName: string | null = editingTarget?.file_name ?? null;
+      let fileSize: number | null = editingTarget?.file_size ?? null;
 
       if (generalMatForm.type === 'file' && generalMatForm.file) {
         const ext = generalMatForm.file.name.split('.').pop() || '';
         const path = `general-materials/${activeClassId}/${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage.from('student-attachments').upload(path, generalMatForm.file);
         if (upErr) throw upErr;
+        if (editingTarget?.file_path) {
+          await supabase.storage.from('student-attachments').remove([editingTarget.file_path]);
+        }
         filePath = path;
         fileName = generalMatForm.file.name;
         fileSize = generalMatForm.file.size;
       }
 
-      const { error } = await supabase.from('class_general_materials').insert({
-        class_id: activeClassId,
-        teacher_id: user.id,
+      const payload = {
         title: generalMatForm.title.trim(),
         type: generalMatForm.type,
         url: generalMatForm.type === 'link' ? generalMatForm.url.trim() : null,
         file_path: filePath,
         file_name: fileName,
         file_size: fileSize,
-        is_published: true,
-      });
-      if (error) throw error;
+      };
+
+      if (editingGeneralMatId) {
+        const { error } = await supabase.from('class_general_materials').update(payload).eq('id', editingGeneralMatId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('class_general_materials').insert({
+          class_id: activeClassId,
+          teacher_id: user.id,
+          ...payload,
+          is_published: true,
+        });
+        if (error) throw error;
+      }
 
       await fetchResources(activeClassId);
       setGeneralMatForm({ title: '', type: 'link', url: '', file: null });
+      setEditingGeneralMatId(null);
       setShowAddGeneralForm(false);
-      showToast('자료가 등록되었습니다.');
+      showToast(editingGeneralMatId ? '자료가 수정되었습니다.' : '자료가 등록되었습니다.');
     } catch (err) {
       console.error('handleAddGeneralMat error:', err);
-      showToast('등록 중 오류가 발생했습니다.');
+      showToast(editingGeneralMatId ? '수정 중 오류가 발생했습니다.' : '등록 중 오류가 발생했습니다.');
     } finally {
       setGeneralMatUploading(false);
     }
@@ -1705,6 +1731,11 @@ const Classroom = () => {
       }
       await supabase.from('class_general_materials').delete().eq('id', id);
       setGeneralMaterials(prev => prev.filter(m => m.id !== id));
+      if (editingGeneralMatId === id) {
+        setEditingGeneralMatId(null);
+        setShowAddGeneralForm(false);
+        setGeneralMatForm({ title: '', type: 'link', url: '', file: null });
+      }
       showToast('자료가 삭제되었습니다.');
     } catch (err) {
       console.error('handleDeleteGeneralMat error:', err);
@@ -4476,16 +4507,27 @@ const Classroom = () => {
                       <div className="flex items-center justify-between mb-2 px-1">
                         <p className="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">일반 자료</p>
                         <button
-                          onClick={() => { setShowAddGeneralForm(v => !v); setGeneralMatForm({ title: '', type: 'link', url: '', file: null }); }}
+                          onClick={() => {
+                            if (showAddGeneralForm && !editingGeneralMatId) {
+                              setShowAddGeneralForm(false);
+                            } else {
+                              setEditingGeneralMatId(null);
+                              setGeneralMatForm({ title: '', type: 'link', url: '', file: null });
+                              setShowAddGeneralForm(true);
+                            }
+                          }}
                           className="flex items-center gap-1 text-[10px] font-black text-primary hover:bg-primary/10 px-2 py-1 rounded-lg transition-all"
                         >
                           <Plus size={11} /> 추가
                         </button>
                       </div>
 
-                      {/* 추가 폼 */}
+                      {/* 추가/수정 폼 */}
                       {showAddGeneralForm && (
                         <div className="mb-3 p-4 bg-primary/5 border border-primary/20 rounded-2xl space-y-3">
+                          {editingGeneralMatId && (
+                            <p className="text-xs font-black text-primary">자료 수정 중</p>
+                          )}
                           <input
                             type="text"
                             placeholder="자료 제목"
@@ -4495,14 +4537,16 @@ const Classroom = () => {
                           />
                           <div className="flex gap-2">
                             <button
+                              disabled={!!editingGeneralMatId}
                               onClick={() => setGeneralMatForm(f => ({ ...f, type: 'link', file: null }))}
-                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black border-2 transition-all ${generalMatForm.type === 'link' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'}`}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black border-2 transition-all ${generalMatForm.type === 'link' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'} ${!!editingGeneralMatId && generalMatForm.type !== 'link' ? 'opacity-30 cursor-not-allowed hover:border-neutral-200' : ''}`}
                             >
                               <Link2 size={12} /> 링크
                             </button>
                             <button
+                              disabled={!!editingGeneralMatId}
                               onClick={() => setGeneralMatForm(f => ({ ...f, type: 'file', url: '' }))}
-                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black border-2 transition-all ${generalMatForm.type === 'file' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'}`}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black border-2 transition-all ${generalMatForm.type === 'file' ? 'border-primary bg-primary text-white' : 'border-neutral-200 text-neutral-400 hover:border-primary/30'} ${!!editingGeneralMatId && generalMatForm.type !== 'file' ? 'opacity-30 cursor-not-allowed hover:border-neutral-200' : ''}`}
                             >
                               <Upload size={12} /> 파일
                             </button>
@@ -4519,19 +4563,23 @@ const Classroom = () => {
                             (() => {
                               const overLimit = !!generalMatForm.file && generalMatForm.file.size > 50 * 1024 * 1024;
                               const sizeMB = generalMatForm.file ? (generalMatForm.file.size / (1024 * 1024)).toFixed(1) : null;
+                              const editingFileName = editingGeneralMatId ? generalMaterials.find(m => m.id === editingGeneralMatId)?.file_name : null;
                               return (
                                 <div className="space-y-1">
+                                  {editingFileName && !generalMatForm.file && (
+                                    <p className="text-[11px] font-bold text-on-surface-variant/60">현재 파일: {editingFileName} (새 파일을 선택하면 교체됩니다)</p>
+                                  )}
                                   <label className={`flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dashed rounded-xl cursor-pointer transition-all ${overLimit ? 'border-red-400 hover:border-red-500' : 'border-neutral-200 hover:border-primary/40'}`}>
                                     <Upload size={18} className={overLimit ? 'text-red-400' : 'text-primary/60'} />
                                     <span className={`text-xs font-black ${overLimit ? 'text-red-500' : 'text-neutral-500'}`}>
-                                      {generalMatForm.file ? generalMatForm.file.name : '파일 선택 (PDF, PPT, HWP 등)'}
+                                      {generalMatForm.file ? generalMatForm.file.name : (editingFileName ? '새 파일 선택 (선택 안 하면 기존 파일 유지)' : '파일 선택 (PDF, PPT, HWP 등)')}
                                     </span>
                                     {sizeMB && (
                                       <span className={`text-[10px] font-bold ${overLimit ? 'text-red-500' : 'text-neutral-400'}`}>
                                         {sizeMB}MB {overLimit ? '— 50MB 초과! 더 작은 파일을 선택해주세요' : '/ 50MB'}
                                       </span>
                                     )}
-                                    {!generalMatForm.file && (
+                                    {!generalMatForm.file && !editingFileName && (
                                       <span className="text-[10px] text-neutral-300 font-bold">최대 50MB</span>
                                     )}
                                     <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setGeneralMatForm(prev => ({ ...prev, file: f })); }} />
@@ -4542,7 +4590,7 @@ const Classroom = () => {
                           )}
                           <div className="flex gap-2">
                             <button
-                              onClick={() => setShowAddGeneralForm(false)}
+                              onClick={() => { setShowAddGeneralForm(false); setEditingGeneralMatId(null); setGeneralMatForm({ title: '', type: 'link', url: '', file: null }); }}
                               className="flex-1 py-2 rounded-xl text-xs font-black border border-neutral-200 text-neutral-400 hover:bg-neutral-50 transition-all"
                             >취소</button>
                             <button
@@ -4551,7 +4599,7 @@ const Classroom = () => {
                               className="flex-1 py-2 rounded-xl text-xs font-black bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-all flex items-center justify-center gap-1"
                             >
                               {generalMatUploading ? <Loader2 size={12} className="animate-spin" /> : null}
-                              {generalMatUploading ? '등록 중...' : '등록'}
+                              {generalMatUploading ? (editingGeneralMatId ? '수정 중...' : '등록 중...') : (editingGeneralMatId ? '수정 완료' : '등록')}
                             </button>
                           </div>
                         </div>
@@ -4615,13 +4663,22 @@ const Classroom = () => {
                                 </button>
                               )}
                               {(classInfo?.teacher_id === user?.id || classInfo?.assigned_teacher_id === user?.id) && (
-                                <button
-                                  onClick={() => handleDeleteGeneralMat(mat.id, mat.file_path)}
-                                  disabled={deletingGeneralMatId === mat.id}
-                                  className="p-2.5 text-error bg-error/10 hover:bg-error/20 rounded-xl transition-all shrink-0"
-                                >
-                                  {deletingGeneralMatId === mat.id ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} />}
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => handleEditGeneralMat(mat)}
+                                    className="p-2.5 text-on-surface-variant/40 bg-surface-container-high hover:bg-primary/10 hover:text-primary rounded-xl transition-all shrink-0"
+                                    title="수정"
+                                  >
+                                    <Pencil size={17} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteGeneralMat(mat.id, mat.file_path)}
+                                    disabled={deletingGeneralMatId === mat.id}
+                                    className="p-2.5 text-error bg-error/10 hover:bg-error/20 rounded-xl transition-all shrink-0"
+                                  >
+                                    {deletingGeneralMatId === mat.id ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} />}
+                                  </button>
+                                </>
                               )}
                             </div>
                           ))}
