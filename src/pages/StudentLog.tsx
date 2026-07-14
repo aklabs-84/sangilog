@@ -3473,7 +3473,7 @@ ${guidePrompt}
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {generalMaterials.map((mat: any) => {
+                      {[...generalMaterials].sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ko', { numeric: true, sensitivity: 'base' })).map((mat: any) => {
                         if (mat.type === 'link') {
                           const href = mat.url?.startsWith('http') ? mat.url : `https://${mat.url}`;
                           return (
