@@ -112,7 +112,7 @@ function InquiryModal({ onClose }: { onClose: () => void }) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/school-inquiry', {
+      const res = await fetch('/api/slack?type=school-inquiry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),

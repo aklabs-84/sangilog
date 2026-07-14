@@ -19,7 +19,7 @@ const BugReportModal = ({ isOpen, onClose }: BugReportModalProps) => {
     if (!title.trim() || !description.trim()) return;
     setLoading(true);
     try {
-      await fetch('/api/bug-report', {
+      await fetch('/api/slack?type=bug-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
