@@ -230,14 +230,15 @@ const SchoolShareView = () => {
         }));
       }
 
-      const [{ data: gallery }, driveItems] = await Promise.all([
+      const [{ data: gallery }, driveResult] = await Promise.all([
         supabase
           .from('class_gallery_items')
           .select('id, file_url, file_type, file_name, caption, week_number, created_at')
           .eq('class_id', classId)
           .order('created_at', { ascending: false }),
-        fetchPublicDriveFolderItems(classId).catch(() => []),
+        fetchPublicDriveFolderItems(classId).catch(() => ({ items: [], folders: [] })),
       ]);
+      const driveItems = driveResult.items;
 
       // 세특(학급 기록) 데이터
       let evalMap: Record<string, EvalRow> = {};

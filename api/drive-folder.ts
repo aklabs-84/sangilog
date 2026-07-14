@@ -151,8 +151,10 @@ export default async function handler(req: any, res: any) {
     .eq('class_id', classId);
 
   if (!folders || folders.length === 0) {
-    return res.status(200).json({ items: [] });
+    return res.status(200).json({ items: [], folders: [] });
   }
+
+  const folderMeta = folders.map(f => ({ folder_id: f.folder_id, week_number: f.week_number }));
 
   try {
     const perFolder = await Promise.all(
@@ -161,7 +163,7 @@ export default async function handler(req: any, res: any) {
         return items.map(item => ({ ...item, week_number: f.week_number }));
       })
     );
-    return res.status(200).json({ items: perFolder.flat() });
+    return res.status(200).json({ items: perFolder.flat(), folders: folderMeta });
   } catch (err) {
     console.error('[api/drive-folder] public listing failed:', err);
     return res.status(502).json({ error: '구글 드라이브 조회에 실패했습니다.' });

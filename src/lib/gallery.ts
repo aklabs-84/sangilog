@@ -171,6 +171,16 @@ export interface DriveFolderApiItem {
   week_number?: number | null;
 }
 
+export interface DriveFolderMeta {
+  folder_id: string;
+  week_number: number | null;
+}
+
+export interface PublicDriveFolderResult {
+  items: DriveFolderApiItem[];
+  folders: DriveFolderMeta[];
+}
+
 // https://drive.google.com/drive/folders/{id}, ?id={id}, 순수 ID 등 다양한 형태 지원
 export function extractDriveFolderId(input: string): string | null {
   const trimmed = input.trim();
@@ -197,11 +207,12 @@ export async function fetchDriveFolderItems(folderId: string): Promise<DriveFold
 
 // 비인증 공유 페이지(ShareClassView/SchoolShareView)용 — classId만으로 조회
 // 서버가 학급 공유 상태를 확인하고, 연결된 폴더를 DB에서 직접 찾아 조회한다
-export async function fetchPublicDriveFolderItems(classId: string): Promise<DriveFolderApiItem[]> {
+// folders: 파일이 하나도 없는 빈 폴더도 연동 여부/주차를 알 수 있도록 함께 반환
+export async function fetchPublicDriveFolderItems(classId: string): Promise<PublicDriveFolderResult> {
   const res = await fetch(`/api/drive-folder?classId=${encodeURIComponent(classId)}`);
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error ?? '구글 드라이브 갤러리 조회에 실패했습니다.');
-  return data.items ?? [];
+  return { items: data.items ?? [], folders: data.folders ?? [] };
 }
 
 export async function getDriveFolderLink(
@@ -383,4 +394,81 @@ export async function uploadGalleryItem(
 
   if (error) throw error;
   return data;
+}
+
+// ── 공유 페이지 → 연동된 구글 드라이브 폴더로 직접 업로드 ──────────────────
+// 서버가 발급한 1회성 resumable 세션 URL에 브라우저가 직접 파일을 PUT한다
+// (영상처럼 큰 파일이 우리 서버리스 함수의 본문 크기 제한을 거치지 않도록 함)
+
+export const MAX_DRIVE_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB
+export const MAX_DRIVE_VIDEO_UPLOAD_BYTES = 500 * 1024 * 1024; // 500MB
+
+export class DrivePermissionDeniedError extends Error {}
+
+export async function uploadToLinkedDriveFolder(
+  classId: string,
+  entryCode: string,
+  weekNumber: number | null,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<DriveFolderApiItem> {
+  const isVideo = file.type.startsWith('video/');
+  const maxBytes = isVideo ? MAX_DRIVE_VIDEO_UPLOAD_BYTES : MAX_DRIVE_IMAGE_UPLOAD_BYTES;
+  if (!file.type.startsWith('image/') && !isVideo) {
+    throw new Error('이미지 또는 영상 파일만 업로드할 수 있습니다.');
+  }
+  if (file.size > maxBytes) {
+    throw new Error(isVideo ? '영상은 500MB를 초과할 수 없습니다.' : '이미지는 20MB를 초과할 수 없습니다.');
+  }
+
+  const initRes = await fetch('/api/drive-upload-init', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      classId,
+      entryCode,
+      weekNumber,
+      fileName: file.name,
+      mimeType: file.type,
+      fileSize: file.size,
+    }),
+  });
+  const initData = await initRes.json();
+  if (!initRes.ok) {
+    if (initData?.error === 'permission_denied') {
+      throw new DrivePermissionDeniedError(initData.message ?? '업로드 권한이 없습니다.');
+    }
+    throw new Error(initData?.error ?? '업로드 세션 발급에 실패했습니다.');
+  }
+
+  const uploaded = await new Promise<{ id: string; name: string; mimeType: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', initData.uploadUrl, true);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error('업로드 응답을 처리할 수 없습니다.'));
+        }
+      } else {
+        reject(new Error('구글 드라이브 업로드에 실패했습니다.'));
+      }
+    };
+    xhr.onerror = () => reject(new Error('구글 드라이브 업로드에 실패했습니다.'));
+    xhr.send(file);
+  });
+
+  const type: 'image' | 'video' = uploaded.mimeType.startsWith('video/') ? 'video' : 'image';
+  return {
+    id: uploaded.id,
+    name: uploaded.name,
+    type,
+    createdTime: new Date().toISOString(),
+    week_number: weekNumber,
+  };
 }

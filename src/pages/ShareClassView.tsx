@@ -4,7 +4,7 @@ import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
-import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl, isVerticalVideoUrl } from '../lib/gallery';
+import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl, isVerticalVideoUrl, uploadToLinkedDriveFolder, DrivePermissionDeniedError } from '../lib/gallery';
 import Pagination from '../components/Pagination';
 import {
   GraduationCap,
@@ -32,6 +32,7 @@ import {
   Link2,
   ImageIcon,
   File as FileIcon,
+  Upload,
 } from 'lucide-react';
 
 const RESULT_TYPE_BADGE: Record<string, { icon: JSX.Element; color: string; label: string }> = {
@@ -118,8 +119,11 @@ const ShareClassView = () => {
 
   // ── 인증 상태 ──────────────────────────────────────────────────────────────
   const sessionKey = `share_verified_${classId}`;
+  const codeSessionKey = `share_code_${classId}`;
   const [verified, setVerified] = useState(() => sessionStorage.getItem(`share_verified_${classId}`) === 'true');
   const [codeInput, setCodeInput] = useState('');
+  // 새로고침 후에도 인증된 세션이면 업로드 검증에 쓸 입장 코드를 유지해야 함
+  const [verifiedCode, setVerifiedCode] = useState(() => sessionStorage.getItem(`share_code_${classId}`) || '');
   const [codeError, setCodeError] = useState('');
   const [verifying, setVerifying] = useState(false);
 
@@ -131,6 +135,7 @@ const ShareClassView = () => {
   // ── 데이터 ─────────────────────────────────────────────────────────────────
   const [studentData, setStudentData] = useState<StudentData[]>([]);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+  const [driveFolders, setDriveFolders] = useState<{ folder_id: string; week_number: number | null }[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -148,6 +153,14 @@ const ShareClassView = () => {
   const [lightbox, setLightbox] = useState<{ urls: string[]; names: string[]; index: number } | null>(null);
   const [zipping, setZipping] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // ── 갤러리 업로드 (연동 드라이브 폴더로 직접 업로드) ──────────────────────
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadWeek, setUploadWeek] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState('');
 
   // ── Step 1: 클래스 메타 로드 (항상 실행) ──────────────────────────────────
   useEffect(() => {
@@ -248,15 +261,16 @@ const ShareClassView = () => {
       }
 
       // 갤러리 (업로드된 사진 + 구글 드라이브 연동 폴더)
-      const [{ data: gallery }, driveItems] = await Promise.all([
+      const [{ data: gallery }, driveResult] = await Promise.all([
         supabase
           .from('class_gallery_items')
           .select('id, file_url, file_type, file_name, caption, week_number, created_at')
           .eq('class_id', classId)
           .order('created_at', { ascending: false }),
-        fetchPublicDriveFolderItems(classId).catch(() => []),
+        fetchPublicDriveFolderItems(classId).catch(() => ({ items: [], folders: [] })),
       ]);
-      setGalleryItems([...(gallery || []), ...driveItems.map(driveItemToPublicGalleryItem)]);
+      setGalleryItems([...(gallery || []), ...driveResult.items.map(driveItemToPublicGalleryItem)]);
+      setDriveFolders(driveResult.folders);
 
       setLastUpdated(new Date());
     } catch (err) {
@@ -281,6 +295,8 @@ const ShareClassView = () => {
     });
     if (isValid) {
       sessionStorage.setItem(sessionKey, 'true');
+      sessionStorage.setItem(codeSessionKey, codeInput.trim());
+      setVerifiedCode(codeInput.trim());
       setVerified(true);
     } else {
       setCodeError('입장 코드가 올바르지 않습니다. 담당 선생님께 확인해 주세요.');
@@ -359,6 +375,36 @@ const ShareClassView = () => {
       URL.revokeObjectURL(a.href);
     } finally {
       setZipping(false);
+    }
+  };
+
+  // ── 연동된 구글 드라이브 폴더로 사진/영상 업로드 ──────────────────────────
+  const handleUpload = async () => {
+    if (!uploadFile || !classId || uploading) return;
+    setUploading(true);
+    setUploadError('');
+    setUploadProgress(0);
+    try {
+      const item = await uploadToLinkedDriveFolder(
+        classId,
+        verifiedCode,
+        uploadWeek,
+        uploadFile,
+        setUploadProgress
+      );
+      setGalleryItems((prev) => [driveItemToPublicGalleryItem({ ...item, week_number: uploadWeek }), ...prev]);
+      setUploadModalOpen(false);
+      setUploadFile(null);
+      setUploadWeek(null);
+      fetchData();
+    } catch (err) {
+      if (err instanceof DrivePermissionDeniedError) {
+        setUploadError(err.message);
+      } else {
+        setUploadError(err instanceof Error ? err.message : '업로드에 실패했습니다.');
+      }
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -923,6 +969,18 @@ const ShareClassView = () => {
                     ))}
                   </>
                 )}
+                {driveFolders.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setUploadError('');
+                      setUploadWeek(weekFilter === 'all' ? null : weekFilter);
+                      setUploadModalOpen(true);
+                    }}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition-all shadow-sm ${allGalleryImgs.length === 0 ? 'ml-auto' : ''}`}
+                  >
+                    <Upload size={13} /> 사진/영상 업로드
+                  </button>
+                )}
                 {allGalleryImgs.length > 0 && (
                   <button
                     onClick={handleZipDownload}
@@ -1157,6 +1215,88 @@ const ShareClassView = () => {
               {lightbox.index + 1} / {lightbox.urls.length}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 갤러리 업로드 모달 */}
+      {uploadModalOpen && (
+        <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => !uploading && setUploadModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-gray-900">사진/영상 업로드</h3>
+              <button onClick={() => !uploading && setUploadModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              업로드한 파일은 이 학급에 연동된 구글 드라이브 폴더에 저장됩니다.
+            </p>
+
+            {driveFolders.length > 1 && (
+              <div>
+                <label className="block text-xs font-black text-gray-500 mb-1.5">주차 선택</label>
+                <select
+                  value={uploadWeek ?? ''}
+                  onChange={(e) => setUploadWeek(e.target.value === '' ? null : Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700"
+                >
+                  <option value="" disabled>주차를 선택해주세요</option>
+                  {driveFolders
+                    .slice()
+                    .sort((a, b) => (a.week_number ?? 0) - (b.week_number ?? 0))
+                    .map((f) => (
+                      <option key={f.folder_id} value={f.week_number ?? ''}>
+                        {f.week_number != null ? `${f.week_number}주차` : '주차 없음'}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-black text-gray-500 mb-1.5">파일 선택</label>
+              <input
+                type="file"
+                accept="image/*,video/*"
+                onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                disabled={uploading}
+                className="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-600 file:font-black"
+              />
+            </div>
+
+            {uploading && (
+              <div className="space-y-1">
+                <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-full bg-emerald-500 transition-all" style={{ width: `${uploadProgress}%` }} />
+                </div>
+                <p className="text-[11px] text-gray-400 text-right">{uploadProgress}%</p>
+              </div>
+            )}
+
+            {uploadError && (
+              <p className="flex items-start gap-1.5 text-[11px] text-red-500 bg-red-50 rounded-lg p-2.5">
+                <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                {uploadError}
+              </p>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setUploadModalOpen(false)}
+                disabled={uploading}
+                className="flex-1 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-black transition-all disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleUpload}
+                disabled={!uploadFile || uploading || (driveFolders.length > 1 && uploadWeek == null)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-black transition-all"
+              >
+                {uploading ? <><Loader2 size={13} className="animate-spin" /> 업로드 중...</> : '업로드'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
