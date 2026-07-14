@@ -417,16 +417,16 @@ const StudentLog = () => {
         fetchQuizHistory(parsed.class_id, parsed.student_name);
 
         // 가이드 모달 표시 여부 확인
-        // PIN 입력 후 첫 입장(is_fresh_entry)이면 무조건 표시
-        // 페이지 새로고침 등 재접근이면 오늘 하루 보지 않기 억제 여부 확인
+        // PIN 재입장 여부와 무관하게 '오늘 하루 보지 않기' localStorage 값만으로 판단
         const today = new Date().toISOString().slice(0, 10);
         const guideKey = `guide_hidden_${parsed.student_id}`;
+        const hiddenToday = localStorage.getItem(guideKey) === today;
         if (parsed.is_fresh_entry) {
-          // fresh 플래그 소모 — 이후 새로고침에선 localStorage 체크
+          // fresh 플래그 소모 — 이후 새로고침에선 아래 조건으로만 판단
           const { is_fresh_entry: _, ...rest } = parsed;
           sessionStorage.setItem('student_session', JSON.stringify(rest));
-          setShowGuideModal(true);
-        } else if (localStorage.getItem(guideKey) !== today) {
+        }
+        if (!hiddenToday) {
           setShowGuideModal(true);
         }
       } catch {
