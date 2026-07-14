@@ -178,9 +178,28 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
   const startW = useRef(0);
   const naturalSizeRef = useRef<{ w: number; h: number } | null>(null);
   const [ratioLocked, setRatioLocked] = useState(true);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showFeedback = (msg: string) => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setFeedback(msg);
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 1400);
+  };
+  useEffect(() => () => { if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current); }, []);
 
   const width = node.attrs.width as number | null;
   const height = node.attrs.height as number | null;
+
+  // 너비/높이 입력창은 node.attrs로 직접 제어(controlled)하면, 20px 미만처럼
+  // 아직 커밋되지 않는 중간 입력값(예: "250" 중 "2")마다 React가 값을 빈
+  // 문자열로 되돌려버려 두 자리 이상 숫자를 입력할 수 없게 된다. 화면에
+  // 보이는 텍스트는 별도의 draft 상태로 두고, 유효한 값이 될 때만
+  // attrs에 반영한다.
+  const [widthDraft, setWidthDraft] = useState(width != null ? String(width) : '');
+  const [heightDraft, setHeightDraft] = useState(height != null ? String(height) : '');
+  useEffect(() => { setWidthDraft(width != null ? String(width) : ''); }, [width]);
+  useEffect(() => { setHeightDraft(height != null ? String(height) : ''); }, [height]);
 
   const getRatio = () => {
     const nat = naturalSizeRef.current;
@@ -189,14 +208,30 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
     return null;
   };
 
+  // NodeView가 렌더링하는 <input>은 팝업이 `selected` prop에 의해 조건부로
+  // 마운트되는데, 일반 updateAttributes()가 만드는 setNodeMarkup 트랜잭션은
+  // ProseMirror가 해당 위치를 "삭제 후 재삽입"으로 매핑해 NodeSelection이
+  // TextSelection으로 강등되고, 그 결과 selected가 false로 바뀌어 팝업(및
+  // 포커스 중인 입력창)이 통째로 언마운트된다. 같은 트랜잭션 안에서
+  // NodeSelection을 명시적으로 재설정해 이 문제를 막는다.
+  const updateAttrsKeepSelected = (attrs: Record<string, unknown>) => {
+    const pos = getPos();
+    if (typeof pos !== 'number') return;
+    editor.chain().command(({ tr }) => {
+      tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...attrs });
+      tr.setSelection(NodeSelection.create(tr.doc, pos));
+      return true;
+    }).run();
+  };
+
   const applyWidth = (newW: number) => {
     if (!Number.isFinite(newW) || newW < 20) return;
     const w = Math.round(newW);
     if (ratioLocked) {
       const ratio = getRatio();
-      if (ratio) { updateAttributes({ width: w, height: Math.round(w / ratio) }); return; }
+      if (ratio) { updateAttrsKeepSelected({ width: w, height: Math.round(w / ratio) }); return; }
     }
-    updateAttributes({ width: w });
+    updateAttrsKeepSelected({ width: w });
   };
 
   const applyHeight = (newH: number) => {
@@ -204,9 +239,9 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
     const h = Math.round(newH);
     if (ratioLocked) {
       const ratio = getRatio();
-      if (ratio) { updateAttributes({ height: h, width: Math.round(h * ratio) }); return; }
+      if (ratio) { updateAttrsKeepSelected({ height: h, width: Math.round(h * ratio) }); return; }
     }
-    updateAttributes({ height: h });
+    updateAttrsKeepSelected({ height: h });
   };
 
   const onResizeStart = (e: React.MouseEvent) => {
@@ -221,9 +256,9 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
       const newW = Math.max(80, Math.round(startW.current + (ev.clientX - startX.current)));
       if (ratioLocked && node.attrs.height) {
         const ratio = getRatio();
-        if (ratio) { updateAttributes({ width: newW, height: Math.round(newW / ratio) }); return; }
+        if (ratio) { updateAttrsKeepSelected({ width: newW, height: Math.round(newW / ratio) }); return; }
       }
-      updateAttributes({ width: newW });
+      updateAttrsKeepSelected({ width: newW });
     };
     const onUp = () => {
       isResizing.current = false;
@@ -259,11 +294,16 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
           <div
             className="absolute -top-11 left-0 flex items-center gap-1 bg-surface border border-surface-container rounded-xl shadow-lg px-1.5 py-1 z-20"
             onMouseDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
             <input
               type="number"
-              value={width ?? ''}
-              onChange={e => { const v = parseInt(e.target.value); if (!Number.isNaN(v)) applyWidth(v); }}
+              value={widthDraft}
+              onChange={e => {
+                setWidthDraft(e.target.value);
+                const v = parseInt(e.target.value);
+                if (!Number.isNaN(v)) applyWidth(v);
+              }}
               placeholder="W"
               title="너비 (px)"
               className="w-12 px-1 py-0.5 text-[11px] font-bold bg-surface-container rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-center"
@@ -271,8 +311,12 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
             <span className="text-[10px] text-on-surface-variant">×</span>
             <input
               type="number"
-              value={height ?? ''}
-              onChange={e => { const v = parseInt(e.target.value); if (!Number.isNaN(v)) applyHeight(v); }}
+              value={heightDraft}
+              onChange={e => {
+                setHeightDraft(e.target.value);
+                const v = parseInt(e.target.value);
+                if (!Number.isNaN(v)) applyHeight(v);
+              }}
               placeholder="H"
               title="높이 (px)"
               className="w-12 px-1 py-0.5 text-[11px] font-bold bg-surface-container rounded-md focus:outline-none focus:ring-1 focus:ring-primary text-center"
@@ -289,6 +333,7 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
               onMouseDown={e => {
                 e.preventDefault(); e.stopPropagation();
                 (editor as any).emit('image-clipboard', { mode: 'copy', attrs: { ...node.attrs } });
+                showFeedback('이미지가 복사되었습니다');
               }}
               title="이미지 복사"
               className="p-1 rounded-md text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors"
@@ -307,6 +352,11 @@ const ResizableImageView = ({ node, updateAttributes, selected, editor, getPos }
               <Scissors size={12} />
             </button>
           </div>
+          {feedback && (
+            <div className="absolute -top-11 left-0 translate-y-[calc(-100%-4px)] bg-on-surface text-surface text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-lg z-30 whitespace-nowrap pointer-events-none">
+              {feedback}
+            </div>
+          )}
           <button
             onMouseDown={e => { e.preventDefault(); e.stopPropagation(); deleteNodeAt(editor, getPos, node.nodeSize); }}
             className="absolute top-1.5 right-1.5 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center z-10 transition-colors"
@@ -1263,6 +1313,8 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
   const [embedUrlInput, setEmbedUrlInput] = useState('');
   const [embedPreview, setEmbedPreview] = useState<EmbedInfo | null>(null);
   const [pendingImage, setPendingImage] = useState<{ mode: 'copy' | 'cut'; attrs: Record<string, unknown> } | null>(null);
+  const pendingImageRef = useRef<{ mode: 'copy' | 'cut'; attrs: Record<string, unknown> } | null>(null);
+  pendingImageRef.current = pendingImage;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastMarkdownRef = useRef(value);
   const uploadFnRef = useRef<((file: File) => Promise<void>) | null>(null);
@@ -1322,6 +1374,14 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           if (file && uploadFnRef.current) {
             uploadFnRef.current(file);
           }
+          return true;
+        }
+        // OS 클립보드에 이미지가 없으면, 에디터 내부에서 복사/잘라내기한 이미지(pendingImage)를 붙여넣기
+        const pending = pendingImageRef.current;
+        if (pending) {
+          event.preventDefault();
+          editor?.chain().focus().setImage({ ...pending.attrs } as any).run();
+          if (pending.mode === 'cut') setPendingImage(null);
           return true;
         }
         // HTML 붙여넣기(엑셀/구글시트 표 포함)는 TipTap 기본 처리에 위임
@@ -1559,8 +1619,8 @@ const RichEditor = ({ value, onChange, onUploadImage, onUploadingChange, uploadi
           <>
             <button
               onClick={handlePasteImageHere}
-              title={`${pendingImage.mode === 'cut' ? '잘라낸' : '복사한'} 이미지를 커서 위치에 붙여넣기`}
-              className={btnCls(false) + ' text-primary'}
+              title={`${pendingImage.mode === 'cut' ? '잘라낸' : '복사한'} 이미지를 커서 위치에 붙여넣기 (Ctrl+V도 가능)`}
+              className={btnCls(false) + ' text-primary animate-pulse ring-2 ring-primary/50'}
             >
               <ClipboardPaste size={15} />
             </button>
