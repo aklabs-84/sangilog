@@ -149,11 +149,11 @@ export default async function handler(req: any, res: any) {
     }
 
     // 시도 기록 (rate limit용, 실패해도 업로드 자체는 계속 진행)
-    supabaseAdmin
-      .from('class_gallery_drive_upload_log')
-      .insert({ class_id: classId })
-      .then(() => {})
-      .catch(() => {});
+    try {
+      await supabaseAdmin.from('class_gallery_drive_upload_log').insert({ class_id: classId });
+    } catch {
+      // 로그 기록 실패는 무시
+    }
 
     return res.status(200).json({ uploadUrl });
   } catch (err) {
