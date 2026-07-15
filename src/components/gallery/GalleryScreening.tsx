@@ -1,12 +1,20 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Play, Pause, Music, Volume2, VolumeX, HardDrive } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Play, Pause, Music, Volume2, VolumeX, HardDrive, Clock, Check } from 'lucide-react';
 import { parseVideoUrl, type GalleryItem } from '../../lib/gallery';
 
-const IMAGE_DURATION_MS = 4000;
 const DRIVE_VIDEO_DURATION_MS = 5000;
 // 유튜브 IFrame API 로딩 실패 등 예외 상황에서 상영회가 멈추지 않도록 하는 안전장치
 const YOUTUBE_FALLBACK_MS = 60000;
+
+const BGM_TRACKS = [
+  { id: 'bgm-1', name: '고독한 미식가 OST', url: '/bgm/bgm-1.mp3' },
+  { id: 'bgm-2', name: '고독한 미식가 OST 2', url: '/bgm/bgm-2.mp3' },
+  { id: 'bgm-3', name: '고독한 미식가 OST 3', url: '/bgm/bgm-3.mp3' },
+  { id: 'bgm-4', name: '고독한 미식가 OST 4', url: '/bgm/bgm-4.mp3' },
+] as const;
+
+const IMAGE_DURATION_OPTIONS = [2, 3, 4, 5, 7, 10] as const;
 
 declare global {
   interface Window {
@@ -315,11 +323,15 @@ export default function GalleryScreening({ items, initialIndex, onClose }: Galle
   // 소리 있는 영상 자동재생이 브라우저 정책에 막히면 true로 전환해 음소거 재생으로 폴백
   const [videoMuted, setVideoMuted] = useState(false);
 
-  const [bgmName, setBgmName] = useState<string | null>(null);
-  const [bgmUrl, setBgmUrl] = useState<string | null>(null);
+  const [bgmTrackId, setBgmTrackId] = useState<string | null>(null);
   const [bgmMuted, setBgmMuted] = useState(false);
+  const [bgmMenuOpen, setBgmMenuOpen] = useState(false);
+  const [durationMenuOpen, setDurationMenuOpen] = useState(false);
+  const [imageDurationSec, setImageDurationSec] = useState<number>(4);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const bgmInputRef = useRef<HTMLInputElement>(null);
+
+  const bgmTrack = BGM_TRACKS.find(t => t.id === bgmTrackId) ?? null;
+  const imageDurationMs = imageDurationSec * 1000;
 
   const current = items[index];
   const isLast = index >= items.length - 1;
@@ -371,66 +383,120 @@ export default function GalleryScreening({ items, initialIndex, onClose }: Galle
   // 사진 자동 넘김 (영상은 자체 종료 이벤트로 처리)
   useEffect(() => {
     if (!isImage || !playing) return;
-    const t = setTimeout(goNext, IMAGE_DURATION_MS);
+    const t = setTimeout(goNext, imageDurationMs);
     return () => clearTimeout(t);
-  }, [index, isImage, playing, goNext]);
+  }, [index, isImage, playing, goNext, imageDurationMs]);
 
   // BGM 재생/일시정지 — 영상 차례에는 페이드아웃 후 멈추고, 영상 소리로 전환
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !bgmUrl) return;
+    if (!audio || !bgmTrack) return;
     if (playing && isImage) {
       audio.play().catch(() => {});
       fadeVolume(audio, bgmMuted ? 0 : 0.6, 400);
     } else {
       fadeVolume(audio, 0, 300, () => audio.pause());
     }
-  }, [playing, isImage, bgmUrl, bgmMuted, index]);
-
-  const handleBgmSelect = (file: File | null) => {
-    if (!file) return;
-    setBgmUrl(prev => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
-    setBgmName(file.name);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (bgmUrl) URL.revokeObjectURL(bgmUrl);
-    };
-  }, [bgmUrl]);
+  }, [playing, isImage, bgmTrack, bgmMuted, index]);
 
   if (!current) return null;
 
   return (
     <div ref={containerRef} className="fixed inset-0 z-[100] bg-black flex flex-col select-none">
-      {bgmUrl && <audio ref={audioRef} src={bgmUrl} loop />}
+      {bgmTrack && <audio ref={audioRef} src={bgmTrack.url} loop />}
+
+      {(bgmMenuOpen || durationMenuOpen) && (
+        <div
+          className="fixed inset-0 z-[5]"
+          onClick={() => {
+            setBgmMenuOpen(false);
+            setDurationMenuOpen(false);
+          }}
+        />
+      )}
 
       {/* 상단 바 */}
-      <div className="flex items-center gap-3 px-5 py-4 text-white/80">
+      <div className="relative z-10 flex items-center gap-3 px-5 py-4 text-white/80">
         <span className="text-xs font-bold tabular-nums">
           {index + 1} / {items.length}
         </span>
         {current.caption && <span className="text-sm text-white/60 truncate">{current.caption}</span>}
 
         <div className="ml-auto flex items-center gap-2">
-          <input
-            ref={bgmInputRef}
-            type="file"
-            accept="audio/*"
-            className="hidden"
-            onChange={e => handleBgmSelect(e.target.files?.[0] ?? null)}
-          />
-          <button
-            onClick={() => bgmInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 text-xs font-bold hover:bg-white/10 transition-colors"
-          >
-            <Music size={13} />
-            {bgmName ? bgmName.slice(0, 18) : '배경음악 선택'}
-          </button>
-          {bgmUrl && (
+          {/* 이미지 유지 시간 설정 */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setDurationMenuOpen(o => !o);
+                setBgmMenuOpen(false);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 text-xs font-bold hover:bg-white/10 transition-colors"
+            >
+              <Clock size={13} />
+              {imageDurationSec}초
+            </button>
+            {durationMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-32 rounded-lg bg-neutral-900 border border-white/15 shadow-xl overflow-hidden z-10">
+                {IMAGE_DURATION_OPTIONS.map(sec => (
+                  <button
+                    key={sec}
+                    onClick={() => {
+                      setImageDurationSec(sec);
+                      setDurationMenuOpen(false);
+                    }}
+                    className="flex items-center justify-between w-full px-3 py-2 text-xs text-left text-white/80 hover:bg-white/10 transition-colors"
+                  >
+                    {sec}초
+                    {sec === imageDurationSec && <Check size={13} />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 배경음악 선택 */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setBgmMenuOpen(o => !o);
+                setDurationMenuOpen(false);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 text-xs font-bold hover:bg-white/10 transition-colors"
+            >
+              <Music size={13} />
+              {bgmTrack ? bgmTrack.name.slice(0, 14) : '배경음악 선택'}
+            </button>
+            {bgmMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-52 rounded-lg bg-neutral-900 border border-white/15 shadow-xl overflow-hidden z-10">
+                <button
+                  onClick={() => {
+                    setBgmTrackId(null);
+                    setBgmMenuOpen(false);
+                  }}
+                  className="flex items-center justify-between w-full px-3 py-2 text-xs text-left text-white/80 hover:bg-white/10 transition-colors"
+                >
+                  선택 안함
+                  {!bgmTrack && <Check size={13} />}
+                </button>
+                <div className="h-px bg-white/10" />
+                {BGM_TRACKS.map(track => (
+                  <button
+                    key={track.id}
+                    onClick={() => {
+                      setBgmTrackId(track.id);
+                      setBgmMenuOpen(false);
+                    }}
+                    className="flex items-center justify-between w-full px-3 py-2 text-xs text-left text-white/80 hover:bg-white/10 transition-colors"
+                  >
+                    <span className="truncate">{track.name}</span>
+                    {bgmTrack?.id === track.id && <Check size={13} className="shrink-0 ml-2" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {bgmTrack && (
             <button
               onClick={() => setBgmMuted(m => !m)}
               className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
@@ -493,7 +559,7 @@ export default function GalleryScreening({ items, initialIndex, onClose }: Galle
                 key={`${current.id}-${playing}`}
                 initial={{ width: '0%' }}
                 animate={{ width: '100%' }}
-                transition={{ duration: IMAGE_DURATION_MS / 1000, ease: 'linear' }}
+                transition={{ duration: imageDurationSec, ease: 'linear' }}
                 className="h-full bg-white/70"
               />
             )}
