@@ -12,8 +12,13 @@ import {
   FileText, Loader2, AlertCircle, Lock, Calendar,
   Images, Download, ZoomIn, X, BookOpen,
   AlignLeft, Link2, ImageIcon, File as FileIcon,
-  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, Quote,
+  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, Quote, BarChart2,
 } from 'lucide-react';
+import { ShortTextChart } from './tools/SurveyTool';
+import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
+import {
+  AttendanceDonutChart, MultipleChoiceBarChart, YesNoPieChart, StarRatingBarChart, OpinionScaleBarChart, RankingBarChart,
+} from '../components/share/ShareCharts';
 
 async function blobDownload(url: string, filename: string) {
   const res = await fetch(url);
@@ -100,10 +105,13 @@ const SchoolProjectShareView = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
   const [project, setProject] = useState<any>(null);
   const [classList, setClassList] = useState<any[]>([]);
+  const [attendanceByClass, setAttendanceByClass] = useState<Record<string, { total: number; byStatus: Record<string, number> }>>({});
+  const [surveyDataByForm, setSurveyDataByForm] = useState<Record<string, { formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }>>({});
   const [projectStats, setProjectStats] = useState<{ studentCount: number; obsCount: number; resultCount: number; galleryCount: number; setechDoneCount: number } | null>(null);
   const [highlightGallery, setHighlightGallery] = useState<Array<{ id: string; file_url: string; caption: string | null; class_id: string }>>([]);
-  const [spotlightQuote, setSpotlightQuote] = useState<{ content: string; studentName: string; className: string } | null>(null);
-  const [snapshotResult, setSnapshotResult] = useState<{ title: string | null; resultType: string; createdAt: string; studentName: string; className: string } | null>(null);
+  const [spotlightQuotes, setSpotlightQuotes] = useState<{ content: string; studentName: string; className: string }[]>([]);
+  const [spotlightIndex, setSpotlightIndex] = useState(0);
+  const [snapshotResult, setSnapshotResult] = useState<{ title: string | null; resultType: string; createdAt: string; studentName: string; className: string; url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeClassId, setActiveClassId] = useState<string | null>(null);
@@ -118,12 +126,23 @@ const SchoolProjectShareView = () => {
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
   // 결과물 상세 모달
   const [detailGroup, setDetailGroup] = useState<{ group: ResultGroup; studentName: string } | null>(null);
+  // 학생 상세 모달 (활동 기록 + 결과물 목록)
+  const [modalStudent, setModalStudent] = useState<StudentWithData | null>(null);
   // 학습 여정 / 결과 확인 / 갤러리 / 학급 기록 탭
-  const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech'>('results');
+  const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech' | 'survey'>('results');
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [zipping, setZipping] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => { setSpotlightIndex(0); }, [spotlightQuotes.length]);
+  useEffect(() => {
+    if (reduceMotion || spotlightQuotes.length <= 1) return;
+    const timer = setInterval(() => {
+      setSpotlightIndex((i) => (i + 1) % spotlightQuotes.length);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [reduceMotion, spotlightQuotes.length]);
 
   useEffect(() => {
     if (!shareToken) return;
@@ -147,7 +166,7 @@ const SchoolProjectShareView = () => {
 
       const { data: subClasses } = await supabase
         .from('classes')
-        .select('id, name, subject, assigned_teacher_id, weekly_plan, show_learning_journey')
+        .select('id, name, subject, assigned_teacher_id, weekly_plan, show_learning_journey, show_attendance_summary, shared_survey_form_id')
         .eq('school_project_id', proj.id)
         .not('parent_class_id', 'is', null)
         .order('created_at', { ascending: true });
@@ -175,10 +194,14 @@ const SchoolProjectShareView = () => {
         teacher_name: c.assigned_teacher_id ? (teacherMap[c.assigned_teacher_id] || null) : null,
         weekly_plan: c.weekly_plan || [],
         show_learning_journey: c.show_learning_journey ?? true,
+        show_attendance_summary: c.show_attendance_summary ?? true,
+        shared_survey_form_id: c.shared_survey_form_id || null,
         studentCount: studentCountByClass[c.id] || 0,
       })));
 
-      const [obsCountRes, resultsCountRes, galleryCountRes, setechDoneCountRes, highlightRes, spotlightObsRes, snapshotResultRes] = await Promise.all([
+      const attendanceClassIds = subClasses.filter((c: any) => c.show_attendance_summary ?? true).map((c: any) => c.id);
+
+      const [obsCountRes, resultsCountRes, galleryCountRes, setechDoneCountRes, highlightRes, spotlightObsRes, snapshotResultRes, attendanceRes] = await Promise.all([
         allStudentIds.length > 0
           ? supabase.from('observations').select('id', { count: 'exact', head: true })
               .in('student_id', allStudentIds).eq('is_student_record', true).eq('status', 'approved')
@@ -201,10 +224,60 @@ const SchoolProjectShareView = () => {
               .order('created_at', { ascending: false }).limit(40)
           : Promise.resolve({ data: [] }),
         allStudentIds.length > 0
-          ? supabase.from('student_results').select('id, student_id, title, result_type, created_at')
+          ? supabase.from('student_results').select('id, student_id, title, result_type, created_at, link_url, storage_path')
               .in('student_id', allStudentIds).order('created_at', { ascending: false }).limit(1)
           : Promise.resolve({ data: [] }),
+        attendanceClassIds.length > 0
+          ? supabase.from('attendance').select('class_id, status').in('class_id', attendanceClassIds)
+          : Promise.resolve({ data: [] }),
       ]);
+
+      // 학급별 출석 요약 (학급 전체 통계만, 학생별 상세는 노출하지 않음)
+      const attendanceByClass: Record<string, { total: number; byStatus: Record<string, number> }> = {};
+      (attendanceRes.data || []).forEach((r: any) => {
+        if (!attendanceByClass[r.class_id]) attendanceByClass[r.class_id] = { total: 0, byStatus: {} };
+        attendanceByClass[r.class_id].total += 1;
+        attendanceByClass[r.class_id].byStatus[r.status] = (attendanceByClass[r.class_id].byStatus[r.status] || 0) + 1;
+      });
+      setAttendanceByClass(attendanceByClass);
+
+      // 학급별 공개 설문 결과 (교사가 지정한 설문 1개씩, 응답자 식별 없이 집계만)
+      const surveyFormIds = [...new Set(subClasses.map((c: any) => c.shared_survey_form_id).filter(Boolean))] as string[];
+      if (surveyFormIds.length > 0) {
+        const [{ data: forms }, { data: questions }, { data: answers }, { data: responses }] = await Promise.all([
+          supabase.from('survey_forms').select('id, title').in('id', surveyFormIds),
+          supabase.from('survey_questions').select('id, form_id, order_index, type, text, options').in('form_id', surveyFormIds).order('order_index', { ascending: true }),
+          supabase.from('survey_answers').select('id, response_id, question_id, form_id, value').in('form_id', surveyFormIds),
+          supabase.from('survey_responses').select('id, form_id').in('form_id', surveyFormIds),
+        ]);
+        const formTitleMap: Record<string, string> = {};
+        (forms || []).forEach((f: any) => { formTitleMap[f.id] = f.title; });
+        const responseCountByForm: Record<string, number> = {};
+        (responses || []).forEach((r: any) => { responseCountByForm[r.form_id] = (responseCountByForm[r.form_id] || 0) + 1; });
+        const questionsByForm: Record<string, SurveyQuestion[]> = {};
+        (questions || []).forEach((q: any) => {
+          if (!questionsByForm[q.form_id]) questionsByForm[q.form_id] = [];
+          questionsByForm[q.form_id].push(q);
+        });
+        const answersByFormAndQuestion: Record<string, Record<string, SurveyAnswer[]>> = {};
+        (answers || []).forEach((a: any) => {
+          if (!answersByFormAndQuestion[a.form_id]) answersByFormAndQuestion[a.form_id] = {};
+          if (!answersByFormAndQuestion[a.form_id][a.question_id]) answersByFormAndQuestion[a.form_id][a.question_id] = [];
+          answersByFormAndQuestion[a.form_id][a.question_id].push(a);
+        });
+        const surveyDataByForm: Record<string, { formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number }> = {};
+        surveyFormIds.forEach(formId => {
+          surveyDataByForm[formId] = {
+            formTitle: formTitleMap[formId] || '설문',
+            questions: questionsByForm[formId] || [],
+            answersByQuestion: answersByFormAndQuestion[formId] || {},
+            responseCount: responseCountByForm[formId] || 0,
+          };
+        });
+        setSurveyDataByForm(surveyDataByForm);
+      } else {
+        setSurveyDataByForm({});
+      }
 
       setProjectStats({
         studentCount: allStudentIds.length,
@@ -215,32 +288,40 @@ const SchoolProjectShareView = () => {
       });
       setHighlightGallery(highlightRes.data || []);
 
-      // 스포트라이트 인용구: 20~220자 관찰기록 중 90자에 가장 가까운 문장 선택
-      let bestQuote: { content: string; studentName: string; className: string } | null = null;
-      let bestScore = -Infinity;
+      // 스포트라이트 인용구: 20~220자 관찰기록 중 학생별로 하나씩 골라 매번 랜덤 3개 선택
+      const quoteByStudent = new Map<string, { content: string; studentName: string; className: string }[]>();
       (spotlightObsRes.data || []).forEach((o: any) => {
         const text = (o.content || '').trim();
         if (text.length < 20 || text.length > 220) return;
-        const score = -Math.abs(text.length - 90);
-        if (score > bestScore) {
-          const info = studentInfoMap[o.student_id];
-          if (!info) return;
-          bestScore = score;
-          bestQuote = { content: text, studentName: info.full_name, className: classNameMap[info.class_id] || '' };
-        }
+        const info = studentInfoMap[o.student_id];
+        if (!info) return;
+        const arr = quoteByStudent.get(o.student_id) ?? [];
+        arr.push({ content: text, studentName: info.full_name, className: classNameMap[info.class_id] || '' });
+        quoteByStudent.set(o.student_id, arr);
       });
-      setSpotlightQuote(bestQuote);
+      const perStudentQuotes = Array.from(quoteByStudent.values()).map(arr => arr[Math.floor(Math.random() * arr.length)]);
+      for (let i = perStudentQuotes.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [perStudentQuotes[i], perStudentQuotes[j]] = [perStudentQuotes[j], perStudentQuotes[i]];
+      }
+      setSpotlightQuotes(perStudentQuotes.slice(0, 3));
 
       // 결과물 스냅샷: 가장 최근 결과물 1건
       const snapRow = (snapshotResultRes.data || [])[0] as any;
       if (snapRow) {
         const info = studentInfoMap[snapRow.student_id];
+        const snapUrl = snapRow.result_type === 'link'
+          ? (snapRow.link_url || null)
+          : (snapRow.result_type === 'image' || snapRow.result_type === 'file') && snapRow.storage_path
+            ? supabase.storage.from('student-attachments').getPublicUrl(snapRow.storage_path).data?.publicUrl || null
+            : null;
         setSnapshotResult(info ? {
           title: snapRow.title,
           resultType: snapRow.result_type,
           createdAt: snapRow.created_at,
           studentName: info.full_name,
           className: classNameMap[info.class_id] || '',
+          url: snapUrl,
         } : null);
       } else {
         setSnapshotResult(null);
@@ -450,6 +531,81 @@ const SchoolProjectShareView = () => {
         </div>
       )}
 
+      {/* ── 학생 상세 모달 ── */}
+      {modalStudent && (
+        <div className="fixed inset-0 z-40 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setModalStudent(null)}>
+          <div className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
+              <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                <span className="text-sm font-black text-gray-600">{modalStudent.student_number ?? '—'}</span>
+              </div>
+              <p className="font-black text-gray-900 text-sm flex-1 min-w-0 truncate">{modalStudent.full_name}</p>
+              <button onClick={() => setModalStudent(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors shrink-0">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              {modalStudent.observations.map(obs => (
+                <div key={obs.id} className="bg-white rounded-xl border border-violet-100 p-4">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
+                    {obs.week_number && <span className="text-[10px] font-bold text-gray-400">{obs.week_number}주차</span>}
+                    <span className="text-[10px] text-gray-400 ml-auto">{new Date(obs.created_at).toLocaleDateString('ko-KR')}</span>
+                  </div>
+                  {obs.activity_name && <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{obs.activity_name}</p>}
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{obs.content}</p>
+                </div>
+              ))}
+
+              {modalStudent.resultGroups.map(group => {
+                const imageItem = group.items.find(r => r.image_url);
+                const textItem  = group.items.find(r => r.result_type === 'text');
+                const linkItem  = group.items.find(r => r.result_type === 'link');
+                const fileItem  = group.items.find(r => r.result_type === 'file');
+
+                return (
+                  <div key={group.groupId}
+                    onClick={() => setDetailGroup({ group, studentName: modalStudent.full_name })}
+                    className="bg-white rounded-xl border border-emerald-100 p-4 cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                      {group.isGroupSubmission && (
+                        <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">👥 조별 제출</span>
+                      )}
+                      {group.types.map(type => {
+                        const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.file;
+                        return (
+                          <span key={type} className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border ${cfg.color}`}>
+                            {cfg.icon}{cfg.label}
+                          </span>
+                        );
+                      })}
+                      {group.week_number && (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-200 ml-auto">{group.week_number}주차</span>
+                      )}
+                    </div>
+                    {group.title && <p className="font-black text-sm text-gray-800 mb-2 group-hover:text-emerald-700 transition-colors">{group.title}</p>}
+                    <div className="space-y-2">
+                      {imageItem?.image_url && <img src={imageItem.image_url} alt="" className="rounded-lg w-full max-h-36 object-cover" />}
+                      {textItem?.text_content && <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{textItem.text_content}</p>}
+                      {linkItem?.link_url && <p className="text-xs text-indigo-500 truncate flex items-center gap-1"><Link2 size={10} />{linkItem.link_url}</p>}
+                      {fileItem && <p className="text-xs text-amber-600 flex items-center gap-1"><FileIcon size={10} />첨부파일 있음</p>}
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-[10px] text-gray-400">{new Date(group.created_at).toLocaleDateString('ko-KR')}</span>
+                      <span className="text-[10px] text-emerald-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">자세히 보기 →</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {!modalStudent.observations.length && !modalStudent.resultGroups.length && (
+                <p className="text-xs font-bold text-gray-400 text-center py-8">기록이 없습니다</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 결과물 상세 모달 ── */}
       {detailGroup && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setDetailGroup(null)}>
@@ -583,104 +739,122 @@ const SchoolProjectShareView = () => {
               </div>
 
               {projectStats && (
-                <>
-                  <div className="flex items-baseline gap-2 mb-7">
-                    <span className="text-6xl sm:text-7xl font-black tracking-tight tabular-nums text-gray-900">
-                      <CountUpNumber value={projectStats.studentCount} />
-                    </span>
-                    <span className="text-base sm:text-lg font-bold text-gray-400">명의 학생과 함께한 프로젝트</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {[
-                      { label: '참여 학급', value: classList.length, unit: '개', icon: School },
-                      { label: '활동 기록', value: projectStats.obsCount, unit: '건', icon: FileText },
-                      { label: '결과물', value: projectStats.resultCount, unit: '건', icon: FolderOpen },
-                    ].map(({ label, value, unit, icon: Icon }) => (
-                      <div
-                        key={label}
-                        className="rounded-2xl px-4 py-3.5 bg-gray-50 border border-gray-100"
-                      >
-                        <div className="flex items-center gap-1.5 mb-1.5 text-gray-400">
-                          <Icon size={12} />
-                          <p className="text-[10px] font-black uppercase tracking-widest">{label}</p>
-                        </div>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-black text-gray-900"><CountUpNumber value={value} /></span>
-                          <span className="text-xs font-bold text-gray-400">{unit}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-6xl sm:text-7xl font-black tracking-tight tabular-nums text-gray-900">
+                    <CountUpNumber value={projectStats.studentCount} />
+                  </span>
+                  <span className="text-base sm:text-lg font-bold text-gray-400">명의 학생과 함께한 프로젝트</span>
+                </div>
               )}
             </motion.div>
           </div>
         );
       })()}
 
-      {/* 스포트라이트 인용구 */}
-      {spotlightQuote && (
-        <div className="border-t border-b border-gray-100" style={{ background: `${theme.from}0a` }}>
+      {/* 스포트라이트 인용구 (자동 슬라이드 캐러셀) */}
+      {spotlightQuotes.length > 0 && (
+        <div className="border-t border-b border-gray-100 overflow-hidden" style={{ background: `${theme.from}0a` }}>
           <div className="max-w-4xl mx-auto px-6 py-8 sm:py-10">
             <Quote size={26} className="mb-3" style={{ color: `${theme.from}66` }} />
-            <blockquote className="text-lg sm:text-2xl font-bold text-gray-900 leading-snug tracking-tight mb-4">
-              “{spotlightQuote.content}”
-            </blockquote>
-            <p className="text-xs font-black uppercase tracking-widest text-gray-400">
-              {spotlightQuote.className} · {spotlightQuote.studentName}
-            </p>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={spotlightIndex}
+                initial={reduceMotion ? undefined : { opacity: 0, x: 16 }}
+                animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
+                exit={reduceMotion ? undefined : { opacity: 0, x: -16 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+              >
+                <blockquote className="text-lg sm:text-2xl font-bold text-gray-900 leading-snug tracking-tight mb-4">
+                  “{spotlightQuotes[spotlightIndex].content}”
+                </blockquote>
+                <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+                  {spotlightQuotes[spotlightIndex].className} · {spotlightQuotes[spotlightIndex].studentName}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+            {spotlightQuotes.length > 1 && (
+              <div className="flex items-center gap-1.5 mt-6">
+                {spotlightQuotes.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSpotlightIndex(i)}
+                    aria-label={`${i + 1}번째 인용구 보기`}
+                    className="h-1.5 rounded-full transition-all"
+                    style={{ width: i === spotlightIndex ? 24 : 6, background: i === spotlightIndex ? theme.from : `${theme.from}33` }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* 피처 카드 그리드 */}
+      {/* 통합 통계 대시보드 카드 */}
       {projectStats && (
         <div className="max-w-4xl mx-auto px-6 pt-8">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
+          {(() => {
+            const navCards = [
+              { label: '참여 학급', value: classList.length, unit: '개', icon: School, color: 'indigo' as const },
               { label: '학습 여정', value: projectStats.obsCount, unit: '건', icon: Sparkles, color: 'violet' as const },
               { label: '결과 확인', value: projectStats.resultCount, unit: '건', icon: FileText, color: 'blue' as const },
               { label: '갤러리', value: projectStats.galleryCount, unit: '장', icon: Images, color: 'emerald' as const },
               { label: '학급 기록', value: projectStats.setechDoneCount, unit: '건', icon: BookOpen, color: 'amber' as const },
-            ].map(({ label, value, unit, icon: Icon, color }, i) => {
-              const filled = value > 0;
-              const colorCls = {
-                violet: { tint: 'bg-violet-50', ink: 'text-violet-600', border: 'border-violet-100' },
-                blue: { tint: 'bg-blue-50', ink: 'text-blue-600', border: 'border-blue-100' },
-                emerald: { tint: 'bg-emerald-50', ink: 'text-emerald-600', border: 'border-emerald-100' },
-                amber: { tint: 'bg-amber-50', ink: 'text-amber-600', border: 'border-amber-100' },
-              }[color];
-              return (
-                <motion.button
-                  key={label}
-                  onClick={() => document.getElementById('class-list')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })}
-                  initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
-                  whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-40px' }}
-                  transition={{ duration: 0.4, delay: i * 0.06, ease: 'easeOut' }}
-                  whileHover={reduceMotion ? undefined : { y: -4 }}
-                  className={`text-left rounded-2xl border p-4 transition-shadow ${filled ? `${colorCls.tint} ${colorCls.border} shadow-sm hover:shadow-md` : 'bg-gray-50 border-gray-100'}`}
-                >
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${filled ? 'bg-white/70' : 'bg-white'}`}>
-                    <Icon size={15} className={filled ? colorCls.ink : 'text-gray-300'} />
-                  </div>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${filled ? colorCls.ink : 'text-gray-400'}`}>{label}</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-xl font-black ${filled ? 'text-gray-900' : 'text-gray-400'}`}><CountUpNumber value={value} /></span>
-                    <span className={`text-xs font-bold ${filled ? 'text-gray-400' : 'text-gray-300'}`}>{unit}</span>
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
+            ];
+            const maxValue = Math.max(1, ...navCards.map((c) => c.value));
+            const colorMap = {
+              indigo: { tint: 'bg-indigo-50', ink: 'text-indigo-600', border: 'border-indigo-100', bar: 'bg-indigo-400' },
+              violet: { tint: 'bg-violet-50', ink: 'text-violet-600', border: 'border-violet-100', bar: 'bg-violet-400' },
+              blue: { tint: 'bg-blue-50', ink: 'text-blue-600', border: 'border-blue-100', bar: 'bg-blue-400' },
+              emerald: { tint: 'bg-emerald-50', ink: 'text-emerald-600', border: 'border-emerald-100', bar: 'bg-emerald-400' },
+              amber: { tint: 'bg-amber-50', ink: 'text-amber-600', border: 'border-amber-100', bar: 'bg-amber-400' },
+            };
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                {navCards.map(({ label, value, unit, icon: Icon, color }, i) => {
+                  const c = colorMap[color];
+                  const filled = value > 0;
+                  const barPct = Math.round((value / maxValue) * 100);
+                  return (
+                    <motion.button
+                      key={label}
+                      onClick={() => document.getElementById('class-list')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })}
+                      initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+                      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-40px' }}
+                      transition={{ duration: 0.4, delay: i * 0.06, ease: 'easeOut' }}
+                      whileHover={reduceMotion ? undefined : { y: -4 }}
+                      className={`text-left rounded-2xl border p-4 transition-shadow ${filled ? `${c.tint} ${c.border} shadow-sm hover:shadow-md` : 'bg-gray-50 border-gray-100'}`}
+                    >
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${filled ? 'bg-white/70' : 'bg-white'}`}>
+                        <Icon size={15} className={filled ? c.ink : 'text-gray-300'} />
+                      </div>
+                      <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${filled ? c.ink : 'text-gray-400'}`}>{label}</p>
+                      <div className="flex items-baseline gap-1 mb-2">
+                        <span className={`text-xl font-black ${filled ? 'text-gray-900' : 'text-gray-400'}`}><CountUpNumber value={value} /></span>
+                        <span className={`text-xs font-bold ${filled ? 'text-gray-400' : 'text-gray-300'}`}>{unit}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-black/5 overflow-hidden">
+                        <motion.div
+                          className={`h-full rounded-full ${filled ? c.bar : 'bg-transparent'}`}
+                          initial={{ width: 0 }}
+                          whileInView={{ width: `${barPct}%` }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.6, delay: i * 0.06, ease: 'easeOut' }}
+                        />
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
       {/* 결과물 스냅샷 카드 */}
-      {snapshotResult && (
-        <div className="max-w-4xl mx-auto px-6 pt-6">
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4">
+      {snapshotResult && (() => {
+        const cardInner = (
+          <>
             <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${theme.from}14` }}>
               {TYPE_CONFIG[snapshotResult.resultType]?.icon ?? <FileText size={18} style={{ color: theme.from }} />}
             </div>
@@ -696,9 +870,28 @@ const SchoolProjectShareView = () => {
                 {TYPE_CONFIG[snapshotResult.resultType].label}
               </span>
             )}
+            {snapshotResult.url && <ExternalLink size={14} className="text-gray-300 shrink-0" />}
+          </>
+        );
+        return (
+          <div className="max-w-4xl mx-auto px-6 pt-6">
+            {snapshotResult.url ? (
+              <a
+                href={snapshotResult.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-sm transition-all"
+              >
+                {cardInner}
+              </a>
+            ) : (
+              <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4">
+                {cardInner}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 하이라이트 갤러리 */}
       {highlightGallery.length > 0 && (
@@ -1115,10 +1308,11 @@ const SchoolProjectShareView = () => {
                               { key: 'results', label: '결과 확인', icon: FileText },
                               { key: 'gallery', label: `갤러리${gallery.length > 0 ? ` (${gallery.length})` : ''}`, icon: Images },
                               { key: 'setech', label: '학급 기록', icon: BookOpen },
+                              ...(cls.shared_survey_form_id && surveyDataByForm[cls.shared_survey_form_id] ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
                             ].map(({ key, label, icon: Icon }) => (
                               <button
                                 key={key}
-                                onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech')}
+                                onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech' | 'survey')}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${activeTab === key ? 'bg-white text-violet-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                               >
                                 <Icon size={13} />{label}
@@ -1162,6 +1356,14 @@ const SchoolProjectShareView = () => {
                                 ))}
                               </div>
 
+                              {/* 출석 요약 카드 (학급 전체 통계만, 학생별 상세 없음) */}
+                              {cls.show_attendance_summary && attendanceByClass[cls.id] && attendanceByClass[cls.id].total > 0 && (
+                                <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
+                                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-3">출석 요약</p>
+                                  <AttendanceDonutChart total={attendanceByClass[cls.id].total} byStatus={attendanceByClass[cls.id].byStatus} />
+                                </div>
+                              )}
+
                               {allWeeks.length > 0 && (
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-xs font-black text-gray-500 mr-1">주차:</span>
@@ -1169,97 +1371,32 @@ const SchoolProjectShareView = () => {
                                   {allWeeks.map(w => (
                                     <button key={w} onClick={() => setWeekFilter(w)} className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${weekFilter === w ? 'bg-violet-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'}`}>{w}주차</button>
                                   ))}
-                                  <div className="ml-auto flex items-center gap-1.5">
-                                    <button onClick={() => setExpandedStudents(new Set(students.map(s => s.id)))} className="text-xs font-black text-gray-500 hover:text-violet-600 px-2 py-1 rounded-lg hover:bg-violet-50 transition-all">전체 열기</button>
-                                    <button onClick={() => setExpandedStudents(new Set())} className="text-xs font-black text-gray-500 hover:text-gray-800 px-2 py-1 rounded-lg hover:bg-gray-100 transition-all">전체 닫기</button>
-                                  </div>
                                 </div>
                               )}
 
-                              {filteredStudents.map(student => {
-                                const hasData = student.observations.length > 0 || student.resultGroups.length > 0;
-                                const isStudentExpanded = expandedStudents.has(student.id);
-
-                                return (
-                                  <div key={student.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                                    <button onClick={() => hasData && toggleStudent(student.id)} disabled={!hasData}
-                                      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${hasData ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default opacity-50'}`}>
-                                      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-black text-gray-500 shrink-0">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                {filteredStudents.map(student => {
+                                  const hasData = student.observations.length > 0 || student.resultGroups.length > 0;
+                                  return (
+                                    <button
+                                      key={student.id}
+                                      onClick={() => hasData && setModalStudent(student)}
+                                      disabled={!hasData}
+                                      className={`text-left bg-white rounded-xl border p-3.5 transition-all ${hasData ? 'border-gray-100 hover:border-violet-200 hover:shadow-sm cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
+                                    >
+                                      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-black text-gray-500 mb-2.5">
                                         {student.student_number || '?'}
                                       </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-sm">{student.full_name}</p>
-                                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                          {student.observations.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 활동기록 {student.observations.length}건</span>}
-                                          {student.resultGroups.length > 0 && <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {student.resultGroups.length}건</span>}
-                                          {!hasData && <span className="text-[10px] text-gray-400">기록 없음</span>}
-                                        </div>
+                                      <p className="font-bold text-sm truncate mb-1">{student.full_name}</p>
+                                      <div className="flex flex-col gap-1">
+                                        {student.observations.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 활동기록 {student.observations.length}건</span>}
+                                        {student.resultGroups.length > 0 && <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {student.resultGroups.length}건</span>}
+                                        {!hasData && <span className="text-[10px] text-gray-400">기록 없음</span>}
                                       </div>
-                                      {hasData && (isStudentExpanded
-                                        ? <ChevronUp size={14} className="text-gray-400 shrink-0" />
-                                        : <ChevronDown size={14} className="text-gray-300 shrink-0" />
-                                      )}
                                     </button>
-
-                                    {isStudentExpanded && hasData && (
-                                      <div className="px-5 pb-5 space-y-3 bg-gray-50/50 border-t border-gray-50">
-                                        {student.observations.map(obs => (
-                                          <div key={obs.id} className="bg-white rounded-xl border border-violet-100 p-4 mt-3">
-                                            <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                              <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
-                                              {obs.week_number && <span className="text-[10px] font-bold text-gray-400">{obs.week_number}주차</span>}
-                                              <span className="text-[10px] text-gray-400 ml-auto">{new Date(obs.created_at).toLocaleDateString('ko-KR')}</span>
-                                            </div>
-                                            {obs.activity_name && <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{obs.activity_name}</p>}
-                                            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{obs.content}</p>
-                                          </div>
-                                        ))}
-
-                                        {student.resultGroups.map(group => {
-                                          const imageItem = group.items.find(r => r.image_url);
-                                          const textItem  = group.items.find(r => r.result_type === 'text');
-                                          const linkItem  = group.items.find(r => r.result_type === 'link');
-                                          const fileItem  = group.items.find(r => r.result_type === 'file');
-
-                                          return (
-                                            <div key={group.groupId}
-                                              onClick={() => setDetailGroup({ group, studentName: student.full_name })}
-                                              className="bg-white rounded-xl border border-emerald-100 p-4 mt-3 cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group">
-                                              <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                                                {group.isGroupSubmission && (
-                                                  <span className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 border border-violet-200">👥 조별 제출</span>
-                                                )}
-                                                {group.types.map(type => {
-                                                  const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.file;
-                                                  return (
-                                                    <span key={type} className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border ${cfg.color}`}>
-                                                      {cfg.icon}{cfg.label}
-                                                    </span>
-                                                  );
-                                                })}
-                                                {group.week_number && (
-                                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-200 ml-auto">{group.week_number}주차</span>
-                                                )}
-                                              </div>
-                                              {group.title && <p className="font-black text-sm text-gray-800 mb-2 group-hover:text-emerald-700 transition-colors">{group.title}</p>}
-                                              <div className="space-y-2">
-                                                {imageItem?.image_url && <img src={imageItem.image_url} alt="" className="rounded-lg w-full max-h-36 object-cover" />}
-                                                {textItem?.text_content && <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{textItem.text_content}</p>}
-                                                {linkItem?.link_url && <p className="text-xs text-indigo-500 truncate flex items-center gap-1"><Link2 size={10} />{linkItem.link_url}</p>}
-                                                {fileItem && <p className="text-xs text-amber-600 flex items-center gap-1"><FileIcon size={10} />첨부파일 있음</p>}
-                                              </div>
-                                              <div className="flex items-center justify-between mt-3">
-                                                <span className="text-[10px] text-gray-400">{new Date(group.created_at).toLocaleDateString('ko-KR')}</span>
-                                                <span className="text-[10px] text-emerald-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">자세히 보기 →</span>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                  );
+                                })}
+                              </div>
 
                               {filteredStudents.length === 0 && (
                                 <div className="flex flex-col items-center py-16 space-y-2">
@@ -1436,6 +1573,33 @@ const SchoolProjectShareView = () => {
                                   </div>
                                 )}
                               </>
+                            );
+                          })()}
+
+                          {/* ── 설문 결과 탭 ── */}
+                          {activeTab === 'survey' && cls.shared_survey_form_id && surveyDataByForm[cls.shared_survey_form_id] && (() => {
+                            const surveyResult = surveyDataByForm[cls.shared_survey_form_id];
+                            return (
+                              <div className="space-y-4">
+                                <div className="bg-gray-50 rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
+                                  <p className="font-black text-gray-900">{surveyResult.formTitle}</p>
+                                  <p className="text-xs font-bold text-gray-400">총 {surveyResult.responseCount}명 응답</p>
+                                </div>
+                                {surveyResult.questions.map((q, i) => {
+                                  const answers = surveyResult.answersByQuestion[q.id] || [];
+                                  return (
+                                    <div key={q.id} className="bg-gray-50 rounded-2xl border border-gray-100 p-5">
+                                      <p className="font-black text-gray-900 text-sm mb-3">{i + 1}. {q.text}</p>
+                                      {q.type === 'multiple_choice' && <MultipleChoiceBarChart question={q} answers={answers} />}
+                                      {q.type === 'yes_no' && <YesNoPieChart answers={answers} />}
+                                      {q.type === 'star_rating' && <StarRatingBarChart answers={answers} />}
+                                      {q.type === 'short_text' && <ShortTextChart answers={answers} />}
+                                      {q.type === 'opinion_scale' && <OpinionScaleBarChart question={q} answers={answers} />}
+                                      {q.type === 'ranking' && <RankingBarChart question={q} answers={answers} />}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             );
                           })()}
                         </div>

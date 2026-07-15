@@ -232,6 +232,7 @@ const Classroom = () => {
   const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string } | null>(null);
   // 학급정보 수정 팝업에서 에디터 자료 선택용
   const [editingClassMaterials, setEditingClassMaterials] = useState<any[]>([]);
+  const [editingClassSurveyForms, setEditingClassSurveyForms] = useState<{ id: string; title: string }[]>([]);
   const [materialDropdownIdx, setMaterialDropdownIdx] = useState<number | null>(null);
   // 일반 자료 관리 상태
   const [generalMaterials, setGeneralMaterials] = useState<any[]>([]);
@@ -720,6 +721,7 @@ const Classroom = () => {
       blocked_keywords: updateClassData.blocked_keywords || [],
       ai_review_enabled: updateClassData.ai_review_enabled ?? true,
       show_learning_journey: updateClassData.show_learning_journey ?? true,
+      show_attendance_summary: updateClassData.show_attendance_summary ?? true,
       start_date: updateClassData.start_date || null,
       end_date: updateClassData.end_date || null,
       is_closed: updateClassData.is_closed ?? false,
@@ -739,6 +741,7 @@ const Classroom = () => {
           name: updateClassData.name,
           subject: updateClassData.subject,
           weekly_plan: updateClassData.weekly_plan || [],
+          shared_survey_form_id: updateClassData.shared_survey_form_id || null,
           ...sharedSettings,
         })
         .eq('id', updateClassData.id);
@@ -787,6 +790,12 @@ const Classroom = () => {
       .eq('class_id', c.id)
       .order('week_number', { ascending: true });
     setEditingClassMaterials(data || []);
+    const { data: forms } = await supabase
+      .from('survey_forms')
+      .select('id, title')
+      .eq('class_id', c.id)
+      .order('created_at', { ascending: false });
+    setEditingClassSurveyForms(forms || []);
   };
 
   const handleToggleClassClosed = async (classId: string, currentIsClosed: boolean) => {
@@ -3966,6 +3975,51 @@ const Classroom = () => {
                             </>
                           )}
                         </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between px-1 py-1">
+                          <div>
+                            <p className="text-xs font-black text-primary uppercase tracking-widest">학교 공유페이지 - 출석 요약 표시</p>
+                            <p className="text-xs font-bold text-neutral-400 mt-0.5">학생별 상세 없이 학급 전체 출석 통계만 노출됩니다</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setUpdateClassData({...updateClassData, show_attendance_summary: !(updateClassData.show_attendance_summary ?? true)})}
+                            className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${(updateClassData.show_attendance_summary ?? true) ? 'bg-primary' : 'bg-neutral-300'}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${(updateClassData.show_attendance_summary ?? true) ? 'translate-x-6' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                        <div className={`rounded-2xl px-4 py-3 text-xs font-bold leading-relaxed transition-colors ${(updateClassData.show_attendance_summary ?? true) ? 'bg-primary/5 text-primary/80 border border-primary/10' : 'bg-neutral-100 text-neutral-400 border border-neutral-200'}`}>
+                          {(updateClassData.show_attendance_summary ?? true) ? (
+                            <>
+                              <span className="font-black">ON</span> — 공유페이지에 학급 전체 <span className="font-black">출석률·상태별 건수</span> 요약 카드가 노출됩니다.
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-black">OFF</span> — 출석 요약 카드가 숨겨집니다.
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="px-1 py-1">
+                          <p className="text-xs font-black text-primary uppercase tracking-widest">학교 공유페이지 - 설문 결과 공개</p>
+                          <p className="text-xs font-bold text-neutral-400 mt-0.5">선택한 설문 1개의 집계 결과만 노출됩니다 (응답자 이름은 노출되지 않음)</p>
+                        </div>
+                        <select
+                          value={updateClassData.shared_survey_form_id || ''}
+                          onChange={e => setUpdateClassData({...updateClassData, shared_survey_form_id: e.target.value || null})}
+                          className="w-full px-5 py-3.5 bg-neutral-100 border-2 border-neutral-200 hover:border-neutral-300 focus:border-primary/40 focus:bg-white rounded-xl font-bold text-neutral-900 transition-all outline-none"
+                        >
+                          <option value="">공개 안 함</option>
+                          {editingClassSurveyForms.map(f => (
+                            <option key={f.id} value={f.id}>{f.title}</option>
+                          ))}
+                        </select>
+                        {editingClassSurveyForms.length === 0 && (
+                          <p className="text-xs font-bold text-neutral-400 ml-1">이 학급에 생성된 설문이 아직 없습니다.</p>
+                        )}
                       </div>
                     </motion.div>
                   ) : null}

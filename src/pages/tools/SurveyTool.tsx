@@ -12,7 +12,7 @@ import { useAuth } from '../../lib/auth';
 import { surveyAnalysisAI } from '../../lib/gemini';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type QuestionType = 'multiple_choice' | 'yes_no' | 'star_rating' | 'short_text' | 'opinion_scale' | 'ranking';
+export type QuestionType = 'multiple_choice' | 'yes_no' | 'star_rating' | 'short_text' | 'opinion_scale' | 'ranking';
 type FormStatus = 'draft' | 'open' | 'closed';
 type View = 'list' | 'builder' | 'live';
 
@@ -28,7 +28,7 @@ interface SurveyForm {
   created_at: string;
 }
 
-interface SurveyQuestion {
+export interface SurveyQuestion {
   id: string;
   form_id: string;
   order_index: number;
@@ -37,7 +37,7 @@ interface SurveyQuestion {
   options: { label: string }[];
 }
 
-interface SurveyAnswer {
+export interface SurveyAnswer {
   id: string;
   response_id: string;
   question_id: string;
@@ -54,7 +54,7 @@ interface SurveyResponse {
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const generatePin = () => Math.floor(100000 + Math.random() * 900000).toString();
 
-const TYPE_META: Record<QuestionType, { icon: React.ReactNode; label: string; color: string }> = {
+export const TYPE_META: Record<QuestionType, { icon: React.ReactNode; label: string; color: string }> = {
   multiple_choice: { icon: <List size={14} />, label: '객관식', color: '#3B82F6' },
   yes_no:          { icon: <ToggleLeft size={14} />, label: '예/아니오', color: '#10B981' },
   star_rating:     { icon: <Star size={14} />, label: '별점', color: '#F59E0B' },
@@ -64,7 +64,7 @@ const TYPE_META: Record<QuestionType, { icon: React.ReactNode; label: string; co
 };
 
 // ─── Result Charts ─────────────────────────────────────────────────────────────
-function MultipleChoiceChart({ question, answers }: { question: SurveyQuestion; answers: SurveyAnswer[] }) {
+export function MultipleChoiceChart({ question, answers }: { question: SurveyQuestion; answers: SurveyAnswer[] }) {
   const counts = question.options.map((_, i) => answers.filter(a => (a.value as any).selected === i).length);
   const total = counts.reduce((s, c) => s + c, 0);
   const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
@@ -99,7 +99,7 @@ function MultipleChoiceChart({ question, answers }: { question: SurveyQuestion; 
   );
 }
 
-function YesNoChart({ answers }: { answers: SurveyAnswer[] }) {
+export function YesNoChart({ answers }: { answers: SurveyAnswer[] }) {
   const yes = answers.filter(a => (a.value as any).value === true).length;
   const no = answers.filter(a => (a.value as any).value === false).length;
   const total = yes + no;
@@ -133,7 +133,7 @@ function YesNoChart({ answers }: { answers: SurveyAnswer[] }) {
   );
 }
 
-function StarRatingChart({ answers }: { answers: SurveyAnswer[] }) {
+export function StarRatingChart({ answers }: { answers: SurveyAnswer[] }) {
   const ratings = [1, 2, 3, 4, 5];
   const counts = ratings.map(r => answers.filter(a => (a.value as any).rating === r).length);
   const total = counts.reduce((s, c) => s + c, 0);
@@ -188,7 +188,7 @@ function buildWordFreq(answers: SurveyAnswer[]): { word: string; count: number }
   return Object.entries(freq).map(([word, count]) => ({ word, count })).sort((a, b) => b.count - a.count).slice(0, 30);
 }
 
-function ShortTextChart({ answers }: { answers: SurveyAnswer[] }) {
+export function ShortTextChart({ answers }: { answers: SurveyAnswer[] }) {
   const texts = answers.map(a => (a.value as any).text as string).filter(Boolean);
   const words = buildWordFreq(answers);
   const maxCount = words[0]?.count ?? 1;
@@ -227,7 +227,7 @@ function ShortTextChart({ answers }: { answers: SurveyAnswer[] }) {
   );
 }
 
-function OpinionScaleChart({ question, answers }: { question: SurveyQuestion; answers: SurveyAnswer[] }) {
+export function OpinionScaleChart({ question, answers }: { question: SurveyQuestion; answers: SurveyAnswer[] }) {
   const maxVal = parseInt((question.options[2]?.label ?? '5'), 10) || 5;
   const lowLabel = question.options[0]?.label ?? '전혀 그렇지 않다';
   const highLabel = question.options[1]?.label ?? '매우 그렇다';
@@ -271,7 +271,7 @@ function OpinionScaleChart({ question, answers }: { question: SurveyQuestion; an
   );
 }
 
-function RankingChart({ question, answers }: { question: SurveyQuestion; answers: SurveyAnswer[] }) {
+export function RankingChart({ question, answers }: { question: SurveyQuestion; answers: SurveyAnswer[] }) {
   const n = question.options.length;
   if (n === 0) return null;
   const scores = question.options.map((_, optIdx) =>

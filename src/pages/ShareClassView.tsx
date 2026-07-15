@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { animate, motion, useReducedMotion } from 'framer-motion';
+import { animate, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import type { XCell } from '../lib/xlsxBuilder';
@@ -35,7 +35,13 @@ import {
   File as FileIcon,
   Sparkles,
   Quote,
+  BarChart2,
 } from 'lucide-react';
+import { ShortTextChart } from './tools/SurveyTool';
+import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
+import {
+  AttendanceDonutChart, MultipleChoiceBarChart, YesNoPieChart, StarRatingBarChart, OpinionScaleBarChart, RankingBarChart,
+} from '../components/share/ShareCharts';
 
 const CountUpNumber = ({ value }: { value: number }) => {
   const [display, setDisplay] = useState(0);
@@ -48,6 +54,24 @@ const CountUpNumber = ({ value }: { value: number }) => {
     return controls.stop;
   }, [value]);
   return <>{display}</>;
+};
+
+const RingStat = ({ percent, size = 48, stroke = 5, color = '#7c3aed' }: { percent: number; size?: number; stroke?: number; color?: string }) => {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F3F4F6" strokeWidth={stroke} />
+      <motion.circle
+        cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={c}
+        initial={{ strokeDashoffset: c }}
+        animate={{ strokeDashoffset: c - (percent / 100) * c }}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        transition={{ duration: 1, ease: 'easeOut' }}
+      />
+    </svg>
+  );
 };
 
 const RESULT_TYPE_BADGE: Record<string, { icon: JSX.Element; color: string; label: string }> = {
@@ -157,10 +181,13 @@ const ShareClassView = () => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const [evalMap, setEvalMap] = useState<Record<string, EvalRow>>({});
+  const [attendanceSummary, setAttendanceSummary] = useState<{ total: number; byStatus: Record<string, number> } | null>(null);
+  const [surveyResult, setSurveyResult] = useState<{ formTitle: string; questions: SurveyQuestion[]; answersByQuestion: Record<string, SurveyAnswer[]>; responseCount: number } | null>(null);
 
   // ── UI 상태 ────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech'>('results');
+  const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech' | 'survey'>('results');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [modalStudentId, setModalStudentId] = useState<string | null>(null);
   const [studentSubTab, setStudentSubTab] = useState<Record<string, 'obs' | 'results'>>({});
   const [obsPageByStudent, setObsPageByStudent] = useState<Record<string, number>>({});
   const [resultsPageByStudent, setResultsPageByStudent] = useState<Record<string, number>>({});
@@ -179,7 +206,7 @@ const ShareClassView = () => {
       setMetaLoading(true);
       const { data: cls, error } = await supabase
         .from('classes')
-        .select('id, name, subject, weekly_plan, share_enabled, teacher_id')
+        .select('id, name, subject, weekly_plan, share_enabled, teacher_id, show_attendance_summary, shared_survey_form_id')
         .eq('id', classId)
         .single();
 
@@ -282,6 +309,44 @@ const ShareClassView = () => {
       setGalleryItems([...(gallery || []), ...driveResult.items.map(driveItemToPublicGalleryItem)]);
       setDriveFolders(driveResult.folders);
 
+      // 출석 요약 (교사가 공유페이지 노출을 켠 경우에만 집계)
+      if (classInfo.show_attendance_summary ?? true) {
+        const { data: attendanceRows } = await supabase
+          .from('attendance')
+          .select('status')
+          .eq('class_id', classId);
+        const byStatus: Record<string, number> = {};
+        (attendanceRows || []).forEach((r: any) => {
+          byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+        });
+        setAttendanceSummary({ total: (attendanceRows || []).length, byStatus });
+      } else {
+        setAttendanceSummary(null);
+      }
+
+      // 설문 결과 (교사가 지정한 설문 1개, 응답자 식별 없이 집계만)
+      if (classInfo.shared_survey_form_id) {
+        const [{ data: form }, { data: questions }, { data: answers }, { count: responseCount }] = await Promise.all([
+          supabase.from('survey_forms').select('title').eq('id', classInfo.shared_survey_form_id).single(),
+          supabase.from('survey_questions').select('id, form_id, order_index, type, text, options').eq('form_id', classInfo.shared_survey_form_id).order('order_index', { ascending: true }),
+          supabase.from('survey_answers').select('id, response_id, question_id, form_id, value').eq('form_id', classInfo.shared_survey_form_id),
+          supabase.from('survey_responses').select('id', { count: 'exact', head: true }).eq('form_id', classInfo.shared_survey_form_id),
+        ]);
+        const answersByQuestion: Record<string, SurveyAnswer[]> = {};
+        (answers || []).forEach((a: any) => {
+          if (!answersByQuestion[a.question_id]) answersByQuestion[a.question_id] = [];
+          answersByQuestion[a.question_id].push(a);
+        });
+        setSurveyResult({
+          formTitle: form?.title || '설문',
+          questions: (questions || []) as SurveyQuestion[],
+          answersByQuestion,
+          responseCount: responseCount || 0,
+        });
+      } else {
+        setSurveyResult(null);
+      }
+
       setLastUpdated(new Date());
     } catch (err) {
       console.error('ShareClassView fetchData error:', err);
@@ -314,16 +379,6 @@ const ShareClassView = () => {
     setVerifying(false);
   };
 
-  // ── 기타 ──────────────────────────────────────────────────────────────────
-  const toggleExpand = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-  const expandAll = () => setExpandedIds(new Set(studentData.map((sd) => sd.student.id)));
-  const collapseAll = () => setExpandedIds(new Set());
 
   const allWeeks = useMemo(() =>
     Array.from(new Set([
@@ -358,34 +413,61 @@ const ShareClassView = () => {
     [studentData, evalMap]
   );
 
-  const spotlightQuote = useMemo(() => {
-    let best: { student: StudentRow; content: string } | null = null;
-    let bestScore = -Infinity;
+  const spotlightQuotes = useMemo(() => {
+    const byStudent = new Map<string, { student: StudentRow; content: string }[]>();
     for (const sd of studentData) {
       for (const o of sd.obs) {
         const text = (o.content || '').trim();
         if (text.length < 20 || text.length > 220) continue;
-        const score = -Math.abs(text.length - 90);
-        if (score > bestScore) {
-          bestScore = score;
-          best = { student: sd.student, content: text };
-        }
+        const arr = byStudent.get(sd.student.id) ?? [];
+        arr.push({ student: sd.student, content: text });
+        byStudent.set(sd.student.id, arr);
       }
     }
-    return best;
+    const perStudent = Array.from(byStudent.values()).map(arr => arr[Math.floor(Math.random() * arr.length)]);
+    for (let i = perStudent.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [perStudent[i], perStudent[j]] = [perStudent[j], perStudent[i]];
+    }
+    return perStudent.slice(0, 3);
   }, [studentData]);
 
-  const snapshotResult = useMemo(() => {
-    let best: { student: StudentRow; result: ResultRow } | null = null;
+  const [spotlightIndex, setSpotlightIndex] = useState(0);
+  useEffect(() => { setSpotlightIndex(0); }, [spotlightQuotes.length]);
+  useEffect(() => {
+    if (reduceMotion || spotlightQuotes.length <= 1) return;
+    const timer = setInterval(() => {
+      setSpotlightIndex((i) => (i + 1) % spotlightQuotes.length);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [reduceMotion, spotlightQuotes.length]);
+
+  const snapshotResults = useMemo(() => {
+    const byStudent = new Map<string, { student: StudentRow; result: ResultRow }[]>();
     for (const sd of studentData) {
       for (const r of sd.results) {
-        if (!best || new Date(r.created_at).getTime() > new Date(best.result.created_at).getTime()) {
-          best = { student: sd.student, result: r };
-        }
+        const arr = byStudent.get(sd.student.id) ?? [];
+        arr.push({ student: sd.student, result: r });
+        byStudent.set(sd.student.id, arr);
       }
     }
-    return best;
+    const perStudent = Array.from(byStudent.values()).map((arr) => arr[Math.floor(Math.random() * arr.length)]);
+    for (let i = perStudent.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [perStudent[i], perStudent[j]] = [perStudent[j], perStudent[i]];
+    }
+    return perStudent.slice(0, 3);
   }, [studentData]);
+
+  const [snapshotIndex, setSnapshotIndex] = useState(0);
+  useEffect(() => { setSnapshotIndex(0); }, [snapshotResults.length]);
+  useEffect(() => {
+    if (reduceMotion || snapshotResults.length <= 1) return;
+    const timer = setInterval(() => {
+      setSnapshotIndex((i) => (i + 1) % snapshotResults.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [reduceMotion, snapshotResults.length]);
 
   const allGalleryImgs = filteredGallery.filter((g) => g.file_type === 'image');
   const allGalleryImgUrls = allGalleryImgs.map((g) => g.file_url);
@@ -724,82 +806,126 @@ const ShareClassView = () => {
               </span>
               <span className="text-base sm:text-lg font-bold text-gray-400">명의 학생이 참여 중</span>
             </div>
-
-            {/* 통계 */}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: '활동 참여', value: activeCount, unit: '명', icon: CheckCircle2 },
-                { label: '활동 기록', value: totalObs, unit: '건', icon: FileText },
-                { label: '결과물', value: totalResults, unit: '건', icon: FolderOpen },
-              ].map(({ label, value, unit, icon: Icon }) => (
-                <div key={label} className="rounded-2xl p-4 bg-gray-50 border border-gray-100">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Icon size={13} className="text-violet-500" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</p>
-                  </div>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl sm:text-3xl font-black text-gray-900"><CountUpNumber value={value} /></span>
-                    <span className="text-sm font-bold text-gray-400">{unit}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
           </motion.div>
         </div>
 
-        {/* 피처 카드 그리드 */}
+        {/* 통합 통계 대시보드 카드 */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-2 bg-white">
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { key: 'results' as const, label: '결과 확인', value: totalResults, unit: '건', icon: FileText, color: 'blue' as const },
+          {(() => {
+            const participationRate = studentData.length > 0 ? Math.round((activeCount / studentData.length) * 100) : 0;
+            const navCards = [
+              { key: 'results' as const, label: '결과물', value: totalResults, unit: '건', icon: FolderOpen, color: 'blue' as const },
               { key: 'gallery' as const, label: '갤러리', value: galleryItems.length, unit: '장', icon: Images, color: 'emerald' as const },
-              { key: 'setech' as const, label: '학급 기록', value: setechDoneCount, unit: '건', icon: BookOpen, color: 'amber' as const },
-            ].map(({ key, label, value, unit, icon: Icon, color }, i) => {
-              const filled = value > 0;
-              const colorCls = {
-                blue: { tint: 'bg-blue-50', ink: 'text-blue-600', border: 'border-blue-100' },
-                emerald: { tint: 'bg-emerald-50', ink: 'text-emerald-600', border: 'border-emerald-100' },
-                amber: { tint: 'bg-amber-50', ink: 'text-amber-600', border: 'border-amber-100' },
-              }[color];
-              return (
+              { key: 'setech' as const, label: '학생 기록', value: setechDoneCount, unit: '건', icon: BookOpen, color: 'amber' as const },
+              ...(surveyResult ? [{ key: 'survey' as const, label: '설문 결과', value: surveyResult.responseCount, unit: '명', icon: BarChart2, color: 'pink' as const }] : []),
+            ];
+            const maxNavValue = Math.max(1, ...navCards.map((c) => c.value));
+            const colorMap = {
+              blue: { tint: 'bg-blue-50', ink: 'text-blue-600', border: 'border-blue-100', bar: 'bg-blue-400' },
+              emerald: { tint: 'bg-emerald-50', ink: 'text-emerald-600', border: 'border-emerald-100', bar: 'bg-emerald-400' },
+              amber: { tint: 'bg-amber-50', ink: 'text-amber-600', border: 'border-amber-100', bar: 'bg-amber-400' },
+              pink: { tint: 'bg-pink-50', ink: 'text-pink-600', border: 'border-pink-100', bar: 'bg-pink-400' },
+            };
+            const goTo = (key: typeof activeTab) => {
+              setActiveTab(key);
+              document.getElementById('main-content')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+            };
+            return (
+              <div className={`grid grid-cols-2 gap-3 ${navCards.length === 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
+                {/* 참여율 카드 (링 차트) */}
                 <motion.button
-                  key={label}
-                  onClick={() => {
-                    setActiveTab(key);
-                    document.getElementById('main-content')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-                  }}
+                  onClick={() => goTo('results')}
                   initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
                   whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '-40px' }}
-                  transition={{ duration: 0.4, delay: i * 0.06, ease: 'easeOut' }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
                   whileHover={reduceMotion ? undefined : { y: -4 }}
-                  className={`text-left rounded-2xl border p-4 transition-shadow ${filled ? `${colorCls.tint} ${colorCls.border} shadow-sm hover:shadow-md` : 'bg-white border-gray-100'}`}
+                  className="text-left rounded-2xl border border-violet-100 bg-violet-50 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow"
                 >
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${filled ? 'bg-white/70' : 'bg-gray-50'}`}>
-                    <Icon size={15} className={filled ? colorCls.ink : 'text-gray-300'} />
-                  </div>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${filled ? colorCls.ink : 'text-gray-400'}`}>{label}</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-xl font-black ${filled ? 'text-gray-900' : 'text-gray-400'}`}><CountUpNumber value={value} /></span>
-                    <span className={`text-xs font-bold ${filled ? 'text-gray-400' : 'text-gray-300'}`}>{unit}</span>
+                  <RingStat percent={participationRate} color="#7c3aed" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-violet-600 mb-0.5">활동 참여</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xl font-black text-gray-900"><CountUpNumber value={participationRate} /></span>
+                      <span className="text-xs font-bold text-gray-400">%</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-gray-400">{activeCount}/{studentData.length}명</p>
                   </div>
                 </motion.button>
-              );
-            })}
-          </div>
+
+                {navCards.map(({ key, label, value, unit, icon: Icon, color }, i) => {
+                  const c = colorMap[color];
+                  const filled = value > 0;
+                  const barPct = Math.round((value / maxNavValue) * 100);
+                  return (
+                    <motion.button
+                      key={label}
+                      onClick={() => goTo(key)}
+                      initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+                      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-40px' }}
+                      transition={{ duration: 0.4, delay: (i + 1) * 0.06, ease: 'easeOut' }}
+                      whileHover={reduceMotion ? undefined : { y: -4 }}
+                      className={`text-left rounded-2xl border p-4 transition-shadow ${filled ? `${c.tint} ${c.border} shadow-sm hover:shadow-md` : 'bg-white border-gray-100'}`}
+                    >
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${filled ? 'bg-white/70' : 'bg-gray-50'}`}>
+                        <Icon size={15} className={filled ? c.ink : 'text-gray-300'} />
+                      </div>
+                      <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${filled ? c.ink : 'text-gray-400'}`}>{label}</p>
+                      <div className="flex items-baseline gap-1 mb-2">
+                        <span className={`text-xl font-black ${filled ? 'text-gray-900' : 'text-gray-400'}`}><CountUpNumber value={value} /></span>
+                        <span className={`text-xs font-bold ${filled ? 'text-gray-400' : 'text-gray-300'}`}>{unit}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-black/5 overflow-hidden">
+                        <motion.div
+                          className={`h-full rounded-full ${filled ? c.bar : 'bg-transparent'}`}
+                          initial={{ width: 0 }}
+                          whileInView={{ width: `${barPct}%` }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.6, delay: (i + 1) * 0.06, ease: 'easeOut' }}
+                        />
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
-        {/* 스포트라이트 인용구 */}
-        {spotlightQuote && (
-          <div className="border-t border-b border-gray-100 bg-violet-50/40">
+        {/* 스포트라이트 인용구 (자동 슬라이드 캐러셀) */}
+        {spotlightQuotes.length > 0 && (
+          <div className="border-t border-b border-gray-100 bg-violet-50/40 overflow-hidden">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
               <Quote size={26} className="text-violet-300 mb-3" />
-              <blockquote className="text-lg sm:text-2xl font-bold text-gray-900 leading-snug tracking-tight mb-4">
-                “{spotlightQuote.content}”
-              </blockquote>
-              <p className="text-xs font-black uppercase tracking-widest text-gray-400">
-                {classInfo?.name} · {spotlightQuote.student.full_name}
-              </p>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={spotlightIndex}
+                  initial={reduceMotion ? undefined : { opacity: 0, x: 16 }}
+                  animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, x: -16 }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                >
+                  <blockquote className="text-lg sm:text-2xl font-bold text-gray-900 leading-snug tracking-tight mb-4">
+                    “{spotlightQuotes[spotlightIndex].content}”
+                  </blockquote>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+                    {classInfo?.name} · {spotlightQuotes[spotlightIndex].student.full_name}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
+              {spotlightQuotes.length > 1 && (
+                <div className="flex items-center gap-1.5 mt-6">
+                  {spotlightQuotes.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setSpotlightIndex(i)}
+                      aria-label={`${i + 1}번째 인용구 보기`}
+                      className={`h-1.5 rounded-full transition-all ${i === spotlightIndex ? 'w-6 bg-violet-500' : 'w-1.5 bg-violet-200 hover:bg-violet-300'}`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -812,10 +938,11 @@ const ShareClassView = () => {
                 { key: 'results', label: '결과 확인', icon: FileText },
                 { key: 'gallery', label: `갤러리${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`, icon: Images },
                 { key: 'setech', label: '학생 기록', icon: BookOpen },
+                ...(surveyResult ? [{ key: 'survey', label: '설문 결과', icon: BarChart2 }] : []),
               ].map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
-                  onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech')}
+                  onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech' | 'survey')}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
                     activeTab === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
                   }`}
@@ -868,34 +995,87 @@ const ShareClassView = () => {
           {/* ── 결과 확인 탭 ── */}
           {activeTab === 'results' && (
             <>
-              {/* 결과물 스냅샷 카드 */}
-              {snapshotResult && (
-                <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4 print:hidden">
-                  <div className="w-11 h-11 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-                    {snapshotResult.result.image_url
-                      ? <ImageIcon size={18} className="text-violet-500" />
-                      : snapshotResult.result.link_url
-                        ? <Link2 size={18} className="text-violet-500" />
-                        : snapshotResult.result.file_url
-                          ? <FileIcon size={18} className="text-violet-500" />
-                          : <AlignLeft size={18} className="text-violet-500" />}
+              {/* 결과물 스냅샷 카드 (랜덤 3개 스포트라이트 슬라이드) */}
+              {snapshotResults.length > 0 && (() => {
+                const { student, result: r } = snapshotResults[snapshotIndex];
+                const url = r.link_url || r.image_url || r.file_url || null;
+                const cardInner = (
+                  <>
+                    <div className="w-11 h-11 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                      {r.image_url
+                        ? <ImageIcon size={18} className="text-violet-500" />
+                        : r.link_url
+                          ? <Link2 size={18} className="text-violet-500" />
+                          : r.file_url
+                            ? <FileIcon size={18} className="text-violet-500" />
+                            : <AlignLeft size={18} className="text-violet-500" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-black text-gray-900 text-sm truncate">{r.title || '제목 없음'}</p>
+                      <p className="text-xs text-gray-400 font-semibold truncate">
+                        {student.full_name} · {new Date(r.created_at).toLocaleDateString('ko-KR')}
+                      </p>
+                    </div>
+                    {RESULT_TYPE_BADGE[r.result_type] && (
+                      <span className={`shrink-0 flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full ${RESULT_TYPE_BADGE[r.result_type].color}`}>
+                        {RESULT_TYPE_BADGE[r.result_type].icon}
+                        {RESULT_TYPE_BADGE[r.result_type].label}
+                      </span>
+                    )}
+                    {url && <ExternalLink size={14} className="text-gray-300 shrink-0" />}
+                  </>
+                );
+                return (
+                  <div className="print:hidden">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={`${student.id}-${r.id}`}
+                        initial={reduceMotion ? undefined : { opacity: 0, x: 16 }}
+                        animate={reduceMotion ? undefined : { opacity: 1, x: 0 }}
+                        exit={reduceMotion ? undefined : { opacity: 0, x: -16 }}
+                        transition={{ duration: 0.4, ease: 'easeOut' }}
+                      >
+                        {url ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4 hover:border-violet-200 hover:shadow-sm transition-all"
+                          >
+                            {cardInner}
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4">
+                            {cardInner}
+                          </div>
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
+                    {snapshotResults.length > 1 && (
+                      <div className="flex items-center gap-1.5 mt-2.5 px-1">
+                        {snapshotResults.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setSnapshotIndex(i)}
+                            aria-label={`${i + 1}번째 결과물 보기`}
+                            className={`h-1.5 rounded-full transition-all ${i === snapshotIndex ? 'w-6 bg-violet-500' : 'w-1.5 bg-violet-200 hover:bg-violet-300'}`}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-black text-gray-900 text-sm truncate">{snapshotResult.result.title || '제목 없음'}</p>
-                    <p className="text-xs text-gray-400 font-semibold truncate">
-                      {snapshotResult.student.full_name} · {new Date(snapshotResult.result.created_at).toLocaleDateString('ko-KR')}
-                    </p>
-                  </div>
-                  {RESULT_TYPE_BADGE[snapshotResult.result.result_type] && (
-                    <span className={`shrink-0 flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full ${RESULT_TYPE_BADGE[snapshotResult.result.result_type].color}`}>
-                      {RESULT_TYPE_BADGE[snapshotResult.result.result_type].icon}
-                      {RESULT_TYPE_BADGE[snapshotResult.result.result_type].label}
-                    </span>
-                  )}
+                );
+              })()}
+
+              {/* 출석 요약 카드 (학급 전체 통계만, 학생별 상세 없음) */}
+              {attendanceSummary && attendanceSummary.total > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 print:hidden">
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3">출석 요약</p>
+                  <AttendanceDonutChart total={attendanceSummary.total} byStatus={attendanceSummary.byStatus} />
                 </div>
               )}
 
-              {/* 주차 필터 + 전체 열기/닫기 */}
+              {/* 주차 필터 */}
               {allWeeks.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap print:hidden">
                   <span className="text-xs font-black text-gray-500 mr-1">주차:</span>
@@ -918,153 +1098,38 @@ const ShareClassView = () => {
                       {w}주차
                     </button>
                   ))}
-                  <div className="ml-auto flex items-center gap-1.5">
-                    <button onClick={expandAll} className="text-xs font-black text-gray-500 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-all">전체 열기</button>
-                    <button onClick={collapseAll} className="text-xs font-black text-gray-500 hover:text-gray-800 px-2 py-1 rounded-lg hover:bg-gray-100 transition-all">전체 닫기</button>
-                  </div>
                 </div>
               )}
 
               {/* 학생 목록 */}
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {filteredData.map(({ student, obs, results }, i) => {
-                  const isExpanded = expandedIds.has(student.id);
                   const hasActivity = obs.length > 0 || results.length > 0;
                   return (
-                    <motion.div
+                    <motion.button
                       key={student.id}
+                      onClick={() => hasActivity && setModalStudentId(student.id)}
+                      disabled={!hasActivity}
                       initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
                       whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                       viewport={{ once: true, margin: '-40px' }}
                       transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.04, ease: 'easeOut' }}
-                      className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all print:break-inside-avoid ${hasActivity ? 'border-gray-200' : 'border-gray-100'}`}
+                      whileHover={hasActivity && !reduceMotion ? { y: -4 } : undefined}
+                      className={`text-left bg-white rounded-2xl border shadow-sm p-4 transition-all ${hasActivity ? 'border-gray-200 hover:shadow-md cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
                     >
-                      <button
-                        onClick={() => hasActivity && toggleExpand(student.id)}
-                        disabled={!hasActivity}
-                        className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${hasActivity ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default opacity-50'}`}
-                      >
+                      <div className="flex items-center justify-between mb-3">
                         <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
                           <span className="text-sm font-black text-gray-600">{student.student_number ?? '—'}</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-black text-gray-900 text-sm">{student.full_name}</p>
-                          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                            {obs.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 활동 기록 {obs.length}건</span>}
-                            {results.length > 0 && <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {results.length}건</span>}
-                            {!hasActivity && <span className="text-[10px] font-bold text-gray-400">미제출</span>}
-                          </div>
-                        </div>
-                        {hasActivity && <div className="shrink-0 text-gray-400">{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>}
-                      </button>
-
-                      {isExpanded && (() => {
-                        const subTab = studentSubTab[student.id] ?? (obs.length > 0 ? 'obs' : 'results');
-
-                        const obsTotalPages = Math.max(1, Math.ceil(obs.length / OBS_PAGE_SIZE));
-                        const obsSafePage = Math.min(obsPageByStudent[student.id] ?? 1, obsTotalPages);
-                        const pagedObs = obs.slice((obsSafePage - 1) * OBS_PAGE_SIZE, obsSafePage * OBS_PAGE_SIZE);
-
-                        const resultsTotalPages = Math.max(1, Math.ceil(results.length / RESULTS_PAGE_SIZE));
-                        const resultsSafePage = Math.min(resultsPageByStudent[student.id] ?? 1, resultsTotalPages);
-                        const pagedResults = results.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
-
-                        return (
-                          <div className="border-t border-gray-100 bg-gray-50/50">
-                            <div className="flex gap-1 px-5 pt-3">
-                              <button
-                                onClick={() => setStudentSubTab((prev) => ({ ...prev, [student.id]: 'obs' }))}
-                                disabled={obs.length === 0}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                                  subTab === 'obs' ? 'bg-violet-100 text-violet-700 border border-violet-200' : 'bg-white text-gray-400 border border-gray-200 hover:text-gray-600'
-                                }`}
-                              >
-                                📝 활동 기록 {obs.length}건
-                              </button>
-                              <button
-                                onClick={() => setStudentSubTab((prev) => ({ ...prev, [student.id]: 'results' }))}
-                                disabled={results.length === 0}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                                  subTab === 'results' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-white text-gray-400 border border-gray-200 hover:text-gray-600'
-                                }`}
-                              >
-                                📁 결과물 {results.length}건
-                              </button>
-                            </div>
-                            <div className="px-5 py-4 space-y-3">
-                              {subTab === 'obs' && pagedObs.map((o) => (
-                                <div key={o.id} className="bg-white rounded-xl border border-violet-100 p-4">
-                                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                    <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
-                                    {o.week_number && <span className="text-[10px] font-bold text-gray-400">{o.week_number}주차</span>}
-                                    <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
-                                  </div>
-                                  {o.activity_name && <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
-                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
-                                </div>
-                              ))}
-                              {subTab === 'obs' && (
-                                <Pagination
-                                  page={obsSafePage}
-                                  totalPages={obsTotalPages}
-                                  onChange={(p) => setObsPageByStudent((prev) => ({ ...prev, [student.id]: p }))}
-                                />
-                              )}
-
-                              {subTab === 'results' && pagedResults.map((r) => {
-                                const allImgResults = results.filter((x) => x.image_url);
-                                const allImgUrls = allImgResults.map((x) => x.image_url as string);
-                                const allImgNames = allImgResults.map((x) => `${x.title || '결과물'}.webp`);
-                                const typeBadge = RESULT_TYPE_BADGE[r.result_type];
-                                return (
-                                  <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
-                                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
-                                      {typeBadge && (
-                                        <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge.color}`}>
-                                          {typeBadge.icon} {typeBadge.label}
-                                        </span>
-                                      )}
-                                      {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
-                                      <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
-                                    </div>
-                                    {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
-                                    {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
-                                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
-                                    )}
-                                    {r.image_url && (
-                                      <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, names: allImgNames, index: allImgUrls.indexOf(r.image_url as string) })}>
-                                        <img src={r.image_url} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
-                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {r.link_url && (
-                                      <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-                                        <ExternalLink size={14} /> 링크 열기
-                                      </a>
-                                    )}
-                                    {r.file_url && (
-                                      <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
-                                        <Download size={14} /> 파일 다운로드
-                                      </a>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              {subTab === 'results' && (
-                                <Pagination
-                                  page={resultsSafePage}
-                                  totalPages={resultsTotalPages}
-                                  onChange={(p) => setResultsPageByStudent((prev) => ({ ...prev, [student.id]: p }))}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </motion.div>
+                        {hasActivity && <ChevronRight size={15} className="text-gray-300" />}
+                      </div>
+                      <p className="font-black text-gray-900 text-sm truncate mb-1.5">{student.full_name}</p>
+                      <div className="flex flex-col gap-1">
+                        {obs.length > 0 && <span className="text-[10px] font-bold text-violet-600">📝 활동 기록 {obs.length}건</span>}
+                        {results.length > 0 && <span className="text-[10px] font-bold text-emerald-600">📁 결과물 {results.length}건</span>}
+                        {!hasActivity && <span className="text-[10px] font-bold text-gray-400">미제출</span>}
+                      </div>
+                    </motion.button>
                   );
                 })}
               </div>
@@ -1278,6 +1343,30 @@ const ShareClassView = () => {
             );
           })()}
 
+          {/* ── 설문 결과 탭 (교사가 지정한 설문 1개, 집계만 노출) ── */}
+          {activeTab === 'survey' && surveyResult && (
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between">
+                <p className="font-black text-gray-900">{surveyResult.formTitle}</p>
+                <p className="text-xs font-bold text-gray-400">총 {surveyResult.responseCount}명 응답</p>
+              </div>
+              {surveyResult.questions.map((q, i) => {
+                const answers = surveyResult.answersByQuestion[q.id] || [];
+                return (
+                  <div key={q.id} className="bg-white rounded-2xl border border-gray-100 p-5">
+                    <p className="font-black text-gray-900 text-sm mb-3">{i + 1}. {q.text}</p>
+                    {q.type === 'multiple_choice' && <MultipleChoiceBarChart question={q} answers={answers} />}
+                    {q.type === 'yes_no' && <YesNoPieChart answers={answers} />}
+                    {q.type === 'star_rating' && <StarRatingBarChart answers={answers} />}
+                    {q.type === 'short_text' && <ShortTextChart answers={answers} />}
+                    {q.type === 'opinion_scale' && <OpinionScaleBarChart question={q} answers={answers} />}
+                    {q.type === 'ranking' && <RankingBarChart question={q} answers={answers} />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* 학교 도입 유도 배너 */}
           <motion.div
             initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
@@ -1323,6 +1412,146 @@ const ShareClassView = () => {
           </div>
         </main>
       )}
+
+      {/* 학생 상세 모달 */}
+      <AnimatePresence>
+        {modalStudentId && (() => {
+          const entry = filteredData.find((d) => d.student.id === modalStudentId);
+          if (!entry) return null;
+          const { student, obs, results } = entry;
+          const subTab = studentSubTab[student.id] ?? (obs.length > 0 ? 'obs' : 'results');
+
+          const obsTotalPages = Math.max(1, Math.ceil(obs.length / OBS_PAGE_SIZE));
+          const obsSafePage = Math.min(obsPageByStudent[student.id] ?? 1, obsTotalPages);
+          const pagedObs = obs.slice((obsSafePage - 1) * OBS_PAGE_SIZE, obsSafePage * OBS_PAGE_SIZE);
+
+          const resultsTotalPages = Math.max(1, Math.ceil(results.length / RESULTS_PAGE_SIZE));
+          const resultsSafePage = Math.min(resultsPageByStudent[student.id] ?? 1, resultsTotalPages);
+          const pagedResults = results.slice((resultsSafePage - 1) * RESULTS_PAGE_SIZE, resultsSafePage * RESULTS_PAGE_SIZE);
+
+          return (
+            <motion.div
+              key="student-modal-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[250] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+              onClick={() => setModalStudentId(null)}
+            >
+              <motion.div
+                initial={reduceMotion ? undefined : { y: 24, opacity: 0 }}
+                animate={reduceMotion ? undefined : { y: 0, opacity: 1 }}
+                exit={reduceMotion ? undefined : { y: 24, opacity: 0 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
+              >
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-black text-gray-600">{student.student_number ?? '—'}</span>
+                  </div>
+                  <p className="font-black text-gray-900 text-sm flex-1 min-w-0 truncate">{student.full_name}</p>
+                  <button onClick={() => setModalStudentId(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors shrink-0">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="flex gap-1 px-5 pt-3 shrink-0">
+                  <button
+                    onClick={() => setStudentSubTab((prev) => ({ ...prev, [student.id]: 'obs' }))}
+                    disabled={obs.length === 0}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                      subTab === 'obs' ? 'bg-violet-100 text-violet-700 border border-violet-200' : 'bg-white text-gray-400 border border-gray-200 hover:text-gray-600'
+                    }`}
+                  >
+                    📝 활동 기록 {obs.length}건
+                  </button>
+                  <button
+                    onClick={() => setStudentSubTab((prev) => ({ ...prev, [student.id]: 'results' }))}
+                    disabled={results.length === 0}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                      subTab === 'results' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-white text-gray-400 border border-gray-200 hover:text-gray-600'
+                    }`}
+                  >
+                    📁 결과물 {results.length}건
+                  </button>
+                </div>
+
+                <div className="px-5 py-4 space-y-3 overflow-y-auto">
+                  {subTab === 'obs' && pagedObs.map((o) => (
+                    <div key={o.id} className="bg-white rounded-xl border border-violet-100 p-4">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className="text-[10px] font-black text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">📝 활동 기록</span>
+                        {o.week_number && <span className="text-[10px] font-bold text-gray-400">{o.week_number}주차</span>}
+                        <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(o.created_at).toLocaleDateString('ko-KR')}</span>
+                      </div>
+                      {o.activity_name && <p className="text-[11px] font-semibold text-gray-500 mb-1.5">{o.activity_name}</p>}
+                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{o.content}</p>
+                    </div>
+                  ))}
+                  {subTab === 'obs' && (
+                    <Pagination
+                      page={obsSafePage}
+                      totalPages={obsTotalPages}
+                      onChange={(p) => setObsPageByStudent((prev) => ({ ...prev, [student.id]: p }))}
+                    />
+                  )}
+
+                  {subTab === 'results' && pagedResults.map((r) => {
+                    const allImgResults = results.filter((x) => x.image_url);
+                    const allImgUrls = allImgResults.map((x) => x.image_url as string);
+                    const allImgNames = allImgResults.map((x) => `${x.title || '결과물'}.webp`);
+                    const typeBadge = RESULT_TYPE_BADGE[r.result_type];
+                    return (
+                      <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">📁 결과물</span>
+                          {typeBadge && (
+                            <span className={`flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge.color}`}>
+                              {typeBadge.icon} {typeBadge.label}
+                            </span>
+                          )}
+                          {r.week_number && <span className="text-[10px] font-bold text-gray-400">{r.week_number}주차</span>}
+                          <span className="text-[10px] font-bold text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
+                        </div>
+                        {r.title && <p className="text-sm font-black text-gray-800 mb-1.5">{r.title}</p>}
+                        {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
+                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
+                        )}
+                        {r.image_url && (
+                          <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, names: allImgNames, index: allImgUrls.indexOf(r.image_url as string) })}>
+                            <img src={r.image_url} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
+                            </div>
+                          </div>
+                        )}
+                        {r.link_url && (
+                          <a href={r.link_url} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-indigo-500 hover:bg-indigo-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                            <ExternalLink size={14} /> 링크 열기
+                          </a>
+                        )}
+                        {r.file_url && (
+                          <a href={r.file_url} download target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-2 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+                            <Download size={14} /> 파일 다운로드
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {subTab === 'results' && (
+                    <Pagination
+                      page={resultsSafePage}
+                      totalPages={resultsTotalPages}
+                      onChange={(p) => setResultsPageByStudent((prev) => ({ ...prev, [student.id]: p }))}
+                    />
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* 이미지 라이트박스 */}
       {lightbox && (
