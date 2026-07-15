@@ -12,9 +12,71 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 import { useAuth } from '../lib/auth';
 import { downloadFile, openFile } from '../lib/fileUtils';
 import Pagination from '../components/Pagination';
+import CodeBlock from '../components/CodeBlock';
+import { renderMaterialCallout } from '../components/MaterialCallout';
+
+// 모듈 레벨로 고정 — 매 렌더마다 새 참조가 생기면 ReactMarkdown이 details DOM을 리마운트해서 토글 상태가 초기화됨
+const NOTE_MD_COMPONENTS: any = {
+  h1: ({ children }: any) => <h1 className="text-2xl font-black mb-4 mt-6 text-on-surface">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-xl font-black mb-3 mt-5 text-on-surface">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-lg font-black mb-2 mt-4 text-on-surface">{children}</h3>,
+  p: ({ children }: any) => <p className="mb-3 text-[15px] leading-relaxed text-on-surface">{children}</p>,
+  ul: ({ children }: any) => <ul className="list-disc pl-6 mb-3 space-y-1">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-6 mb-3 space-y-1">{children}</ol>,
+  li: ({ children }: any) => <li className="text-[15px] text-on-surface">{children}</li>,
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-4 border-emerald-400 pl-4 italic text-on-surface-variant my-3 bg-surface-container-low py-2 rounded-r-xl">
+      {children}
+    </blockquote>
+  ),
+  code: ({ children, className }: any) => {
+    if (!className) return <code className="bg-surface-container px-1.5 py-0.5 rounded text-sm font-mono text-primary">{children}</code>;
+    return <code className={className}>{children}</code>;
+  },
+  pre: ({ children }: any) => {
+    const child = (Array.isArray(children) ? children[0] : children) as any;
+    const lang = (child?.props?.className || '').replace('language-', '') || 'text';
+    const code = String(child?.props?.children ?? '').replace(/\n$/, '');
+    return <CodeBlock lang={lang} code={code} />;
+  },
+  a: ({ href, children }: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-600 underline hover:opacity-70">
+      {children}
+    </a>
+  ),
+  img: ({ src, alt, title }: any) => {
+    const wm = (title || '').match(/(?:^|,)width:(\d+)/);
+    const style = wm ? { width: `${wm[1]}px`, maxWidth: '100%' } : undefined;
+    return <img src={src} alt={alt} style={style} className="max-w-full rounded-xl my-3 shadow" />;
+  },
+  hr: () => <hr className="border-surface-container my-5" />,
+  strong: ({ children }: any) => <strong className="font-black text-on-surface">{children}</strong>,
+  em: ({ children }: any) => <em className="italic">{children}</em>,
+  table: ({ children }: any) => (
+    <div className="overflow-auto mb-3">
+      <table className="w-full border-collapse text-sm">{children}</table>
+    </div>
+  ),
+  th: ({ children }: any) => (
+    <th className="border border-surface-container px-3 py-2 bg-surface-container font-black text-left">{children}</th>
+  ),
+  td: ({ children }: any) => (
+    <td className="border border-surface-container px-3 py-2">{children}</td>
+  ),
+  details: ({ children }: any) => (
+    <details className="group my-3 rounded-xl border border-surface-container overflow-hidden">{children}</details>
+  ),
+  summary: ({ children }: any) => (
+    <summary className="px-4 py-2.5 bg-surface-container-low cursor-pointer font-black text-sm list-none flex items-center gap-2 hover:bg-surface-container transition-colors">
+      <span className="text-emerald-600 text-xs transition-transform duration-200 group-open:rotate-90">▶</span> {children}
+    </summary>
+  ),
+  div: (props: any) => renderMaterialCallout(props),
+};
 
 const StudentView = () => {
   const { id } = useParams<{ id: string }>();
@@ -1731,18 +1793,8 @@ const StudentView = () => {
               {/* 본문 스크롤 영역 */}
               <div className="flex-1 overflow-y-auto px-8 py-6">
                 {selectedNoteModal.content.trim() ? (
-                  <div className="prose prose-neutral max-w-none
-                    prose-headings:font-black prose-headings:text-on-surface
-                    prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
-                    prose-p:text-[15px] prose-p:leading-relaxed prose-p:text-on-surface
-                    prose-li:text-[15px] prose-li:text-on-surface
-                    prose-strong:font-black prose-strong:text-on-surface
-                    prose-blockquote:border-emerald-400 prose-blockquote:text-on-surface-variant
-                    prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm
-                    prose-pre:bg-surface-container-low prose-pre:rounded-2xl
-                    prose-a:text-emerald-600 prose-a:no-underline hover:prose-a:underline"
-                  >
-                    <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                  <div className="max-w-none">
+                    <ReactMarkdown components={NOTE_MD_COMPONENTS} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
                       {selectedNoteModal.content}
                     </ReactMarkdown>
                   </div>

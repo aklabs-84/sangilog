@@ -1462,13 +1462,21 @@ const Classroom = () => {
     }
   };
 
+  // 연동 학급(교과/협력 교사)의 class row는 linked_class_id로 원본 담임 학급을 가리킴 —
+  // 학생은 담임반 입장코드로 로그인하므로, 공지도 항상 담임반 id 기준으로 저장/조회해야 학생 화면에 보임
+  const resolveClassId = (classId: string | null) => {
+    if (!classId) return classId;
+    const cls = classes.find(c => c.id === classId);
+    return cls?.linked_class_id || classId;
+  };
+
   const fetchAnnouncements = async (classId: string) => {
     setAnnouncementLoading(true);
     try {
       const { data } = await supabase
         .from('class_announcements')
         .select('*')
-        .eq('class_id', classId)
+        .eq('class_id', resolveClassId(classId))
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false });
       setAnnouncements(data || []);
@@ -1485,7 +1493,7 @@ const Classroom = () => {
     setSavingAnnouncement(true);
     try {
       const { error } = await supabase.from('class_announcements').insert({
-        class_id: activeClassId,
+        class_id: resolveClassId(activeClassId),
         teacher_id: user.id,
         title: announcementForm.title.trim(),
         content: announcementForm.content.trim(),

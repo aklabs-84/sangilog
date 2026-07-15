@@ -139,13 +139,17 @@ const QuizGame = () => {
     if (user) fetchClasses();
   }, [user?.id]);
 
+  // 연동 학급(교과/협력 교사)의 class row는 linked_class_id로 원본 담임 학급을 가리킴 —
+  // 학생은 담임반 입장코드로 로그인하므로, 퀴즈 세션/기록도 항상 담임반 id 기준으로 저장해야 학생 화면에 보임
+  const resolveClassId = (cls: any) => cls?.linked_class_id || cls?.id || null;
+
   const fetchClasses = async () => {
     const { data: ownData } = await supabase
-      .from('classes').select('id, name, class_type')
+      .from('classes').select('id, name, class_type, linked_class_id')
       .eq('teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
     let assignedData: any[] = [];
     try {
-      const { data } = await supabase.from('classes').select('id, name, class_type')
+      const { data } = await supabase.from('classes').select('id, name, class_type, linked_class_id')
         .eq('assigned_teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
       assignedData = data || [];
     } catch (_e) {}
@@ -371,7 +375,7 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
       .insert({
         quiz_set_id: selectedQuizSet.id,
         teacher_id: user!.id,
-        class_id: selectedClass?.id ?? null,
+        class_id: resolveClassId(selectedClass),
         pin_code: pin,
         state: 'LOBBY',
         current_question_index: 0,
@@ -496,7 +500,7 @@ correct_answer는 0~3 중 하나입니다 (0=option_1이 정답).`;
         const fresh = (await fetchParticipantsFresh(sessionId)) ?? participants;
         const ranked = [...fresh].sort((a, b) => b.score - a.score);
         const rows = ranked.map((p, i) => ({
-          class_id: selectedClass?.id ?? null,
+          class_id: resolveClassId(selectedClass),
           session_id: sessionId,
           quiz_set_title: selectedQuizSet?.title ?? '',
           student_name: p.student_name,

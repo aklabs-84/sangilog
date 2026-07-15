@@ -5951,12 +5951,11 @@ ${guidePrompt}
               />
               <motion.div
                 key="board-detail-modal"
-                initial={{ opacity: 0, y: 60, scale: 0.95 }}
+                initial={{ opacity: 0, y: 16, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 60, scale: 0.95 }}
+                exit={{ opacity: 0, y: 16, scale: 0.95 }}
                 transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-                className="fixed inset-x-0 bottom-0 z-[200] flex justify-center px-4 pb-safe pointer-events-none"
-                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
+                className="fixed inset-0 z-[200] flex items-center justify-center px-4 pointer-events-none"
               >
                 <div
                   onClick={e => e.stopPropagation()}

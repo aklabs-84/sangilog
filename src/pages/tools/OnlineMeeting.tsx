@@ -61,12 +61,14 @@ export default function OnlineMeeting() {
 
   useEffect(() => { if (user) fetchClasses(); }, [user?.id]);
 
+  const resolveClassId = (cls: any) => cls?.linked_class_id || cls?.id;
+
   const fetchClasses = async () => {
-    const { data: ownData } = await supabase.from('classes').select('id, name, class_type')
+    const { data: ownData } = await supabase.from('classes').select('id, name, class_type, linked_class_id')
       .eq('teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
     let assignedData: any[] = [];
     try {
-      const { data } = await supabase.from('classes').select('id, name, class_type')
+      const { data } = await supabase.from('classes').select('id, name, class_type, linked_class_id')
         .eq('assigned_teacher_id', user!.id).eq('is_archived', false).order('created_at', { ascending: false });
       assignedData = data || [];
     } catch (_e) {}
@@ -75,7 +77,7 @@ export default function OnlineMeeting() {
     if (combined.length > 0) {
       setClasses(combined);
       setSelectedClass(combined[0]);
-      fetchMeetings(combined[0].id);
+      fetchMeetings(resolveClassId(combined[0]));
     }
   };
 
@@ -88,14 +90,14 @@ export default function OnlineMeeting() {
   const handleSelectClass = async (cls: any) => {
     setSelectedClass(cls);
     setClassDropdownOpen(false);
-    await fetchMeetings(cls.id);
+    await fetchMeetings(resolveClassId(cls));
   };
 
   const handleCreateMeeting = async () => {
     if (!selectedClass || !user || !meetingUrl.trim()) return;
     setSaving(true);
     const { data, error } = await supabase.from('class_meetings').insert({
-      class_id: selectedClass.id,
+      class_id: resolveClassId(selectedClass),
       title: title.trim() || '온라인 수업',
       platform,
       meeting_url: meetingUrl.trim(),
