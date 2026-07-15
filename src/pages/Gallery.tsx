@@ -625,7 +625,7 @@ export default function Gallery() {
                 <FolderOpen size={18} className="text-primary" /> 구글 드라이브 폴더 연결
               </h3>
               <p className="text-xs text-on-surface-variant mb-1">
-                드라이브 폴더를 아래 계정과 공유(편집자)한 뒤, 폴더 링크를 붙여넣으면 폴더 안 이미지·영상을 자동으로 불러와 갤러리에 표시합니다
+                드라이브 폴더를 아래 계정과 공유(뷰어)한 뒤, 폴더 링크를 붙여넣으면 폴더 안 이미지·영상을 자동으로 불러와 갤러리에 표시합니다
               </p>
               {selectedClass && (
                 <p className="text-xs font-bold text-primary mb-3">
@@ -634,7 +634,7 @@ export default function Gallery() {
               )}
 
               <div className="mb-3 px-3 py-2 bg-surface-container-low rounded-lg">
-                <p className="text-[11px] text-on-surface-variant mb-1">1. 이 계정을 폴더 공유(편집자)에 추가하세요</p>
+                <p className="text-[11px] text-on-surface-variant mb-1">1. 이 계정을 폴더 공유(뷰어)에 추가하세요</p>
                 <div className="flex items-center gap-2">
                   <code className="text-xs font-mono text-primary flex-1 truncate">{DRIVE_SERVICE_ACCOUNT_EMAIL}</code>
                   <button
@@ -666,7 +666,6 @@ export default function Gallery() {
                 <p>• 선택한 폴더 안 이미지·영상만 자동으로 표시되며, 다른 파일은 무시됩니다</p>
                 <p>• 사진은 서버를 통해 비공개로 전달되지만, 영상은 재생을 위해 해당 파일을 "링크가 있는 모든 사용자"로 별도 공유해야 합니다</p>
                 <p>• 이후 폴더에 새로 추가한 파일도 갤러리 새로고침 시 함께 표시됩니다</p>
-                <p>• 공유 링크로 들어온 선생님도 갤러리에서 바로 사진/영상을 올릴 수 있으며, 이미 "뷰어"로만 연결하셨다면 업로드를 위해 "편집자"로 재공유해주세요</p>
               </div>
 
               <div className="flex gap-3">

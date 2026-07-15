@@ -719,6 +719,7 @@ const Classroom = () => {
       min_obs_chars: updateClassData.min_obs_chars || 0,
       blocked_keywords: updateClassData.blocked_keywords || [],
       ai_review_enabled: updateClassData.ai_review_enabled ?? true,
+      show_learning_journey: updateClassData.show_learning_journey ?? true,
       start_date: updateClassData.start_date || null,
       end_date: updateClassData.end_date || null,
       is_closed: updateClassData.is_closed ?? false,
@@ -3936,6 +3937,32 @@ const Classroom = () => {
                             <>
                               <span className="font-black">OFF</span> — AI 검토 없이 글자수·금지어 조건만 통과하면 즉시 승인됩니다.<br />
                               <span className="text-[11px]">Gemini API가 호출되지 않으므로 비용이 발생하지 않습니다.</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between px-1 py-1">
+                          <div>
+                            <p className="text-xs font-black text-primary uppercase tracking-widest">학교 공유페이지 - 학습 여정 탭 표시</p>
+                            <p className="text-xs font-bold text-neutral-400 mt-0.5">생기로그 도입 전 수업 등 여정 표시가 애매하면 꺼두세요</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setUpdateClassData({...updateClassData, show_learning_journey: !(updateClassData.show_learning_journey ?? true)})}
+                            className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${(updateClassData.show_learning_journey ?? true) ? 'bg-primary' : 'bg-neutral-300'}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${(updateClassData.show_learning_journey ?? true) ? 'translate-x-6' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                        <div className={`rounded-2xl px-4 py-3 text-xs font-bold leading-relaxed transition-colors ${(updateClassData.show_learning_journey ?? true) ? 'bg-primary/5 text-primary/80 border border-primary/10' : 'bg-neutral-100 text-neutral-400 border border-neutral-200'}`}>
+                          {(updateClassData.show_learning_journey ?? true) ? (
+                            <>
+                              <span className="font-black">ON</span> — 학교 전체 공유페이지(/school-share)에서 이 학급의 <span className="font-black">학습 여정</span> 탭이 학부모/선생님에게 노출됩니다.
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-black">OFF</span> — 학습 여정 탭이 숨겨지고, 공유페이지는 결과 확인 탭부터 보여집니다.
                             </>
                           )}
                         </div>

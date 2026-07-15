@@ -26,6 +26,7 @@ import {
   ArrowRight,
   School,
   BookOpen,
+  Sparkles,
 } from 'lucide-react';
 
 async function blobDownload(url: string, filename: string) {
@@ -94,6 +95,7 @@ interface ClassData {
   name: string;
   subject: string;
   weekly_plan: any[];
+  show_learning_journey: boolean;
   studentData: StudentData[];
   galleryItems: GalleryItem[];
   evalMap: Record<string, EvalRow>;
@@ -110,7 +112,7 @@ const SchoolShareView = () => {
   const [verifying, setVerifying] = useState(false);
 
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
-  const [classList, setClassList] = useState<{ id: string; name: string; subject: string; weekly_plan: any[] }[]>([]);
+  const [classList, setClassList] = useState<{ id: string; name: string; subject: string; weekly_plan: any[]; show_learning_journey: boolean }[]>([]);
   const [metaLoading, setMetaLoading] = useState(true);
   const [metaError, setMetaError] = useState<string | null>(null);
 
@@ -118,7 +120,7 @@ const SchoolShareView = () => {
   const [classDataMap, setClassDataMap] = useState<Record<string, ClassData>>({});
   const [loadingClassId, setLoadingClassId] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech'>('results');
+  const [activeTab, setActiveTab] = useState<'journey' | 'results' | 'gallery' | 'setech'>('journey');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [lightbox, setLightbox] = useState<{ urls: string[]; names: string[]; index: number } | null>(null);
@@ -151,7 +153,7 @@ const SchoolShareView = () => {
 
       const { data: classes } = await supabase
         .from('classes')
-        .select('id, name, subject, weekly_plan')
+        .select('id, name, subject, weekly_plan, show_learning_journey')
         .eq('school_id', schoolId)
         .eq('is_archived', false)
         .order('name', { ascending: true });
@@ -257,6 +259,7 @@ const SchoolShareView = () => {
           name: cls.name,
           subject: cls.subject,
           weekly_plan: cls.weekly_plan,
+          show_learning_journey: cls.show_learning_journey ?? true,
           studentData,
           galleryItems: [...(gallery || []), ...driveItems.map(driveItemToPublicGalleryItem)],
           evalMap,
@@ -274,11 +277,12 @@ const SchoolShareView = () => {
     if (!classDataMap[activeClassId]?.loaded) {
       fetchClassData(activeClassId);
     }
-    // 탭/필터 초기화
-    setActiveTab('results');
+    // 탭/필터 초기화 (학습 여정이 꺼진 학급은 결과 확인 탭부터 시작)
+    const cls = classList.find(c => c.id === activeClassId);
+    setActiveTab((cls?.show_learning_journey ?? true) ? 'journey' : 'results');
     setWeekFilter('all');
     setExpandedIds(new Set());
-  }, [activeClassId, verified]);
+  }, [activeClassId, verified, classList]);
 
   // 검증 후 첫 클래스 자동 로드
   useEffect(() => {
@@ -317,6 +321,61 @@ const SchoolShareView = () => {
       ...currentData.studentData.flatMap(sd => sd.obs.map(o => o.week_number).filter(Boolean)),
       ...currentData.studentData.flatMap(sd => sd.results.map(r => r.week_number).filter(Boolean)),
     ] as number[])).sort((a, b) => a - b);
+  }, [currentData]);
+
+  // 주차별 학습 여정: weekly_plan(주제) + 활동기록/결과물/갤러리(week_number)를 주차 단위로 통합
+  const weeklyJourney = useMemo(() => {
+    if (!currentData) return [];
+    type WeekEntry = {
+      week: number;
+      topic: string | null;
+      participants: Set<string>;
+      obsCount: number;
+      resultCount: number;
+      images: string[];
+      sampleText: string | null;
+    };
+    const weekMap: Record<number, WeekEntry> = {};
+    const ensure = (w: number) => {
+      if (!weekMap[w]) {
+        weekMap[w] = { week: w, topic: null, participants: new Set(), obsCount: 0, resultCount: 0, images: [], sampleText: null };
+      }
+      return weekMap[w];
+    };
+
+    (currentData.weekly_plan || []).forEach((p: any) => {
+      const w = Number(p.week);
+      if (!w) return;
+      ensure(w).topic = p.topic || null;
+    });
+
+    currentData.studentData.forEach(({ student, obs, results }) => {
+      obs.forEach(o => {
+        if (!o.week_number) return;
+        const wk = ensure(o.week_number);
+        wk.participants.add(student.id);
+        wk.obsCount += 1;
+        if (!wk.sampleText && o.content) wk.sampleText = o.content.length > 120 ? `${o.content.slice(0, 120)}…` : o.content;
+      });
+      results.forEach(r => {
+        if (!r.week_number) return;
+        const wk = ensure(r.week_number);
+        wk.participants.add(student.id);
+        wk.resultCount += 1;
+        if (r.image_url && wk.images.length < 8 && !wk.images.includes(r.image_url)) wk.images.push(r.image_url);
+        if (!wk.sampleText && r.text_content) wk.sampleText = r.text_content.length > 120 ? `${r.text_content.slice(0, 120)}…` : r.text_content;
+      });
+    });
+
+    currentData.galleryItems.forEach(g => {
+      if (!g.week_number || g.file_type !== 'image') return;
+      const wk = ensure(g.week_number);
+      if (wk.images.length < 8 && !wk.images.includes(g.file_url)) wk.images.push(g.file_url);
+    });
+
+    return Object.values(weekMap)
+      .map(wk => ({ ...wk, participantCount: wk.participants.size }))
+      .sort((a, b) => a.week - b.week);
   }, [currentData]);
 
   const filteredData = useMemo(() => {
@@ -690,6 +749,7 @@ const SchoolShareView = () => {
         {currentData?.loaded && (
           <div className="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 print:hidden">
             {[
+              ...(currentData.show_learning_journey ? [{ key: 'journey', label: '학습 여정', icon: Sparkles }] : []),
               { key: 'results', label: '결과 확인', icon: FileText },
               {
                 key: 'gallery',
@@ -700,7 +760,7 @@ const SchoolShareView = () => {
             ].map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
-                onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech')}
+                onClick={() => setActiveTab(key as 'journey' | 'results' | 'gallery' | 'setech')}
                 className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-black border-b-2 transition-all ${
                   activeTab === key
                     ? 'border-indigo-600 text-indigo-600'
@@ -731,6 +791,73 @@ const SchoolShareView = () => {
         </div>
       ) : (
         <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+          {/* ── 학습 여정 탭 ── */}
+          {activeTab === 'journey' && currentData.show_learning_journey && (
+            weeklyJourney.length === 0 ? (
+              <div className="flex flex-col items-center py-24 space-y-3">
+                <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center">
+                  <Sparkles size={32} className="text-gray-300" />
+                </div>
+                <p className="font-black text-gray-400 text-sm">아직 등록된 주차별 활동이 없습니다</p>
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="absolute left-[27px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-indigo-200 via-indigo-100 to-transparent" />
+                <div className="space-y-6">
+                  {weeklyJourney.map(wk => (
+                    <div key={wk.week} className="relative flex gap-4">
+                      <div className="relative z-10 shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex flex-col items-center justify-center shadow-lg shadow-indigo-200">
+                        <span className="text-[9px] font-bold opacity-80 leading-none">WEEK</span>
+                        <span className="text-lg font-black leading-none">{wk.week}</span>
+                      </div>
+                      <div className="flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">{wk.week}주차</p>
+                            <h3 className="text-base font-black text-gray-900">{wk.topic || `${wk.week}주차 활동`}</h3>
+                          </div>
+                          <button
+                            onClick={() => { setWeekFilter(wk.week); setActiveTab('results'); }}
+                            className="shrink-0 flex items-center gap-1 text-xs font-black text-indigo-600 hover:text-indigo-800 transition-colors"
+                          >
+                            자세히 보기 <ArrowRight size={12} />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-3 mt-3 flex-wrap text-[11px] font-bold text-gray-400">
+                          <span className="flex items-center gap-1"><Users size={11} /> 참여 {wk.participantCount}명</span>
+                          {wk.obsCount > 0 && <span className="text-violet-500">📝 활동기록 {wk.obsCount}건</span>}
+                          {wk.resultCount > 0 && <span className="text-emerald-500">📁 결과물 {wk.resultCount}건</span>}
+                        </div>
+
+                        {wk.sampleText && (
+                          <p className="mt-3 text-sm text-gray-600 leading-relaxed line-clamp-2 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
+                            “{wk.sampleText}”
+                          </p>
+                        )}
+
+                        {wk.images.length > 0 && (
+                          <div className="flex gap-2 mt-3 overflow-x-auto custom-scrollbar pb-1">
+                            {wk.images.map((url, i) => (
+                              <img
+                                key={url}
+                                src={url}
+                                alt={`${wk.week}주차 사진 ${i + 1}`}
+                                loading="lazy"
+                                onClick={() => setLightbox({ urls: wk.images, names: wk.images.map((_, n) => `week${wk.week}_${n + 1}.webp`), index: i })}
+                                className="w-20 h-20 rounded-xl object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          )}
+
           {/* ── 결과 확인 탭 ── */}
           {activeTab === 'results' && (
             <>
