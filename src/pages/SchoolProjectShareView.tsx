@@ -12,7 +12,7 @@ import {
   FileText, Loader2, AlertCircle, Lock, Calendar,
   Images, Download, ZoomIn, X, BookOpen,
   AlignLeft, Link2, ImageIcon, File as FileIcon,
-  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, Quote, BarChart2,
+  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, Quote, BarChart2, MousePointerClick,
 } from 'lucide-react';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
@@ -809,7 +809,12 @@ const SchoolProjectShareView = () => {
               amber: { tint: 'bg-amber-50', ink: 'text-amber-600', border: 'border-amber-100', bar: 'bg-amber-400' },
             };
             return (
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <>
+                <p className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mb-3">
+                  <MousePointerClick size={13} className="text-gray-300" />
+                  카드를 클릭하면 자세한 내용을 볼 수 있어요
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {navCards.map(({ label, value, unit, icon: Icon, color }, i) => {
                   const c = colorMap[color];
                   const filled = value > 0;
@@ -845,7 +850,8 @@ const SchoolProjectShareView = () => {
                     </motion.button>
                   );
                 })}
-              </div>
+                </div>
+              </>
             );
           })()}
         </div>

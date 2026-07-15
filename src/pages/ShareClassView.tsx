@@ -36,6 +36,7 @@ import {
   Sparkles,
   Quote,
   BarChart2,
+  MousePointerClick,
 } from 'lucide-react';
 import { ShortTextChart } from './tools/SurveyTool';
 import type { SurveyQuestion, SurveyAnswer } from './tools/SurveyTool';
@@ -831,7 +832,12 @@ const ShareClassView = () => {
               document.getElementById('main-content')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
             };
             return (
-              <div className={`grid grid-cols-2 gap-3 ${navCards.length === 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
+              <>
+                <p className="flex items-center gap-1.5 text-xs font-bold text-gray-400 mb-3">
+                  <MousePointerClick size={13} className="text-gray-300" />
+                  카드를 클릭하면 자세한 내용을 볼 수 있어요
+                </p>
+                <div className={`grid grid-cols-2 gap-3 ${navCards.length === 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
                 {/* 참여율 카드 (링 차트) */}
                 <motion.button
                   onClick={() => goTo('results')}
@@ -888,7 +894,8 @@ const ShareClassView = () => {
                     </motion.button>
                   );
                 })}
-              </div>
+                </div>
+              </>
             );
           })()}
         </div>
