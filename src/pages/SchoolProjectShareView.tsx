@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import JSZip from 'jszip';
+import { animate, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { GALLERY_PAGE_SIZE, parseVideoUrl } from '../lib/gallery';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
@@ -11,7 +12,7 @@ import {
   FileText, Loader2, AlertCircle, Lock, Calendar,
   Images, Download, ZoomIn, X, BookOpen,
   AlignLeft, Link2, ImageIcon, File as FileIcon,
-  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw,
+  Sparkles, ArrowRight, CheckCircle2, FolderOpen, RefreshCw, Quote,
 } from 'lucide-react';
 
 async function blobDownload(url: string, filename: string) {
@@ -23,6 +24,19 @@ async function blobDownload(url: string, filename: string) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+const CountUpNumber = ({ value }: { value: number }) => {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const controls = animate(0, value, {
+      duration: 1,
+      ease: 'easeOut',
+      onUpdate: (v) => setDisplay(Math.round(v)),
+    });
+    return controls.stop;
+  }, [value]);
+  return <>{display}</>;
+};
 
 interface ResultRow {
   id: string;
@@ -86,6 +100,10 @@ const SchoolProjectShareView = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
   const [project, setProject] = useState<any>(null);
   const [classList, setClassList] = useState<any[]>([]);
+  const [projectStats, setProjectStats] = useState<{ studentCount: number; obsCount: number; resultCount: number; galleryCount: number; setechDoneCount: number } | null>(null);
+  const [highlightGallery, setHighlightGallery] = useState<Array<{ id: string; file_url: string; caption: string | null; class_id: string }>>([]);
+  const [spotlightQuote, setSpotlightQuote] = useState<{ content: string; studentName: string; className: string } | null>(null);
+  const [snapshotResult, setSnapshotResult] = useState<{ title: string | null; resultType: string; createdAt: string; studentName: string; className: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeClassId, setActiveClassId] = useState<string | null>(null);
@@ -101,10 +119,11 @@ const SchoolProjectShareView = () => {
   // 결과물 상세 모달
   const [detailGroup, setDetailGroup] = useState<{ group: ResultGroup; studentName: string } | null>(null);
   // 학습 여정 / 결과 확인 / 갤러리 / 학급 기록 탭
-  const [activeTab, setActiveTab] = useState<'journey' | 'results' | 'gallery' | 'setech'>('journey');
+  const [activeTab, setActiveTab] = useState<'results' | 'gallery' | 'setech'>('results');
   const [weekFilter, setWeekFilter] = useState<number | 'all'>('all');
   const [zipping, setZipping] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!shareToken) return;
@@ -141,12 +160,91 @@ const SchoolProjectShareView = () => {
         const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', teacherIds);
         (profiles || []).forEach((p: any) => { teacherMap[p.id] = p.full_name; });
       }
+      const classIds = subClasses.map((c: any) => c.id);
+      const { data: allStudents } = await supabase.from('students').select('id, class_id, full_name').in('class_id', classIds);
+      const allStudentIds = (allStudents || []).map((s: any) => s.id);
+      const studentInfoMap: Record<string, { class_id: string; full_name: string }> = {};
+      (allStudents || []).forEach((s: any) => { studentInfoMap[s.id] = { class_id: s.class_id, full_name: s.full_name }; });
+      const classNameMap: Record<string, string> = {};
+      subClasses.forEach((c: any) => { classNameMap[c.id] = c.name; });
+      const studentCountByClass: Record<string, number> = {};
+      (allStudents || []).forEach((s: any) => { studentCountByClass[s.class_id] = (studentCountByClass[s.class_id] || 0) + 1; });
+
       setClassList(subClasses.map((c: any) => ({
         id: c.id, name: c.name, subject: c.subject || '',
         teacher_name: c.assigned_teacher_id ? (teacherMap[c.assigned_teacher_id] || null) : null,
         weekly_plan: c.weekly_plan || [],
         show_learning_journey: c.show_learning_journey ?? true,
+        studentCount: studentCountByClass[c.id] || 0,
       })));
+
+      const [obsCountRes, resultsCountRes, galleryCountRes, setechDoneCountRes, highlightRes, spotlightObsRes, snapshotResultRes] = await Promise.all([
+        allStudentIds.length > 0
+          ? supabase.from('observations').select('id', { count: 'exact', head: true })
+              .in('student_id', allStudentIds).eq('is_student_record', true).eq('status', 'approved')
+          : Promise.resolve({ count: 0 }),
+        allStudentIds.length > 0
+          ? supabase.from('student_results').select('id', { count: 'exact', head: true }).in('student_id', allStudentIds)
+          : Promise.resolve({ count: 0 }),
+        supabase.from('class_gallery_items').select('id', { count: 'exact', head: true }).in('class_id', classIds),
+        allStudentIds.length > 0
+          ? supabase.from('student_evaluations').select('id', { count: 'exact', head: true })
+              .in('student_id', allStudentIds).in('status', ['final', 'done'])
+          : Promise.resolve({ count: 0 }),
+        supabase.from('class_gallery_items')
+          .select('id, file_url, caption, class_id')
+          .in('class_id', classIds).eq('file_type', 'image')
+          .order('created_at', { ascending: false }).limit(8),
+        allStudentIds.length > 0
+          ? supabase.from('observations').select('id, student_id, content, created_at')
+              .in('student_id', allStudentIds).eq('is_student_record', true).eq('status', 'approved')
+              .order('created_at', { ascending: false }).limit(40)
+          : Promise.resolve({ data: [] }),
+        allStudentIds.length > 0
+          ? supabase.from('student_results').select('id, student_id, title, result_type, created_at')
+              .in('student_id', allStudentIds).order('created_at', { ascending: false }).limit(1)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      setProjectStats({
+        studentCount: allStudentIds.length,
+        obsCount: obsCountRes.count || 0,
+        resultCount: resultsCountRes.count || 0,
+        galleryCount: galleryCountRes.count || 0,
+        setechDoneCount: setechDoneCountRes.count || 0,
+      });
+      setHighlightGallery(highlightRes.data || []);
+
+      // 스포트라이트 인용구: 20~220자 관찰기록 중 90자에 가장 가까운 문장 선택
+      let bestQuote: { content: string; studentName: string; className: string } | null = null;
+      let bestScore = -Infinity;
+      (spotlightObsRes.data || []).forEach((o: any) => {
+        const text = (o.content || '').trim();
+        if (text.length < 20 || text.length > 220) return;
+        const score = -Math.abs(text.length - 90);
+        if (score > bestScore) {
+          const info = studentInfoMap[o.student_id];
+          if (!info) return;
+          bestScore = score;
+          bestQuote = { content: text, studentName: info.full_name, className: classNameMap[info.class_id] || '' };
+        }
+      });
+      setSpotlightQuote(bestQuote);
+
+      // 결과물 스냅샷: 가장 최근 결과물 1건
+      const snapRow = (snapshotResultRes.data || [])[0] as any;
+      if (snapRow) {
+        const info = studentInfoMap[snapRow.student_id];
+        setSnapshotResult(info ? {
+          title: snapRow.title,
+          resultType: snapRow.result_type,
+          createdAt: snapRow.created_at,
+          studentName: info.full_name,
+          className: classNameMap[info.class_id] || '',
+        } : null);
+      } else {
+        setSnapshotResult(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -283,8 +381,7 @@ const SchoolProjectShareView = () => {
       setActiveClassId(null);
       return;
     }
-    const cls = classList.find(c => c.id === classId);
-    setActiveTab((cls?.show_learning_journey ?? true) ? 'journey' : 'results');
+    setActiveTab('results');
     setWeekFilter('all');
     setExpandedStudents(new Set());
     if (classStudents[classId]) {
@@ -331,6 +428,7 @@ const SchoolProjectShareView = () => {
   );
 
   const isClosed = project?.status === 'closed' || project?.status === 'archived';
+  const theme = BANNER_THEMES.find(t => t.key === (project?.banner_color || 'violet')) ?? BANNER_THEMES[0];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-violet-50 to-white">
@@ -446,39 +544,192 @@ const SchoolProjectShareView = () => {
 
       {/* 헤더 */}
       {(() => {
-        const theme = BANNER_THEMES.find(t => t.key === (project?.banner_color || 'violet')) ?? BANNER_THEMES[0];
         return (
-          <div style={{ background: `linear-gradient(135deg, ${theme.from} 0%, ${theme.to} 100%)` }}>
-            <div className="max-w-4xl mx-auto px-6 py-10">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>
-                  <School size={24} style={{ color: theme.text }} />
+          <div className="bg-white">
+            <motion.div
+              className="max-w-4xl mx-auto px-6 py-12 sm:py-16"
+              initial={reduceMotion ? undefined : { opacity: 0, y: 14 }}
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            >
+              <div className="flex items-start justify-between gap-3 mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: `${theme.from}14` }}>
+                    <School size={24} style={{ color: theme.from }} />
+                  </div>
+                  <div>
+                    {project?.school_name && (
+                      <p className="text-xs font-bold uppercase tracking-widest" style={{ color: theme.from }}>{project.school_name}</p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  {project?.school_name && (
-                    <p className="text-xs font-bold uppercase tracking-widest" style={{ color: theme.sub }}>{project.school_name}</p>
-                  )}
-                  <h1 className="text-2xl font-black" style={{ color: theme.text }}>{project?.name}</h1>
-                </div>
+                <a href="/" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full shrink-0 transition-all border border-gray-200 hover:bg-gray-50">
+                  <Sparkles size={12} style={{ color: theme.from }} />
+                  <span className="text-[11px] font-black text-gray-600">Powered by 생기로그 AI</span>
+                </a>
               </div>
-              <div className="flex items-center gap-4 text-sm flex-wrap" style={{ color: theme.sub }}>
-                <span className="flex items-center gap-1.5"><Users size={14} /> {classList.length}개 학급</span>
+
+              <h1 className="text-4xl sm:text-5xl font-black leading-[1.1] tracking-tight mb-3 text-gray-900">{project?.name}</h1>
+
+              <div className="flex items-center gap-4 text-sm flex-wrap mb-8 text-gray-400">
                 {project?.end_date && (
                   <span className="flex items-center gap-1.5"><Calendar size={14} /> 종료일: {new Date(project.end_date).toLocaleDateString('ko-KR')}</span>
                 )}
                 {isClosed && (
-                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: 'rgba(255,255,255,0.2)', color: theme.text }}>
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: `${theme.from}14`, color: theme.from }}>
                     <Lock size={11} /> 수업 종료됨
                   </span>
                 )}
               </div>
-            </div>
+
+              {projectStats && (
+                <>
+                  <div className="flex items-baseline gap-2 mb-7">
+                    <span className="text-6xl sm:text-7xl font-black tracking-tight tabular-nums text-gray-900">
+                      <CountUpNumber value={projectStats.studentCount} />
+                    </span>
+                    <span className="text-base sm:text-lg font-bold text-gray-400">명의 학생과 함께한 프로젝트</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {[
+                      { label: '참여 학급', value: classList.length, unit: '개', icon: School },
+                      { label: '활동 기록', value: projectStats.obsCount, unit: '건', icon: FileText },
+                      { label: '결과물', value: projectStats.resultCount, unit: '건', icon: FolderOpen },
+                    ].map(({ label, value, unit, icon: Icon }) => (
+                      <div
+                        key={label}
+                        className="rounded-2xl px-4 py-3.5 bg-gray-50 border border-gray-100"
+                      >
+                        <div className="flex items-center gap-1.5 mb-1.5 text-gray-400">
+                          <Icon size={12} />
+                          <p className="text-[10px] font-black uppercase tracking-widest">{label}</p>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-black text-gray-900"><CountUpNumber value={value} /></span>
+                          <span className="text-xs font-bold text-gray-400">{unit}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </motion.div>
           </div>
         );
       })()}
 
+      {/* 스포트라이트 인용구 */}
+      {spotlightQuote && (
+        <div className="border-t border-b border-gray-100" style={{ background: `${theme.from}0a` }}>
+          <div className="max-w-4xl mx-auto px-6 py-8 sm:py-10">
+            <Quote size={26} className="mb-3" style={{ color: `${theme.from}66` }} />
+            <blockquote className="text-lg sm:text-2xl font-bold text-gray-900 leading-snug tracking-tight mb-4">
+              “{spotlightQuote.content}”
+            </blockquote>
+            <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+              {spotlightQuote.className} · {spotlightQuote.studentName}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 피처 카드 그리드 */}
+      {projectStats && (
+        <div className="max-w-4xl mx-auto px-6 pt-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: '학습 여정', value: projectStats.obsCount, unit: '건', icon: Sparkles, color: 'violet' as const },
+              { label: '결과 확인', value: projectStats.resultCount, unit: '건', icon: FileText, color: 'blue' as const },
+              { label: '갤러리', value: projectStats.galleryCount, unit: '장', icon: Images, color: 'emerald' as const },
+              { label: '학급 기록', value: projectStats.setechDoneCount, unit: '건', icon: BookOpen, color: 'amber' as const },
+            ].map(({ label, value, unit, icon: Icon, color }, i) => {
+              const filled = value > 0;
+              const colorCls = {
+                violet: { tint: 'bg-violet-50', ink: 'text-violet-600', border: 'border-violet-100' },
+                blue: { tint: 'bg-blue-50', ink: 'text-blue-600', border: 'border-blue-100' },
+                emerald: { tint: 'bg-emerald-50', ink: 'text-emerald-600', border: 'border-emerald-100' },
+                amber: { tint: 'bg-amber-50', ink: 'text-amber-600', border: 'border-amber-100' },
+              }[color];
+              return (
+                <motion.button
+                  key={label}
+                  onClick={() => document.getElementById('class-list')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })}
+                  initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+                  whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.4, delay: i * 0.06, ease: 'easeOut' }}
+                  whileHover={reduceMotion ? undefined : { y: -4 }}
+                  className={`text-left rounded-2xl border p-4 transition-shadow ${filled ? `${colorCls.tint} ${colorCls.border} shadow-sm hover:shadow-md` : 'bg-gray-50 border-gray-100'}`}
+                >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${filled ? 'bg-white/70' : 'bg-white'}`}>
+                    <Icon size={15} className={filled ? colorCls.ink : 'text-gray-300'} />
+                  </div>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${filled ? colorCls.ink : 'text-gray-400'}`}>{label}</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-xl font-black ${filled ? 'text-gray-900' : 'text-gray-400'}`}><CountUpNumber value={value} /></span>
+                    <span className={`text-xs font-bold ${filled ? 'text-gray-400' : 'text-gray-300'}`}>{unit}</span>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 결과물 스냅샷 카드 */}
+      {snapshotResult && (
+        <div className="max-w-4xl mx-auto px-6 pt-6">
+          <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${theme.from}14` }}>
+              {TYPE_CONFIG[snapshotResult.resultType]?.icon ?? <FileText size={18} style={{ color: theme.from }} />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-black text-gray-900 text-sm truncate">{snapshotResult.title || '제목 없음'}</p>
+              <p className="text-xs text-gray-400 font-semibold truncate">
+                {snapshotResult.className} · {snapshotResult.studentName} · {new Date(snapshotResult.createdAt).toLocaleDateString('ko-KR')}
+              </p>
+            </div>
+            {TYPE_CONFIG[snapshotResult.resultType] && (
+              <span className={`shrink-0 flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full border ${TYPE_CONFIG[snapshotResult.resultType].color}`}>
+                {TYPE_CONFIG[snapshotResult.resultType].icon}
+                {TYPE_CONFIG[snapshotResult.resultType].label}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 하이라이트 갤러리 */}
+      {highlightGallery.length > 0 && (
+        <div className="max-w-4xl mx-auto px-6 pt-8">
+          <div className="flex items-center gap-2 mb-3">
+            <ImageIcon size={16} className="text-violet-400" />
+            <h2 className="text-sm font-black text-gray-700">수업 속 순간들</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {highlightGallery.map((item, idx) => (
+              <button
+                key={item.id}
+                onClick={() => setLightbox({ urls: highlightGallery.map(g => g.file_url), index: idx })}
+                className="group relative aspect-square rounded-2xl overflow-hidden bg-gray-100 border border-gray-100"
+              >
+                <img src={item.file_url} alt={item.caption || ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                {(() => {
+                  const clsName = classList.find(c => c.id === item.class_id)?.name;
+                  return clsName ? (
+                    <p className="absolute bottom-1.5 left-2 right-2 text-[10px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity truncate">{clsName}</p>
+                  ) : null;
+                })()}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 클래스 목록 */}
-      <div className="max-w-4xl mx-auto px-6 py-8 space-y-4">
+      <div id="class-list" className="max-w-4xl mx-auto px-6 py-8 space-y-4">
         {classList.length === 0 ? (
           <div className="text-center py-16 text-gray-300">
             <School size={40} className="mx-auto mb-3" />
@@ -493,29 +744,43 @@ const SchoolProjectShareView = () => {
           const totalResults = students.reduce((s, st) => s + st.resultGroups.length, 0);
 
           return (
-            <div key={cls.id} className="bg-white rounded-2xl shadow-sm border border-violet-100 overflow-hidden">
+            <motion.div key={cls.id}
+              initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+              whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+              className={`bg-white rounded-2xl border overflow-hidden transition-all duration-200 ${isExpanded ? 'border-violet-200 shadow-md' : 'border-violet-100 shadow-sm hover:shadow-md hover:border-violet-200'}`}>
               {/* 클래스 헤더 */}
               <button onClick={() => handleToggleClass(cls.id)}
-                className="w-full flex items-center justify-between px-6 py-5 hover:bg-violet-50 transition-all text-left">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center text-violet-600 shrink-0">
-                    <Users size={18} />
+                className="w-full flex items-center justify-between px-6 py-5 hover:bg-violet-50/60 transition-all text-left">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-black text-base shrink-0"
+                    style={{ background: `linear-gradient(135deg, ${theme.from} 0%, ${theme.to} 100%)` }}>
+                    {cls.name?.charAt(0) || '반'}
                   </div>
-                  <div>
-                    <h3 className="font-black text-base">{cls.name}</h3>
-                    <p className="text-xs text-gray-400">
+                  <div className="min-w-0">
+                    <h3 className="font-black text-base truncate">{cls.name}</h3>
+                    <p className="text-xs text-gray-400 truncate">
                       {cls.subject && <span className="mr-2">{cls.subject}</span>}
                       {cls.teacher_name && <span className="text-violet-500 font-bold">{cls.teacher_name} 선생님</span>}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap justify-end">
+                <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+                  <span className="flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-full bg-violet-50 text-violet-600 border border-violet-100">
+                    <Users size={11} /> {cls.studentCount}명
+                  </span>
                   {isExpanded && students.length > 0 && (
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                      <span>{students.length}명</span>
-                      {totalObs > 0 && <span className="text-violet-500">📝 {totalObs}건</span>}
-                      {totalResults > 0 && <span className="text-emerald-500">📁 {totalResults}건</span>}
-                      {gallery.length > 0 && <span className="text-amber-500">🖼️ {gallery.length}장</span>}
+                    <div className="hidden sm:flex items-center gap-1.5">
+                      {totalObs > 0 && (
+                        <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">📝 {totalObs}건</span>
+                      )}
+                      {totalResults > 0 && (
+                        <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">📁 {totalResults}건</span>
+                      )}
+                      {gallery.length > 0 && (
+                        <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100">🖼️ {gallery.length}장</span>
+                      )}
                     </div>
                   )}
                   {isLoading ? <Loader2 size={18} className="animate-spin text-violet-400" />
@@ -525,8 +790,15 @@ const SchoolProjectShareView = () => {
               </button>
 
               {/* 펼쳐진 내용 */}
+              <AnimatePresence initial={false}>
               {isExpanded && (
-                <div className="border-t border-violet-100">
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="border-t border-violet-100 overflow-hidden"
+                >
                   {students.length === 0 && !isLoading ? (
                     <div className="py-8 text-center text-gray-300">
                       <Users size={24} className="mx-auto mb-2" />
@@ -763,49 +1035,31 @@ const SchoolProjectShareView = () => {
 
                     return (
                       <>
-                        {/* 탭 바 + 다운로드 */}
-                        <div className="px-6 pt-3 flex items-center gap-1 flex-wrap border-b border-violet-50">
-                          {[
-                            ...(cls.show_learning_journey ? [{ key: 'journey', label: '학습 여정', icon: Sparkles }] : []),
-                            { key: 'results', label: '결과 확인', icon: FileText },
-                            { key: 'gallery', label: `갤러리${gallery.length > 0 ? ` (${gallery.length})` : ''}`, icon: Images },
-                            { key: 'setech', label: '학급 기록', icon: BookOpen },
-                          ].map(({ key, label, icon: Icon }) => (
-                            <button
-                              key={key}
-                              onClick={() => setActiveTab(key as 'journey' | 'results' | 'gallery' | 'setech')}
-                              className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-black border-b-2 transition-all ${activeTab === key ? 'border-violet-600 text-violet-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-                            >
-                              <Icon size={13} />{label}
-                            </button>
-                          ))}
-                          <div className="ml-auto flex items-center gap-1.5 mb-2">
-                            <button onClick={() => handleRefreshClass(cls.id)} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 transition-all" title="새로고침">
-                              <RefreshCw size={13} />
-                            </button>
-                            <button onClick={downloadCSV} className="flex items-center gap-1.5 px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-black transition-all" title="CSV 다운로드">
-                              <FileText size={13} /><span className="hidden sm:inline">CSV</span>
-                            </button>
-                            <button onClick={downloadXLSX} disabled={downloading} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg text-xs font-black transition-all" title="XLSX 엑셀 다운로드">
-                              {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}<span className="hidden sm:inline">XLSX</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="px-6 py-5 space-y-5">
-                          {/* ── 학습 여정 탭 ── */}
-                          {activeTab === 'journey' && cls.show_learning_journey && (
-                            weeklyJourney.length === 0 ? (
-                              <div className="flex flex-col items-center py-16 space-y-2">
-                                <Sparkles size={28} className="text-gray-300" />
+                        {/* ── 학습 여정 타임라인 (탭과 무관하게 항상 상단에 고정 노출) ── */}
+                        {cls.show_learning_journey && (
+                          <div className="px-6 pt-5 pb-1">
+                            {weeklyJourney.length === 0 ? (
+                              <div className="flex flex-col items-center py-10 space-y-2">
+                                <Sparkles size={24} className="text-gray-300" />
                                 <p className="text-xs font-bold text-gray-400">아직 등록된 주차별 활동이 없습니다</p>
                               </div>
                             ) : (
                               <div className="relative">
-                                <div className="absolute left-[23px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-violet-200 via-violet-100 to-transparent" />
+                                <div className="flex items-center gap-1.5 mb-3">
+                                  <Sparkles size={13} className="text-violet-400" />
+                                  <h4 className="text-xs font-black text-gray-500 uppercase tracking-widest">학습 여정</h4>
+                                </div>
+                                <div className="absolute left-[23px] top-9 bottom-2 w-0.5 bg-gradient-to-b from-violet-200 via-violet-100 to-transparent" />
                                 <div className="space-y-5">
-                                  {weeklyJourney.map(wk => (
-                                    <div key={wk.week} className="relative flex gap-3">
+                                  {weeklyJourney.map((wk, wi) => (
+                                    <motion.div
+                                      key={wk.week}
+                                      initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+                                      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                                      viewport={{ once: true, margin: '-40px' }}
+                                      transition={{ duration: 0.45, delay: Math.min(wi, 4) * 0.05, ease: 'easeOut' }}
+                                      className="relative flex gap-3"
+                                    >
                                       <div className="relative z-10 shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex flex-col items-center justify-center shadow-md">
                                         <span className="text-[8px] font-bold opacity-80 leading-none">WEEK</span>
                                         <span className="text-base font-black leading-none">{wk.week}</span>
@@ -846,13 +1100,45 @@ const SchoolProjectShareView = () => {
                                           </div>
                                         )}
                                       </div>
-                                    </div>
+                                    </motion.div>
                                   ))}
                                 </div>
                               </div>
-                            )
-                          )}
+                            )}
+                          </div>
+                        )}
 
+                        {/* 탭 바 + 다운로드 */}
+                        <div className="px-6 pt-4 pb-3 flex items-center gap-2 flex-wrap border-b border-gray-100">
+                          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                            {[
+                              { key: 'results', label: '결과 확인', icon: FileText },
+                              { key: 'gallery', label: `갤러리${gallery.length > 0 ? ` (${gallery.length})` : ''}`, icon: Images },
+                              { key: 'setech', label: '학급 기록', icon: BookOpen },
+                            ].map(({ key, label, icon: Icon }) => (
+                              <button
+                                key={key}
+                                onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${activeTab === key ? 'bg-white text-violet-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                              >
+                                <Icon size={13} />{label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="ml-auto flex items-center gap-1.5">
+                            <button onClick={() => handleRefreshClass(cls.id)} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-500 transition-all" title="새로고침">
+                              <RefreshCw size={13} />
+                            </button>
+                            <button onClick={downloadCSV} className="flex items-center gap-1.5 px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-black transition-all" title="CSV 다운로드">
+                              <FileText size={13} /><span className="hidden sm:inline">CSV</span>
+                            </button>
+                            <button onClick={downloadXLSX} disabled={downloading} className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-lg text-xs font-black transition-all" title="XLSX 엑셀 다운로드">
+                              {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}<span className="hidden sm:inline">XLSX</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="px-6 py-5 space-y-5">
                           {/* ── 결과 확인 탭 ── */}
                           {activeTab === 'results' && (
                             <>
@@ -1168,30 +1454,49 @@ const SchoolProjectShareView = () => {
                       </>
                     );
                   })()}
-                </div>
+                </motion.div>
               )}
-            </div>
+              </AnimatePresence>
+            </motion.div>
           );
         })}
       </div>
 
-      {/* 생기로그 홍보 배너 */}
-      <div className="max-w-4xl mx-auto px-4 pb-6 print:hidden">
-        <div className="rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 px-5 py-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
-            <span className="text-lg">✨</span>
+      {/* 생기로그 홍보 CTA */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 pb-10 print:hidden">
+        <motion.div
+          initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+          whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="relative overflow-hidden rounded-3xl px-7 py-9 sm:px-10 sm:py-14 text-center bg-gray-900">
+          <div className="relative">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-4 bg-white/10">
+              <Sparkles size={12} style={{ color: theme.from }} />
+              <span className="text-[11px] font-black" style={{ color: theme.from }}>생기로그 AI</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black mb-2 tracking-tight text-white">
+              이런 학급 공유 페이지, 우리 학교도 만들어볼까요?
+            </h2>
+            <p className="text-sm mb-6 text-gray-400">
+              학급 관리부터 학생 결과 공유, AI 세특 작성까지 — 생기로그 AI 하나로 끝냅니다
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-7">
+              {['학교·학급 그룹 관리', '학생 활동 기록 자동 정리', 'AI 세특 초안 생성'].map(item => (
+                <span key={item} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-white/5 text-gray-300">
+                  <CheckCircle2 size={13} style={{ color: theme.from }} /> {item}
+                </span>
+              ))}
+            </div>
+            <a
+              href="/"
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-black text-white transition-all active:scale-95 shadow-lg hover:brightness-110"
+              style={{ background: theme.from }}
+            >
+              무료로 시작하기 <ArrowRight size={16} />
+            </a>
           </div>
-          <div className="flex-1">
-            <p className="font-black text-sm text-indigo-900">생기로그 AI로 학교 프로젝트를 운영해보세요</p>
-            <p className="text-xs text-indigo-600 mt-0.5">학교 그룹 · 프로젝트 관리 · 학생 결과 공유까지 한 번에</p>
-          </div>
-          <a
-            href="/"
-            className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all active:scale-95"
-          >
-            무료로 시작하기
-          </a>
-        </div>
+        </motion.div>
       </div>
 
       <footer className="text-center py-4 text-xs text-gray-300">

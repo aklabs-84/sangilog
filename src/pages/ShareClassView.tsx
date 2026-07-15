@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import { animate, motion, useReducedMotion } from 'framer-motion';
 import JSZip from 'jszip';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import type { XCell } from '../lib/xlsxBuilder';
@@ -32,7 +33,22 @@ import {
   Link2,
   ImageIcon,
   File as FileIcon,
+  Sparkles,
+  Quote,
 } from 'lucide-react';
+
+const CountUpNumber = ({ value }: { value: number }) => {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const controls = animate(0, value, {
+      duration: 1,
+      ease: 'easeOut',
+      onUpdate: (v) => setDisplay(Math.round(v)),
+    });
+    return controls.stop;
+  }, [value]);
+  return <>{display}</>;
+};
 
 const RESULT_TYPE_BADGE: Record<string, { icon: JSX.Element; color: string; label: string }> = {
   text:  { icon: <AlignLeft size={11} />, color: 'text-primary bg-primary/10',     label: '텍스트' },
@@ -115,6 +131,8 @@ interface EvalRow {
 
 const ShareClassView = () => {
   const { classId } = useParams<{ classId: string }>();
+
+  const reduceMotion = useReducedMotion();
 
   // ── 인증 상태 ──────────────────────────────────────────────────────────────
   const sessionKey = `share_verified_${classId}`;
@@ -332,6 +350,42 @@ const ShareClassView = () => {
   const totalObs = filteredData.reduce((a, sd) => a + sd.obs.length, 0);
   const totalResults = filteredData.reduce((a, sd) => a + sd.results.length, 0);
   const activeCount = filteredData.filter((sd) => sd.obs.length > 0 || sd.results.length > 0).length;
+  const setechDoneCount = useMemo(() =>
+    studentData.filter((sd) => {
+      const ev = evalMap[sd.student.id];
+      return ev?.status === 'done' || ev?.status === 'final';
+    }).length,
+    [studentData, evalMap]
+  );
+
+  const spotlightQuote = useMemo(() => {
+    let best: { student: StudentRow; content: string } | null = null;
+    let bestScore = -Infinity;
+    for (const sd of studentData) {
+      for (const o of sd.obs) {
+        const text = (o.content || '').trim();
+        if (text.length < 20 || text.length > 220) continue;
+        const score = -Math.abs(text.length - 90);
+        if (score > bestScore) {
+          bestScore = score;
+          best = { student: sd.student, content: text };
+        }
+      }
+    }
+    return best;
+  }, [studentData]);
+
+  const snapshotResult = useMemo(() => {
+    let best: { student: StudentRow; result: ResultRow } | null = null;
+    for (const sd of studentData) {
+      for (const r of sd.results) {
+        if (!best || new Date(r.created_at).getTime() > new Date(best.result.created_at).getTime()) {
+          best = { student: sd.student, result: r };
+        }
+      }
+    }
+    return best;
+  }, [studentData]);
 
   const allGalleryImgs = filteredGallery.filter((g) => g.file_type === 'image');
   const allGalleryImgUrls = allGalleryImgs.map((g) => g.file_url);
@@ -623,79 +677,183 @@ const ShareClassView = () => {
     <>
     <div className="min-h-screen bg-gray-50 font-sans print:hidden">
       {/* 헤더 */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10 print:static print:border-b-2 print:border-gray-300">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-              <GraduationCap size={20} className="text-indigo-600" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base sm:text-lg font-black text-gray-900 truncate">
-                  {classInfo?.name}
-                  {classInfo?.subject ? ` · ${classInfo.subject}` : ''}
-                </h1>
-                <span className="shrink-0 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full border border-indigo-200">
-                  선생님 공유 보기
-                </span>
+      <div className="print:hidden">
+        {/* 히어로 배너 */}
+        <div className="relative overflow-hidden bg-white">
+          <motion.div
+            className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-8"
+            initial={reduceMotion ? undefined : { opacity: 0, y: 14 }}
+            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+          >
+            <div className="flex items-start justify-between gap-3 mb-8">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
+                  <GraduationCap size={22} className="text-violet-600" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-sm sm:text-base font-black text-gray-500 truncate">
+                      {classInfo?.name}
+                      {classInfo?.subject ? ` · ${classInfo.subject}` : ''}
+                    </h1>
+                    <span className="shrink-0 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-violet-50 text-violet-600 rounded-full border border-violet-100">
+                      선생님 공유 보기
+                    </span>
+                  </div>
+                  {lastUpdated && (
+                    <p className="text-[11px] text-gray-400 font-semibold mt-1">
+                      {lastUpdated.toLocaleString('ko-KR')} 기준
+                    </p>
+                  )}
+                </div>
               </div>
-              {lastUpdated && (
-                <p className="text-[10px] text-gray-400 font-semibold mt-0.5">
-                  {lastUpdated.toLocaleString('ko-KR')} 기준
-                </p>
-              )}
+              <a
+                href="/"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full shrink-0 transition-all border border-gray-200 hover:border-violet-200 hover:bg-violet-50"
+              >
+                <Sparkles size={12} className="text-violet-600" />
+                <span className="text-[11px] font-black text-gray-600">Powered by 생기로그 AI</span>
+              </a>
             </div>
-          </div>
-          <div className="flex items-center gap-2 print:hidden">
-            <button
-              onClick={fetchData}
-              className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 transition-all"
-              title="새로고침"
-            >
-              <RefreshCw size={15} />
-            </button>
-            <button
-              onClick={downloadCSV}
-              className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-black transition-all"
-              title="CSV 다운로드"
-            >
-              <FileText size={15} />
-              <span className="hidden sm:inline">CSV</span>
-            </button>
-            <button
-              onClick={downloadXLSX}
-              disabled={downloading}
-              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-black transition-all"
-              title="XLSX 엑셀 다운로드"
-            >
-              {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-              <span className="hidden sm:inline">XLSX</span>
-            </button>
+
+            {/* 리드 통계 */}
+            <div className="flex items-baseline gap-2 mb-6">
+              <span className="text-6xl sm:text-7xl font-black tracking-tight tabular-nums text-gray-900">
+                <CountUpNumber value={studentData.length} />
+              </span>
+              <span className="text-base sm:text-lg font-bold text-gray-400">명의 학생이 참여 중</span>
+            </div>
+
+            {/* 통계 */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: '활동 참여', value: activeCount, unit: '명', icon: CheckCircle2 },
+                { label: '활동 기록', value: totalObs, unit: '건', icon: FileText },
+                { label: '결과물', value: totalResults, unit: '건', icon: FolderOpen },
+              ].map(({ label, value, unit, icon: Icon }) => (
+                <div key={label} className="rounded-2xl p-4 bg-gray-50 border border-gray-100">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Icon size={13} className="text-violet-500" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</p>
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl sm:text-3xl font-black text-gray-900"><CountUpNumber value={value} /></span>
+                    <span className="text-sm font-bold text-gray-400">{unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+
+        {/* 피처 카드 그리드 */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-2 bg-white">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { key: 'results' as const, label: '결과 확인', value: totalResults, unit: '건', icon: FileText, color: 'blue' as const },
+              { key: 'gallery' as const, label: '갤러리', value: galleryItems.length, unit: '장', icon: Images, color: 'emerald' as const },
+              { key: 'setech' as const, label: '학급 기록', value: setechDoneCount, unit: '건', icon: BookOpen, color: 'amber' as const },
+            ].map(({ key, label, value, unit, icon: Icon, color }, i) => {
+              const filled = value > 0;
+              const colorCls = {
+                blue: { tint: 'bg-blue-50', ink: 'text-blue-600', border: 'border-blue-100' },
+                emerald: { tint: 'bg-emerald-50', ink: 'text-emerald-600', border: 'border-emerald-100' },
+                amber: { tint: 'bg-amber-50', ink: 'text-amber-600', border: 'border-amber-100' },
+              }[color];
+              return (
+                <motion.button
+                  key={label}
+                  onClick={() => {
+                    setActiveTab(key);
+                    document.getElementById('main-content')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+                  }}
+                  initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+                  whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.4, delay: i * 0.06, ease: 'easeOut' }}
+                  whileHover={reduceMotion ? undefined : { y: -4 }}
+                  className={`text-left rounded-2xl border p-4 transition-shadow ${filled ? `${colorCls.tint} ${colorCls.border} shadow-sm hover:shadow-md` : 'bg-white border-gray-100'}`}
+                >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${filled ? 'bg-white/70' : 'bg-gray-50'}`}>
+                    <Icon size={15} className={filled ? colorCls.ink : 'text-gray-300'} />
+                  </div>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${filled ? colorCls.ink : 'text-gray-400'}`}>{label}</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-xl font-black ${filled ? 'text-gray-900' : 'text-gray-400'}`}><CountUpNumber value={value} /></span>
+                    <span className={`text-xs font-bold ${filled ? 'text-gray-400' : 'text-gray-300'}`}>{unit}</span>
+                  </div>
+                </motion.button>
+              );
+            })}
           </div>
         </div>
 
-        {/* 탭 */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 pb-0 print:hidden">
-          {[
-            { key: 'results', label: '결과 확인', icon: FileText },
-            { key: 'gallery', label: `갤러리${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`, icon: Images },
-            { key: 'setech', label: '학생 기록', icon: BookOpen },
-          ].map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key as 'results' | 'gallery')}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-black border-b-2 transition-all ${
-                activeTab === key
-                  ? 'border-indigo-600 text-indigo-600'
-                  : 'border-transparent text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              <Icon size={14} />
-              {label}
-            </button>
-          ))}
+        {/* 스포트라이트 인용구 */}
+        {spotlightQuote && (
+          <div className="border-t border-b border-gray-100 bg-violet-50/40">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+              <Quote size={26} className="text-violet-300 mb-3" />
+              <blockquote className="text-lg sm:text-2xl font-bold text-gray-900 leading-snug tracking-tight mb-4">
+                “{spotlightQuote.content}”
+              </blockquote>
+              <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+                {classInfo?.name} · {spotlightQuote.student.full_name}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 탭 바 + 다운로드 */}
+        <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+              {[
+                { key: 'results', label: '결과 확인', icon: FileText },
+                { key: 'gallery', label: `갤러리${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`, icon: Images },
+                { key: 'setech', label: '학생 기록', icon: BookOpen },
+              ].map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setActiveTab(key as 'results' | 'gallery' | 'setech')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                    activeTab === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <Icon size={13} />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={fetchData}
+                className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 transition-all"
+                title="새로고침"
+              >
+                <RefreshCw size={15} />
+              </button>
+              <button
+                onClick={downloadCSV}
+                className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-black transition-all"
+                title="CSV 다운로드"
+              >
+                <FileText size={15} />
+                <span className="hidden sm:inline">CSV</span>
+              </button>
+              <button
+                onClick={downloadXLSX}
+                disabled={downloading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-black transition-all"
+                title="XLSX 엑셀 다운로드"
+              >
+                {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                <span className="hidden sm:inline">XLSX</span>
+              </button>
+            </div>
+          </div>
         </div>
-      </header>
+      </div>
 
       {dataLoading ? (
         <div className="flex items-center justify-center py-32">
@@ -705,31 +863,37 @@ const ShareClassView = () => {
           </div>
         </div>
       ) : (
-        <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <main id="main-content" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
           {/* ── 결과 확인 탭 ── */}
           {activeTab === 'results' && (
             <>
-              {/* 통계 카드 */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:grid-cols-4">
-                {[
-                  { label: '전체 학생', value: studentData.length, unit: '명', icon: Users },
-                  { label: '활동 참여', value: activeCount, unit: '명', icon: CheckCircle2 },
-                  { label: '활동 기록', value: totalObs, unit: '건', icon: FileText },
-                  { label: '결과물', value: totalResults, unit: '건', icon: FolderOpen },
-                ].map(({ label, value, unit, icon: Icon }) => (
-                  <div key={label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Icon size={13} className="text-gray-400" />
-                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</p>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-gray-900">{value}</span>
-                      <span className="text-sm font-bold text-gray-400">{unit}</span>
-                    </div>
+              {/* 결과물 스냅샷 카드 */}
+              {snapshotResult && (
+                <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 p-4 print:hidden">
+                  <div className="w-11 h-11 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                    {snapshotResult.result.image_url
+                      ? <ImageIcon size={18} className="text-violet-500" />
+                      : snapshotResult.result.link_url
+                        ? <Link2 size={18} className="text-violet-500" />
+                        : snapshotResult.result.file_url
+                          ? <FileIcon size={18} className="text-violet-500" />
+                          : <AlignLeft size={18} className="text-violet-500" />}
                   </div>
-                ))}
-              </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-gray-900 text-sm truncate">{snapshotResult.result.title || '제목 없음'}</p>
+                    <p className="text-xs text-gray-400 font-semibold truncate">
+                      {snapshotResult.student.full_name} · {new Date(snapshotResult.result.created_at).toLocaleDateString('ko-KR')}
+                    </p>
+                  </div>
+                  {RESULT_TYPE_BADGE[snapshotResult.result.result_type] && (
+                    <span className={`shrink-0 flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full ${RESULT_TYPE_BADGE[snapshotResult.result.result_type].color}`}>
+                      {RESULT_TYPE_BADGE[snapshotResult.result.result_type].icon}
+                      {RESULT_TYPE_BADGE[snapshotResult.result.result_type].label}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* 주차 필터 + 전체 열기/닫기 */}
               {allWeeks.length > 0 && (
@@ -763,11 +927,18 @@ const ShareClassView = () => {
 
               {/* 학생 목록 */}
               <div className="space-y-2">
-                {filteredData.map(({ student, obs, results }) => {
+                {filteredData.map(({ student, obs, results }, i) => {
                   const isExpanded = expandedIds.has(student.id);
                   const hasActivity = obs.length > 0 || results.length > 0;
                   return (
-                    <div key={student.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all print:break-inside-avoid ${hasActivity ? 'border-gray-200' : 'border-gray-100'}`}>
+                    <motion.div
+                      key={student.id}
+                      initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+                      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: '-40px' }}
+                      transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.04, ease: 'easeOut' }}
+                      className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all print:break-inside-avoid ${hasActivity ? 'border-gray-200' : 'border-gray-100'}`}
+                    >
                       <button
                         onClick={() => hasActivity && toggleExpand(student.id)}
                         disabled={!hasActivity}
@@ -893,7 +1064,7 @@ const ShareClassView = () => {
                           </div>
                         );
                       })()}
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>
@@ -1108,21 +1279,41 @@ const ShareClassView = () => {
           })()}
 
           {/* 학교 도입 유도 배너 */}
-          <div className="rounded-2xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 px-5 py-4 flex items-center gap-4 print:hidden">
-            <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center shrink-0">
-              <span className="text-lg">🏫</span>
+          <motion.div
+            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+            whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-60px' }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="relative overflow-hidden rounded-3xl px-6 py-8 sm:px-10 sm:py-14 print:hidden bg-gray-900"
+          >
+            <div className="relative">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-[11px] font-black text-violet-300 mb-4">
+                <Sparkles size={12} />
+                생기로그 AI
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-black text-white leading-snug mb-2 tracking-tight">
+                이런 학급 공유 페이지, 우리 학교도<br className="hidden sm:block" /> 만들어볼까요?
+              </h3>
+              <p className="text-sm text-gray-400 font-semibold mb-5">
+                학급 활동 기록부터 세특 작성까지, 생기로그 AI가 도와드립니다
+              </p>
+              <div className="flex flex-wrap gap-3 mb-6">
+                {['학교 그룹 관리', '교사 계정 연동', '학급 공유 URL 발급'].map((item) => (
+                  <span key={item} className="flex items-center gap-1.5 text-xs font-bold text-gray-300">
+                    <CheckCircle2 size={14} className="text-violet-400" />
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <a
+                href="/school-intro"
+                className="inline-flex items-center gap-2 px-5 py-3 bg-violet-500 hover:bg-violet-400 rounded-2xl text-sm font-black text-white transition-all active:scale-95"
+              >
+                무료로 시작하기
+                <ArrowRight size={16} />
+              </a>
             </div>
-            <div className="flex-1">
-              <p className="font-black text-sm text-indigo-900">우리 학교도 생기로그 AI를 도입해보세요</p>
-              <p className="text-xs text-indigo-600 mt-0.5">학교 그룹 · 교사 연동 · 학급 공유 URL까지 지원합니다</p>
-            </div>
-            <a
-              href="/school-intro"
-              className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all active:scale-95"
-            >
-              자세히 보기
-            </a>
-          </div>
+          </motion.div>
 
           {/* 푸터 */}
           <div className="text-center pt-4 pb-8 print:pt-8">
