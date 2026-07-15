@@ -158,6 +158,7 @@ export default function Gallery() {
   const displayItems = [...items, ...driveItems].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
+  const hasScreenableImage = displayItems.some(item => item.file_type === 'image');
 
   // 이미지 파일 업로드
   const handleFiles = useCallback(
@@ -345,7 +346,7 @@ export default function Gallery() {
           {/* 상영회 시작 */}
           <button
             onClick={() => setScreeningOpen(true)}
-            disabled={displayItems.length === 0}
+            disabled={!hasScreenableImage}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 text-primary text-sm font-bold hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
           >
             <Clapperboard size={15} />
@@ -802,7 +803,7 @@ export default function Gallery() {
       </AnimatePresence>
 
       {/* 상영회 모드 */}
-      {screeningOpen && displayItems.length > 0 && (
+      {screeningOpen && hasScreenableImage && (
         <GalleryScreening
           items={displayItems}
           initialIndex={lightboxIndex ?? 0}
