@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -229,7 +229,27 @@ const Classroom = () => {
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
   // 서브클래스의 부모 weekly_plan (수업 자료실 모달에서 사용)
   const [parentWeeklyPlan, setParentWeeklyPlan] = useState<any[]>([]);
-  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string } | null>(null);
+  const [fullscreenMaterial, setFullscreenMaterial] = useState<{ title: string; content: string; weekNumber?: number } | null>(null);
+  // 발표 화면에서 "이전/다음 주차"로 바로 이동할 수 있도록 — weekly_plan 중 자료 에디터(class_materials)에
+  // 연결된 주차만 모아 정렬. content는 fetchResources에서 이미 함께 불러와두므로 추가 API 호출 없이 즉시 전환 가능.
+  const weekNavList = useMemo(() => {
+    const effectivePlan: any[] = classInfo?.parent_class_id ? parentWeeklyPlan : (classInfo?.weekly_plan || []);
+    return effectivePlan
+      .filter((p: any) => p.material_id)
+      .map((p: any) => {
+        const mat = classMaterials.find((m: any) => m.id === p.material_id);
+        return { week: p.week as number, title: (mat?.title as string) || `${p.week}주차`, content: (mat?.content as string) ?? null };
+      })
+      .filter((w: any) => w.content !== null)
+      .sort((a: any, b: any) => a.week - b.week);
+  }, [classInfo, parentWeeklyPlan, classMaterials]);
+
+  const handleNavigateWeek = (week: number) => {
+    const target = weekNavList.find((w: any) => w.week === week);
+    if (!target) return;
+    setFullscreenMaterial({ title: target.title, content: target.content, weekNumber: week });
+  };
+
   // 학급정보 수정 팝업에서 에디터 자료 선택용
   const [editingClassMaterials, setEditingClassMaterials] = useState<any[]>([]);
   const [editingClassSurveyForms, setEditingClassSurveyForms] = useState<{ id: string; title: string }[]>([]);
@@ -1668,6 +1688,39 @@ const Classroom = () => {
     }
   };
 
+  // 일반 자료(링크/파일) 열기 — 수업 자료실 목록과 발표 화면 자료함 패널이 공유
+  const openGeneralMaterial = async (mat: any) => {
+    if (mat.type === 'link') {
+      window.open(mat.url, '_blank');
+      return;
+    }
+    const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
+    const fileName = (mat.file_name || '').toLowerCase();
+    if (fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+      const res = await fetch(data.publicUrl);
+      const text = await res.text();
+      const blob = new Blob([text], { type: 'text/html' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } else {
+      window.open(data.publicUrl, '_blank');
+    }
+  };
+
+  // 발표 화면 "자료함" 패널에 넘길 일반 자료(링크/파일) 목록 — 실제 여는 동작은 openGeneralMaterial이 담당
+  const presentationResources = useMemo(() => (
+    [...generalMaterials]
+      .sort((a: any, b: any) => (a.title || '').localeCompare(b.title || '', 'ko', { numeric: true, sensitivity: 'base' }))
+      .map((m: any) => ({
+        id: m.id,
+        title: m.title,
+        subtitle: m.type === 'link' ? m.url : m.file_name,
+        type: m.type as 'link' | 'file',
+        onOpen: () => openGeneralMaterial(m),
+      }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [generalMaterials]);
+
   const handleEditGeneralMat = (m: any) => {
     setEditingGeneralMatId(m.id);
     setGeneralMatForm({
@@ -1870,6 +1923,12 @@ const Classroom = () => {
       <PresentationModal
         material={fullscreenMaterial}
         onClose={() => setFullscreenMaterial(null)}
+        weekNav={
+          fullscreenMaterial.weekNumber != null && weekNavList.length > 1
+            ? { weeks: weekNavList.map((w: any) => ({ week: w.week, title: w.title })), currentWeek: fullscreenMaterial.weekNumber, onNavigate: handleNavigateWeek }
+            : undefined
+        }
+        resources={presentationResources}
       />
     )}
     <div className="flex flex-col relative bg-surface-container-low/20 rounded-[2rem] border border-white/40 shadow-2xl">
@@ -4426,7 +4485,7 @@ const Classroom = () => {
                               onClick={() => {
                                 if (isMaterial) {
                                   if (matInfo) {
-                                    setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '' });
+                                    setFullscreenMaterial({ title: matInfo.title, content: matInfo.content || '', weekNumber: item.week });
                                   } else {
                                     showToast('연결된 자료가 삭제되었습니다. 학급 수정에서 다시 연결해주세요.');
                                   }
@@ -4516,7 +4575,7 @@ const Classroom = () => {
                         const renderMatRow = ({ mat, linkedWeeks }: { mat: any; linkedWeeks: number[] }) => (
                           <div key={mat.id} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-surface-container-high group">
                             <button
-                              onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '' })}
+                              onClick={() => setFullscreenMaterial({ title: mat.title, content: mat.content || '', weekNumber: linkedWeeks.length === 1 ? linkedWeeks[0] : undefined })}
                               className="flex items-center gap-3 flex-1 min-w-0 text-left"
                             >
                               <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
@@ -4712,19 +4771,7 @@ const Classroom = () => {
                                   <a href={mat.url} target="_blank" rel="noopener noreferrer" className="text-sm font-black hover:text-primary transition-colors truncate block">{mat.title}</a>
                                 ) : (
                                   <button
-                                    onClick={async () => {
-                                      const { data } = supabase.storage.from('student-attachments').getPublicUrl(mat.file_path);
-                                      const fileName = (mat.file_name || '').toLowerCase();
-                                      if (fileName.endsWith('.html') || fileName.endsWith('.htm')) {
-                                        const res = await fetch(data.publicUrl);
-                                        const text = await res.text();
-                                        const blob = new Blob([text], { type: 'text/html' });
-                                        const blobUrl = URL.createObjectURL(blob);
-                                        window.open(blobUrl, '_blank');
-                                      } else {
-                                        window.open(data.publicUrl, '_blank');
-                                      }
-                                    }}
+                                    onClick={() => openGeneralMaterial(mat)}
                                     className="text-sm font-black hover:text-primary transition-colors truncate block text-left"
                                   >{mat.title}</button>
                                 )}

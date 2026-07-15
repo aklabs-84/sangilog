@@ -7,7 +7,7 @@ import { useTimer } from '../lib/timerContext';
 import {
   ArrowLeft, Save, Pencil, X as XIcon,
   ZoomIn, PenTool, Undo2, Highlighter, Flashlight, Timer as TimerIcon, Play, Pause,
-  Sun, Moon, Copy, Check,
+  Sun, Moon, Copy, Check, ChevronLeft, ChevronRight, FolderOpen, Link2, FileText,
 } from 'lucide-react';
 
 const PEN_COLORS = ['#ff5252', '#ffd600', '#4ade80', '#ffffff'];
@@ -217,15 +217,37 @@ export interface PresentationMaterial {
   content: string;
 }
 
+// 발표 화면을 나가지 않고 다른 주차 자료로 바로 전환하기 위한 내비게이션 정보 —
+// 주차별 자료 중 자료 에디터(class_materials)에 연결된 항목들만 대상으로 한다.
+export interface PresentationWeekNav {
+  weeks: { week: number; title: string }[];
+  currentWeek: number;
+  onNavigate: (week: number) => void;
+}
+
+// 발표 화면을 나가지 않고 등록된 일반 자료(링크/파일)를 바로 열어보기 위한 항목 —
+// 실제 여는 동작(새 탭 열기 등)은 상위(Classroom)에서 처리해 이 컴포넌트는 Supabase를 몰라도 된다.
+export interface PresentationResource {
+  id: string;
+  title: string;
+  subtitle?: string;
+  type: 'link' | 'file';
+  onOpen: () => void;
+}
+
 // ── 프레젠테이션 모달 ─────────────────────────────────────────────────────────
 const PresentationModal = ({
   material,
   onClose,
   onSave,
+  weekNav,
+  resources,
 }: {
   material: PresentationMaterial;
   onClose: () => void;
   onSave?: (newContent: string) => void;
+  weekNav?: PresentationWeekNav;
+  resources?: PresentationResource[];
 }) => {
   const [editMode, setEditMode] = useState(false);
   const [editedContent, setEditedContent] = useState(material.content);
@@ -265,6 +287,32 @@ const PresentationModal = ({
     setTool(prev => (prev === t ? 'none' : t));
   };
 
+  // ── 주차 이동 (weekNav) ────────────────────────────────────────────────
+  const weekIndex = weekNav ? weekNav.weeks.findIndex(w => w.week === weekNav.currentWeek) : -1;
+  const goPrevWeek = () => {
+    if (!weekNav || weekIndex <= 0) return;
+    weekNav.onNavigate(weekNav.weeks[weekIndex - 1].week);
+  };
+  const goNextWeek = () => {
+    if (!weekNav || weekIndex === -1 || weekIndex >= weekNav.weeks.length - 1) return;
+    weekNav.onNavigate(weekNav.weeks[weekIndex + 1].week);
+  };
+
+  // ── 등록된 일반 자료(링크/파일) 패널 ───────────────────────────────────────
+  const [showResourcePanel, setShowResourcePanel] = useState(false);
+  const resourcePanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showResourcePanel) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (resourcePanelRef.current && !resourcePanelRef.current.contains(e.target as Node)) {
+        setShowResourcePanel(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showResourcePanel]);
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (zoomedImage) {
@@ -283,13 +331,19 @@ const PresentationModal = ({
         if (e.key === '3') { selectTool('pen'); return; }
         if (e.key === '4') { selectTool('spotlight'); return; }
         if (e.key === '5') { timer.toggle(); return; }
+        if (weekNav && tool === 'none') {
+          if (e.key === 'ArrowLeft') { goPrevWeek(); return; }
+          if (e.key === 'ArrowRight') { goNextWeek(); return; }
+        }
       }
       if (tool !== 'none' && e.key === 'Escape') { setTool('none'); return; }
+      if (showResourcePanel && e.key === 'Escape') { setShowResourcePanel(false); return; }
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose, editMode, tool, zoomedImage, timer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, editMode, tool, zoomedImage, timer, weekNav, weekIndex, showResourcePanel]);
 
   // ── 문서 스크롤 영역 크기/스크롤 위치 추적 (돋보기·스포트라이트가 "지금 화면에
   // 보이는 부분"을 계산하는 데 필요) — 편집모드로 전환되어도 캔버스가 리셋되지
@@ -421,6 +475,20 @@ const PresentationModal = ({
     setCanUndo(false);
   };
 
+  // 주차를 이동해 material(title/content)이 바뀌면 이전 화면의 임시 상태(편집 중 텍스트,
+  // 펼친 토글, 돋보기/펜 낙서, 확대 이미지, 스크롤 위치)가 새 자료에 그대로 남아있지 않도록 초기화한다.
+  useEffect(() => {
+    setEditedContent(material.content);
+    setEditMode(false);
+    setTool('none');
+    setOpenDetailsKeys(new Set());
+    setZoomedImage(null);
+    handleClearPen();
+    if (stageBoxRef.current) stageBoxRef.current.scrollTop = 0;
+    setScrollTop(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [material.title, material.content]);
+
   const SPOTLIGHT_RADIUS = 190;
   const SPOTLIGHT_ZOOM = 1.6;
 
@@ -440,6 +508,74 @@ const PresentationModal = ({
           <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
           <span className={`text-sm font-bold truncate ${dark ? 'text-white/60' : 'text-slate-500'}`}>{material.title}</span>
         </div>
+
+        {/* 주차 이동 — 발표 화면을 나가지 않고 다른 주차 자료로 바로 전환 */}
+        {weekNav && !editMode && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={goPrevWeek}
+              disabled={weekIndex <= 0}
+              title="이전 주차 (←)"
+              className={`p-2 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed ${dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <select
+              value={weekNav.currentWeek}
+              onChange={e => weekNav.onNavigate(Number(e.target.value))}
+              title="주차 선택"
+              className={`max-w-[220px] text-xs font-black rounded-xl pl-3 pr-2 py-2.5 focus:outline-none cursor-pointer ${dark ? 'bg-white/10 text-white' : 'bg-slate-900/5 text-slate-800'}`}
+            >
+              {weekNav.weeks.map(w => (
+                <option key={w.week} value={w.week}>{w.week}주차 · {w.title}</option>
+              ))}
+            </select>
+            <button
+              onClick={goNextWeek}
+              disabled={weekIndex === -1 || weekIndex >= weekNav.weeks.length - 1}
+              title="다음 주차 (→)"
+              className={`p-2 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed ${dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* 등록된 일반 자료(링크/파일) — 발표 화면을 나가지 않고 목록에서 바로 열람 */}
+        {resources && resources.length > 0 && !editMode && (
+          <div className="relative shrink-0" ref={resourcePanelRef}>
+            <button
+              onClick={() => setShowResourcePanel(v => !v)}
+              title="등록된 자료 보기"
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${showResourcePanel ? 'bg-primary text-white' : dark ? 'bg-white/10 text-white/70 hover:bg-white/20' : 'bg-slate-900/5 text-slate-600 hover:bg-slate-900/10'}`}
+            >
+              <FolderOpen size={15} /> 자료함
+            </button>
+            {showResourcePanel && (
+              <div
+                className={`absolute right-0 top-full mt-2 w-72 max-h-[60vh] overflow-y-auto rounded-2xl border shadow-2xl z-10 py-2 ${dark ? 'bg-[#15151f] border-white/10' : 'bg-white border-slate-900/10'}`}
+              >
+                {resources.map(r => (
+                  <button
+                    key={r.id}
+                    onClick={() => { r.onOpen(); setShowResourcePanel(false); }}
+                    className={`w-full flex items-start gap-2.5 px-4 py-2.5 text-left transition-colors ${dark ? 'hover:bg-white/10' : 'hover:bg-slate-900/5'}`}
+                  >
+                    {r.type === 'link'
+                      ? <Link2 size={14} className="text-cyan-500 shrink-0 mt-0.5" />
+                      : <FileText size={14} className="text-amber-500 shrink-0 mt-0.5" />}
+                    <div className="min-w-0">
+                      <p className={`text-xs font-black truncate ${dark ? 'text-white' : 'text-slate-800'}`}>{r.title}</p>
+                      {r.subtitle && (
+                        <p className={`text-[10px] truncate ${dark ? 'text-white/40' : 'text-slate-400'}`}>{r.subtitle}</p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 발표 보조 도구 */}
         {!editMode && (
