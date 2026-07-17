@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
+import { supabase } from '../lib/supabase';
 import GroupPicker from './tools/GroupPicker';
 import ClassTimer from './tools/ClassTimer';
 import QuizGame from './tools/QuizGame';
@@ -256,6 +257,11 @@ const TeachingTools = () => {
     return toolId ? (tools.find(t => t.id === toolId) ?? null) : null;
   });
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [lockedTool, setLockedTool] = useState<Tool | null>(null);
+  const [contactMessage, setContactMessage] = useState('');
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [contactSubmitted, setContactSubmitted] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
   const [guideTool, setGuideTool] = useState<Tool | null>(null);
 
   const isPro = checkIsPro(profile);
@@ -279,14 +285,58 @@ const TeachingTools = () => {
   const handleToolClick = (tool: Tool) => {
     if (!tool.available) return;
     if (!isBasicOrAbove && (tool.planRequired === 'basic' || tool.planRequired === 'pro')) {
+      setLockedTool(tool);
       setShowUpgradeModal(true);
       return;
     }
     if (!isPro && tool.planRequired === 'pro') {
+      setLockedTool(tool);
       setShowUpgradeModal(true);
       return;
     }
     setActiveTool(tool);
+  };
+
+  const closeUpgradeModal = () => {
+    setShowUpgradeModal(false);
+    setLockedTool(null);
+    setContactMessage('');
+    setContactSubmitted(false);
+    setContactError(null);
+  };
+
+  const handleContactSubmit = async () => {
+    setContactSubmitting(true);
+    setContactError(null);
+
+    const requestedPlan = isBasicOrAbove ? 'Pro' : 'Basic';
+    const contactPayload = {
+      name: profile?.full_name || '이름 미상',
+      email: profile?.email || '',
+      school_name: profile?.school_name || '미입력',
+      role: profile?.role || '교사',
+      message: `[${requestedPlan} 플랜 문의 - ${lockedTool?.label ?? '수업 도구'}]${contactMessage ? `\n${contactMessage}` : ''}`,
+    };
+
+    const { error } = await supabase.from('access_requests').insert(contactPayload);
+    if (error) {
+      setContactSubmitting(false);
+      setContactError('제출 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+
+    try {
+      await fetch('/api/slack?type=notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contactPayload),
+      });
+    } catch {
+      // 슬랙 알림 실패해도 신청은 이미 저장됐으므로 무시
+    }
+
+    setContactSubmitting(false);
+    setContactSubmitted(true);
   };
 
   // activeTool이 바뀔 때마다 URL tool= 파라미터 동기화
@@ -334,7 +384,7 @@ const TeachingTools = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-            onClick={() => setShowUpgradeModal(false)}
+            onClick={closeUpgradeModal}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -351,26 +401,45 @@ const TeachingTools = () => {
               </h3>
               <p className="text-sm text-gray-500 mb-6 leading-relaxed">
                 {isBasicOrAbove
-                  ? <>이 도구는 Pro 플랜에서 사용할 수 있습니다.<br />업그레이드 문의는 관리자에게 연락해 주세요.</>
-                  : <>이 도구는 Basic 플랜 이상에서 사용할 수 있습니다.<br />베타 테스터 또는 플랜 업그레이드 문의는 관리자에게 연락해 주세요.</>
+                  ? <>이 도구는 Pro 플랜에서 사용할 수 있습니다.<br />아래에 문의를 남겨주시면 곧 연락드릴게요.</>
+                  : <>이 도구는 Basic 플랜 이상에서 사용할 수 있습니다.<br />베타 테스터 또는 플랜 업그레이드는 아래에 문의를 남겨주세요.</>
                 }
               </p>
-              <div className="flex flex-col gap-3">
-                <a
-                  href={isBasicOrAbove
-                    ? 'mailto:aklabs84@naver.com?subject=생기로그 Pro 플랜 업그레이드 문의'
-                    : 'mailto:aklabs84@naver.com?subject=생기로그 Basic 플랜 문의'}
-                  className="block w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl text-sm transition-colors"
-                >
-                  {isBasicOrAbove ? 'Pro 업그레이드 문의하기' : 'Basic 플랜 문의하기'}
-                </a>
-                <button
-                  onClick={() => setShowUpgradeModal(false)}
-                  className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
-                >
-                  <X size={14} /> 닫기
-                </button>
-              </div>
+              {contactSubmitted ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm font-bold text-emerald-600 py-2">문의가 접수되었습니다. 곧 연락드릴게요!</p>
+                  <button
+                    onClick={closeUpgradeModal}
+                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <X size={14} /> 닫기
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <textarea
+                    value={contactMessage}
+                    onChange={e => setContactMessage(e.target.value)}
+                    placeholder="궁금한 점이나 필요한 이유를 남겨주세요 (선택)"
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-left resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  {contactError && <p className="text-xs text-red-500 font-bold">{contactError}</p>}
+                  <button
+                    onClick={handleContactSubmit}
+                    disabled={contactSubmitting}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black rounded-xl text-sm transition-colors"
+                  >
+                    {contactSubmitting ? '제출 중...' : isBasicOrAbove ? 'Pro 업그레이드 문의하기' : 'Basic 플랜 문의하기'}
+                  </button>
+                  <button
+                    onClick={closeUpgradeModal}
+                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <X size={14} /> 닫기
+                  </button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
