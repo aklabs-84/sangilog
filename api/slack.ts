@@ -284,6 +284,59 @@ async function handleBugReport(req: any, res: any) {
   return res.status(200).json({ ok: true });
 }
 
+async function handleGoogleSignup(req: any, res: any) {
+  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  if (!webhookUrl) {
+    return res.status(500).json({ error: 'SLACK_WEBHOOK_URL not configured' });
+  }
+
+  const { name, email } = req.body;
+
+  const payload = {
+    blocks: [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: '🎉 생기로그 AI — 신규 구글 가입',
+          emoji: true,
+        },
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*이름*\n${name || '(미입력)'}` },
+          { type: 'mrkdwn', text: `*이메일*\n${email}` },
+        ],
+      },
+      { type: 'divider' },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `가입 시각: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} | 무료 플랜 자동 승인됨 — 별도 조치 불필요`,
+          },
+        ],
+      },
+    ],
+  };
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) throw new Error(`Slack responded with ${response.status}`);
+    return res.status(200).json({ ok: true });
+  } catch (error: any) {
+    console.error('[api/slack?type=google-signup] error:', error?.message);
+    return res.status(500).json({ error: error?.message });
+  }
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -294,5 +347,6 @@ export default async function handler(req: any, res: any) {
   if (type === 'notify') return handleNotify(req, res);
   if (type === 'school-inquiry') return handleSchoolInquiry(req, res);
   if (type === 'bug-report') return handleBugReport(req, res);
-  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report)' });
+  if (type === 'google-signup') return handleGoogleSignup(req, res);
+  return res.status(400).json({ error: 'Invalid or missing type query param (announcement | notify | school-inquiry | bug-report | google-signup)' });
 }

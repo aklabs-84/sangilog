@@ -7,11 +7,13 @@ import { ClassAlarmProvider } from './lib/classAlarmContext';
 import FloatingClassAlarm from './components/FloatingClassAlarm';
 
 // Supabase가 redirect_to 미허용 시 루트(/)로 fallback하는 경우 대응
-// 초대·복구 토큰이 해시에 있으면 /set-password로 즉시 리다이렉트
+// 초대·복구 링크만 /set-password로 즉시 리다이렉트 (구글 OAuth 로그인도 해시에
+// access_token을 실어 돌아올 수 있어, type=invite/recovery로 좁혀서 구분)
 if (
   typeof window !== 'undefined' &&
   window.location.pathname === '/' &&
-  window.location.hash.includes('access_token')
+  window.location.hash.includes('access_token') &&
+  (window.location.hash.includes('type=invite') || window.location.hash.includes('type=recovery'))
 ) {
   window.history.replaceState({}, '', '/set-password' + window.location.hash);
 }

@@ -26,6 +26,30 @@ export function isAnonymousUser(user: User | null): boolean {
     user.app_metadata?.provider === 'anonymous';
 }
 
+// 신규 구글 가입 감지 시 Slack 알림 (최초 로그인 = created_at과 last_sign_in_at이 거의 동시)
+function notifyGoogleSignupIfNew(user: User) {
+  if (user.app_metadata?.provider !== 'google') return;
+
+  const dedupeKey = `google-signup-notified:${user.id}`;
+  if (sessionStorage.getItem(dedupeKey)) return;
+
+  const createdAt = new Date(user.created_at).getTime();
+  const lastSignInAt = user.last_sign_in_at ? new Date(user.last_sign_in_at).getTime() : 0;
+  const isFirstSignIn = Math.abs(lastSignInAt - createdAt) < 5000;
+  if (!isFirstSignIn) return;
+
+  sessionStorage.setItem(dedupeKey, '1');
+
+  fetch('/api/slack?type=google-signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: user.user_metadata?.full_name || user.user_metadata?.name || '',
+      email: user.email,
+    }),
+  }).catch((error) => console.error('Google signup Slack notify failed:', error));
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -71,6 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const isNewUserSession = newUserId !== prevUserIdRef.current;
         if (isNewUserSession) {
           setLoading(true);
+          notifyGoogleSignupIfNew(session.user);
         }
         prevUserIdRef.current = newUserId;
         fetchProfile(session.user.id);

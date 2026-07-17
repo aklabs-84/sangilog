@@ -13,6 +13,7 @@ const Login = () => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // 비밀번호 재설정
   const [showForgot, setShowForgot]     = useState(false);
@@ -40,6 +41,20 @@ const Login = () => {
     } finally {
       setForgotLoading(false);
     }
+  };
+
+  const handleGoogleAuth = async () => {
+    setError(null);
+    setGoogleLoading(true);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+    if (oauthError) {
+      setError(oauthError.message || '구글 로그인 중 오류가 발생했습니다.');
+      setGoogleLoading(false);
+    }
+    // 성공 시 구글 인증 화면으로 리다이렉트되므로 별도 처리 불필요
   };
 
   const handleAuth = async (e: FormEvent) => {
@@ -119,6 +134,33 @@ const Login = () => {
             {error}
           </motion.div>
         )}
+
+        <button
+          type="button"
+          onClick={handleGoogleAuth}
+          disabled={googleLoading}
+          className="w-full py-5 rounded-2xl bg-white hover:bg-surface-container/60 border-2 border-on-surface/10 text-on-surface font-black text-base flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50 shadow-soft mb-6"
+        >
+          {googleLoading ? (
+            <Loader2 className="animate-spin" size={22} strokeWidth={3} />
+          ) : (
+            <>
+              <svg width="22" height="22" viewBox="0 0 48 48">
+                <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+                <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+              </svg>
+              <span>Google로 계속하기</span>
+            </>
+          )}
+        </button>
+
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex-1 h-px bg-on-surface/10" />
+          <span className="text-[11px] font-black text-on-surface-variant/30 uppercase tracking-[0.2em]">또는 이메일로</span>
+          <div className="flex-1 h-px bg-on-surface/10" />
+        </div>
 
         <form onSubmit={handleAuth} className="space-y-6">
           <div className="space-y-3">

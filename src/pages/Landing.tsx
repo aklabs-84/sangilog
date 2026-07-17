@@ -105,6 +105,17 @@ const Landing = () => {
 
   const fmt = (n: number) => n > 0 ? n.toLocaleString('ko-KR') : '—';
 
+  // 구글 무료 가입
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const handleGoogleSignup = async () => {
+    setGoogleLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) setGoogleLoading(false);
+  };
+
   // 신청 폼 상태
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -268,10 +279,23 @@ const Landing = () => {
                 지금 바로 체험하기
               </button>
               <button
-                onClick={() => document.getElementById('request-section')?.scrollIntoView({ behavior: 'smooth' })}
-                className="px-8 py-4 bg-white hover:bg-amber-50 text-amber-700 font-bold rounded-2xl text-base transition-all border border-amber-200 shadow-sm flex items-center justify-center gap-2"
+                onClick={handleGoogleSignup}
+                disabled={googleLoading}
+                className="px-8 py-4 bg-white hover:bg-amber-50 disabled:opacity-60 text-amber-700 font-bold rounded-2xl text-base transition-all border border-amber-200 shadow-sm flex items-center justify-center gap-2"
               >
-                사용 신청하기 <ArrowRight size={18} strokeWidth={3} />
+                {googleLoading ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 48 48">
+                      <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                      <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+                      <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                      <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+                    </svg>
+                    Google로 무료 시작하기
+                  </>
+                )}
               </button>
             </div>
             <a
@@ -466,10 +490,11 @@ const Landing = () => {
               <p className="text-sm text-amber-700/70">어떤 과목·기관이든 생기로그 AI는 선생님 편입니다. 무료로 먼저 체험해 보세요.</p>
             </div>
             <button
-              onClick={() => document.getElementById('request-section')?.scrollIntoView({ behavior: 'smooth' })}
-              className="shrink-0 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl text-sm transition-all shadow-md flex items-center gap-2"
+              onClick={handleGoogleSignup}
+              disabled={googleLoading}
+              className="shrink-0 px-6 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black rounded-2xl text-sm transition-all shadow-md flex items-center gap-2"
             >
-              무료 사용 신청 <ArrowRight size={16} strokeWidth={3} />
+              Google로 무료 시작하기 <ArrowRight size={16} strokeWidth={3} />
             </button>
           </div>
         </div>
@@ -632,7 +657,7 @@ const Landing = () => {
               💳 플랜 안내
             </span>
             <h2 className="text-3xl font-black text-amber-900 mb-3">역할에 맞는 플랜을 선택하세요</h2>
-            <p className="text-amber-700/70 text-sm">모든 플랜은 관리자 승인 후 활성화됩니다.</p>
+            <p className="text-amber-700/70 text-sm">무료 플랜은 Google 가입 즉시 시작, 유료 플랜은 결제 후 활성화됩니다.</p>
           </motion.div>
 
           {/* 공유 링크 안내 */}
@@ -933,12 +958,12 @@ const Landing = () => {
         <div className="max-w-2xl mx-auto px-6">
           <div className="text-center mb-12">
             <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full mb-4">
-              <CheckCircle2 size={12} /> 사전 신청
+              <CheckCircle2 size={12} /> Pro · 학교/학원 도입 문의
             </span>
-            <h2 className="text-3xl font-black text-amber-900 mb-3">사용 신청하기</h2>
+            <h2 className="text-3xl font-black text-amber-900 mb-3">Pro · 학교 도입 문의하기</h2>
             <p className="text-amber-700/70 text-sm leading-relaxed">
-              신청 후 검토를 거쳐 계정 생성 안내 이메일을 보내드립니다.<br />
-              학교·학원 규모와 무관하게 모두 환영합니다.
+              개인은 위 "Google로 무료 시작하기"로 바로 가입해 사용하실 수 있습니다.<br />
+              여러 선생님이 함께 쓰는 Pro·학교/학원 단위 도입은 아래로 문의해 주세요.
             </p>
           </div>
 
@@ -953,7 +978,7 @@ const Landing = () => {
                 <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 size={36} className="text-white" />
                 </div>
-                <h3 className="text-2xl font-black text-white mb-1">신청이 완료되었습니다!</h3>
+                <h3 className="text-2xl font-black text-white mb-1">문의가 접수되었습니다!</h3>
                 <p className="text-emerald-100 text-sm font-medium">생기로그 AI에 관심 가져주셔서 감사합니다</p>
               </div>
 
@@ -962,9 +987,9 @@ const Landing = () => {
                 <div className="flex items-start gap-4 p-4 bg-white rounded-2xl border border-emerald-100">
                   <span className="text-2xl shrink-0">📬</span>
                   <div>
-                    <p className="text-sm font-black text-emerald-900 mb-1">승인 안내 이메일을 보내드립니다</p>
+                    <p className="text-sm font-black text-emerald-900 mb-1">담당자가 안내 메일을 보내드립니다</p>
                     <p className="text-xs text-emerald-700/70 leading-relaxed">
-                      관리자 검토 후 <strong>신청하신 이메일</strong>로 비밀번호 설정 링크를 보내드립니다.<br />
+                      검토 후 <strong>남겨주신 이메일</strong>로 Pro·학교/학원 도입 안내를 보내드립니다.<br />
                       받은 편지함(스팸 폴더 포함)을 확인해 주세요.
                     </p>
                   </div>
@@ -976,7 +1001,7 @@ const Landing = () => {
                     <p className="text-sm font-black text-emerald-900 mb-1">평일 기준 24시간 내 처리됩니다</p>
                     <p className="text-xs text-emerald-700/70 leading-relaxed">
                       주말·공휴일에는 처리가 다소 늦어질 수 있습니다.<br />
-                      승인 전까지는 로그인이 제한됩니다.
+                      바로 사용해보고 싶으시면 "Google로 무료 시작하기"로 먼저 시작하셔도 됩니다.
                     </p>
                   </div>
                 </div>
@@ -989,7 +1014,7 @@ const Landing = () => {
                       오래 기다리셨다면 아래 이메일로 문의해 주세요.
                     </p>
                     <a
-                      href="mailto:aklabs84@naver.com?subject=생기로그 AI 사용 신청 문의"
+                      href="mailto:aklabs84@naver.com?subject=생기로그 AI 도입 문의"
                       className="inline-block mt-2 text-xs font-black text-emerald-600 hover:text-emerald-800 underline underline-offset-2 transition-colors"
                     >
                       aklabs84@naver.com →
@@ -1080,7 +1105,7 @@ const Landing = () => {
                 ) : (
                   <>
                     <Send size={18} strokeWidth={2.5} />
-                    신청서 제출하기
+                    문의 남기기
                   </>
                 )}
               </button>
