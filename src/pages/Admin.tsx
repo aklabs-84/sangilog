@@ -133,7 +133,7 @@ interface DashboardStats {
   users: number; classes: number; students: number;
   observations: number; results: number; pendingSuggestions: number;
   pendingRequests: number;
-  aiRanking: { full_name: string | null; email: string | null; ai_monthly_count: number }[];
+  aiRanking: { full_name: string | null; email: string | null; call_count: number }[];
 }
 type DeleteTarget = { table: string; id: string; label: string } | null;
 
@@ -371,11 +371,36 @@ const Admin = () => {
       supabase.from('student_suggestions').select('id', { count: 'exact', head: true }).is('teacher_reply', null),
       supabase.from('access_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     ]);
-    const { data: aiRanking } = await supabase
-      .from('profiles')
-      .select('full_name, email, ai_monthly_count')
-      .order('ai_monthly_count', { ascending: false })
-      .limit(10);
+    // 오늘 실제 AI 사용량 랭킹: ai_usage_logs는 플랜과 무관하게 모든 호출을 기록하므로
+    // profiles.ai_monthly_count(월별, free 플랜 위주로만 병행 기록되는 daily count와 다름) 대신 이걸로 집계
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { data: todayLogs } = await supabase
+      .from('ai_usage_logs')
+      .select('user_id')
+      .gte('created_at', todayStart.toISOString());
+
+    const callCountMap: Record<string, number> = {};
+    (todayLogs || []).forEach(r => {
+      if (!r.user_id) return;
+      callCountMap[r.user_id] = (callCountMap[r.user_id] ?? 0) + 1;
+    });
+    const topUserIds = Object.entries(callCountMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([id]) => id);
+
+    let aiRanking: DashboardStats['aiRanking'] = [];
+    if (topUserIds.length > 0) {
+      const { data: rankedProfiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', topUserIds);
+      aiRanking = topUserIds.map(id => {
+        const p = rankedProfiles?.find(pr => pr.id === id);
+        return { full_name: p?.full_name ?? null, email: p?.email ?? null, call_count: callCountMap[id] };
+      });
+    }
 
     setDashStats({
       users:            u.count ?? 0,
@@ -385,7 +410,7 @@ const Admin = () => {
       results:          re.count ?? 0,
       pendingSuggestions: sg.count ?? 0,
       pendingRequests:  rq.count ?? 0,
-      aiRanking:        (aiRanking || []).filter(r => (r.ai_monthly_count ?? 0) > 0),
+      aiRanking,
     });
     setDashLoading(false);
   };
@@ -1329,9 +1354,9 @@ const Admin = () => {
                           </div>
                           <div className="flex items-center gap-1.5">
                             <div className="w-24 h-2 bg-amber-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min((u.ai_monthly_count / (dashStats.aiRanking[0]?.ai_monthly_count || 1)) * 100, 100)}%` }} />
+                              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min((u.call_count / (dashStats.aiRanking[0]?.call_count || 1)) * 100, 100)}%` }} />
                             </div>
-                            <span className="text-xs font-black text-amber-700 w-8 text-right">{u.ai_monthly_count}</span>
+                            <span className="text-xs font-black text-amber-700 w-8 text-right">{u.call_count}</span>
                             <Zap size={11} className="text-amber-400" />
                           </div>
                         </div>
