@@ -33,6 +33,7 @@ import { useAuth, checkIsPro } from '../lib/auth';
 import { useNavigate, NavLink } from 'react-router-dom';
 import SchoolProjectModal from '../components/classroom/SchoolProjectModal';
 import QuickReviewPanel from '../components/classroom/QuickReviewPanel';
+import WelcomeGuideModal, { type WelcomeGuideVideo } from '../components/WelcomeGuideModal';
 
 const Dashboard = () => {
   const { user, profile } = useAuth();
@@ -74,6 +75,10 @@ const Dashboard = () => {
   const [joiningClassId, setJoiningClassId] = useState<string | null>(null);
   const [joinDone, setJoinDone] = useState(false);
 
+  // 시작 가이드(온보딩 영상) 모달
+  const [welcomeModalOpen, setWelcomeModalOpen] = useState(false);
+  const [guideVideos, setGuideVideos] = useState<WelcomeGuideVideo[]>([]);
+
   useEffect(() => {
     fetchDashboardData();
     fetchPendingInvitations();
@@ -82,6 +87,33 @@ const Dashboard = () => {
     fetchFolders();
     if (user?.id) fetchPendingReviewCount();
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('video_guides')
+      .select('id, title, description, url')
+      .eq('is_active', true)
+      .order('order_num')
+      .then(({ data }) => {
+        if (!data || data.length === 0) return;
+        setGuideVideos(data);
+
+        // 가입 후 10분 이내 첫 대시보드 진입 + 아직 안 본 유저에게만 자동으로 띄움
+        const seenKey = `onboarding_guide_seen_${user.id}`;
+        if (localStorage.getItem(seenKey)) return;
+        const createdAt = profile?.created_at ? new Date(profile.created_at).getTime() : 0;
+        const isRecentSignup = createdAt > 0 && Date.now() - createdAt < 10 * 60 * 1000;
+        if (isRecentSignup) setWelcomeModalOpen(true);
+      });
+  }, [user?.id, profile?.created_at]);
+
+  const closeWelcomeGuide = () => {
+    setWelcomeModalOpen(false);
+    if (user?.id) {
+      try { localStorage.setItem(`onboarding_guide_seen_${user.id}`, '1'); } catch { /* noop */ }
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -655,13 +687,24 @@ const Dashboard = () => {
               학급 내 관찰 기록을 바탕으로 세밀하게 튜닝된 AI가 학기말 리포트 초안을<br />
               정성스럽게 작성해 드립니다.
             </p>
-            <button
-              onClick={() => navigate('/ai-assistant')}
-              className="btn-gradient px-6 md:px-8 py-3 md:py-3.5 rounded-xl font-bold flex items-center gap-2 w-fit hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-primary/20 text-sm"
-            >
-              <Sparkles size={18} />
-              AI 리포트 자동 생성
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => navigate('/ai-assistant')}
+                className="btn-gradient px-6 md:px-8 py-3 md:py-3.5 rounded-xl font-bold flex items-center gap-2 w-fit hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-primary/20 text-sm"
+              >
+                <Sparkles size={18} />
+                AI 리포트 자동 생성
+              </button>
+              {guideVideos.length > 0 && (
+                <button
+                  onClick={() => setWelcomeModalOpen(true)}
+                  className="px-5 py-3 md:py-3.5 rounded-xl font-bold flex items-center gap-2 w-fit bg-white/70 hover:bg-white text-primary border border-primary/20 transition-all active:scale-95 text-sm"
+                >
+                  <PlayCircle size={18} />
+                  시작 가이드 보기
+                </button>
+              )}
+            </div>
           </div>
           <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[200px] h-[200px] md:w-[300px] md:h-[300px] opacity-10 hidden sm:block">
             <GraduationCap size={300} />
@@ -1285,6 +1328,13 @@ const Dashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 시작 가이드(온보딩 영상) 모달 */}
+      <WelcomeGuideModal
+        isOpen={welcomeModalOpen}
+        videos={guideVideos}
+        onClose={closeWelcomeGuide}
+      />
 
       {/* 학교 프로젝트 모달 */}
       <SchoolProjectModal
