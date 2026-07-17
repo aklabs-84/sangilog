@@ -50,6 +50,7 @@ import Pricing from './pages/Pricing';
 import SchoolIntroPage from './pages/SchoolIntroPage';
 import Demo from './pages/Demo';
 import InstallPromptBanner from './components/InstallPromptBanner';
+import DemoTourOverlay from './components/DemoTourOverlay';
 
 // 선생님 전용 라우트 가드
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -212,6 +213,7 @@ function App() {
 
         <BrowserRouter>
           <FloatingClassAlarm />
+          <DemoTourOverlay />
           <div className="relative z-10">
             <Routes>
               {/* 공개 라우트 */}

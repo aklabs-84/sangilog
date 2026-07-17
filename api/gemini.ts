@@ -29,6 +29,22 @@ function calcCostUsd(
   );
 }
 
+// 데모 학급(is_demo=true) 요청은 실제 Gemini를 호출하지 않고 feature별 예시 응답으로 대체한다.
+const DEMO_CACHED_RESPONSES: Record<string, string> = {
+  observation_review: '{"status":"good","reason":"","guide":""}',
+  seatuk_draft:
+    '세포 분열과 DNA 복제 단원에서 세포 주기의 각 단계(G1기, S기, G2기, M기)를 체계적으로 이해하고, 특히 S기에 일어나는 DNA 복제 과정을 실험 영상 분석을 통해 심층적으로 파악함. 유사 분열의 전기·중기·후기·말기를 정확히 구분하여 단계별 특징을 도식화하고, 감수 분열과의 차이점을 비교표로 작성하여 제출하는 적극적인 학습 태도를 보임. 수업 중 동급생에게 핵심 개념을 자발적으로 설명하며 협력 학습을 주도하였으며, 세포 분열 단계 배열 활동에서 정확성과 신속성을 동시에 발휘함.',
+  seatuk_refine:
+    '세포 분열과 DNA 복제 단원에서 세포 주기의 각 단계(G1기, S기, G2기, M기)를 체계적으로 이해하고, 특히 S기에 일어나는 DNA 복제 과정을 실험 영상 분석을 통해 심층적으로 파악함. 유사 분열의 전기·중기·후기·말기를 정확히 구분하여 단계별 특징을 도식화하고, 감수 분열과의 차이점을 비교표로 작성하여 제출하는 적극적인 학습 태도를 보임.',
+  seatuk_compress:
+    '세포 주기 각 단계를 체계적으로 이해하고 DNA 복제 과정을 실험 영상으로 심층 파악함. 유사 분열과 감수 분열의 차이를 비교표로 정리하여 제출함.',
+};
+const DEMO_DEFAULT_RESPONSE = '데모 학급에서는 예시 응답이 제공됩니다.';
+
+function getDemoCachedResponse(feature: string): string {
+  return DEMO_CACHED_RESPONSES[feature] ?? DEMO_DEFAULT_RESPONSE;
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -50,14 +66,33 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'mode is required' });
   }
 
-  // ── 플랜 체크 ──────────────────────────────────────────────────────────────
-  let userId: string | null = null;
   const authHeader = req.headers['authorization'];
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  if (!supabaseUrl || !serviceKey) {
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  // ── 데모 학급 캐시 응답 (실제 Gemini 호출/과금 없이 예시 응답만 반환) ─────────
+  if (class_id) {
+    const supabasePublic = createClient(supabaseUrl, serviceKey);
+    const { data: classRow } = await supabasePublic
+      .from('classes')
+      .select('is_demo')
+      .eq('id', class_id)
+      .maybeSingle();
+
+    if (classRow?.is_demo) {
+      return res.status(200).json({ result: getDemoCachedResponse(feature) });
+    }
+  }
+
+  // ── 플랜 체크 ──────────────────────────────────────────────────────────────
+  let userId: string | null = null;
+
   // 인증 없는 익명 AI 호출 차단
-  if (!authHeader || !supabaseUrl || !serviceKey) {
+  if (!authHeader) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
