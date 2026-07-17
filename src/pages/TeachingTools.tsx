@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video } from 'lucide-react';
@@ -13,6 +13,8 @@ import WhiteboardList from '../components/whiteboard/WhiteboardList';
 import SurveyTool from './tools/SurveyTool';
 import SlideDeckEditor from './tools/SlideDeckEditor';
 import OnlineMeeting from './tools/OnlineMeeting';
+
+const CONTACT_ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
 interface ToolLimits {
   freeDesc?: string;   // undefined = 무료 사용 불가
@@ -258,6 +260,11 @@ const TeachingTools = () => {
   });
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [lockedTool, setLockedTool] = useState<Tool | null>(null);
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [contactName, setContactName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactSchool, setContactSchool] = useState('');
+  const [contactRole, setContactRole] = useState('');
   const [contactMessage, setContactMessage] = useState('');
   const [contactSubmitting, setContactSubmitting] = useState(false);
   const [contactSubmitted, setContactSubmitted] = useState(false);
@@ -300,21 +307,35 @@ const TeachingTools = () => {
   const closeUpgradeModal = () => {
     setShowUpgradeModal(false);
     setLockedTool(null);
+    setShowContactForm(false);
+    setContactName('');
+    setContactEmail('');
+    setContactSchool('');
+    setContactRole('');
     setContactMessage('');
     setContactSubmitted(false);
     setContactError(null);
   };
 
-  const handleContactSubmit = async () => {
+  const openContactForm = () => {
+    setContactName(profile?.full_name || '');
+    setContactEmail(profile?.email || '');
+    setContactSchool(profile?.school_name || '');
+    setContactRole(profile?.role || '');
+    setShowContactForm(true);
+  };
+
+  const handleContactSubmit = async (e: FormEvent) => {
+    e.preventDefault();
     setContactSubmitting(true);
     setContactError(null);
 
     const requestedPlan = isBasicOrAbove ? 'Pro' : 'Basic';
     const contactPayload = {
-      name: profile?.full_name || '이름 미상',
-      email: profile?.email || '',
-      school_name: profile?.school_name || '미입력',
-      role: profile?.role || '교사',
+      name: contactName,
+      email: contactEmail,
+      school_name: contactSchool,
+      role: contactRole,
       message: `[${requestedPlan} 플랜 문의 - ${lockedTool?.label ?? '수업 도구'}]${contactMessage ? `\n${contactMessage}` : ''}`,
     };
 
@@ -391,7 +412,7 @@ const TeachingTools = () => {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={e => e.stopPropagation()}
-              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center"
+              className={`bg-white rounded-3xl p-8 w-full shadow-2xl text-center ${showContactForm ? 'max-w-md' : 'max-w-sm'}`}
             >
               <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Crown size={32} className="text-amber-500" />
@@ -405,6 +426,7 @@ const TeachingTools = () => {
                   : <>이 도구는 Basic 플랜 이상에서 사용할 수 있습니다.<br />베타 테스터 또는 플랜 업그레이드는 아래에 문의를 남겨주세요.</>
                 }
               </p>
+
               {contactSubmitted ? (
                 <div className="flex flex-col gap-3">
                   <p className="text-sm font-bold text-emerald-600 py-2">문의가 접수되었습니다. 곧 연락드릴게요!</p>
@@ -415,22 +437,86 @@ const TeachingTools = () => {
                     <X size={14} /> 닫기
                   </button>
                 </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <textarea
-                    value={contactMessage}
-                    onChange={e => setContactMessage(e.target.value)}
-                    placeholder="궁금한 점이나 필요한 이유를 남겨주세요 (선택)"
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-left resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
+              ) : showContactForm ? (
+                <form onSubmit={handleContactSubmit} className="flex flex-col gap-3 text-left">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-600 ml-1">이름 *</label>
+                    <input
+                      required
+                      value={contactName}
+                      onChange={e => setContactName(e.target.value)}
+                      placeholder="홍길동"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-600 ml-1">이메일 *</label>
+                    <input
+                      required
+                      type="email"
+                      value={contactEmail}
+                      onChange={e => setContactEmail(e.target.value)}
+                      placeholder="teacher@school.edu"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-600 ml-1">학교 / 학원 이름 *</label>
+                    <input
+                      required
+                      value={contactSchool}
+                      onChange={e => setContactSchool(e.target.value)}
+                      placeholder="아크고등학교 / 아크수학학원"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-600 ml-1">직책 *</label>
+                    <select
+                      required
+                      value={contactRole}
+                      onChange={e => setContactRole(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 appearance-none"
+                    >
+                      <option value="">선택해 주세요</option>
+                      {CONTACT_ROLES.map(r => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-600 ml-1">신청 이유 (선택)</label>
+                    <textarea
+                      value={contactMessage}
+                      onChange={e => setContactMessage(e.target.value)}
+                      placeholder="궁금한 점이나 필요한 이유를 남겨주세요"
+                      rows={3}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
                   {contactError && <p className="text-xs text-red-500 font-bold">{contactError}</p>}
                   <button
-                    onClick={handleContactSubmit}
+                    type="submit"
                     disabled={contactSubmitting}
-                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black rounded-xl text-sm transition-colors"
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-black rounded-xl text-sm transition-colors mt-1"
                   >
-                    {contactSubmitting ? '제출 중...' : isBasicOrAbove ? 'Pro 업그레이드 문의하기' : 'Basic 플랜 문의하기'}
+                    {contactSubmitting ? '제출 중...' : '문의 제출하기'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeUpgradeModal}
+                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <X size={14} /> 닫기
+                  </button>
+                </form>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={openContactForm}
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl text-sm transition-colors"
+                  >
+                    {isBasicOrAbove ? 'Pro 업그레이드 문의하기' : 'Basic 플랜 문의하기'}
                   </button>
                   <button
                     onClick={closeUpgradeModal}
