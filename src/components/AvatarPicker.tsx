@@ -219,21 +219,23 @@ const AvatarPicker = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl max-h-[90vh] overflow-y-auto custom-scrollbar glass p-8 sm:p-10 rounded-[2.5rem] space-y-7 relative shadow-2xl border border-white/20"
+            className="w-full max-w-xl lg:max-w-5xl max-h-[90vh] lg:max-h-[85vh] overflow-y-auto custom-scrollbar glass p-8 sm:p-10 lg:p-12 rounded-[2.5rem] relative shadow-2xl border border-white/20"
           >
             <button
               onClick={onClose}
               disabled={isSaving}
-              className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all disabled:opacity-40"
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all disabled:opacity-40 z-10"
             >
               <X size={24} />
             </button>
 
-            <div className="space-y-2 pr-8">
-              <h3 className="text-2xl font-black font-manrope">{title}</h3>
-              <p className="text-sm font-bold text-on-surface-variant">{description}</p>
+            <div className="space-y-2 pr-8 mb-7">
+              <h3 className="text-2xl lg:text-3xl font-black font-manrope">{title}</h3>
+              <p className="text-sm lg:text-base font-bold text-on-surface-variant">{description}</p>
             </div>
 
+            <div className="space-y-7 lg:space-y-0 lg:grid lg:grid-cols-[320px_1fr] lg:gap-10 lg:items-start">
+            <div className="space-y-5">
             <div className="flex items-center gap-2 p-1 bg-surface-container-low rounded-2xl">
               {STYLE_LIST.map(s => (
                 <button
@@ -250,7 +252,7 @@ const AvatarPicker = ({
             </div>
 
             <div className="flex flex-col items-center gap-4">
-              <div className="w-32 h-32 rounded-[2rem] bg-surface-container-low border-2 border-white/40 shadow-inner overflow-hidden">
+              <div className="w-32 h-32 lg:w-full lg:h-auto lg:aspect-square rounded-[2rem] bg-surface-container-low border-2 border-white/40 shadow-inner overflow-hidden">
                 <img src={previewUrl} alt="아바타 미리보기" className="w-full h-full object-cover" />
               </div>
               <button
@@ -262,7 +264,9 @@ const AvatarPicker = ({
                 전체 랜덤으로 섞기
               </button>
             </div>
+            </div>
 
+            <div className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {traitRows.map(({ key, label, options }) => {
                 const idx = options.indexOf(traits[key]);
@@ -310,7 +314,7 @@ const AvatarPicker = ({
                     <X size={14} />
                   </button>
                 </div>
-                <div className="grid grid-cols-5 sm:grid-cols-7 gap-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                <div className="grid grid-cols-5 sm:grid-cols-7 lg:grid-cols-9 gap-2 max-h-56 lg:max-h-[26rem] overflow-y-auto custom-scrollbar pr-1">
                   {activeRow.options.map(opt => (
                     <button
                       key={opt}
@@ -354,8 +358,10 @@ const AvatarPicker = ({
                 </div>
               </div>
             ))}
+            </div>
+            </div>
 
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex items-center gap-3 pt-7">
               <button
                 onClick={handleSave}
                 disabled={isSaving}
@@ -375,7 +381,7 @@ const AvatarPicker = ({
               )}
             </div>
 
-            <p className="text-[10px] font-bold text-on-surface-variant/50 text-center">
+            <p className="text-[10px] font-bold text-on-surface-variant/50 text-center mt-4">
               {config.attribution}
             </p>
           </motion.div>
