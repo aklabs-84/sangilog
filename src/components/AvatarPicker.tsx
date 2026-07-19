@@ -1,107 +1,129 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Check, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Shuffle, Check, Loader2, X, ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-react';
 
-const DICEBEAR_STYLE = 'notionists';
+type StyleId = 'notionists' | 'adventurer';
+type FieldKind = 'variant' | 'optionalVariant' | 'color';
+
+interface Field {
+  key: string;
+  label: string;
+  kind: FieldKind;
+  /** cycle-order option list. optionalVariant fields include 'none' as the first entry. */
+  options: string[];
+  /** only for optionalVariant fields */
+  probabilityKey?: string;
+}
+
+interface StyleConfig {
+  id: StyleId;
+  label: string;
+  fields: Field[];
+  /** params always sent as-is (fixed body/pose, forced probabilities, etc.) */
+  extraParams: Record<string, string>;
+  attribution: string;
+}
+
+type Traits = Record<string, string>;
 
 const randomSeed = () => Math.random().toString(36).substring(2, 10);
 
-const rangeVariants = (n: number) => Array.from({ length: n }, (_, i) => `variant${String(i + 1).padStart(2, '0')}`);
-
-const HAIR_OPTIONS = [...rangeVariants(63), 'hat'];
-const BROWS_OPTIONS = rangeVariants(13);
-const EYES_OPTIONS = rangeVariants(5);
-const NOSE_OPTIONS = rangeVariants(20);
-const LIPS_OPTIONS = rangeVariants(30);
-const GLASSES_OPTIONS = ['none', ...rangeVariants(11)];
-const BEARD_OPTIONS = ['none', ...rangeVariants(12)];
-const BG_COLORS = ['b6e3f4', 'c0aede', 'd1d4f9', 'ffd5dc', 'ffdfbf', 'c8f4c8', 'fdf1a3', 'f4c2c2', 'e0e0e0'];
-
-interface Traits {
-  hair: string;
-  brows: string;
-  eyes: string;
-  nose: string;
-  lips: string;
-  glasses: string;
-  beard: string;
-  backgroundColor: string;
-}
+const rangeVariants = (n: number, prefix = 'variant') => Array.from({ length: n }, (_, i) => `${prefix}${String(i + 1).padStart(2, '0')}`);
 
 const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
 
-const randomTraits = (): Traits => ({
-  hair: pick(HAIR_OPTIONS),
-  brows: pick(BROWS_OPTIONS),
-  eyes: pick(EYES_OPTIONS),
-  nose: pick(NOSE_OPTIONS),
-  lips: pick(LIPS_OPTIONS),
-  glasses: pick(GLASSES_OPTIONS),
-  beard: pick(BEARD_OPTIONS),
-  backgroundColor: pick(BG_COLORS),
-});
+const BG_COLORS = ['b6e3f4', 'c0aede', 'd1d4f9', 'ffd5dc', 'ffdfbf', 'c8f4c8', 'fdf1a3', 'f4c2c2', 'e0e0e0'];
+const ADVENTURER_HAIR_COLORS = ['ac6511', 'cb6820', 'ab2a18', 'e5d7a3', 'b9a05f', '796a45', '6a4e35', '562306', '0e0e0e', 'afafaf', '3eac2c', '85c2c6', 'dba3be', '592454'];
+const ADVENTURER_SKIN_COLORS = ['f2d3b1', 'ecad80', '9e5622', '763900'];
 
-const buildAvatarUrl = (seed: string, t: Traits) => {
-  const params = new URLSearchParams();
-  params.set('seed', seed);
-  params.append('hair[]', t.hair);
-  params.append('brows[]', t.brows);
-  params.append('eyes[]', t.eyes);
-  params.append('nose[]', t.nose);
-  params.append('lips[]', t.lips);
-  params.append('backgroundColor[]', t.backgroundColor);
-  params.append('body[]', 'variant01');
-  params.set('gestureProbability', '0');
-  params.set('bodyIconProbability', '0');
-  if (t.glasses === 'none') {
-    params.set('glassesProbability', '0');
-  } else {
-    params.append('glasses[]', t.glasses);
-    params.set('glassesProbability', '100');
-  }
-  if (t.beard === 'none') {
-    params.set('beardProbability', '0');
-  } else {
-    params.append('beard[]', t.beard);
-    params.set('beardProbability', '100');
-  }
-  return `https://api.dicebear.com/9.x/${DICEBEAR_STYLE}/svg?${params.toString()}`;
+const STYLES: Record<StyleId, StyleConfig> = {
+  notionists: {
+    id: 'notionists',
+    label: '노션 스타일',
+    fields: [
+      { key: 'hair', label: '헤어스타일', kind: 'variant', options: [...rangeVariants(63), 'hat'] },
+      { key: 'brows', label: '눈썹', kind: 'variant', options: rangeVariants(13) },
+      { key: 'eyes', label: '눈', kind: 'variant', options: rangeVariants(5) },
+      { key: 'nose', label: '코', kind: 'variant', options: rangeVariants(20) },
+      { key: 'lips', label: '입', kind: 'variant', options: rangeVariants(30) },
+      { key: 'glasses', label: '안경', kind: 'optionalVariant', options: ['none', ...rangeVariants(11)], probabilityKey: 'glassesProbability' },
+      { key: 'beard', label: '수염', kind: 'optionalVariant', options: ['none', ...rangeVariants(12)], probabilityKey: 'beardProbability' },
+      { key: 'backgroundColor', label: '배경색', kind: 'color', options: BG_COLORS },
+    ],
+    extraParams: { 'body[]': 'variant01', gestureProbability: '0', bodyIconProbability: '0' },
+    attribution: 'Avatars by Notionists (CC BY 4.0)',
+  },
+  adventurer: {
+    id: 'adventurer',
+    label: '어드벤처러 스타일',
+    fields: [
+      { key: 'hair', label: '헤어스타일', kind: 'variant', options: [...rangeVariants(19, 'short'), ...rangeVariants(26, 'long')] },
+      { key: 'eyebrows', label: '눈썹', kind: 'variant', options: rangeVariants(15) },
+      { key: 'eyes', label: '눈', kind: 'variant', options: rangeVariants(26) },
+      { key: 'mouth', label: '입', kind: 'variant', options: rangeVariants(30) },
+      { key: 'glasses', label: '안경', kind: 'optionalVariant', options: ['none', ...rangeVariants(5)], probabilityKey: 'glassesProbability' },
+      { key: 'earrings', label: '귀걸이', kind: 'optionalVariant', options: ['none', ...rangeVariants(6)], probabilityKey: 'earringsProbability' },
+      { key: 'features', label: '얼굴 특징', kind: 'optionalVariant', options: ['none', 'mustache', 'blush', 'birthmark', 'freckles'], probabilityKey: 'featuresProbability' },
+      { key: 'hairColor', label: '헤어컬러', kind: 'color', options: ADVENTURER_HAIR_COLORS },
+      { key: 'skinColor', label: '피부색', kind: 'color', options: ADVENTURER_SKIN_COLORS },
+      { key: 'backgroundColor', label: '배경색', kind: 'color', options: BG_COLORS },
+    ],
+    extraParams: { hairProbability: '100' },
+    attribution: 'Avatars by Adventurer (CC BY 4.0)',
+  },
 };
 
-const parseAvatarUrl = (url: string): { seed: string; traits: Traits } | null => {
+const STYLE_LIST = Object.values(STYLES);
+
+const randomTraitsFor = (config: StyleConfig): Traits => {
+  const traits: Traits = {};
+  for (const f of config.fields) traits[f.key] = pick(f.options);
+  return traits;
+};
+
+const buildAvatarUrl = (styleId: StyleId, seed: string, traits: Traits) => {
+  const config = STYLES[styleId];
+  const params = new URLSearchParams();
+  params.set('seed', seed);
+  for (const f of config.fields) {
+    const val = traits[f.key];
+    if (f.kind === 'color' || f.kind === 'variant') {
+      params.append(`${f.key}[]`, val);
+    } else if (f.kind === 'optionalVariant') {
+      if (val === 'none') {
+        params.set(f.probabilityKey!, '0');
+      } else {
+        params.append(`${f.key}[]`, val);
+        params.set(f.probabilityKey!, '100');
+      }
+    }
+  }
+  for (const [k, v] of Object.entries(config.extraParams)) params.set(k, v);
+  return `https://api.dicebear.com/9.x/${styleId}/svg?${params.toString()}`;
+};
+
+const parseAvatarUrl = (url: string): { styleId: StyleId; seed: string; traits: Traits } | null => {
   try {
     const u = new URL(url);
     if (!u.hostname.includes('dicebear.com')) return null;
+    const pathParts = u.pathname.split('/');
+    const styleId = pathParts[2] as StyleId;
+    const config = STYLES[styleId];
+    if (!config) return null;
     const p = u.searchParams;
-    const hair = p.get('hair[]');
-    if (!hair) return null;
-    return {
-      seed: p.get('seed') || randomSeed(),
-      traits: {
-        hair,
-        brows: p.get('brows[]') || BROWS_OPTIONS[0],
-        eyes: p.get('eyes[]') || EYES_OPTIONS[0],
-        nose: p.get('nose[]') || NOSE_OPTIONS[0],
-        lips: p.get('lips[]') || LIPS_OPTIONS[0],
-        backgroundColor: p.get('backgroundColor[]') || BG_COLORS[0],
-        glasses: p.get('glassesProbability') === '100' ? (p.get('glasses[]') || 'none') : 'none',
-        beard: p.get('beardProbability') === '100' ? (p.get('beard[]') || 'none') : 'none',
-      },
-    };
+    const traits: Traits = {};
+    for (const f of config.fields) {
+      if (f.kind === 'optionalVariant') {
+        traits[f.key] = p.get(f.probabilityKey!) === '100' ? (p.get(`${f.key}[]`) || 'none') : 'none';
+      } else {
+        traits[f.key] = p.get(`${f.key}[]`) || f.options[0];
+      }
+    }
+    return { styleId, seed: p.get('seed') || randomSeed(), traits };
   } catch {
     return null;
   }
 };
-
-const TRAIT_ROWS: { key: keyof Traits; label: string; options: string[] }[] = [
-  { key: 'hair', label: '헤어스타일', options: HAIR_OPTIONS },
-  { key: 'brows', label: '눈썹', options: BROWS_OPTIONS },
-  { key: 'eyes', label: '눈', options: EYES_OPTIONS },
-  { key: 'nose', label: '코', options: NOSE_OPTIONS },
-  { key: 'lips', label: '입', options: LIPS_OPTIONS },
-  { key: 'glasses', label: '안경', options: GLASSES_OPTIONS },
-  { key: 'beard', label: '수염', options: BEARD_OPTIONS },
-];
 
 interface AvatarPickerProps {
   isOpen: boolean;
@@ -110,7 +132,7 @@ interface AvatarPickerProps {
   onSkip?: () => void;
   title?: string;
   description?: string;
-  /** 이미 저장된 아바타가 있다면 그 트레잇에서부터 이어서 편집합니다. */
+  /** 이미 저장된 아바타가 있다면 그 스타일·트레잇에서부터 이어서 편집합니다. */
   currentAvatarUrl?: string | null;
 }
 
@@ -123,24 +145,39 @@ const AvatarPicker = ({
   description = '헤어, 눈, 입, 안경까지 세세하게 골라 나만의 아바타를 만들어보세요.',
   currentAvatarUrl,
 }: AvatarPickerProps) => {
+  const [styleId, setStyleId] = useState<StyleId>('notionists');
   const [seed, setSeed] = useState(randomSeed);
-  const [traits, setTraits] = useState<Traits>(randomTraits);
+  const [traits, setTraits] = useState<Traits>(() => randomTraitsFor(STYLES.notionists));
   const [isSaving, setIsSaving] = useState(false);
+  const [expandedTrait, setExpandedTrait] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
+    setExpandedTrait(null);
     const parsed = currentAvatarUrl ? parseAvatarUrl(currentAvatarUrl) : null;
     if (parsed) {
+      setStyleId(parsed.styleId);
       setSeed(parsed.seed);
       setTraits(parsed.traits);
     } else {
+      setStyleId('notionists');
       setSeed(randomSeed());
-      setTraits(randomTraits());
+      setTraits(randomTraitsFor(STYLES.notionists));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const cycle = (key: keyof Traits, options: string[], dir: 1 | -1) => {
+  const config = STYLES[styleId];
+
+  const handleStyleChange = (nextId: StyleId) => {
+    if (isSaving || nextId === styleId) return;
+    setStyleId(nextId);
+    setSeed(randomSeed());
+    setTraits(randomTraitsFor(STYLES[nextId]));
+    setExpandedTrait(null);
+  };
+
+  const cycle = (key: string, options: string[], dir: 1 | -1) => {
     if (isSaving) return;
     setTraits(prev => {
       const idx = options.indexOf(prev[key]);
@@ -152,20 +189,23 @@ const AvatarPicker = ({
   const handleShuffleAll = () => {
     if (isSaving) return;
     setSeed(randomSeed());
-    setTraits(randomTraits());
+    setTraits(randomTraitsFor(config));
   };
 
   const handleSave = async () => {
     if (isSaving) return;
     setIsSaving(true);
     try {
-      await onSelect(buildAvatarUrl(seed, traits));
+      await onSelect(buildAvatarUrl(styleId, seed, traits));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const previewUrl = buildAvatarUrl(seed, traits);
+  const previewUrl = buildAvatarUrl(styleId, seed, traits);
+  const activeRow = expandedTrait ? config.fields.find(f => f.key === expandedTrait) ?? null : null;
+  const traitRows = config.fields.filter(f => f.kind !== 'color');
+  const colorRows = config.fields.filter(f => f.kind === 'color');
 
   return (
     <AnimatePresence>
@@ -194,6 +234,21 @@ const AvatarPicker = ({
               <p className="text-sm font-bold text-on-surface-variant">{description}</p>
             </div>
 
+            <div className="flex items-center gap-2 p-1 bg-surface-container-low rounded-2xl">
+              {STYLE_LIST.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => handleStyleChange(s.id)}
+                  disabled={isSaving}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all disabled:opacity-50 ${
+                    styleId === s.id ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant/60 hover:text-on-surface-variant'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex flex-col items-center gap-4">
               <div className="w-32 h-32 rounded-[2rem] bg-surface-container-low border-2 border-white/40 shadow-inner overflow-hidden">
                 <img src={previewUrl} alt="아바타 미리보기" className="w-full h-full object-cover" />
@@ -209,7 +264,7 @@ const AvatarPicker = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {TRAIT_ROWS.map(({ key, label, options }) => {
+              {traitRows.map(({ key, label, options }) => {
                 const idx = options.indexOf(traits[key]);
                 const displayLabel = traits[key] === 'none' ? '없음' : `${idx + 1} / ${options.length}`;
                 return (
@@ -231,28 +286,74 @@ const AvatarPicker = ({
                       >
                         <ChevronRight size={16} />
                       </button>
+                      <button
+                        onClick={() => setExpandedTrait(prev => prev === key ? null : key)}
+                        disabled={isSaving}
+                        title="미리보고 고르기"
+                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all disabled:opacity-40 ${
+                          expandedTrait === key ? 'bg-primary/15 text-primary' : 'hover:bg-white/70'
+                        }`}
+                      >
+                        <LayoutGrid size={13} />
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            <div className="space-y-2">
-              <span className="text-xs font-black text-on-surface-variant">배경색</span>
-              <div className="flex items-center gap-2 flex-wrap">
-                {BG_COLORS.map(color => (
-                  <button
-                    key={color}
-                    onClick={() => !isSaving && setTraits(prev => ({ ...prev, backgroundColor: color }))}
-                    disabled={isSaving}
-                    style={{ backgroundColor: `#${color}` }}
-                    className={`w-8 h-8 rounded-full border-2 transition-all disabled:opacity-40 ${
-                      traits.backgroundColor === color ? 'border-primary scale-110 shadow-md' : 'border-white/60'
-                    }`}
-                  />
-                ))}
+            {activeRow && (
+              <div className="rounded-2xl bg-surface-container-low p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between px-0.5">
+                  <span className="text-xs font-black text-on-surface-variant">{activeRow.label} 미리보고 고르기</span>
+                  <button onClick={() => setExpandedTrait(null)} className="text-on-surface-variant/50 hover:text-on-surface-variant transition-colors">
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-5 sm:grid-cols-7 gap-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                  {activeRow.options.map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => {
+                        if (isSaving) return;
+                        setTraits(prev => ({ ...prev, [activeRow.key]: opt }));
+                        setExpandedTrait(null);
+                      }}
+                      disabled={isSaving}
+                      className={`aspect-square rounded-xl overflow-hidden border-2 transition-all disabled:opacity-40 ${
+                        traits[activeRow.key] === opt ? 'border-primary ring-2 ring-primary/30' : 'border-transparent hover:border-primary/30'
+                      }`}
+                    >
+                      <img
+                        src={buildAvatarUrl(styleId, seed, { ...traits, [activeRow.key]: opt })}
+                        alt={opt === 'none' ? '없음' : opt}
+                        loading="lazy"
+                        className="w-full h-full object-cover bg-white"
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {colorRows.map(({ key, label, options }) => (
+              <div key={key} className="space-y-2">
+                <span className="text-xs font-black text-on-surface-variant">{label}</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {options.map(color => (
+                    <button
+                      key={color}
+                      onClick={() => !isSaving && setTraits(prev => ({ ...prev, [key]: color }))}
+                      disabled={isSaving}
+                      style={{ backgroundColor: `#${color}` }}
+                      className={`w-8 h-8 rounded-full border-2 transition-all disabled:opacity-40 ${
+                        traits[key] === color ? 'border-primary scale-110 shadow-md' : 'border-white/60'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
 
             <div className="flex items-center gap-3 pt-1">
               <button
@@ -275,7 +376,7 @@ const AvatarPicker = ({
             </div>
 
             <p className="text-[10px] font-bold text-on-surface-variant/50 text-center">
-              Avatars by Notionists (CC BY 4.0)
+              {config.attribution}
             </p>
           </motion.div>
         </div>
