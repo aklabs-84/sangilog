@@ -5,16 +5,12 @@ import {
   Grid,
   List,
   Search,
-  QrCode,
   BookOpen,
-  Download,
   Plus,
   Pencil,
   Trash2,
   ArrowRight,
   ArrowLeftRight,
-  Link as LinkIcon,
-  Share2,
   Check,
   X,
   CheckCheck,
@@ -49,20 +45,12 @@ interface SubjectDashboardProps {
   setViewMode: (mode: 'grid' | 'list') => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  onOpenQR: () => void;
-  onOpenResources: () => void;
-  onExport: () => void;
   onAddStudent: () => void;
   onEditStudent: (id: string, number: string, name: string) => Promise<void>;
   onDeleteStudent: (id: string) => void;
   onNavigateAI: (studentId: string) => void;
   sortConfig: { key: string, direction: 'asc' | 'desc' };
   onSort: (key: any) => void;
-  onCopyLink: () => void;
-  copySuccess: boolean;
-  onShareTeacher: () => void;
-  shareTeacherSuccess: boolean;
-  onOpenTeacherShareQR?: () => void;
   selectedIds: string[];
   onSelectStudent: (id: string) => void;
   onSelectAll: (isSelect: boolean) => void;
@@ -79,20 +67,12 @@ const SubjectDashboard = ({
   setViewMode,
   searchQuery,
   setSearchQuery,
-  onOpenQR,
-  onOpenResources,
-  onExport,
   onAddStudent,
   onEditStudent,
   onDeleteStudent,
   onNavigateAI,
   sortConfig,
   onSort,
-  onCopyLink,
-  copySuccess,
-  onShareTeacher,
-  shareTeacherSuccess,
-  onOpenTeacherShareQR,
   selectedIds,
   onSelectStudent,
   onSelectAll,
@@ -501,7 +481,7 @@ const SubjectDashboard = ({
             />
           </div>
 
-          {/* 아이콘 액션 버튼들 */}
+          {/* 아이콘 액션 버튼들 (참여 코드 + 컬럼 표시 설정만 유지, 나머지는 우하단 빠른 메뉴로 이동) */}
           <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 bg-white/20 rounded-2xl border border-white/40 backdrop-blur-md overflow-x-auto w-full sm:w-auto">
             <button
               onClick={handleCopyEntryCode}
@@ -514,34 +494,6 @@ const SubjectDashboard = ({
             >
               {copyCodeSuccess ? <Check size={14} /> : <KeyRound size={14} />}
               <span className="hidden sm:inline">{copyCodeSuccess ? '복사됨!' : (classInfo?.entry_code ?? '코드 없음')}</span>
-            </button>
-            <button onClick={onOpenQR} className="w-9 h-9 sm:w-10 sm:h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/80 transition-all shadow-soft shrink-0" title="QR 출결/입장">
-              <QrCode size={17} />
-            </button>
-            <button onClick={onOpenResources} className="w-9 h-9 sm:w-10 sm:h-10 bg-white hover:bg-secondary hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/80 transition-all shadow-soft shrink-0" title="수업 자료실">
-              <BookOpen size={17} />
-            </button>
-            <button onClick={onCopyLink} className={`w-9 h-9 sm:w-10 sm:h-10 bg-white hover:bg-primary hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft shrink-0 ${copySuccess ? 'text-primary' : 'text-on-surface-variant/80'}`} title="학생 기록 URL 복사">
-              {copySuccess ? <Check size={17} /> : <LinkIcon size={17} />}
-            </button>
-            <button
-              onClick={onShareTeacher}
-              className={`w-9 h-9 sm:w-10 sm:h-10 bg-white hover:bg-indigo-500 hover:text-white rounded-xl flex items-center justify-center transition-all shadow-soft shrink-0 ${shareTeacherSuccess ? 'text-indigo-500' : 'text-on-surface-variant/80'}`}
-              title="학교 선생님 공유 링크 복사"
-            >
-              {shareTeacherSuccess ? <Check size={17} /> : <Share2 size={17} />}
-            </button>
-            {onOpenTeacherShareQR && (
-              <button
-                onClick={onOpenTeacherShareQR}
-                className="w-9 h-9 sm:w-10 sm:h-10 bg-white hover:bg-indigo-500 hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/80 transition-all shadow-soft shrink-0"
-                title="학교 선생님 공유 QR 코드"
-              >
-                <QrCode size={17} />
-              </button>
-            )}
-            <button onClick={onExport} className="w-9 h-9 sm:w-10 sm:h-10 bg-white hover:bg-on-surface hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/80 transition-all shadow-soft shrink-0" title="데이터 내보내기">
-              <Download size={17} />
             </button>
             <div className="relative shrink-0">
               <button

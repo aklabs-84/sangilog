@@ -55,6 +55,7 @@ import ClassSelector from '../components/classroom/ClassSelector';
 import BriefingModal from '../components/classroom/BriefingModal';
 import SubjectDashboard from '../components/classroom/SubjectDashboard';
 import HomeroomDashboard from '../components/classroom/HomeroomDashboard';
+import ClassroomFabMenu from '../components/classroom/ClassroomFabMenu';
 import AIInsightBanner from '../components/classroom/AIInsightBanner';
 import AIReportModal from '../components/classroom/AIReportModal';
 import AIChatModal from '../components/classroom/AIChatModal';
@@ -2751,9 +2752,6 @@ const Classroom = () => {
                     setSearchQuery={setSearchQuery}
                     copySuccess={copySuccess}
                     onCopyCode={handleCopyLink}
-                    onShareTeacher={handleShareTeacher}
-                    shareTeacherSuccess={shareTeacherSuccess}
-                    onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
                     selectedIds={selectedStudentIds}
                     onSelectStudentToggle={handleSelectStudent}
                     onSelectAll={handleSelectAll}
@@ -2764,11 +2762,6 @@ const Classroom = () => {
                     onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
                     onBulkApprove={handleBulkApprove}
                     onResetPin={handleResetPin}
-                    onOpenResources={() => {
-                      if (activeClassId) fetchResources(activeClassId);
-                      setIsResourceModalOpen(true);
-                    }}
-                    onCopyLink={handleCopyLink}
                     groupMap={groupMap}
                   />
                 ) : (
@@ -2779,12 +2772,6 @@ const Classroom = () => {
                     setViewMode={setViewMode}
                     searchQuery={searchQuery}
                     setSearchQuery={setSearchQuery}
-                    onOpenQR={() => setIsQRModalOpen(true)}
-                    onOpenResources={() => {
-                      if (activeClassId) fetchResources(activeClassId);
-                      setIsResourceModalOpen(true);
-                    }}
-                    onExport={handleExportCSV}
                     onAddStudent={() => setIsStudentModalOpen(true)}
                     onEditStudent={handleEditStudent}
                     onDeleteStudent={(id) => handleDeleteStudent(id, students.find(s => s.id === id)?.name || '')}
@@ -2794,11 +2781,6 @@ const Classroom = () => {
                     }}
                     onSort={handleSort}
                     sortConfig={sortConfig}
-                    onCopyLink={handleCopyLink}
-                    copySuccess={copySuccess}
-                    onShareTeacher={handleShareTeacher}
-                    shareTeacherSuccess={shareTeacherSuccess}
-                    onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
                     selectedIds={selectedStudentIds}
                     onSelectStudent={handleSelectStudent}
                     onSelectAll={handleSelectAll}
@@ -4106,6 +4088,22 @@ const Classroom = () => {
               </form>
             </motion.div>
           </div>
+        )}
+
+        {classInfo && (
+          <ClassroomFabMenu
+            onOpenQR={classInfo.class_type !== 'homeroom' ? () => setIsQRModalOpen(true) : undefined}
+            onOpenResources={() => {
+              if (activeClassId) fetchResources(activeClassId);
+              setIsResourceModalOpen(true);
+            }}
+            onCopyLink={handleCopyLink}
+            copySuccess={copySuccess}
+            onShareTeacher={handleShareTeacher}
+            shareTeacherSuccess={shareTeacherSuccess}
+            onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
+            onExport={classInfo.class_type !== 'homeroom' ? handleExportCSV : undefined}
+          />
         )}
 
         {isQRModalOpen && classInfo && (

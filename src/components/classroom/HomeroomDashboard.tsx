@@ -26,10 +26,7 @@ import {
   Eye,
   EyeOff,
   Megaphone,
-  Share2,
-  QrCode,
   SlidersHorizontal,
-  Link as LinkIcon,
 } from 'lucide-react';
 import { useColumnVisibility } from '../../hooks/useColumnVisibility';
 import { supabase } from '../../lib/supabase';
@@ -44,9 +41,6 @@ interface HomeroomDashboardProps {
   setSearchQuery: (query: string) => void;
   copySuccess: boolean;
   onCopyCode: () => void;
-  onShareTeacher: () => void;
-  shareTeacherSuccess: boolean;
-  onOpenTeacherShareQR?: () => void;
   selectedIds: string[];
   onSelectStudentToggle: (id: string) => void;
   onSelectAll: (isSelect: boolean) => void;
@@ -57,8 +51,6 @@ interface HomeroomDashboardProps {
   onDeleteStudent: (id: string) => void;
   onBulkApprove: () => void;
   onResetPin: (id: string) => void;
-  onOpenResources?: () => void;
-  onCopyLink?: () => void;
   groupMap?: Record<string, { name: string; color: string }>;
 }
 
@@ -71,9 +63,6 @@ const HomeroomDashboard = ({
   setSearchQuery,
   copySuccess,
   onCopyCode,
-  onShareTeacher,
-  shareTeacherSuccess,
-  onOpenTeacherShareQR,
   selectedIds,
   onSelectStudentToggle,
   onSelectAll,
@@ -84,8 +73,6 @@ const HomeroomDashboard = ({
   onDeleteStudent,
   onBulkApprove,
   onResetPin,
-  onOpenResources,
-  onCopyLink,
   groupMap = {},
 }: HomeroomDashboardProps) => {
   const navigate = useNavigate();
@@ -394,40 +381,6 @@ const HomeroomDashboard = ({
                       </button>
                     ) : null;
                   })()}
-                  <button
-                    onClick={onShareTeacher}
-                    className={`w-10 h-10 bg-white border-2 rounded-2xl flex items-center justify-center transition-all shadow-soft shrink-0 ${shareTeacherSuccess ? 'border-indigo-400 text-indigo-500' : 'border-neutral-200 text-on-surface-variant/60 hover:border-indigo-300 hover:text-indigo-500'}`}
-                    title="학교 선생님 공유 링크 복사"
-                  >
-                    {shareTeacherSuccess ? <Check size={16} /> : <Share2 size={16} />}
-                  </button>
-                  {onOpenTeacherShareQR && (
-                    <button
-                      onClick={onOpenTeacherShareQR}
-                      className="w-10 h-10 bg-white border-2 border-neutral-200 hover:border-indigo-300 hover:text-indigo-500 rounded-2xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft shrink-0"
-                      title="학교 선생님 공유 QR 코드"
-                    >
-                      <QrCode size={16} />
-                    </button>
-                  )}
-                  {onCopyLink && (
-                    <button
-                      onClick={onCopyLink}
-                      className={`w-10 h-10 bg-white border-2 rounded-2xl flex items-center justify-center transition-all shadow-soft shrink-0 ${copySuccess ? 'border-primary text-primary' : 'border-neutral-200 text-on-surface-variant/60 hover:border-primary/40 hover:text-primary'}`}
-                      title="학생 입장 링크 복사"
-                    >
-                      {copySuccess ? <Check size={16} /> : <LinkIcon size={16} />}
-                    </button>
-                  )}
-                  {onOpenResources && (
-                    <button
-                      onClick={onOpenResources}
-                      className="w-10 h-10 bg-white border-2 border-neutral-200 hover:border-secondary/40 hover:text-secondary rounded-2xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft shrink-0"
-                      title="수업 자료실"
-                    >
-                      <BookOpen size={16} />
-                    </button>
-                  )}
                   <div className="relative">
                     <button
                       onClick={() => setShowColDropdown(v => !v)}
