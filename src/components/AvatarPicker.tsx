@@ -321,7 +321,6 @@ const AvatarPicker = ({
                       onClick={() => {
                         if (isSaving) return;
                         setTraits(prev => ({ ...prev, [activeRow.key]: opt }));
-                        setExpandedTrait(null);
                       }}
                       disabled={isSaving}
                       className={`aspect-square rounded-xl overflow-hidden border-2 transition-all disabled:opacity-40 ${
