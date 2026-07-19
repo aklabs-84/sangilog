@@ -6,6 +6,7 @@ import { ArrowUp } from 'lucide-react';
 
 const ScrollToTopButton = () => {
   const [visible, setVisible] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
   const location = useLocation();
   // 클래스 상세 페이지는 우하단에 빠른 메뉴 FAB가 있어 그 위로 올려 겹치지 않게 함
   const hasClassroomFab = location.pathname.includes('/classroom');
@@ -16,13 +17,21 @@ const ScrollToTopButton = () => {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  useEffect(() => {
+    // FAB는 별도 스태킹 컨텍스트 안에서 렌더링돼 z-index 비교가 무력화되므로,
+    // 메뉴가 펼쳐진 동안에는 이 버튼을 아예 숨겨 겹침을 방지한다.
+    const onFabToggle = (e: Event) => setFabOpen(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener('classroom-fab-toggle', onFabToggle);
+    return () => window.removeEventListener('classroom-fab-toggle', onFabToggle);
+  }, []);
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return createPortal(
     <AnimatePresence>
-      {visible && (
+      {visible && !(hasClassroomFab && fabOpen) && (
         <motion.button
           initial={{ opacity: 0, scale: 0.7, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}

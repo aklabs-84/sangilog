@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus, QrCode, BookOpen, Link as LinkIcon, Share2, Download, Check } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -33,8 +33,17 @@ const ClassroomFabMenu = ({
 }: ClassroomFabMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
+  // 스크롤업 버튼이 별도 포털(document.body)에 렌더링돼 z-index 비교가 무력화되므로,
+  // 메뉴가 펼쳐진 동안에는 커스텀 이벤트로 스크롤업 버튼을 직접 숨긴다.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('classroom-fab-toggle', { detail: isOpen }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('classroom-fab-toggle', { detail: false }));
+    };
+  }, [isOpen]);
+
   const actions: FabAction[] = [
-    onOpenQR && { key: 'qr', label: '출결 QR', icon: QrCode, onClick: onOpenQR },
+    onOpenQR && { key: 'qr', label: '학생 입장 QR', icon: QrCode, onClick: onOpenQR },
     onOpenResources && { key: 'resources', label: '수업 자료실', icon: BookOpen, onClick: onOpenResources },
     onCopyLink && {
       key: 'copyLink',
@@ -48,7 +57,7 @@ const ClassroomFabMenu = ({
       icon: shareTeacherSuccess ? Check : Share2,
       onClick: onShareTeacher,
     },
-    onOpenTeacherShareQR && { key: 'shareQr', label: '공유 QR', icon: QrCode, onClick: onOpenTeacherShareQR },
+    onOpenTeacherShareQR && { key: 'shareQr', label: '결과 공유 QR', icon: QrCode, onClick: onOpenTeacherShareQR },
     onExport && { key: 'export', label: '내보내기', icon: Download, onClick: onExport },
   ].filter((action): action is FabAction => Boolean(action));
 
