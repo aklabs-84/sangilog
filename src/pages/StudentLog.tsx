@@ -2468,7 +2468,8 @@ ${guidePrompt}
         isOpen={showAvatarPicker}
         onClose={() => setShowAvatarPicker(false)}
         title="아바타 바꾸기"
-        description="새로운 아바타를 골라보세요."
+        description="헤어, 눈, 입, 안경까지 세세하게 다시 골라보세요."
+        currentAvatarUrl={studentAvatar}
         onSelect={async (url) => {
           await supabase.from('students').update({ avatar_url: url }).eq('id', session.student_id);
           setStudentAvatar(url);

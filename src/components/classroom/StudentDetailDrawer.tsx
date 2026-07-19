@@ -292,8 +292,12 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
           <header className="p-6 border-b border-surface-container-high flex flex-col gap-6 bg-white/50 backdrop-blur-xl shrink-0">
             <div className="flex items-start justify-between">
               <div className="flex gap-4 items-center">
-                <div className="w-14 h-14 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-[1.25rem] flex items-center justify-center text-primary shadow-inner">
-                  <UserIcon size={24} strokeWidth={2} />
+                <div className="w-14 h-14 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-[1.25rem] flex items-center justify-center text-primary shadow-inner overflow-hidden">
+                  {student?.avatar_url ? (
+                    <img src={student.avatar_url} alt={student.full_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <UserIcon size={24} strokeWidth={2} />
+                  )}
                 </div>
                 <div>
                   {loading ? (
