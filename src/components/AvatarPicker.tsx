@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shuffle, Check, Loader2, X, ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-react';
 
 type StyleId = 'notionists' | 'adventurer';
 type FieldKind = 'variant' | 'optionalVariant' | 'color';
+
+interface Crop {
+  /** center x/y and square size, all as a fraction (0~1) of the avatar canvas */
+  cx: number;
+  cy: number;
+  size: number;
+}
 
 interface Field {
   key: string;
@@ -13,6 +20,8 @@ interface Field {
   options: string[];
   /** only for optionalVariant fields */
   probabilityKey?: string;
+  /** where this trait sits on the avatar canvas — used to zoom the preview-grid thumbnails into just this feature */
+  crop?: Crop;
 }
 
 interface StyleConfig {
@@ -41,13 +50,13 @@ const STYLES: Record<StyleId, StyleConfig> = {
     id: 'notionists',
     label: '노션 스타일',
     fields: [
-      { key: 'hair', label: '헤어스타일', kind: 'variant', options: [...rangeVariants(63), 'hat'] },
-      { key: 'brows', label: '눈썹', kind: 'variant', options: rangeVariants(13) },
-      { key: 'eyes', label: '눈', kind: 'variant', options: rangeVariants(5) },
-      { key: 'nose', label: '코', kind: 'variant', options: rangeVariants(20) },
-      { key: 'lips', label: '입', kind: 'variant', options: rangeVariants(30) },
-      { key: 'glasses', label: '안경', kind: 'optionalVariant', options: ['none', ...rangeVariants(11)], probabilityKey: 'glassesProbability' },
-      { key: 'beard', label: '수염', kind: 'optionalVariant', options: ['none', ...rangeVariants(12)], probabilityKey: 'beardProbability' },
+      { key: 'hair', label: '헤어스타일', kind: 'variant', options: [...rangeVariants(63), 'hat'], crop: { cx: 0.48, cy: 0.30, size: 0.55 } },
+      { key: 'brows', label: '눈썹', kind: 'variant', options: rangeVariants(13), crop: { cx: 0.542, cy: 0.398, size: 0.22 } },
+      { key: 'eyes', label: '눈', kind: 'variant', options: rangeVariants(5), crop: { cx: 0.540, cy: 0.455, size: 0.22 } },
+      { key: 'nose', label: '코', kind: 'variant', options: rangeVariants(20), crop: { cx: 0.556, cy: 0.467, size: 0.20 } },
+      { key: 'lips', label: '입', kind: 'variant', options: rangeVariants(30), crop: { cx: 0.541, cy: 0.532, size: 0.20 } },
+      { key: 'glasses', label: '안경', kind: 'optionalVariant', options: ['none', ...rangeVariants(11)], probabilityKey: 'glassesProbability', crop: { cx: 0.496, cy: 0.437, size: 0.34 } },
+      { key: 'beard', label: '수염', kind: 'optionalVariant', options: ['none', ...rangeVariants(12)], probabilityKey: 'beardProbability', crop: { cx: 0.528, cy: 0.575, size: 0.30 } },
       { key: 'backgroundColor', label: '배경색', kind: 'color', options: BG_COLORS },
     ],
     extraParams: { 'body[]': 'variant01', gestureProbability: '0', bodyIconProbability: '0' },
@@ -57,13 +66,13 @@ const STYLES: Record<StyleId, StyleConfig> = {
     id: 'adventurer',
     label: '어드벤처러 스타일',
     fields: [
-      { key: 'hair', label: '헤어스타일', kind: 'variant', options: [...rangeVariants(19, 'short'), ...rangeVariants(26, 'long')] },
-      { key: 'eyebrows', label: '눈썹', kind: 'variant', options: rangeVariants(15) },
-      { key: 'eyes', label: '눈', kind: 'variant', options: rangeVariants(26) },
-      { key: 'mouth', label: '입', kind: 'variant', options: rangeVariants(30) },
-      { key: 'glasses', label: '안경', kind: 'optionalVariant', options: ['none', ...rangeVariants(5)], probabilityKey: 'glassesProbability' },
-      { key: 'earrings', label: '귀걸이', kind: 'optionalVariant', options: ['none', ...rangeVariants(6)], probabilityKey: 'earringsProbability' },
-      { key: 'features', label: '얼굴 특징', kind: 'optionalVariant', options: ['none', 'mustache', 'blush', 'birthmark', 'freckles'], probabilityKey: 'featuresProbability' },
+      { key: 'hair', label: '헤어스타일', kind: 'variant', options: [...rangeVariants(19, 'short'), ...rangeVariants(26, 'long')], crop: { cx: 0.50, cy: 0.32, size: 0.75 } },
+      { key: 'eyebrows', label: '눈썹', kind: 'variant', options: rangeVariants(15), crop: { cx: 0.39, cy: 0.43, size: 0.30 } },
+      { key: 'eyes', label: '눈', kind: 'variant', options: rangeVariants(26), crop: { cx: 0.41, cy: 0.51, size: 0.42 } },
+      { key: 'mouth', label: '입', kind: 'variant', options: rangeVariants(30), crop: { cx: 0.45, cy: 0.68, size: 0.30 } },
+      { key: 'glasses', label: '안경', kind: 'optionalVariant', options: ['none', ...rangeVariants(5)], probabilityKey: 'glassesProbability', crop: { cx: 0.41, cy: 0.54, size: 0.52 } },
+      { key: 'earrings', label: '귀걸이', kind: 'optionalVariant', options: ['none', ...rangeVariants(6)], probabilityKey: 'earringsProbability', crop: { cx: 0.50, cy: 0.60, size: 0.55 } },
+      { key: 'features', label: '얼굴 특징', kind: 'optionalVariant', options: ['none', 'mustache', 'blush', 'birthmark', 'freckles'], probabilityKey: 'featuresProbability', crop: { cx: 0.44, cy: 0.66, size: 0.48 } },
       { key: 'hairColor', label: '헤어컬러', kind: 'color', options: ADVENTURER_HAIR_COLORS },
       { key: 'skinColor', label: '피부색', kind: 'color', options: ADVENTURER_SKIN_COLORS },
       { key: 'backgroundColor', label: '배경색', kind: 'color', options: BG_COLORS },
@@ -74,6 +83,21 @@ const STYLES: Record<StyleId, StyleConfig> = {
 };
 
 const STYLE_LIST = Object.values(STYLES);
+
+const cropStyle = (crop: Crop): CSSProperties => {
+  const half = crop.size / 2;
+  const ccx = Math.min(Math.max(crop.cx, half), 1 - half);
+  const ccy = Math.min(Math.max(crop.cy, half), 1 - half);
+  const scale = 1 / crop.size;
+  return {
+    position: 'absolute',
+    width: `${scale * 100}%`,
+    height: `${scale * 100}%`,
+    left: `${-(ccx - half) * scale * 100}%`,
+    top: `${-(ccy - half) * scale * 100}%`,
+    maxWidth: 'none',
+  };
+};
 
 const randomTraitsFor = (config: StyleConfig): Traits => {
   const traits: Traits = {};
@@ -323,7 +347,7 @@ const AvatarPicker = ({
                         setTraits(prev => ({ ...prev, [activeRow.key]: opt }));
                       }}
                       disabled={isSaving}
-                      className={`aspect-square rounded-xl overflow-hidden border-2 transition-all disabled:opacity-40 ${
+                      className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all disabled:opacity-40 bg-white ${
                         traits[activeRow.key] === opt ? 'border-primary ring-2 ring-primary/30' : 'border-transparent hover:border-primary/30'
                       }`}
                     >
@@ -331,7 +355,8 @@ const AvatarPicker = ({
                         src={buildAvatarUrl(styleId, seed, { ...traits, [activeRow.key]: opt })}
                         alt={opt === 'none' ? '없음' : opt}
                         loading="lazy"
-                        className="w-full h-full object-cover bg-white"
+                        style={activeRow.crop ? cropStyle(activeRow.crop) : undefined}
+                        className={activeRow.crop ? '' : 'w-full h-full object-cover'}
                       />
                     </button>
                   ))}
