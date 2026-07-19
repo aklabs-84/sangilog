@@ -62,6 +62,7 @@ interface SubjectDashboardProps {
   copySuccess: boolean;
   onShareTeacher: () => void;
   shareTeacherSuccess: boolean;
+  onOpenTeacherShareQR?: () => void;
   selectedIds: string[];
   onSelectStudent: (id: string) => void;
   onSelectAll: (isSelect: boolean) => void;
@@ -91,6 +92,7 @@ const SubjectDashboard = ({
   copySuccess,
   onShareTeacher,
   shareTeacherSuccess,
+  onOpenTeacherShareQR,
   selectedIds,
   onSelectStudent,
   onSelectAll,
@@ -529,6 +531,15 @@ const SubjectDashboard = ({
             >
               {shareTeacherSuccess ? <Check size={17} /> : <Share2 size={17} />}
             </button>
+            {onOpenTeacherShareQR && (
+              <button
+                onClick={onOpenTeacherShareQR}
+                className="w-9 h-9 sm:w-10 sm:h-10 bg-white hover:bg-indigo-500 hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/80 transition-all shadow-soft shrink-0"
+                title="학교 선생님 공유 QR 코드"
+              >
+                <QrCode size={17} />
+              </button>
+            )}
             <button onClick={onExport} className="w-9 h-9 sm:w-10 sm:h-10 bg-white hover:bg-on-surface hover:text-white rounded-xl flex items-center justify-center text-on-surface-variant/80 transition-all shadow-soft shrink-0" title="데이터 내보내기">
               <Download size={17} />
             </button>

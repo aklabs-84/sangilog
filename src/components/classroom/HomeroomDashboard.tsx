@@ -27,6 +27,7 @@ import {
   EyeOff,
   Megaphone,
   Share2,
+  QrCode,
   SlidersHorizontal,
   Link as LinkIcon,
 } from 'lucide-react';
@@ -45,6 +46,7 @@ interface HomeroomDashboardProps {
   onCopyCode: () => void;
   onShareTeacher: () => void;
   shareTeacherSuccess: boolean;
+  onOpenTeacherShareQR?: () => void;
   selectedIds: string[];
   onSelectStudentToggle: (id: string) => void;
   onSelectAll: (isSelect: boolean) => void;
@@ -71,6 +73,7 @@ const HomeroomDashboard = ({
   onCopyCode,
   onShareTeacher,
   shareTeacherSuccess,
+  onOpenTeacherShareQR,
   selectedIds,
   onSelectStudentToggle,
   onSelectAll,
@@ -398,6 +401,15 @@ const HomeroomDashboard = ({
                   >
                     {shareTeacherSuccess ? <Check size={16} /> : <Share2 size={16} />}
                   </button>
+                  {onOpenTeacherShareQR && (
+                    <button
+                      onClick={onOpenTeacherShareQR}
+                      className="w-10 h-10 bg-white border-2 border-neutral-200 hover:border-indigo-300 hover:text-indigo-500 rounded-2xl flex items-center justify-center text-on-surface-variant/60 transition-all shadow-soft shrink-0"
+                      title="학교 선생님 공유 QR 코드"
+                    >
+                      <QrCode size={16} />
+                    </button>
+                  )}
                   {onCopyLink && (
                     <button
                       onClick={onCopyLink}

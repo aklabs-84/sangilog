@@ -213,6 +213,7 @@ const Classroom = () => {
   
   // QR 코드 모달 상태
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const [isTeacherShareQRModalOpen, setIsTeacherShareQRModalOpen] = useState(false);
 
   // AI 인사이트 모달 상태
   const [isAIReportOpen, setIsAIReportOpen] = useState(false);
@@ -444,6 +445,7 @@ const Classroom = () => {
       if (isUpdateModalOpen) { setIsUpdateModalOpen(false); setEditModalTab('basic'); }
       else if (isCreateModalOpen) { setIsCreateModalOpen(false); }
       else if (isQRModalOpen) { setIsQRModalOpen(false); }
+      else if (isTeacherShareQRModalOpen) { setIsTeacherShareQRModalOpen(false); }
       else if (isStudentModalOpen) { setIsStudentModalOpen(false); }
       else if (isArchiveModalOpen) { setIsArchiveModalOpen(false); }
       else if (isResourceModalOpen) { setIsResourceModalOpen(false); setShowAddGeneralForm(false); }
@@ -451,7 +453,7 @@ const Classroom = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isUpdateModalOpen, isCreateModalOpen, isQRModalOpen, isStudentModalOpen, isArchiveModalOpen, isResourceModalOpen, isSchoolModalOpen]);
+  }, [isUpdateModalOpen, isCreateModalOpen, isQRModalOpen, isTeacherShareQRModalOpen, isStudentModalOpen, isArchiveModalOpen, isResourceModalOpen, isSchoolModalOpen]);
 
   // 서브클래스의 부모 weekly_plan 로드 (수업 자료실 모달용)
   const loadParentWeeklyPlan = async (parentClassId: string) => {
@@ -1957,7 +1959,7 @@ const Classroom = () => {
 
       {/* 2. 메인 대시보드 영역 (통합 스크롤) */}
       <main className="flex flex-col relative">
-        <div className="fixed top-24 right-4 md:right-10 z-[200] flex flex-col gap-3 pointer-events-none max-w-[calc(100vw-2rem)]">
+        <div className="fixed top-24 right-4 md:right-10 z-[9999] flex flex-col gap-3 pointer-events-none max-w-[calc(100vw-2rem)]">
           <AnimatePresence>
             {realtimeToasts.map((toast) => (
               <motion.div
@@ -2751,6 +2753,7 @@ const Classroom = () => {
                     onCopyCode={handleCopyLink}
                     onShareTeacher={handleShareTeacher}
                     shareTeacherSuccess={shareTeacherSuccess}
+                    onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
                     selectedIds={selectedStudentIds}
                     onSelectStudentToggle={handleSelectStudent}
                     onSelectAll={handleSelectAll}
@@ -2795,6 +2798,7 @@ const Classroom = () => {
                     copySuccess={copySuccess}
                     onShareTeacher={handleShareTeacher}
                     shareTeacherSuccess={shareTeacherSuccess}
+                    onOpenTeacherShareQR={() => setIsTeacherShareQRModalOpen(true)}
                     selectedIds={selectedStudentIds}
                     onSelectStudent={handleSelectStudent}
                     onSelectAll={handleSelectAll}
@@ -4119,6 +4123,24 @@ const Classroom = () => {
                 <p className="text-xs font-black text-primary uppercase tracking-widest">입장 코드</p>
                 <p className="text-4xl font-black font-manrope text-primary tracking-[0.2em]">{classInfo.entry_code}</p>
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        {isTeacherShareQRModalOpen && classInfo && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-on-surface/40 backdrop-blur-xl" onClick={() => setIsTeacherShareQRModalOpen(false)}>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm glass p-10 rounded-[2rem] text-center space-y-8 relative shadow-2xl border border-white/20" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setIsTeacherShareQRModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-surface-container transition-all"><X size={24} /></button>
+              <div className="space-y-2">
+                <h3 className="text-3xl font-black font-manrope">{classInfo.name}</h3>
+                <p className="text-on-surface-variant font-bold">학교 선생님 공유용 QR 코드</p>
+              </div>
+              <div className="bg-white p-6 rounded-[1.75rem] shadow-inner inline-block aspect-square">
+                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://sangilog.vercel.app/share/${classInfo.id}`)}`} alt="QR Code" className="w-full h-full object-contain" />
+              </div>
+              <p className="text-xs font-bold text-on-surface-variant/60 leading-relaxed">
+                이 QR을 스캔하면 로그인 없이<br />학급 공유 페이지로 바로 이동합니다.
+              </p>
             </motion.div>
           </div>
         )}
