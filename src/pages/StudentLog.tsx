@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { openFile, downloadFile } from '../lib/fileUtils';
+import AvatarPicker from '../components/AvatarPicker';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap,
@@ -166,6 +167,8 @@ const StudentLog = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [session, setSession] = useState<any>(null);
+  const [studentAvatar, setStudentAvatar] = useState<string | null>(null);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
@@ -400,7 +403,7 @@ const StudentLog = () => {
         // student가 해당 class에 실제로 속하는지 서버에서 확인
         const { data: studentExists } = await supabase
           .from('students')
-          .select('id')
+          .select('id, avatar_url')
           .eq('id', parsed.student_id)
           .eq('class_id', effectiveClassId)
           .maybeSingle();
@@ -409,6 +412,7 @@ const StudentLog = () => {
 
         // 검증 통과 — 세션 활성화
         setSession(parsed);
+        setStudentAvatar(studentExists.avatar_url || null);
         fetchClassDetails(parsed.class_id);
         fetchAnnouncements(parsed.class_id);
         fetchUnreadReplyCount(parsed.student_id, parsed.class_id);
@@ -2442,12 +2446,35 @@ ${guidePrompt}
                 <p className="text-[10px] font-bold text-on-surface-variant/60 mt-0.5">{myClassGroup.name}</p>
               )}
             </div>
-            <div className="w-12 h-12 rounded-[1rem] bg-primary/10 flex items-center justify-center text-primary shadow-sm border border-primary/10">
-              <User size={24} />
-            </div>
+            <button
+              onClick={() => setShowAvatarPicker(true)}
+              title="아바타 수정"
+              className="group relative w-12 h-12 rounded-[1rem] bg-primary/10 flex items-center justify-center text-primary shadow-sm border border-primary/10 overflow-hidden shrink-0"
+            >
+              {studentAvatar ? (
+                <img src={studentAvatar} alt="내 아바타" className="w-full h-full object-cover" />
+              ) : (
+                <User size={24} />
+              )}
+              <span className="absolute inset-0 bg-on-surface/0 group-hover:bg-on-surface/40 transition-colors flex items-center justify-center">
+                <Pencil size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              </span>
+            </button>
           </div>
         </div>
       </header>
+
+      <AvatarPicker
+        isOpen={showAvatarPicker}
+        onClose={() => setShowAvatarPicker(false)}
+        title="아바타 바꾸기"
+        description="새로운 아바타를 골라보세요."
+        onSelect={async (url) => {
+          await supabase.from('students').update({ avatar_url: url }).eq('id', session.student_id);
+          setStudentAvatar(url);
+          setShowAvatarPicker(false);
+        }}
+      />
 
       <div className="max-w-6xl mx-auto w-full py-10 space-y-12">
         {/* Session Card & Identity */}

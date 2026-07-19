@@ -785,8 +785,12 @@ const StudentView = () => {
           <div className="surface-card p-8 shadow-ambient border border-white/60 text-center relative overflow-hidden group">
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-primary/10 to-secondary/10" />
             <div className="relative z-10 flex flex-col items-center mt-8">
-              <div className="w-24 h-24 bg-white rounded-[2rem] shadow-md flex items-center justify-center text-primary mb-6 group-hover:scale-105 transition-transform">
-                <UserIcon size={40} />
+              <div className="w-24 h-24 bg-white rounded-[2rem] shadow-md flex items-center justify-center text-primary mb-6 group-hover:scale-105 transition-transform overflow-hidden">
+                {student?.avatar_url ? (
+                  <img src={student.avatar_url} alt={student?.full_name} className="w-full h-full object-cover" />
+                ) : (
+                  <UserIcon size={40} />
+                )}
               </div>
               <h1 className="text-3xl font-black tracking-tight mb-2">{student?.full_name}</h1>
               <p className="text-on-surface-variant font-bold text-sm mb-6 flex items-center gap-2 justify-center">

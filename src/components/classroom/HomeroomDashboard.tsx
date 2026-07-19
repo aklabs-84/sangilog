@@ -759,8 +759,12 @@ const HomeroomDashboard = ({
                              />
                            ) : (
                              <div className="flex items-center gap-3 lg:gap-4">
-                               <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                                 <Users size={18} strokeWidth={2.5} />
+                               <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all overflow-hidden">
+                                 {s.avatar ? (
+                                   <img src={s.avatar} alt={s.name} className="w-full h-full object-cover" />
+                                 ) : (
+                                   <Users size={18} strokeWidth={2.5} />
+                                 )}
                                </div>
                                <div className="flex flex-col">
                                  <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
@@ -1051,8 +1055,12 @@ const HomeroomDashboard = ({
                     </td>
                     <td className="px-8 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                          <Users size={16} strokeWidth={2.5} />
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all overflow-hidden">
+                          {s.avatar ? (
+                            <img src={s.avatar} alt={s.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <Users size={16} strokeWidth={2.5} />
+                          )}
                         </div>
                         <span className="text-sm font-black group-hover:text-primary transition-colors">{s.name}</span>
                       </div>

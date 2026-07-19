@@ -907,8 +907,12 @@ const SubjectDashboard = ({
                               />
                             ) : (
                             <div className="flex items-center gap-3 lg:gap-4">
-                              <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                                <Users size={18} strokeWidth={2.5} />
+                              <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center bg-primary/5 text-primary/40 shrink-0 shadow-sm border border-primary/10 group-hover:bg-primary/10 group-hover:text-primary transition-all overflow-hidden">
+                                {s.avatar ? (
+                                  <img src={s.avatar} alt={s.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <Users size={18} strokeWidth={2.5} />
+                                )}
                               </div>
                               <div className="flex flex-col">
                                 <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors tracking-tight">{s.name}</p>
@@ -1055,8 +1059,12 @@ const SubjectDashboard = ({
                       onClick={() => onNavigateAI(s.id)}
                     >
                       <div className="relative shrink-0">
-                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/15 to-secondary/15 flex items-center justify-center font-black text-primary text-base select-none">
-                          {s.name.charAt(0)}
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/15 to-secondary/15 flex items-center justify-center font-black text-primary text-base select-none overflow-hidden">
+                          {s.avatar ? (
+                            <img src={s.avatar} alt={s.name} className="w-full h-full object-cover" />
+                          ) : (
+                            s.name.charAt(0)
+                          )}
                         </div>
                         {s.number && s.number !== '-' && (
                           <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 bg-on-surface text-surface rounded text-[9px] font-black flex items-center justify-center shadow-sm leading-none">

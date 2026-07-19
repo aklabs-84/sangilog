@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { GraduationCap, ArrowRight, Info, HelpCircle, Loader2, User, Search, Key, ShieldCheck, KeyRound } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import AvatarPicker from '../components/AvatarPicker';
 
 const ClassroomEntry = () => {
   const navigate = useNavigate();
@@ -29,6 +30,9 @@ const ClassroomEntry = () => {
   const [pinLoading, setPinLoading] = useState(false);
   const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
   const pinConfirmRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // 최초 PIN 설정 직후 아바타 선택 모달
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   useEffect(() => {
     const codeParam = searchParams.get('code');
@@ -206,7 +210,7 @@ const ClassroomEntry = () => {
         setPinError('PIN 저장에 실패했습니다. 선생님께 문의하세요.');
         return;
       }
-      enterSession();
+      setShowAvatarPicker(true);
       return;
     }
 
@@ -523,6 +527,19 @@ const ClassroomEntry = () => {
         <HelpCircle size={18} className="group-hover:rotate-12 transition-transform" />
         입장 코드가 무엇인가요?
       </button>
+
+      <AvatarPicker
+        isOpen={showAvatarPicker}
+        onClose={() => setShowAvatarPicker(false)}
+        title="나만의 아바타를 골라볼까요?"
+        description="지금 고른 아바타는 학급 목록과 내 화면에 표시돼요. 나중에 언제든 바꿀 수 있어요."
+        onSkip={() => { setShowAvatarPicker(false); enterSession(); }}
+        onSelect={async (url) => {
+          await supabase.from('students').update({ avatar_url: url }).eq('id', selectedStudent!.id);
+          setShowAvatarPicker(false);
+          enterSession();
+        }}
+      />
     </div>
   );
 };
