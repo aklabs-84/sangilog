@@ -1,13 +1,21 @@
-import { Check, X, Crown, Mail, School, Sparkles, Zap } from 'lucide-react';
+import { Check, X, Crown, Mail, School, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../lib/auth';
 
 type FeatureValue = boolean | string;
+
+interface PricePeriod {
+  label: string;
+  total: string;
+  perMonth: string;
+  note: string;
+}
 
 interface Plan {
   key: string;
   name: string;
   price: string;
   priceAnnual: string;
+  periods?: PricePeriod[];
   highlight: boolean;
   badge: string | null;
   colorClass: string;
@@ -47,6 +55,11 @@ const PLANS: Plan[] = [
     name: 'Basic',
     price: '9,900원',
     priceAnnual: '연 107,000원 (2개월 무료)',
+    periods: [
+      { label: '3개월', total: '28,200원', perMonth: '월 9,400원', note: '5%↓' },
+      { label: '6개월', total: '53,400원', perMonth: '월 8,900원', note: '10%↓' },
+      { label: '12개월', total: '107,000원', perMonth: '월 8,917원', note: '2개월 무료' },
+    ],
     highlight: false,
     badge: null,
     colorClass: 'border-blue-200 bg-white',
@@ -72,6 +85,11 @@ const PLANS: Plan[] = [
     name: 'Pro',
     price: '19,900원',
     priceAnnual: '연 215,000원 (2개월 무료)',
+    periods: [
+      { label: '3개월', total: '56,700원', perMonth: '월 18,900원', note: '5%↓' },
+      { label: '6개월', total: '107,400원', perMonth: '월 17,900원', note: '10%↓' },
+      { label: '12개월', total: '215,000원', perMonth: '월 17,917원', note: '2개월 무료' },
+    ],
     highlight: true,
     badge: '추천',
     colorClass: 'border-amber-300 bg-amber-50/40',
@@ -209,6 +227,22 @@ export default function Pricing() {
                 {plan.priceAnnual && (
                   <p className="text-[11px] text-on-surface-variant mt-1">{plan.priceAnnual}</p>
                 )}
+                {plan.periods && (
+                  <div className="mt-3 pt-3 border-t border-on-surface/10 space-y-1.5">
+                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-wide mb-1">
+                      선결제 할인
+                    </p>
+                    {plan.periods.map((p) => (
+                      <div key={p.label} className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-on-surface-variant">{p.label}</span>
+                        <span className="font-black text-on-surface">
+                          {p.total}
+                          <span className="font-bold text-on-surface-variant"> ({p.perMonth}, {p.note})</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <ul className="space-y-2.5 flex-1 mb-6">
@@ -327,6 +361,22 @@ export default function Pricing() {
             School 플랜은 이메일 문의 후 관리자가 직접 설정해 드립니다
           </div>
         </div>
+      </div>
+
+      {/* 해지 · 환불 정책 */}
+      <div className="mt-8 bg-surface-container-low rounded-3xl border border-on-surface/10 p-6">
+        <h3 className="text-sm font-black text-on-surface mb-3 flex items-center gap-2">
+          <ShieldCheck size={16} className="text-primary" /> 해지 · 환불 정책
+        </h3>
+        <ul className="space-y-2 text-xs text-on-surface-variant leading-relaxed list-disc pl-4">
+          <li>결제 후 7일 이내이고 서비스를 이용하지 않으셨다면 전액 환불해 드립니다.</li>
+          <li>7일이 지난 뒤 해지하시는 경우, 실제 이용한 기간을 제외한 잔여 기간을 일할 계산하여 환불해 드립니다.</li>
+          <li>환불 요청은 이메일(aklabs84@naver.com)로 접수하며, 영업일 기준 5일 이내 처리됩니다.</li>
+          <li>무료(Free) 플랜은 환불 대상이 아닙니다.</li>
+        </ul>
+        <a href="/terms" className="inline-block mt-3 text-xs text-primary underline underline-offset-2 font-bold">
+          이용약관에서 전체 내용 보기
+        </a>
       </div>
 
       {/* 결제 예정 안내 */}

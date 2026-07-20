@@ -10,14 +10,14 @@ import {
   BarChart3, FileCheck, Megaphone, Bell, Download, Plus, Send,
   TrendingUp, Zap, Bug, Ticket, Calendar, ToggleLeft, ToggleRight,
   Shuffle, DollarSign, Cpu, Layers, X, ChevronRight, Activity,
-  ArrowUpDown, LogIn, ChevronUp, ChevronDown,
+  ArrowUpDown, LogIn, ChevronUp, ChevronDown, Calculator,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActiveTab =
   | 'dashboard' | 'requests' | 'users' | 'activity' | 'classes'
-  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'ai_cost' | 'video_guides';
+  | 'students' | 'observations' | 'results' | 'suggestions' | 'announcements' | 'bugs' | 'coupons' | 'refund_calc' | 'ai_cost' | 'video_guides';
 
 interface TeacherActivityRow {
   id: string;
@@ -172,6 +172,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'announcements', label: '공지사항',   icon: Bell },
   { id: 'bugs',          label: '버그신고',   icon: Bug },
   { id: 'coupons',       label: '쿠폰',       icon: Ticket },
+  { id: 'refund_calc',   label: '환불 계산기', icon: Calculator },
   { id: 'ai_cost',       label: 'AI 비용',    icon: DollarSign },
   { id: 'video_guides',  label: '영상 가이드', icon: Layers },
 ];
@@ -211,6 +212,31 @@ const downloadCSV = (data: any[], filename: string) => {
   const a    = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+};
+
+// ── 환불 일할 계산 ────────────────────────────────────────────────────────────
+// 정책: 결제 후 7일 이내 미사용 시 전액 환불, 이후는 잔여일수 비율로 환불
+const calcRefund = (startDate: string, periodMonths: number, amount: number, cancelDate: string) => {
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + periodMonths);
+  const cancel = new Date(cancelDate + 'T00:00:00');
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const totalDays = Math.round((end.getTime() - start.getTime()) / msPerDay);
+  const usedDays = Math.round((cancel.getTime() - start.getTime()) / msPerDay);
+
+  if (usedDays < 0 || totalDays <= 0) {
+    return { totalDays, usedDays: 0, remainingDays: totalDays, refund: 0, valid: false };
+  }
+  if (usedDays <= 7) {
+    return { totalDays, usedDays, remainingDays: totalDays - usedDays, refund: amount, valid: true, fullRefund: true };
+  }
+  if (usedDays >= totalDays) {
+    return { totalDays, usedDays, remainingDays: 0, refund: 0, valid: true, fullRefund: false };
+  }
+  const remainingDays = totalDays - usedDays;
+  const refund = Math.round((amount * remainingDays) / totalDays / 10) * 10;
+  return { totalDays, usedDays, remainingDays, refund, valid: true, fullRefund: false };
 };
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
@@ -320,6 +346,15 @@ const Admin = () => {
   const [couponSendCode, setCouponSendCode] = useState('');
   const [couponSending, setCouponSending] = useState(false);
   const [couponSendMsg, setCouponSendMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  // ── 환불 계산기 ──────────────────────────────────────────────────────────────
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [refundForm, setRefundForm] = useState({
+    startDate: todayStr,
+    periodMonths: 6,
+    amount: 53400,
+    cancelDate: todayStr,
+  });
 
   // ── AI 비용 ─────────────────────────────────────────────────────────────────
   const [aiCostView, setAiCostView]         = useState<AiCostView>('daily');
@@ -2303,6 +2338,96 @@ const Admin = () => {
             </div>
           </div>
         )}
+
+        {/* ── 환불 계산기 ────────────────────────────────────────────────────── */}
+        {activeTab === 'refund_calc' && (() => {
+          const r = calcRefund(refundForm.startDate, refundForm.periodMonths, refundForm.amount, refundForm.cancelDate);
+          return (
+            <div className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
+                <h3 className="font-black text-blue-900 mb-1 flex items-center gap-2">
+                  <Calculator size={16} className="text-blue-600" /> 해지 환불액 계산기
+                </h3>
+                <p className="text-xs text-blue-700/70 mb-4">
+                  결제 후 7일 이내면 전액 환불, 이후는 잔여 기간을 일할 계산합니다. (10원 단위 반올림)
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-blue-700 block mb-1">결제일</label>
+                    <input
+                      type="date"
+                      value={refundForm.startDate}
+                      onChange={e => setRefundForm(f => ({ ...f, startDate: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl border border-blue-200 text-sm bg-white focus:outline-none focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-blue-700 block mb-1">결제 기간</label>
+                    <div className="flex gap-1">
+                      {[3, 6, 12].map(m => (
+                        <button key={m}
+                          onClick={() => setRefundForm(f => ({ ...f, periodMonths: m }))}
+                          className={`flex-1 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                            refundForm.periodMonths === m
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-100'
+                          }`}
+                        >{m}개월</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-blue-700 block mb-1">결제 금액 (원)</label>
+                    <input
+                      type="number" min={0}
+                      value={refundForm.amount}
+                      onChange={e => setRefundForm(f => ({ ...f, amount: Number(e.target.value) }))}
+                      className="w-full px-3 py-2.5 rounded-xl border border-blue-200 text-sm bg-white focus:outline-none focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-blue-700 block mb-1">해지 요청일</label>
+                    <input
+                      type="date"
+                      value={refundForm.cancelDate}
+                      onChange={e => setRefundForm(f => ({ ...f, cancelDate: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl border border-blue-200 text-sm bg-white focus:outline-none focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+
+                {!r.valid ? (
+                  <p className="mt-4 text-xs font-bold text-red-600 bg-red-50 px-3 py-2 rounded-xl">
+                    해지 요청일이 결제일보다 빠릅니다. 날짜를 확인해 주세요.
+                  </p>
+                ) : (
+                  <div className="mt-5 bg-white rounded-2xl border border-blue-200 p-5">
+                    <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+                      <div>
+                        <p className="text-[11px] font-bold text-blue-400">총 기간</p>
+                        <p className="text-sm font-black text-blue-900">{r.totalDays}일</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-blue-400">사용 기간</p>
+                        <p className="text-sm font-black text-blue-900">{r.usedDays}일</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-blue-400">잔여 기간</p>
+                        <p className="text-sm font-black text-blue-900">{r.remainingDays}일</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-4 border-t border-blue-100">
+                      <span className="text-xs font-bold text-blue-700">
+                        {r.fullRefund ? '7일 이내 전액 환불 대상' : r.refund === 0 ? '환불 대상 아님 (기간 만료)' : '일할 계산 환불액'}
+                      </span>
+                      <span className="text-2xl font-black text-blue-900">{r.refund.toLocaleString()}원</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── AI 비용 ────────────────────────────────────────────────────────── */}
         {activeTab === 'ai_cost' && (

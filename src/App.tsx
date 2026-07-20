@@ -44,6 +44,7 @@ import SchoolProjectShareView from './pages/SchoolProjectShareView';
 import SetPassword from './pages/SetPassword';
 import SurveyStudent from './pages/tools/SurveyStudent';
 import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 import Gallery from './pages/Gallery';
 import VideoGuide from './pages/VideoGuide';
 import Pricing from './pages/Pricing';
@@ -227,6 +228,7 @@ function App() {
               <Route path="/survey/:pin" element={<SurveyStudent />} />
               <Route path="/survey" element={<SurveyStudent />} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
               <Route path="/video-guide" element={<VideoGuide />} />
               <Route path="/sb/:boardId" element={<StudentBoardViewer />} />
               <Route path="/wb-join" element={<StudentJoin />} />

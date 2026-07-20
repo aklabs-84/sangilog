@@ -704,6 +704,7 @@ const Landing = () => {
                 emoji: '🚀',
                 desc: '꾸준히 활용하는 선생님',
                 price: '9,900',
+                periodNote: '3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료',
                 features: [
                   { text: '클래스 최대 5개', ok: true },
                   { text: '학생 최대 35명/클래스', ok: true },
@@ -727,6 +728,7 @@ const Landing = () => {
                 emoji: '⚡',
                 desc: '적극적으로 활용하는 선생님',
                 price: '19,900',
+                periodNote: '3개월 5%↓ · 6개월 10%↓ · 12개월 2개월 무료',
                 highlight: true,
                 features: [
                   { text: '클래스 최대 10개', ok: true },
@@ -787,9 +789,14 @@ const Landing = () => {
                   ) : plan.price === '문의' ? (
                     <p className="text-sm font-black text-violet-600">요금 문의</p>
                   ) : (
-                    <div className="flex items-baseline gap-0.5">
-                      <span className="text-xl font-black text-gray-900">{plan.price}원</span>
-                      <span className="text-xs text-gray-400">/월</span>
+                    <div>
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-xl font-black text-gray-900">{plan.price}원</span>
+                        <span className="text-xs text-gray-400">/월</span>
+                      </div>
+                      {(plan as any).periodNote && (
+                        <p className="text-[10px] text-gray-400 font-bold mt-0.5">{(plan as any).periodNote}</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -819,7 +826,7 @@ const Landing = () => {
             initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
             className="text-center text-xs text-amber-600/60 mt-8"
           >
-            플랜 변경 및 문의: aklabs84@naver.com · 연 결제 시 2개월 무료
+            플랜 변경 및 문의: aklabs84@naver.com · 3/6/12개월 선결제 시 할인, 결제 후 7일 이내 전액 환불 (이후 잔여 기간 일할 계산 환불)
           </motion.p>
         </div>
       </section>
@@ -1150,6 +1157,12 @@ const Landing = () => {
               className="hover:text-amber-200 transition-colors underline underline-offset-2"
             >
               개인정보 처리방침
+            </a>
+            <a
+              href="/terms"
+              className="hover:text-amber-200 transition-colors underline underline-offset-2"
+            >
+              이용약관
             </a>
             <span>© 2026 AK LABS. 선생님을 응원합니다.</span>
           </div>

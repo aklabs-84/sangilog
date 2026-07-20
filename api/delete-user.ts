@@ -33,12 +33,22 @@ export default async function handler(req: any, res: any) {
   const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
   const email = userData?.user?.email;
 
+  // 1-1. 탈퇴 대상 교사가 소유한 클래스 id 조회 (slide_decks.class_id NO ACTION 정리에 필요)
+  const { data: ownedClasses } = await supabaseAdmin.from('classes').select('id').eq('teacher_id', userId);
+  const ownedClassIds = (ownedClasses ?? []).map((c: { id: string }) => c.id);
+
   // 2. auth.users / profiles FK 참조 테이블 정리 (ON DELETE 미설정 컬럼 전체)
   await Promise.all([
     // auth.users 직접 참조 → 삭제
     supabaseAdmin.from('ai_usage_logs').delete().eq('user_id', userId),
     supabaseAdmin.from('whiteboard_members').delete().eq('user_id', userId),
     supabaseAdmin.from('whiteboard_sessions').delete().eq('user_id', userId),
+    // slide_decks.teacher_id는 auth.users 직접 참조(NO ACTION)이면서 NOT NULL이라 NULL 처리 불가 → 삭제
+    supabaseAdmin.from('slide_decks').delete().eq('teacher_id', userId),
+    // slide_decks.class_id도 classes 참조가 NO ACTION이라, 곧 삭제될 클래스를 가리키는 다른 교사 소유 슬라이드는 연결만 해제
+    ...(ownedClassIds.length > 0
+      ? [supabaseAdmin.from('slide_decks').update({ class_id: null }).in('class_id', ownedClassIds)]
+      : []),
     // auth.users 직접 참조 → created_by/teacher_id NULL 처리
     supabaseAdmin.from('attendance').update({ teacher_id: null }).eq('teacher_id', userId),
     supabaseAdmin.from('student_evaluations').update({ teacher_id: null }).eq('teacher_id', userId),
