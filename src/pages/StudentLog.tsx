@@ -584,7 +584,7 @@ const StudentLog = () => {
             const key = `obs-${obs.id}`;
             const prev = statusTrackMap.current.get(key);
             const obsTitle = obs.activity_name || '활동 기록';
-            if (obs.status === 'rejected' && prev !== 'rejected') {
+            if (obs.status === 'rejected' && prev !== 'rejected' && prev !== undefined) {
               seenApprovalIds.current.delete(key);
               seenRejectionIds.current.add(key);
               statusTrackMap.current.set(key, 'rejected');
@@ -624,7 +624,7 @@ const StudentLog = () => {
             const key = `result-${gId}`;
             const prev = statusTrackMap.current.get(key);
             const rTitle = r.title || (r.week_number ? `${r.week_number}주차 결과물` : '결과물');
-            if (r.status === 'rejected' && prev !== 'rejected') {
+            if (r.status === 'rejected' && prev !== 'rejected' && prev !== undefined) {
               seenApprovalIds.current.delete(key);
               seenRejectionIds.current.add(key);
               statusTrackMap.current.set(key, 'rejected');
@@ -5656,7 +5656,10 @@ ${guidePrompt}
 
               <div className="pt-2">
                 <button
-                  onClick={() => setIsRejectModalOpen(false)}
+                  onClick={() => {
+                    setIsRejectModalOpen(false);
+                    if (rejectModalType === 'auto_reject') handleTabChange('record');
+                  }}
                   className="w-full py-5 rounded-2xl bg-slate-900 text-white font-black hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-95"
                 >
                   {rejectModalType === 'auto_reject' ? '수정 후 재제출하기 →' : '내용 수정하러 가기'}
