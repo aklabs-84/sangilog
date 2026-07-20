@@ -380,7 +380,8 @@ const TeachingTools = () => {
         {activeTool && (
           <button
             onClick={() => setActiveTool(null)}
-            className="p-2 rounded-xl hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all"
+            className="p-2.5 rounded-full bg-surface-container hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all shadow-sm"
+            title="수업 도구 목록으로"
           >
             <ArrowLeft size={20} />
           </button>
@@ -605,25 +606,27 @@ const TeachingTools = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
           >
-            {/* 도구 화면 상단 한도 배너 */}
-            {activeTool.limits && (
-              <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-2xl bg-surface-container border border-white/30 text-xs">
-                <span className="font-black text-primary/80">{planLabel} 플랜</span>
-                <span className="text-on-surface-variant/50">|</span>
-                <span className="text-on-surface-variant font-medium">{getMyLimitDesc(activeTool)}</span>
-                {activeTool.limits.usesAi && (
-                  <div className={`ml-auto flex items-center gap-1.5 font-black ${
-                    aiRemaining !== null && aiRemaining <= 5 ? 'text-red-500' : 'text-primary'
-                  }`}>
-                    <Zap size={12} />
-                    {aiRemaining !== null
-                      ? <>AI 잔여 <strong>{aiRemaining}</strong> / {aiLimit}회</>
-                      : 'AI 무제한'}
-                  </div>
-                )}
-              </div>
-            )}
-            {activeTool.component}
+            {/* 도구 전용 영역: 페이지 상단 내비게이션(← 전체 도구 목록)과 구분되는 카드 경계 */}
+            <div className="bg-white dark:bg-surface-container-lowest rounded-3xl border border-gray-200 dark:border-white/10 shadow-md p-4 md:p-5">
+              {activeTool.limits && (
+                <div className="mb-4 flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-2xl bg-surface-container border border-white/30 text-xs">
+                  <span className="font-black text-primary/80">{planLabel} 플랜</span>
+                  <span className="text-on-surface-variant/50">|</span>
+                  <span className="text-on-surface-variant font-medium">{getMyLimitDesc(activeTool)}</span>
+                  {activeTool.limits.usesAi && (
+                    <div className={`ml-auto flex items-center gap-1.5 font-black ${
+                      aiRemaining !== null && aiRemaining <= 5 ? 'text-red-500' : 'text-primary'
+                    }`}>
+                      <Zap size={12} />
+                      {aiRemaining !== null
+                        ? <>AI 잔여 <strong>{aiRemaining}</strong> / {aiLimit}회</>
+                        : 'AI 무제한'}
+                    </div>
+                  )}
+                </div>
+              )}
+              {activeTool.component}
+            </div>
           </motion.div>
         ) : (
           <motion.div

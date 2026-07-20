@@ -455,7 +455,13 @@ export default function SlideDeckEditor() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
-            <button onClick={handleBackToList} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}><ArrowLeft size={18} /></button>
+            <button
+              onClick={handleBackToList}
+              title="슬라이드 목록으로"
+              style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, background: '#f1f5f9', border: 'none', borderRadius: 999, cursor: 'pointer', color: '#475569', padding: '6px 10px', fontSize: 12, fontWeight: 600 }}
+            >
+              <ArrowLeft size={14} /> 목록
+            </button>
             <input
               value={activeDeck.title}
               onChange={e => setActiveDeck(prev => prev ? { ...prev, title: e.target.value } : prev)}
