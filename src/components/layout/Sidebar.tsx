@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Wrench,
   Images,
-  School,
   Crown,
   PlayCircle,
 } from 'lucide-react';
@@ -27,20 +26,18 @@ interface SidebarProps {
 
 const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
   const { signOut, profile } = useAuth();
-  const isSchool = profile?.plan === 'school';
   const showUpgradeBadge = profile?.plan === 'free' || profile?.plan === 'basic';
 
-  const allMenuItems = [
-    { icon: LayoutDashboard, label: '대시보드', path: '/dashboard', schoolHide: true },
-    { icon: Users, label: '클래스룸', path: '/classroom', schoolHide: false },
-    { icon: Wrench, label: '수업 도구', path: '/teaching-tools', schoolHide: true },
-    { icon: Images, label: '수업 갤러리', path: '/gallery', schoolHide: false },
-    { icon: PlayCircle, label: '영상 가이드', path: '/video-guide', schoolHide: false },
-    { icon: Sparkles, label: 'AI 어시스턴트', path: '/ai-assistant', schoolHide: true },
-    { icon: Download, label: '데이터 내보내기', path: '/export', schoolHide: true },
-    { icon: Archive, label: '아카이브', path: '/archive', schoolHide: true },
+  const menuItems = [
+    { icon: LayoutDashboard, label: '대시보드', path: '/dashboard' },
+    { icon: Users, label: '클래스룸', path: '/classroom' },
+    { icon: Wrench, label: '수업 도구', path: '/teaching-tools' },
+    { icon: Images, label: '수업 갤러리', path: '/gallery' },
+    { icon: PlayCircle, label: '영상 가이드', path: '/video-guide' },
+    { icon: Sparkles, label: 'AI 어시스턴트', path: '/ai-assistant' },
+    { icon: Download, label: '데이터 내보내기', path: '/export' },
+    { icon: Archive, label: '아카이브', path: '/archive' },
   ];
-  const menuItems = isSchool ? allMenuItems.filter(m => !m.schoolHide) : allMenuItems;
 
   return (
     <motion.aside 
@@ -67,25 +64,18 @@ const Sidebar = ({ isCollapsed, toggleSidebar }: SidebarProps) => {
         )}
       </div>
 
-      {/* 2. Primary Action — school 계정은 숨김 */}
-      {isSchool ? (
-        <div className={`flex items-center justify-center gap-2 rounded-xl mb-8 py-3.5 bg-violet-50 border border-violet-200 ${isCollapsed ? 'px-0' : 'px-4'}`}>
-          <School size={18} className="text-violet-500 shrink-0" />
-          {!isCollapsed && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-black text-xs text-violet-600 tracking-tight">열람 전용 계정</motion.span>}
-        </div>
-      ) : (
-        <NavLink
-          to="/activity-log"
-          className={({ isActive }) => `
-            btn-vibrant flex items-center justify-center gap-2 rounded-xl mb-8 shadow-soft active:scale-95 transition-all py-3.5
-            ${isCollapsed ? 'px-0' : 'px-4'}
-            ${isActive ? 'ring-2 ring-primary/20' : ''}
-          `}
-        >
-          <Plus size={20} strokeWidth={3} />
-          {!isCollapsed && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-black text-sm tracking-tight">교사 메모 작성하기</motion.span>}
-        </NavLink>
-      )}
+      {/* 2. Primary Action */}
+      <NavLink
+        to="/activity-log"
+        className={({ isActive }) => `
+          btn-vibrant flex items-center justify-center gap-2 rounded-xl mb-8 shadow-soft active:scale-95 transition-all py-3.5
+          ${isCollapsed ? 'px-0' : 'px-4'}
+          ${isActive ? 'ring-2 ring-primary/20' : ''}
+        `}
+      >
+        <Plus size={20} strokeWidth={3} />
+        {!isCollapsed && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-black text-sm tracking-tight">교사 메모 작성하기</motion.span>}
+      </NavLink>
 
       {/* 3. Navigation Menu */}
       <nav className="flex-1 flex flex-col gap-1 overflow-hidden">

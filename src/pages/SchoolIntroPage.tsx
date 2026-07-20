@@ -47,10 +47,10 @@ const STEPS = [
 ];
 
 const TIERS = [
-  { range: '~ 10명', price: '월 89,000원', annual: '연 960,000원', saving: 'Pro 대비 55% 절감' },
-  { range: '~ 20명', price: '월 149,000원', annual: '연 1,610,000원', saving: 'Pro 대비 62% 절감' },
-  { range: '~ 40명', price: '월 249,000원', annual: '연 2,690,000원', saving: 'Pro 대비 68% 절감' },
-  { range: '40명~', price: '별도 문의', annual: '', saving: '맞춤 견적 제공' },
+  { range: '~ 5명', price: '월 75,000원', annual: '연 750,000원', saving: 'Pro 대비 24% 절감' },
+  { range: '~ 15명', price: '월 195,000원', annual: '연 1,950,000원', saving: 'Pro 대비 34% 절감' },
+  { range: '~ 35명', price: '월 420,000원', annual: '연 4,200,000원', saving: 'Pro 대비 39% 절감' },
+  { range: '35명~', price: '별도 문의', annual: '', saving: '맞춤 견적 제공' },
 ];
 
 const INCLUDES_COMMON = [
@@ -400,7 +400,7 @@ export default function SchoolIntroPage() {
         </h1>
         <p className="text-base text-gray-500 leading-relaxed max-w-xl mx-auto mb-8">
           수업 기록·AI 리포트·학부모 공유까지,<br />
-          기관 단위로 함께 쓰면 개인 Pro 플랜보다 최대 <strong className="text-violet-700">68%</strong> 저렴합니다.
+          기관 단위로 함께 쓰면 개인 Pro 플랜보다 최대 <strong className="text-violet-700">39%</strong> 저렴합니다.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button

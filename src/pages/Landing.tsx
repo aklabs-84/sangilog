@@ -657,7 +657,7 @@ const Landing = () => {
               💳 플랜 안내
             </span>
             <h2 className="text-3xl font-black text-amber-900 mb-3">역할에 맞는 플랜을 선택하세요</h2>
-            <p className="text-amber-700/70 text-sm">무료 플랜은 Google 가입 즉시 시작, 유료 플랜은 결제 후 활성화됩니다.</p>
+            <p className="text-amber-700/70 text-sm">무료 플랜은 Google 가입 즉시 시작, 유료 플랜은 이메일 문의 후 활성화됩니다.</p>
           </motion.div>
 
           {/* 공유 링크 안내 */}
@@ -688,7 +688,8 @@ const Landing = () => {
                   { text: '학생 관찰 기록 · 교사 메모', ok: true },
                   { text: 'AI 세특 월 20회 체험', ok: true },
                   { text: '수업 자료 에디터', ok: false },
-                  { text: '퀴즈 · 설문 · 화이트보드', ok: false },
+                  { text: '퀴즈 (최대 5문항)', ok: true },
+                  { text: '설문 · 화이트보드', ok: false },
                   { text: '일괄 AI 생성', ok: false },
                   { text: 'NAISS 내보내기', ok: false },
                   { text: '학교 프로젝트', ok: false },
@@ -709,7 +710,8 @@ const Landing = () => {
                   { text: '학생 관찰 기록 · 교사 메모', ok: true },
                   { text: 'AI 세특 월 100회', ok: true },
                   { text: '수업 자료 에디터', ok: true },
-                  { text: '퀴즈 · 설문 · 화이트보드 (3개)', ok: true },
+                  { text: '퀴즈 · 설문 무제한', ok: true },
+                  { text: '화이트보드 (3개)', ok: true },
                   { text: '수업 전사 (Groq API 필요)', ok: true },
                   { text: '일괄 AI 생성', ok: false },
                   { text: 'NAISS 내보내기', ok: false },

@@ -132,7 +132,7 @@ const Classroom = () => {
   const [shareTeacherSuccess, setShareTeacherSuccess] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [upgradeModalReason, setUpgradeModalReason] = useState<'class_limit' | 'ai_limit' | 'ai_bulk' | 'teacher_invite' | 'naiss_export' | 'school_block' | null>(null);
+  const [upgradeModalReason, setUpgradeModalReason] = useState<'class_limit' | 'ai_limit' | 'ai_bulk' | 'teacher_invite' | 'naiss_export' | null>(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [newClassData, setNewClassData] = useState({
     name: '',
@@ -647,13 +647,6 @@ const Classroom = () => {
     const isSubjectRequired = newClassData.class_type === 'subject';
     if (!newClassData.name || (isSubjectRequired && !newClassData.subject) || !user) return;
     if (!newClassData.start_date || !newClassData.end_date) return;
-
-    // School 플랜 클래스 생성 차단
-    if (profile?.plan === 'school') {
-      setIsCreateModalOpen(false);
-      setUpgradeModalReason('school_block');
-      return;
-    }
 
     // 플랜별 클래스 수 제한 (admin만 무제한)
     if (profile?.plan !== 'admin') {

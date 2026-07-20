@@ -32,7 +32,8 @@ const PLANS: Plan[] = [
       students: '학생 20명/반',
       ai: '월 20회',
       editor: false,
-      quiz: false,
+      quiz: '최대 5문항',
+      survey: false,
       whiteboard: false,
       transcription: false,
       bulkAi: false,
@@ -56,7 +57,8 @@ const PLANS: Plan[] = [
       students: '학생 35명/반',
       ai: '월 100회',
       editor: true,
-      quiz: '최대 3개',
+      quiz: '무제한',
+      survey: '무제한',
       whiteboard: '최대 3개',
       transcription: true,
       bulkAi: false,
@@ -81,6 +83,7 @@ const PLANS: Plan[] = [
       ai: '월 500회',
       editor: true,
       quiz: '무제한',
+      survey: '무제한',
       whiteboard: '무제한',
       transcription: true,
       bulkAi: true,
@@ -96,7 +99,8 @@ const FEATURE_ROWS: { label: string; key: string }[] = [
   { label: '반당 학생 수', key: 'students' },
   { label: 'AI 세특 생성 (월)', key: 'ai' },
   { label: '수업 자료 에디터', key: 'editor' },
-  { label: '퀴즈 · 설문', key: 'quiz' },
+  { label: '퀴즈', key: 'quiz' },
+  { label: '설문', key: 'survey' },
   { label: '화이트보드', key: 'whiteboard' },
   { label: '수업 전사', key: 'transcription' },
   { label: '일괄 AI 생성', key: 'bulkAi' },
@@ -106,9 +110,9 @@ const FEATURE_ROWS: { label: string; key: string }[] = [
 ];
 
 const SCHOOL_TIERS = [
-  { name: 'School S', teachers: '최대 5명', price: '50,000원/월', annual: '연 540,000원', saving: 'Pro 개인 대비 49% 절감' },
-  { name: 'School M', teachers: '최대 15명', price: '120,000원/월', annual: '연 1,300,000원', saving: 'Pro 개인 대비 60% 절감' },
-  { name: 'School L', teachers: '최대 35명', price: '250,000원/월', annual: '연 2,700,000원', saving: 'Pro 개인 대비 64% 절감' },
+  { name: 'School S', teachers: '최대 5명', price: '75,000원/월', annual: '연 750,000원', saving: 'Pro 개인 대비 24% 절감' },
+  { name: 'School M', teachers: '최대 15명', price: '195,000원/월', annual: '연 1,950,000원', saving: 'Pro 개인 대비 34% 절감' },
+  { name: 'School L', teachers: '최대 35명', price: '420,000원/월', annual: '연 4,200,000원', saving: 'Pro 개인 대비 39% 절감' },
   { name: 'School XL', teachers: '무제한', price: '별도 협의', annual: '', saving: '맞춤 견적 제공' },
 ];
 
@@ -293,7 +297,7 @@ export default function Pricing() {
             <h3 className="text-lg font-black text-on-surface mb-1">School 플랜 — 학교 단위 도입</h3>
             <p className="text-sm text-on-surface-variant leading-relaxed">
               학교 전체 교사가 함께 사용하는 플랜입니다. 교사 수 기준 티어제로,
-              Pro 개인 구매 대비 최대 <span className="font-black text-violet-700">64% 절감</span>됩니다.
+              Pro 개인 구매 대비 최대 <span className="font-black text-violet-700">39% 절감</span>됩니다.
             </p>
           </div>
         </div>
