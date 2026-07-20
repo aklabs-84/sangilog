@@ -39,6 +39,7 @@ interface Tool {
   label: string;
   description: string;
   badge?: string;
+  newSince?: string;
   available: boolean;
   planRequired: 'free' | 'limited' | 'basic' | 'pro';
   limits?: ToolLimits;
@@ -89,7 +90,7 @@ const tools: Tool[] = [
     icon: <ClipboardCheck size={28} />,
     label: '실시간 퀴즈',
     description: '클래스별 문제를 만들고 Kahoot 스타일의 실시간 퀴즈를 진행합니다',
-    badge: 'NEW',
+    newSince: '2026-05-26',
     available: true,
     planRequired: 'limited',
     limits: {
@@ -114,7 +115,7 @@ const tools: Tool[] = [
     icon: <BookOpen size={28} />,
     label: '수업 자료 에디터',
     description: '마크다운으로 수업 자료를 작성하고 클래스 주차별로 학생에게 공개합니다',
-    badge: 'NEW',
+    newSince: '2026-05-28',
     available: true,
     planRequired: 'basic',
     limits: { basicDesc: '자료 수 무제한', proDesc: '자료 수 무제한' },
@@ -134,7 +135,7 @@ const tools: Tool[] = [
     icon: <Layers size={28} />,
     label: '슬라이드 만들기',
     description: 'PPT처럼 텍스트·이미지를 원하는 위치에 자유롭게 배치해 발표 자료를 만듭니다',
-    badge: 'NEW',
+    newSince: '2026-07-04',
     available: true,
     planRequired: 'basic',
     limits: { basicDesc: '슬라이드 수 무제한', proDesc: '슬라이드 수 무제한' },
@@ -154,7 +155,7 @@ const tools: Tool[] = [
     icon: <Mic size={28} />,
     label: '수업 전사 & AI 분석',
     description: '수업을 실시간 전사하고 AI가 학생별 관찰 기록과 수업 품질을 자동 분석합니다',
-    badge: 'NEW',
+    newSince: '2026-06-04',
     available: true,
     planRequired: 'basic',
     limits: {
@@ -178,7 +179,7 @@ const tools: Tool[] = [
     icon: <LayoutPanelTop size={28} />,
     label: '협업 화이트보드',
     description: '조별 협업 보드를 만들고 포스트잇, 도형, 이미지로 수업 활동을 진행합니다',
-    badge: 'NEW',
+    newSince: '2026-06-08',
     available: true,
     planRequired: 'basic',
     limits: { basicDesc: '클래스당 보드 3개', proDesc: '보드 수 무제한' },
@@ -198,7 +199,7 @@ const tools: Tool[] = [
     icon: <BarChart2 size={28} />,
     label: '실시간 설문',
     description: '객관식, 예/아니오, 별점, 순위 매기기, AI 분석까지 다양한 실시간 설문을 진행합니다',
-    badge: 'NEW',
+    newSince: '2026-06-09',
     available: true,
     planRequired: 'basic',
     limits: {
@@ -222,7 +223,7 @@ const tools: Tool[] = [
     icon: <Video size={28} />,
     label: '온라인 수업',
     description: 'Google Meet/Zoom 회의 링크를 등록하고 학생들에게 바로 전달합니다',
-    badge: 'NEW',
+    newSince: '2026-07-04',
     available: true,
     planRequired: 'free',
     limits: { freeDesc: '무제한', proDesc: '무제한' },
@@ -247,6 +248,12 @@ const tools: Tool[] = [
     planRequired: 'free',
   },
 ];
+
+function isNewBadgeActive(newSince?: string): boolean {
+  if (!newSince) return false;
+  const days = (Date.now() - new Date(newSince).getTime()) / (1000 * 60 * 60 * 24);
+  return days < 7;
+}
 
 const TeachingTools = () => {
   const location = useLocation();
@@ -667,14 +674,16 @@ const TeachingTools = () => {
                       <Crown size={9} /> BASIC
                     </span>
                   )}
-                  {/* 기존 NEW / 준비중 배지 (잠금 아닐 때만) */}
+                  {/* 준비중 등 정적 배지 (잠금 아닐 때만) */}
                   {tool.badge && !isLocked && (
-                    <span className={`absolute top-4 right-4 text-[10px] font-black px-2 py-0.5 rounded-full ${
-                      tool.badge === 'NEW'
-                        ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white'
-                        : 'bg-on-surface/10 text-on-surface-variant'
-                    }`}>
+                    <span className="absolute top-4 right-4 text-[10px] font-black px-2 py-0.5 rounded-full bg-on-surface/10 text-on-surface-variant">
                       {tool.badge}
+                    </span>
+                  )}
+                  {/* 등록 후 7일간만 노출되는 NEW 배지 */}
+                  {!tool.badge && !isLocked && isNewBadgeActive(tool.newSince) && (
+                    <span className="absolute top-4 right-4 text-[10px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 text-white">
+                      NEW
                     </span>
                   )}
 
