@@ -1,5 +1,6 @@
 import PptxGenJS from 'pptxgenjs';
 import type { SlideDeck, SlideObject } from '../types';
+import { extractYoutubeVideoId } from '../types';
 import { renderSlideToImage } from './renderSlideToImage';
 
 // 1280x720 디자인 좌표(96dpi) → PPTX 인치/포인트 변환
@@ -113,6 +114,18 @@ async function addObjectToSlide(
         transparency,
         sizing: { type: 'cover', w, h },
       });
+    }
+  } else if (obj.type === 'youtube' && obj.src) {
+    const videoId = extractYoutubeVideoId(obj.src);
+    if (videoId) {
+      const dataUrl = await imageUrlToPngDataUrl(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`, imageCache);
+      if (dataUrl) {
+        pptxSlide.addImage({
+          data: dataUrl, x, y, w, h,
+          sizing: { type: 'cover', w, h },
+          hyperlink: { url: `https://www.youtube.com/watch?v=${videoId}` },
+        });
+      }
     }
   }
 }

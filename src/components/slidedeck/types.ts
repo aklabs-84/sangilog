@@ -4,7 +4,7 @@
 export const DECK_CANVAS_W = 1280;
 export const DECK_CANVAS_H = 720;
 
-export type SlideObjectType = 'text' | 'image' | 'link' | 'emoji' | 'code';
+export type SlideObjectType = 'text' | 'image' | 'link' | 'emoji' | 'code' | 'youtube';
 
 export type ImageFrame = 'none' | 'rounded' | 'circle' | 'polaroid' | 'full';
 
@@ -27,10 +27,16 @@ export interface SlideObject {
   x: number; y: number; width: number; height: number;  // 1280x720 디자인 좌표계 px
   zIndex: number;
   text?: string;    // type: 'text' | 'link'(라벨) | 'emoji'(글자 자체) | 'code'(코드 내용)
-  src?: string; alt?: string;  // type: 'image'
+  src?: string; alt?: string;  // type: 'image' | 'youtube'(사용자가 입력한 유튜브 URL 원문)
   href?: string;    // type: 'link'(필수) | 'text'/'image'(선택 — 있으면 발표 모드에서 클릭 시 새 탭으로 열림)
   codeLang?: string;  // type: 'code' — 언어 라벨(예: Python, JavaScript)
   style?: SlideObjectStyle;
+}
+
+// 유튜브 URL(watch/youtu.be/embed/shorts 등 다양한 형태) → videoId 파싱. 매칭 실패 시 null.
+export function extractYoutubeVideoId(url: string): string | null {
+  const match = url.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
 }
 
 export interface DeckSlide {

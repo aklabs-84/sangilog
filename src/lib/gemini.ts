@@ -470,6 +470,18 @@ export function extractImageUrls(content: string): string[] {
   return urls;
 }
 
+// 마크다운 헤더(#~###)로 원문의 섹션 구조를 뽑아냄 — AI가 섹션을 스스로 추측하지 않고
+// 저자가 이미 나눠둔 소제목 구조를 그대로 따라 슬라이드를 배정하게 하기 위함
+export function extractSectionOutline(content: string): string[] {
+  const headings: string[] = [];
+  const re = /^(#{1,3})\s+(.+)$/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content))) {
+    headings.push(`${'  '.repeat(m[1].length - 1)}- ${m[2].trim()}`);
+  }
+  return headings;
+}
+
 // 펜스 코드블록을 자리표시자로 치환 — AI가 코드를 지어내지 않고 원문에 실제 있는 코드만 참조하게 함
 export function extractCodePlaceholders(content: string): { replaced: string; blocks: { lang: string; code: string }[] } {
   const blocks: { lang: string; code: string }[] = [];
@@ -607,6 +619,7 @@ export async function generateSlideDeckDraft(
   const { replaced: withoutImages } = extractImagePlaceholders(rawContent);
   const { replaced, blocks: codeBlocks } = extractCodePlaceholders(withoutImages);
   const imageUrls = extractImageUrls(rawContent);
+  const sectionOutline = extractSectionOutline(rawContent);
 
   const layoutDescriptions = layoutSpecs.map(spec => {
     const textsDesc = spec.textSlots.length
@@ -615,15 +628,21 @@ export async function generateSlideDeckDraft(
     return `- "${spec.kind}": ${textsDesc} · 이미지 ${spec.imageSlotCount}개${spec.codeSlotCount ? ` · 코드 ${spec.codeSlotCount}개` : ''}`;
   }).join('\n');
 
+  const sectionBlock = sectionOutline.length > 0
+    ? `\n[원문 섹션 구조]\n${sectionOutline.join('\n')}\n`
+    : '';
+
   const prompt = `이 수업 자료를 16:9 슬라이드 초안으로 재구성합니다. 아래 4가지 레이아웃 중 각 슬라이드에 맞는 것을 골라 배치하세요.
 
 [사용 가능한 레이아웃]
 ${layoutDescriptions}
-
+${sectionBlock}
 [규칙]
 - 반드시 첫 슬라이드는 "title" 레이아웃이어야 합니다 (수업 주제를 한 줄로).
 - 각 슬라이드는 화면 하나에 스크롤 없이 다 들어가야 하므로, 레이아웃이 지정한 texts 개수와 글자 수 제한을 반드시 지키세요.
 - 한 슬라이드에 모든 내용을 몰아넣지 말고, 내용이 많으면 여러 슬라이드로 나누세요.
+${sectionOutline.length > 0 ? '- [원문 섹션 구조]에 나온 소제목 순서를 그대로 슬라이드 순서로 사용하고, 각 섹션마다 최소 1장의 슬라이드를 배정하세요. 섹션 내용이 많으면 그 섹션만 여러 장으로 나눠도 됩니다.\n' : ''}- 레이아웃에 texts 슬롯이 2개 이상이면 각 슬롯의 역할(role)에 맞는 서로 다른 내용을 담으세요. 두 번째 이후 슬롯(설명·부제목 등)을 첫 번째 슬롯(제목·핵심 문장)의 반복이나 빈 문장으로 채우지 말고, 해당 섹션 원문에서 가져온 구체적인 세부 내용·근거·예시로 채우세요.
+- 모든 슬라이드의 texts 배열은 레이아웃이 요구하는 개수만큼 실제 내용으로 채워야 합니다. 빈 문자열("")이나 생략은 허용되지 않습니다 — 채울 내용이 마땅치 않다면 그 슬라이드 자체를 만들지 마세요.
 - 원문에 없는 정보를 임의로 추가하거나 빼지 마세요.
 - 원문에 {{IMG:n}} 표시가 있으면 관련 내용이 있는 슬라이드에서 이미지 슬롯이 있는 레이아웃을 골라 "images" 배열에 해당 번호(n)를 넣으세요. 이미지가 없는 슬라이드의 "images"는 빈 배열로 두세요. 같은 이미지 번호를 두 번 이상 쓰지 마세요.
 - 원문에 {{CODE:n}} 표시가 있으면 코드 슬롯이 있는 레이아웃("textOnly"/"textImage1"/"textImagesMany" 중 codeSlotCount>0인 것)을 골라 "code" 배열에 번호를 넣으세요. 원문에 코드가 없으면 "code"는 항상 빈 배열로 두세요 (코드를 지어내지 마세요).
@@ -635,12 +654,27 @@ ${layoutDescriptions}
 [원문]
 ${replaced}`;
 
-  const result = await slideDeckDraftAI.generateContent(
-    prompt,
-    classId ? { class_id: classId } : undefined
-  );
-  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-  const slides = JSON.parse(raw) as AiDraftSlide[];
+  const MAX_ATTEMPTS = 3;
+  let slides: AiDraftSlide[] = [];
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const result = await slideDeckDraftAI.generateContent(
+      prompt,
+      classId ? { class_id: classId } : undefined
+    );
+    const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    slides = JSON.parse(raw) as AiDraftSlide[];
+    if (draftSlidesAreComplete(slides, layoutSpecs)) break;
+  }
 
   return { slides, imageUrls, codeBlocks };
+}
+
+// 레이아웃이 요구하는 texts 슬롯이 모두 실제 내용으로 채워졌는지 검사 (빈 슬롯 재시도 판단용)
+function draftSlidesAreComplete(slides: AiDraftSlide[], layoutSpecs: SlideLayoutSpec[]): boolean {
+  return slides.every(slide => {
+    const spec = layoutSpecs.find(s => s.kind === slide.layout);
+    if (!spec) return false;
+    if (slide.texts.length < spec.textSlots.length) return false;
+    return slide.texts.slice(0, spec.textSlots.length).every(t => t.trim().length > 0);
+  });
 }

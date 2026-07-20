@@ -23,7 +23,7 @@ export async function renderSlideToImage(
 
   const root = createRoot(container);
   const slideToRender = includeObjects ? slide : { ...slide, objects: [] };
-  root.render(<SlideStage slide={slideToRender} editable={false} />);
+  root.render(<SlideStage slide={slideToRender} editable={false} captureMode />);
 
   try {
     // 레이아웃/페인트가 반영될 때까지 두 프레임 대기

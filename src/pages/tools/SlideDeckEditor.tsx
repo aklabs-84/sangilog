@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Plus, Type, Image as ImageIcon, Link2, Smile, Code2, SquarePlay, Play, Trash2, Loader2, LayoutGrid, Sparkles, ImagePlus, X as XIcon, FileDown, FileText, FileUp, Palette, ExternalLink } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import type { SlideDeck, DeckSlide, SlideObject, SlideObjectType, SlideLayoutKind } from '../../components/slidedeck/types';
@@ -150,6 +150,7 @@ export default function SlideDeckEditor() {
       '파워포인트 파일을 불러오면 텍스트와 이미지 위주로 우리 도구 형식으로 변환됩니다.\n' +
       '텍스트/이미지에 걸린 하이퍼링크와 웹 동영상(유튜브 등) 링크는 가능한 가져오지만, 표·차트·스마트아트·애니메이션·' +
       '내장된 동영상 파일 자체(재생은 지원하지 않아 정지 이미지만 가져옴) 등은 지원되지 않아 일부 내용이 생략될 수 있습니다.\n' +
+      '또한 이미지 위치, 글꼴(폰트), 도형 배치 등 레이아웃이 원본 파일과 다르게 나타날 수 있으니 불러온 후 확인 및 수정이 필요할 수 있습니다.\n' +
       '계속할까요?'
     );
     if (!proceed) return;
@@ -176,9 +177,8 @@ export default function SlideDeckEditor() {
       if (skippedOther > 0) notes.push(`표/차트/그룹 도형 등 ${skippedOther}개`);
       if (skippedImages > 0) notes.push(`가져오지 못한 이미지 ${skippedImages}개(외부 링크 이미지 등 접근 실패 포함)`);
       if (skippedVectorImages > 0) notes.push(`지원되지 않는 이미지 형식(EMF/WMF/TIFF) ${skippedVectorImages}개`);
-      if (notes.length > 0) {
-        alert(`가져오기를 완료했습니다. ${notes.join(', ')}는 생략되었습니다.`);
-      }
+      const skippedLine = notes.length > 0 ? ` ${notes.join(', ')}는 생략되었습니다.` : '';
+      alert(`가져오기를 완료했습니다.${skippedLine} 이미지 위치, 글꼴, 레이아웃이 원본과 다를 수 있으니 슬라이드를 확인하고 필요한 부분을 수정해주세요.`);
     } catch {
       alert('pptx 파일을 읽는 중 오류가 발생했습니다. 올바른 파워포인트 파일인지 확인해주세요.');
     } finally {
@@ -212,12 +212,33 @@ export default function SlideDeckEditor() {
     setActiveDeck(prev => prev ? { ...prev, slides: updater(prev.slides) } : prev);
   };
 
-  const handleAddSlide = () => {
+  const handleAddSlide = (afterIndex?: number) => {
     const template = getTemplate(activeTemplateId);
     const newSlide = instantiateSlide(template, 'textOnly');
-    updateSlides(slides => [...slides, newSlide]);
-    setActiveSlideIndex(prev => (activeDeck?.slides.length ?? prev + 1));
+    if (afterIndex === undefined) {
+      updateSlides(slides => [...slides, newSlide]);
+      setActiveSlideIndex(prev => (activeDeck?.slides.length ?? prev + 1));
+    } else {
+      updateSlides(slides => {
+        const next = [...slides];
+        next.splice(afterIndex + 1, 0, newSlide);
+        return next;
+      });
+      setActiveSlideIndex(afterIndex + 1);
+    }
     setSelectedObjectId(null);
+  };
+
+  const handleReorderSlides = (fromIndex: number, toIndex: number) => {
+    updateSlides(slides => {
+      const activeId = slides[activeSlideIndex]?.id;
+      const next = [...slides];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      const newActiveIndex = next.findIndex(s => s.id === activeId);
+      if (newActiveIndex !== -1) setActiveSlideIndex(newActiveIndex);
+      return next;
+    });
   };
 
   const handleDuplicateSlide = (index: number) => {
@@ -275,6 +296,7 @@ export default function SlideDeckEditor() {
       type === 'image' ? { ...base, type: 'image', x: 400, y: 260, width: 480, height: 320 } :
       type === 'link' ? { ...base, type: 'link', x: 420, y: 320, width: 380, height: 90, text: '링크 제목', href: 'https://' } :
       type === 'code' ? { ...base, type: 'code', x: 340, y: 240, width: 600, height: 280, text: '', codeLang: 'Python', style: { fontSize: 18 } } :
+      type === 'youtube' ? { ...base, type: 'youtube', x: 320, y: 180, width: 640, height: 360, src: '' } :
       { ...base, type: 'emoji', x: 500, y: 260, width: 160, height: 160, text: emoji ?? '🙂' };
     updateSlides(slides => slides.map((s, i) => i !== activeSlideIndex ? s : { ...s, objects: [...s.objects, obj] }));
     setSelectedObjectId(obj.id);
@@ -487,6 +509,9 @@ export default function SlideDeckEditor() {
           <button onClick={() => addObject('code')} style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', background: '#fff', cursor: 'pointer', fontSize: 13 }}>
             <Code2 size={14} /> 코드 추가
           </button>
+          <button onClick={() => addObject('youtube')} style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', background: '#fff', cursor: 'pointer', fontSize: 13 }}>
+            <SquarePlay size={14} /> 유튜브 추가
+          </button>
           <div style={{ position: 'relative' }}>
             <button onClick={() => setEmojiPickerOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', background: '#fff', cursor: 'pointer', fontSize: 13 }}>
               <Smile size={14} /> 이모지 추가
@@ -613,6 +638,7 @@ export default function SlideDeckEditor() {
             onAdd={handleAddSlide}
             onDuplicate={handleDuplicateSlide}
             onDelete={handleDeleteSlide}
+            onReorder={handleReorderSlides}
           />
           <div style={{ flex: 1, maxWidth: 960 }}>
             <SlideStage

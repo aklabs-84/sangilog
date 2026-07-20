@@ -26,6 +26,7 @@ export default function TextBlockObject({
   const startEditing = () => { setDraft(obj.text ?? ''); setEditing(true); };
 
   const style = obj.style ?? {};
+  const isBadge = !!style.background;
   const textStyle: React.CSSProperties = {
     fontSize: style.fontSize ?? 24,
     color: style.color ?? fallbackColor,
@@ -34,11 +35,13 @@ export default function TextBlockObject({
     fontFamily: style.fontFamily,
     background: style.background,
     borderRadius: style.borderRadius,
-    padding: style.background ? 20 : 4,
+    padding: isBadge ? '8px 20px' : 4,
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
     lineHeight: 1.35,
     opacity: style.opacity ?? 1,
+    boxSizing: 'border-box',
+    ...(isBadge ? { display: 'table-cell', verticalAlign: 'middle' as const } : {}),
   };
 
   return (
@@ -67,7 +70,9 @@ export default function TextBlockObject({
           }}
         />
       ) : (
-        <div style={{ width: '100%', height: '100%', ...textStyle }}>{obj.text || (editable ? '더블클릭해서 입력하세요' : '')}</div>
+        <div style={{ width: '100%', height: '100%', ...textStyle }}>
+          {obj.text || (editable ? '더블클릭해서 입력하세요' : '')}
+        </div>
       )}
       {editable && isSelected && !editing && (
         <>

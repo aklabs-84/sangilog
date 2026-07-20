@@ -53,6 +53,12 @@ export default function CodeBlockObject({
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '6px 10px', background: '#181825', flexShrink: 0,
       }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f38ba8' }} />
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f9e2af' }} />
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#a6e3a1' }} />
+          </div>
         {editable && isSelected ? (
           <input
             value={obj.codeLang ?? ''}
@@ -64,6 +70,7 @@ export default function CodeBlockObject({
         ) : (
           <span style={{ color: '#a6adc8', fontSize: 12 }}>{obj.codeLang || '코드'}</span>
         )}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
             onPointerDown={e => { e.stopPropagation(); copyCode(); }}
