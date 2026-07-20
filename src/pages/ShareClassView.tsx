@@ -103,10 +103,15 @@ async function blobDownload(url: string, filename: string) {
   URL.revokeObjectURL(a.href);
 }
 
+function getAvatarUrl(student: { avatar_url?: string | null; full_name: string }) {
+  return student.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.full_name)}&background=random`;
+}
+
 interface StudentRow {
   id: string;
   full_name: string;
   student_number: number | null;
+  avatar_url: string | null;
 }
 
 interface ObsRow {
@@ -236,7 +241,7 @@ const ShareClassView = () => {
 
       const { data: students } = await supabase
         .from('students')
-        .select('id, full_name, student_number')
+        .select('id, full_name, student_number, avatar_url')
         .eq('class_id', classId)
         .order('student_number', { ascending: true });
 
@@ -1125,8 +1130,8 @@ const ShareClassView = () => {
                       className={`text-left bg-white rounded-2xl border shadow-sm p-4 transition-all ${hasActivity ? 'border-gray-200 hover:shadow-md cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                          <span className="text-sm font-black text-gray-600">{student.student_number ?? '—'}</span>
+                        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
+                          <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                         </div>
                         {hasActivity && <ChevronRight size={15} className="text-gray-300" />}
                       </div>
@@ -1308,8 +1313,8 @@ const ShareClassView = () => {
                           disabled={!hasContent}
                           className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${hasContent ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default opacity-60'}`}
                         >
-                          <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                            <span className="text-sm font-black text-gray-600">{student.student_number ?? '—'}</span>
+                          <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
+                            <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-black text-gray-900 text-sm">{student.full_name}</p>
@@ -1454,8 +1459,8 @@ const ShareClassView = () => {
                 className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl"
               >
                 <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
-                  <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-black text-gray-600">{student.student_number ?? '—'}</span>
+                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
+                    <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                   </div>
                   <p className="font-black text-gray-900 text-sm flex-1 min-w-0 truncate">{student.full_name}</p>
                   <button onClick={() => setModalStudentId(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors shrink-0">

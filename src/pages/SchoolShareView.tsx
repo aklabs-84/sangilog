@@ -39,10 +39,15 @@ async function blobDownload(url: string, filename: string) {
   URL.revokeObjectURL(a.href);
 }
 
+function getAvatarUrl(student: { avatar_url?: string | null; full_name: string }) {
+  return student.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.full_name)}&background=random`;
+}
+
 interface StudentRow {
   id: string;
   full_name: string;
   student_number: number | null;
+  avatar_url: string | null;
 }
 
 interface ObsRow {
@@ -182,7 +187,7 @@ const SchoolShareView = () => {
 
       const { data: students } = await supabase
         .from('students')
-        .select('id, full_name, student_number')
+        .select('id, full_name, student_number, avatar_url')
         .eq('class_id', classId)
         .order('student_number', { ascending: true });
 
@@ -933,8 +938,8 @@ const SchoolShareView = () => {
                         disabled={!hasActivity}
                         className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${hasActivity ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default opacity-50'}`}
                       >
-                        <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                          <span className="text-sm font-black text-gray-600">{student.student_number ?? '—'}</span>
+                        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
+                          <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-black text-gray-900 text-sm">{student.full_name}</p>
@@ -1193,8 +1198,8 @@ const SchoolShareView = () => {
                           disabled={!hasContent}
                           className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${hasContent ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default opacity-60'}`}
                         >
-                          <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                            <span className="text-sm font-black text-gray-600">{student.student_number ?? '—'}</span>
+                          <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
+                            <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-black text-gray-900 text-sm">{student.full_name}</p>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Video, Plus, ExternalLink, StopCircle, Trash2, ChevronDown, Radio } from 'lucide-react';
+import { Video, Plus, ExternalLink, StopCircle, Trash2, ChevronDown, Radio, Play } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 
@@ -102,7 +102,7 @@ export default function OnlineMeeting() {
       platform,
       meeting_url: meetingUrl.trim(),
       scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
-      is_active: true,
+      is_active: false,
       created_by: user.id,
     }).select().single();
     setSaving(false);
@@ -111,6 +111,15 @@ export default function OnlineMeeting() {
     setTitle('온라인 수업');
     setMeetingUrl('');
     setScheduledAt('');
+  };
+
+  const handleStartMeeting = async (meeting: ClassMeeting) => {
+    // 같은 클래스의 다른 활성 미팅은 자동 정지 (한 번에 하나만 LIVE)
+    await supabase.from('class_meetings')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('class_id', meeting.class_id).eq('is_active', true).neq('id', meeting.id);
+    await supabase.from('class_meetings').update({ is_active: true, updated_at: new Date().toISOString() }).eq('id', meeting.id);
+    setMeetings(prev => prev.map(m => m.id === meeting.id ? { ...m, is_active: true } : { ...m, is_active: false }));
   };
 
   const handleEndMeeting = async (meeting: ClassMeeting) => {
@@ -241,8 +250,9 @@ export default function OnlineMeeting() {
               disabled={!meetingUrl.trim() || saving}
               className="w-full py-3 rounded-xl bg-primary text-white text-sm font-black flex items-center justify-center gap-2 disabled:opacity-40"
             >
-              <Plus size={16} /> 등록하고 학생에게 전달
+              <Plus size={16} /> 등록하기
             </button>
+            <p className="text-[11px] text-gray-400 text-center -mt-2">등록 후 목록에서 "시작"을 눌러야 학생 페이지에 노출돼요.</p>
           </div>
 
           {/* 최근 미팅 목록 */}
@@ -260,10 +270,12 @@ export default function OnlineMeeting() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    {m.is_active && (
+                    {m.is_active ? (
                       <span className="flex items-center gap-1 text-[10px] font-black text-red-500">
                         <Radio size={10} /> LIVE
                       </span>
+                    ) : (
+                      <span className="text-[10px] font-black text-gray-400">대기 중</span>
                     )}
                     <span className="text-sm font-bold text-on-surface truncate">{m.title}</span>
                   </div>
@@ -285,13 +297,21 @@ export default function OnlineMeeting() {
                 >
                   <ExternalLink size={16} />
                 </a>
-                {m.is_active && (
+                {m.is_active ? (
                   <button
                     onClick={() => handleEndMeeting(m)}
                     className="p-2 rounded-lg text-amber-500 hover:bg-amber-50"
-                    title="종료"
+                    title="정지"
                   >
                     <StopCircle size={16} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleStartMeeting(m)}
+                    className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-50"
+                    title="시작"
+                  >
+                    <Play size={16} />
                   </button>
                 )}
                 <button

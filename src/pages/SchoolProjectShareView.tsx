@@ -30,6 +30,10 @@ async function blobDownload(url: string, filename: string) {
   URL.revokeObjectURL(a.href);
 }
 
+function getAvatarUrl(student: { avatar_url?: string | null; full_name: string }) {
+  return student.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.full_name)}&background=random`;
+}
+
 const CountUpNumber = ({ value }: { value: number }) => {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
@@ -73,6 +77,7 @@ interface StudentWithData {
   id: string;
   full_name: string;
   student_number: number | null;
+  avatar_url: string | null;
   observations: { id: string; activity_name: string; content: string; created_at: string; week_number: number | null }[];
   resultGroups: ResultGroup[];
 }
@@ -342,7 +347,7 @@ const SchoolProjectShareView = () => {
       });
 
       const { data: students } = await supabase
-        .from('students').select('id, full_name, student_number')
+        .from('students').select('id, full_name, student_number, avatar_url')
         .eq('class_id', classId).order('student_number', { ascending: true });
 
       if (!students || students.length === 0) {
@@ -536,8 +541,8 @@ const SchoolProjectShareView = () => {
         <div className="fixed inset-0 z-40 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setModalStudent(null)}>
           <div className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
-              <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                <span className="text-sm font-black text-gray-600">{modalStudent.student_number ?? '—'}</span>
+              <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-gray-100">
+                <img src={getAvatarUrl(modalStudent)} alt={modalStudent.full_name} className="w-full h-full object-cover" />
               </div>
               <p className="font-black text-gray-900 text-sm flex-1 min-w-0 truncate">{modalStudent.full_name}</p>
               <button onClick={() => setModalStudent(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition-colors shrink-0">
@@ -1390,8 +1395,8 @@ const SchoolProjectShareView = () => {
                                       disabled={!hasData}
                                       className={`text-left bg-white rounded-xl border p-3.5 transition-all ${hasData ? 'border-gray-100 hover:border-violet-200 hover:shadow-sm cursor-pointer' : 'border-gray-100 opacity-50 cursor-default'}`}
                                     >
-                                      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-black text-gray-500 mb-2.5">
-                                        {student.student_number || '?'}
+                                      <div className="w-8 h-8 rounded-full overflow-hidden mb-2.5 bg-gray-100">
+                                        <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                                       </div>
                                       <p className="font-bold text-sm truncate mb-1">{student.full_name}</p>
                                       <div className="flex flex-col gap-1">
@@ -1547,8 +1552,8 @@ const SchoolProjectShareView = () => {
                                           disabled={!hasContent}
                                           className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${hasContent ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default opacity-60'}`}
                                         >
-                                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                                            <span className="text-xs font-black text-gray-600">{student.student_number ?? '—'}</span>
+                                          <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-gray-100">
+                                            <img src={getAvatarUrl(student)} alt={student.full_name} className="w-full h-full object-cover" />
                                           </div>
                                           <div className="flex-1 min-w-0">
                                             <p className="font-bold text-sm text-gray-900">{student.full_name}</p>
