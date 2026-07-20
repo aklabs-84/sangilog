@@ -24,8 +24,8 @@ const FEATURES = [
   },
   {
     icon: <ClipboardList size={22} className="text-amber-600" />,
-    title: '나이스 연동 (학교)',
-    desc: '나이스 학생 명단을 한 번에 가져오고, AI가 세특 초안을 일괄 생성합니다. 학교 전용 기능입니다.',
+    title: '나이스 제출 자동화 (학교)',
+    desc: 'AI가 학급 전체 세특 초안을 일괄 생성하고, 나이스 제출용 엑셀로 한 번에 다운로드합니다. 학교 전용 기능입니다.',
   },
   {
     icon: <FileText size={22} className="text-rose-500" />,
@@ -65,7 +65,7 @@ const INCLUDES_COMMON = [
 ];
 
 const INCLUDES_SCHOOL = [
-  '나이스 학생 명단 일괄 가져오기',
+  '나이스 제출용 세특 엑셀 일괄 내보내기',
   'AI 세특 초안 일괄 생성',
 ];
 
@@ -446,7 +446,7 @@ export default function SchoolIntroPage() {
             </div>
             <ul className="space-y-2.5">
               {[
-                '나이스 명단 → AI 세특 일괄 생성',
+                'AI 세특 일괄 생성 → 나이스 엑셀 제출',
                 '학급별 수업 기록 & 생활기록부 관리',
                 '전교 프로젝트 공동 기록',
                 '학생 활동 포트폴리오 자동 축적',
