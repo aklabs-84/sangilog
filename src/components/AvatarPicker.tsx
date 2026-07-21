@@ -139,6 +139,12 @@ const parseAvatarUrl = (url: string): { styleId: StyleId; seed: string; traits: 
     for (const f of config.fields) {
       if (f.kind === 'optionalVariant') {
         traits[f.key] = p.get(f.probabilityKey!) === '100' ? (p.get(`${f.key}[]`) || 'none') : 'none';
+      } else if (f.kind === 'variant') {
+        // 트레잇 세분화 이전 구버전 URL(예: seed+backgroundColor만 있는 형태)은
+        // hair[] 등 값이 아예 없어 원래 모습을 복원할 수 없다 — 잘못된 기본값을 채우는 대신 파싱 실패로 처리한다.
+        const val = p.get(`${f.key}[]`);
+        if (!val) return null;
+        traits[f.key] = val;
       } else {
         traits[f.key] = p.get(`${f.key}[]`) || f.options[0];
       }
