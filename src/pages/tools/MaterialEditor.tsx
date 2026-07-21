@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
-import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS } from '../../lib/gemini';
+import { reorganizeMaterialContent, validateReorganizeInstruction, MATERIAL_REORG_PROMPTS, generateCoverPromptSuggestions } from '../../lib/gemini';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
@@ -34,11 +34,24 @@ import {
   BookOpen, Pencil, ArrowLeft, Eye, EyeOff,
   Users, Presentation, ChevronRight, X as XIcon,
   Maximize2, Download, Sparkles, RotateCcw, AlertCircle, History, Check,
-  Library, Link2, FileDown,
+  Library, Link2, FileDown, Image as ImageIcon, Upload,
 } from 'lucide-react';
 import CodeBlock from '../../components/CodeBlock';
 import RichEditor from '../../components/RichEditor';
 import PresentationModal, { renderCallout } from '../../components/PresentationModal';
+import MaterialCoverPage from '../../components/MaterialCoverPage';
+import MaterialTocPage, { type TocSection } from '../../components/MaterialTocPage';
+
+// PDF 목차 페이지용 — 본문 마크다운 소제목(#~###)을 순서대로 추출
+const extractHeadingsForToc = (content: string): TocSection[] => {
+  const sections: TocSection[] = [];
+  const re = /^(#{1,3})\s+(.+)$/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content))) {
+    sections.push({ level: m[1].length, text: m[2].trim() });
+  }
+  return sections;
+};
 
 // AI로 정리한 결과 히스토리 (학습가이드/발표자료 등 여러 버전을 보관)
 interface AiVersion {
@@ -63,6 +76,8 @@ interface Material {
   ai_versions?: AiVersion[];
   teacher_id?: string | null;
   source_material_id?: string | null;
+  cover_image_url?: string | null;
+  cover_source?: 'template' | 'upload' | null;
 }
 
 const formatVersionDate = (iso: string) => {
@@ -736,6 +751,178 @@ const AiReorganizeModal = ({
   );
 };
 
+// ── PDF 표지 설정 모달 ────────────────────────────────────────────────────
+const CoverPickerModal = ({
+  title,
+  subtitle,
+  classId,
+  coverImageUrl,
+  coverSource,
+  uploading,
+  onUpload,
+  onUseTemplate,
+  onRemoveImage,
+  onClose,
+}: {
+  title: string;
+  subtitle?: string | null;
+  classId?: string;
+  coverImageUrl: string | null;
+  coverSource: 'template' | 'upload';
+  uploading: boolean;
+  onUpload: (file: File) => void;
+  onUseTemplate: () => void;
+  onRemoveImage: () => void;
+  onClose: () => void;
+}) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewImageUrl = coverSource === 'upload' ? coverImageUrl : null;
+
+  const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]);
+  const [generatingPrompts, setGeneratingPrompts] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  const handleGeneratePrompts = async () => {
+    setGeneratingPrompts(true);
+    setPromptError(null);
+    try {
+      const suggestions = await generateCoverPromptSuggestions(title, subtitle, classId);
+      setPromptSuggestions(suggestions);
+    } catch (err: any) {
+      setPromptError(
+        err?.message === 'AI_LIMIT_EXCEEDED'
+          ? '이번 달 AI 사용 한도에 도달했습니다.'
+          : (err?.message || 'AI 프롬프트 생성 중 오류가 발생했습니다.')
+      );
+    } finally {
+      setGeneratingPrompts(false);
+    }
+  };
+
+  const handleCopyPrompt = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(i => (i === index ? null : i)), 1500);
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9995] flex items-center justify-center bg-black/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-surface-container">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <ImageIcon size={15} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-on-surface">PDF 표지 설정</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">다운로드 시 맨 앞에 자동으로 붙습니다</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-container transition-colors">
+            <XIcon size={16} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="w-full aspect-[210/297] max-h-72 mx-auto rounded-2xl overflow-hidden border border-surface-container">
+            <MaterialCoverPage
+              title={title || '(제목 없음)'}
+              subtitle={subtitle}
+              dateLabel={new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+              imageUrl={previewImageUrl}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={onUseTemplate}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-black text-xs transition-colors border ${
+                coverSource === 'template'
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-surface-container text-on-surface-variant border-surface-container hover:bg-surface-container-low'
+              }`}
+            >
+              <Sparkles size={12} /> 기본 템플릿
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-black text-xs transition-colors border disabled:opacity-50 ${
+                coverSource === 'upload'
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-surface-container text-on-surface-variant border-surface-container hover:bg-surface-container-low'
+              }`}
+            >
+              {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              {uploading ? '업로드 중...' : '이미지 업로드'}
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) onUpload(file);
+              e.target.value = '';
+            }}
+          />
+          {coverSource === 'upload' && coverImageUrl && (
+            <button
+              onClick={onRemoveImage}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 size={12} /> 업로드한 이미지 삭제하고 기본 템플릿으로
+            </button>
+          )}
+
+          <div className="pt-1 border-t border-surface-container">
+            <button
+              onClick={handleGeneratePrompts}
+              disabled={generatingPrompts}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 mt-3 rounded-xl font-black text-xs text-primary bg-primary/10 hover:bg-primary/15 transition-colors disabled:opacity-50"
+            >
+              {generatingPrompts ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              {generatingPrompts ? 'AI가 표지 프롬프트를 만드는 중...' : 'AI로 표지 이미지 프롬프트 제안받기'}
+            </button>
+            <p className="text-[11px] text-on-surface-variant mt-1.5 leading-relaxed">
+              이미지를 바로 만들어주진 않아요. 아래 문구를 복사해 이미지 생성 도구에 붙여넣으세요.
+            </p>
+
+            {promptError && (
+              <p className="text-xs font-bold text-red-500 mt-2">{promptError}</p>
+            )}
+
+            {promptSuggestions.length > 0 && (
+              <div className="space-y-2 mt-3">
+                {promptSuggestions.map((s, i) => (
+                  <div key={i} className="flex items-start gap-2 bg-surface-container-low rounded-xl p-3">
+                    <p className="flex-1 text-xs text-on-surface leading-relaxed">{s}</p>
+                    <button
+                      onClick={() => handleCopyPrompt(s, i)}
+                      className="shrink-0 p-1.5 rounded-lg hover:bg-surface-container transition-colors text-on-surface-variant"
+                      title="복사"
+                    >
+                      {copiedIndex === i ? <Check size={13} className="text-green-600" /> : <Copy size={13} />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 const MaterialEditor = () => {
   const { user } = useAuth();
 
@@ -761,6 +948,10 @@ const MaterialEditor = () => {
   const [weekNumber, setWeekNumber] = useState(1);
   const [content, setContent] = useState('');
   const [isPublished, setIsPublished] = useState(false);
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
+  const [coverSource, setCoverSource] = useState<'template' | 'upload'>('template');
+  const [showCoverModal, setShowCoverModal] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
 
   // UI 상태
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
@@ -853,6 +1044,7 @@ const MaterialEditor = () => {
   const resetForm = () => {
     setTitle(''); setWeekNumber(1); setContent(''); setIsPublished(false);
     setEditingMaterial(null); setViewMode('edit'); setAiVersions([]);
+    setCoverImageUrl(null); setCoverSource('template');
   };
 
   const handleNew = () => {
@@ -870,6 +1062,8 @@ const MaterialEditor = () => {
     setIsPublished(material.is_published || false);
     setViewMode('edit');
     setAiVersions(material.ai_versions ?? []);
+    setCoverImageUrl(material.cover_image_url ?? null);
+    setCoverSource(material.cover_source ?? 'template');
     autosaveSkipRef.current = true;
     setAutoSaveStatus('idle');
     setIsEditorOpen(true);
@@ -899,6 +1093,30 @@ const MaterialEditor = () => {
     }
   };
 
+  // ── 표지 이미지 업로드 — WebP 변환 후 Supabase 저장 ───────────────────────
+  const handleUploadCoverImage = async (file: File) => {
+    if (!user) return;
+    if (file.size > 50 * 1024 * 1024) {
+      alert('파일 크기가 너무 큽니다. 50MB 이하 이미지만 업로드 가능합니다.');
+      return;
+    }
+    setCoverUploading(true);
+    try {
+      const compressed = await compressToWebP(file, 1600);
+      const path = `materials/covers/${user.id}/${Date.now()}.webp`;
+      const { error } = await supabase.storage.from('student-attachments').upload(path, compressed);
+      if (error) throw error;
+      const { data } = supabase.storage.from('student-attachments').getPublicUrl(path);
+      setCoverImageUrl(data.publicUrl);
+      setCoverSource('upload');
+    } catch (err: any) {
+      console.error('[MaterialEditor] cover upload error:', err);
+      alert(`표지 이미지 업로드 중 오류가 발생했습니다.\n${err?.message || JSON.stringify(err)}`);
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
   // ── 저장 ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!libraryMode && !selectedClass) { alert('클래스를 선택해주세요.'); return; }
@@ -913,6 +1131,8 @@ const MaterialEditor = () => {
         content: (content ?? '').trim(),
         is_published: libraryMode ? false : isPublished,
         ai_versions: aiVersions,
+        cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
+        cover_source: coverSource,
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
@@ -956,6 +1176,8 @@ const MaterialEditor = () => {
         content: (content ?? '').trim(),
         is_published: libraryMode ? false : isPublished,
         ai_versions: aiVersions,
+        cover_image_url: coverSource === 'upload' ? coverImageUrl : null,
+        cover_source: coverSource,
         updated_at: new Date().toISOString(),
       };
       if (editingMaterial) {
@@ -981,14 +1203,14 @@ const MaterialEditor = () => {
     }
   };
 
-  // 제목/주차/내용/공개여부 변경 시 1.5초 debounce 후 자동 저장
+  // 제목/주차/내용/공개여부/표지 변경 시 1.5초 debounce 후 자동 저장
   useEffect(() => {
     if (!isEditorOpen) return;
     if (autosaveSkipRef.current) { autosaveSkipRef.current = false; return; }
     const timer = setTimeout(() => { doAutoSave(); }, 1500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, weekNumber, content, isPublished]);
+  }, [title, weekNumber, content, isPublished, coverImageUrl, coverSource]);
 
   // ── PDF 다운로드 (브라우저 인쇄 → PDF로 저장) ────────────────────────────────
   const handlePrintPdf = () => {
@@ -1085,11 +1307,29 @@ const MaterialEditor = () => {
     <>
     {/* PDF 다운로드용 인쇄 전용 영역 — 화면엔 보이지 않고 인쇄(PDF 저장) 시에만 노출됨 */}
     {isEditorOpen && createPortal(
-      <div className="print-only px-8 py-6">
-        <h1 className="text-2xl font-black mb-5 text-on-surface">{title.trim() || '(제목 없음)'}</h1>
-        <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-          {content}
-        </ReactMarkdown>
+      <div className="print-only">
+        <div className="cover-print-page">
+          <MaterialCoverPage
+            title={title.trim() || '(제목 없음)'}
+            subtitle={libraryMode ? null : selectedClass?.name}
+            dateLabel={new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+            imageUrl={coverImageUrl}
+          />
+        </div>
+        {(() => {
+          const tocSections = extractHeadingsForToc(content);
+          return tocSections.length >= 2 ? (
+            <div className="toc-print-page">
+              <MaterialTocPage title={title.trim() || '(제목 없음)'} sections={tocSections} />
+            </div>
+          ) : null;
+        })()}
+        <div className="px-8 py-6">
+          <h1 className="text-2xl font-black mb-5 text-on-surface">{title.trim() || '(제목 없음)'}</h1>
+          <ReactMarkdown components={mdComponents} remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+            {content}
+          </ReactMarkdown>
+        </div>
       </div>,
       document.body
     )}
@@ -1117,6 +1357,20 @@ const MaterialEditor = () => {
         title={fullscreenPreview.title}
         content={fullscreenPreview.content}
         onClose={() => setFullscreenPreview(null)}
+      />
+    )}
+    {showCoverModal && (
+      <CoverPickerModal
+        title={title.trim()}
+        subtitle={libraryMode ? null : selectedClass?.name}
+        classId={selectedClass?.id}
+        coverImageUrl={coverImageUrl}
+        coverSource={coverSource}
+        uploading={coverUploading}
+        onUpload={handleUploadCoverImage}
+        onUseTemplate={() => setCoverSource('template')}
+        onRemoveImage={() => { setCoverImageUrl(null); setCoverSource('template'); }}
+        onClose={() => setShowCoverModal(false)}
       />
     )}
     {showAiReorganize && (
@@ -1333,6 +1587,14 @@ const MaterialEditor = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary/15 font-black text-xs transition-colors border border-primary/15"
             >
               <Download size={12} /> 가져오기
+            </button>
+            {/* 표지 설정 — PDF 다운로드 시 맨 앞에 자동으로 붙는 표지 페이지 */}
+            <button
+              onClick={() => setShowCoverModal(true)}
+              title="PDF 표지 설정"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary/15 font-black text-xs transition-colors border border-primary/15"
+            >
+              <ImageIcon size={12} /> 표지
             </button>
             {/* PDF 다운로드 — 화면에 보이는 서식 그대로 브라우저 인쇄를 통해 PDF로 저장 */}
             <button

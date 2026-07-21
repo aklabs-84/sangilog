@@ -146,6 +146,7 @@ export const observationReviewAI  = makeModelWrapper('flash', 'observation_revie
 export const studentAnalysisAI    = makeModelWrapper('flash', 'student_analysis');
 export const materialReorganizeAI = makeModelWrapper('flash', 'material_reorganize');
 export const slideDeckDraftAI      = makeModelWrapper('flash', 'slidedeck_ai_draft', true);
+export const coverPromptAI         = makeModelWrapper('flash', 'cover_prompt_suggest', true);
 
 /**
  * 파일을 Gemini API 파트로 변환 (Base64) - 브라우저에서 실행, 결과를 서버로 전달
@@ -589,6 +590,39 @@ export async function reorganizeMaterialContent(
   const bodyRaw = feedbackMatch ? raw.slice(feedbackMatch[0].length) : raw;
 
   return { content: restoreImagePlaceholders(bodyRaw.trim(), map), feedback };
+}
+
+// 수업 자료 PDF 표지 이미지를 위한 AI 프롬프트 문구 제안 (이미지 자체는 생성하지 않음 —
+// 교사가 다른 이미지 생성 도구에 복사해 쓸 수 있는 프롬프트 텍스트만 만들어줌)
+export async function generateCoverPromptSuggestions(
+  title: string,
+  subtitle?: string | null,
+  classId?: string
+): Promise<string[]> {
+  const prompt = `당신은 수업 자료(교재) PDF 표지 이미지를 만들 때 쓸 AI 이미지 생성 프롬프트를 제안하는 전문가입니다.
+아래 수업 자료 정보를 참고해, 표지에 어울리는 이미지를 만들기 위한 영어 프롬프트 문구를 3개 제안하세요.
+
+[수업 자료 제목]
+${title || '(제목 없음)'}
+${subtitle ? `[클래스/부제]\n${subtitle}\n` : ''}
+[조건]
+- 각 프롬프트는 서로 다른 스타일(예: 플랫 일러스트, 사진풍, 미니멀 아이콘 구도 등)로 제안하세요.
+- 교육용 자료 표지에 어울리게, 과도하게 화려하거나 산만하지 않은 구도를 제안하세요.
+- 텍스트/글자가 이미지 안에 들어가야 한다는 지시는 넣지 마세요 (제목은 별도로 얹힙니다).
+- 각 프롬프트는 1~2문장, 영어로 작성하세요 (대부분의 이미지 생성 도구가 영어 프롬프트에 더 정확히 반응합니다).
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{"suggestions":["프롬프트1","프롬프트2","프롬프트3"]}`;
+
+  const result = await coverPromptAI.generateContent(
+    prompt,
+    classId ? { class_id: classId } : undefined
+  );
+  const raw = result.response.text().trim().replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+  const parsed = JSON.parse(raw);
+  const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions.map((s: any) => String(s)) : [];
+  if (suggestions.length === 0) throw new Error('AI가 제안을 생성하지 못했습니다.');
+  return suggestions;
 }
 
 // ── 슬라이드 만들기 도구: 자료 → AI 초안 생성 ────────────────────────────────

@@ -340,7 +340,40 @@
     print-color-adjust: exact;
   }
 }
+
+/* 표지 페이지 — @page margin(15mm x2)을 뺀 A4 전체 높이를 채우고 다음 페이지로 강제 개행 */
+.cover-print-page { width: 100%; }
+@media print {
+  .cover-print-page {
+    display: flex;
+    height: 267mm;
+    page-break-after: always;
+    break-after: page;
+  }
+}
+
+/* 목차 페이지 — 표지와 동일한 방식으로 전체 높이를 채우고 다음 페이지로 강제 개행 */
+.toc-print-page { width: 100%; }
+@media print {
+  .toc-print-page {
+    display: flex;
+    height: 267mm;
+    page-break-after: always;
+    break-after: page;
+  }
+}
+
+/* 페이지 하단 쪽번호 — target-counter() 미지원으로 목차 항목별 페이지 번호 연동은 불가하여
+   페이지 하단에 순번만 표시. 표지(첫 페이지)는 번호를 넣지 않는다. */
 @page {
   size: A4;
   margin: 15mm;
+  @bottom-center {
+    content: counter(page) " / " counter(pages);
+    font-size: 9px;
+    color: #94a3b8;
+  }
+}
+@page :first {
+  @bottom-center { content: none; }
 }
