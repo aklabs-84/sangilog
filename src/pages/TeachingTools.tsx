@@ -42,6 +42,7 @@ interface Tool {
   newSince?: string;
   available: boolean;
   planRequired: 'free' | 'limited' | 'basic' | 'pro';
+  byokEligible?: boolean; // 내 Gemini API 키를 등록하면 Basic 잠금을 우회할 수 있는 AI 도구
   limits?: ToolLimits;
   component?: React.ReactNode;
   quickGuide?: QuickGuide;
@@ -118,6 +119,7 @@ const tools: Tool[] = [
     newSince: '2026-05-28',
     available: true,
     planRequired: 'basic',
+    byokEligible: true,
     limits: { basicDesc: '자료 수 무제한', proDesc: '자료 수 무제한' },
     component: <MaterialEditor />,
     quickGuide: {
@@ -138,6 +140,7 @@ const tools: Tool[] = [
     newSince: '2026-07-04',
     available: true,
     planRequired: 'basic',
+    byokEligible: true,
     limits: { basicDesc: '슬라이드 수 무제한', proDesc: '슬라이드 수 무제한' },
     component: <SlideDeckEditor />,
     quickGuide: {
@@ -158,6 +161,7 @@ const tools: Tool[] = [
     newSince: '2026-06-04',
     available: true,
     planRequired: 'basic',
+    byokEligible: true,
     limits: {
       basicDesc: 'AI 분석 가능',
       proDesc: 'AI 분석 가능',
@@ -202,6 +206,7 @@ const tools: Tool[] = [
     newSince: '2026-06-09',
     available: true,
     planRequired: 'basic',
+    byokEligible: true,
     limits: {
       basicDesc: '설문 수 무제한',
       proDesc: '무제한 + AI 결과 분석',
@@ -259,11 +264,23 @@ const TeachingTools = () => {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = useAuth();
+  const hasByokKey = !!localStorage.getItem('gemini_api_key');
+  const isToolLocked = (tool: Tool, isProArg: boolean, isBasicOrAboveArg: boolean): boolean => {
+    if (!tool.available) return true;
+    const byokUnlocked = hasByokKey && !!tool.byokEligible;
+    if (tool.planRequired === 'pro') return !isProArg && !byokUnlocked;
+    if (tool.planRequired === 'basic') return !isBasicOrAboveArg && !byokUnlocked;
+    return false;
+  };
   const [activeTool, setActiveTool] = useState<Tool | null>(() => {
     const stateToolId = (location.state as { activeToolId?: string } | null)?.activeToolId;
     const queryToolId = searchParams.get('tool');
     const toolId = stateToolId || queryToolId;
-    return toolId ? (tools.find(t => t.id === toolId) ?? null) : null;
+    const requestedTool = toolId ? (tools.find(t => t.id === toolId) ?? null) : null;
+    if (!requestedTool) return null;
+    // URL/state로 직접 진입해도 잠금 도구는 열리지 않도록 방어 (플랜 체크 우회 방지)
+    if (isToolLocked(requestedTool, checkIsPro(profile), checkIsBasicOrAbove(profile))) return null;
+    return requestedTool;
   });
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [lockedTool, setLockedTool] = useState<Tool | null>(null);
@@ -298,12 +315,7 @@ const TeachingTools = () => {
 
   const handleToolClick = (tool: Tool) => {
     if (!tool.available) return;
-    if (!isBasicOrAbove && (tool.planRequired === 'basic' || tool.planRequired === 'pro')) {
-      setLockedTool(tool);
-      setShowUpgradeModal(true);
-      return;
-    }
-    if (!isPro && tool.planRequired === 'pro') {
+    if (isToolLocked(tool, isPro, isBasicOrAbove)) {
       setLockedTool(tool);
       setShowUpgradeModal(true);
       return;
@@ -622,10 +634,14 @@ const TeachingTools = () => {
                   <span className="text-on-surface-variant font-medium">{getMyLimitDesc(activeTool)}</span>
                   {activeTool.limits.usesAi && (
                     <div className={`ml-auto flex items-center gap-1.5 font-black ${
-                      aiRemaining !== null && aiRemaining <= 5 ? 'text-red-500' : 'text-primary'
+                      hasByokKey && !!activeTool.byokEligible
+                        ? 'text-primary'
+                        : aiRemaining !== null && aiRemaining <= 5 ? 'text-red-500' : 'text-primary'
                     }`}>
                       <Zap size={12} />
-                      {aiRemaining !== null
+                      {hasByokKey && !!activeTool.byokEligible
+                        ? '내 API 키 사용 중 · 무제한'
+                        : aiRemaining !== null
                         ? <>AI 잔여 <strong>{aiRemaining}</strong> / {aiLimit}회</>
                         : 'AI 무제한'}
                     </div>
@@ -644,8 +660,9 @@ const TeachingTools = () => {
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
           >
             {tools.map((tool, i) => {
-              const isBasicLocked = !isBasicOrAbove && (tool.planRequired === 'basic' || tool.planRequired === 'pro');
-              const isProLocked = isBasicOrAbove && !isPro && tool.planRequired === 'pro';
+              const byokUnlocked = hasByokKey && !!tool.byokEligible;
+              const isBasicLocked = !isBasicOrAbove && (tool.planRequired === 'basic' || tool.planRequired === 'pro') && !byokUnlocked;
+              const isProLocked = isBasicOrAbove && !isPro && tool.planRequired === 'pro' && !byokUnlocked;
               const isLocked = isBasicLocked || isProLocked;
               return (
                 <motion.button
@@ -721,12 +738,15 @@ const TeachingTools = () => {
                           <span className="opacity-60">{planLabel}</span>
                           <span className="opacity-40">·</span>
                           <span>{getMyLimitDesc(tool)}</span>
-                          {tool.limits.usesAi && aiRemaining !== null && (
+                          {tool.limits.usesAi && byokUnlocked && (
+                            <span className="ml-auto font-black text-primary">내 키 사용 · 무제한</span>
+                          )}
+                          {tool.limits.usesAi && !byokUnlocked && aiRemaining !== null && (
                             <span className={`ml-auto font-black ${aiRemaining <= 5 ? 'text-red-500' : 'text-primary'}`}>
                               AI 잔여 {aiRemaining}회
                             </span>
                           )}
-                          {tool.limits.usesAi && aiRemaining === null && (
+                          {tool.limits.usesAi && !byokUnlocked && aiRemaining === null && (
                             <span className="ml-auto font-black text-primary">AI 무제한</span>
                           )}
                         </>

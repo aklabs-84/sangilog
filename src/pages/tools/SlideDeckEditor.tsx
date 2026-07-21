@@ -136,7 +136,7 @@ export default function SlideDeckEditor() {
       setView('editor');
       loadDecks();
     } catch (err: any) {
-      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : 'AI 초안 생성 중 오류가 발생했습니다.');
+      alert(err?.message === 'AI_LIMIT_EXCEEDED' ? '이번 달 AI 사용 한도에 도달했습니다.' : (err?.message || 'AI 초안 생성 중 오류가 발생했습니다.'));
     } finally {
       setAiGenerating(false);
       setImportedMaterial(null);

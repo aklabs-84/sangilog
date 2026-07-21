@@ -1,4 +1,4 @@
-import { Check, X, Crown, Mail, School, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { Check, X, Crown, KeyRound, Mail, School, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../lib/auth';
 
 type FeatureValue = boolean | string;
@@ -39,11 +39,11 @@ const PLANS: Plan[] = [
       classes: '클래스 1개',
       students: '학생 20명/반',
       ai: '월 20회',
-      editor: false,
+      editor: 'BYOK',
       quiz: '최대 5문항',
-      survey: false,
+      survey: 'BYOK',
       whiteboard: false,
-      transcription: false,
+      transcription: 'BYOK',
       bulkAi: false,
       naiss: false,
       teacherInvite: false,
@@ -137,6 +137,7 @@ const SCHOOL_TIERS = [
 function FeatureCell({ value }: { value: FeatureValue }) {
   if (value === true) return <Check size={16} className="text-green-500 mx-auto" strokeWidth={2.5} />;
   if (value === false) return <X size={16} className="text-gray-300 mx-auto" />;
+  if (value === 'BYOK') return <span className="text-[11px] font-black text-amber-500">내 키＊</span>;
   return <span className="text-xs font-bold text-on-surface">{value}</span>;
 }
 
@@ -249,6 +250,16 @@ export default function Pricing() {
                 {FEATURE_ROWS.map((row) => {
                   const val = plan.features[row.key];
                   if (val === false) return null;
+                  if (val === 'BYOK') {
+                    return (
+                      <li key={row.key} className="flex items-center gap-2">
+                        <KeyRound size={14} className="text-amber-500" strokeWidth={2.5} />
+                        <span className="text-xs text-on-surface">
+                          {row.label}<span className="text-amber-500 font-bold"> (내 API 키 등록 시)</span>
+                        </span>
+                      </li>
+                    );
+                  }
                   return (
                     <li key={row.key} className="flex items-center gap-2">
                       <Check size={14} className={plan.highlight ? 'text-amber-500' : 'text-green-500'} strokeWidth={2.5} />
@@ -319,6 +330,9 @@ export default function Pricing() {
             </tbody>
           </table>
         </div>
+        <p className="px-6 py-3 text-[11px] text-on-surface-variant border-t border-on-surface/5">
+          ＊ 내 키: 본인 Gemini API 키(Google AI Studio에서 무료 발급)를 설정 페이지에 등록하면 Free 플랜에서도 이용할 수 있습니다.
+        </p>
       </div>
 
       {/* School Plan Section */}

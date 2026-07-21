@@ -718,9 +718,13 @@ const Classroom = () => {
       await fetchClasses();
       if (data) setActiveClassId(data.id);
       showToast("학급이 성공적으로 생성되었습니다. ✨");
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating class:', error);
-      showToast("학급 생성 중 오류가 발생했습니다.");
+      if (typeof error?.message === 'string' && error.message.includes('CLASS_LIMIT_EXCEEDED')) {
+        setUpgradeModalReason('class_limit');
+      } else {
+        showToast("학급 생성 중 오류가 발생했습니다.");
+      }
     }
   };
 
@@ -1160,8 +1164,11 @@ const Classroom = () => {
       if (error) throw error;
       setNewStudentData({ name: '', number: '' });
       fetchStudents(activeClassId);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error adding student:', err);
+      if (typeof err?.message === 'string' && err.message.includes('STUDENT_LIMIT_EXCEEDED')) {
+        alert(`현재 플랜에서는 한 클래스에 최대 ${studentLimit}명까지 등록할 수 있습니다.\n플랜을 업그레이드하면 더 많은 학생을 추가할 수 있습니다.`);
+      }
     }
   };
 
@@ -1221,8 +1228,11 @@ const Classroom = () => {
       setBulkNames('');
       setIsStudentModalOpen(false);
       fetchStudents(activeClassId);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error bulk registering students:', err);
+      if (typeof err?.message === 'string' && err.message.includes('STUDENT_LIMIT_EXCEEDED')) {
+        alert(`현재 플랜에서는 한 클래스에 최대 ${studentLimit}명까지 등록할 수 있습니다.\n플랜을 업그레이드하면 더 많은 학생을 추가할 수 있습니다.`);
+      }
     }
   };
 

@@ -403,10 +403,10 @@ const Landing = () => {
               { icon: Shuffle,       color: 'bg-orange-100 text-orange-600', border: 'border-orange-100', title: '랜덤 조 뽑기',    desc: '애니메이션과 함께 랜덤 조 편성',       badge: '무료' },
               { icon: Timer,         color: 'bg-amber-100 text-amber-600',   border: 'border-amber-100',  title: '수업 타이머',    desc: '전체화면 발표 모드 · 플로팅 버튼',    badge: '무료' },
               { icon: ClipboardCheck,color: 'bg-red-100 text-red-600',       border: 'border-red-100',    title: '실시간 퀴즈',   desc: 'AI 문항 자동 생성 · PIN 참여',         badge: 'Pro' },
-              { icon: BookOpen,      color: 'bg-indigo-100 text-indigo-600', border: 'border-indigo-100', title: '수업 자료 에디터', desc: '마크다운 작성 · 슬라이드 발표',    badge: 'Basic↑' },
-              { icon: Mic,           color: 'bg-teal-100 text-teal-600',     border: 'border-teal-100',   title: '수업 전사',      desc: 'Web Speech / Groq Whisper · AI 분석', badge: 'Basic↑' },
+              { icon: BookOpen,      color: 'bg-indigo-100 text-indigo-600', border: 'border-indigo-100', title: '수업 자료 에디터', desc: '마크다운 작성 · 슬라이드 발표',    badge: 'Basic↑＊' },
+              { icon: Mic,           color: 'bg-teal-100 text-teal-600',     border: 'border-teal-100',   title: '수업 전사',      desc: 'Web Speech / Groq Whisper · AI 분석', badge: 'Basic↑＊' },
               { icon: LayoutPanelTop,color: 'bg-violet-100 text-violet-600', border: 'border-violet-100', title: '협업 화이트보드', desc: '실시간 조별 협업 · 6종 오브젝트',   badge: 'Pro' },
-              { icon: BarChart2,     color: 'bg-blue-100 text-blue-600',     border: 'border-blue-100',   title: '실시간 설문',    desc: '6가지 문항 유형 · AI 응답 분석',      badge: 'Basic↑' },
+              { icon: BarChart2,     color: 'bg-blue-100 text-blue-600',     border: 'border-blue-100',   title: '실시간 설문',    desc: '6가지 문항 유형 · AI 응답 분석',      badge: 'Basic↑＊' },
               { icon: Images,        color: 'bg-pink-100 text-pink-600',     border: 'border-pink-100',   title: '수업 갤러리',    desc: '사진·영상 주차별 보관 · 학급 공유',   badge: '무료' },
             ].map(({ icon: Icon, color, border, title, desc, badge }, i) => (
               <motion.div
@@ -432,6 +432,9 @@ const Landing = () => {
               </motion.div>
             ))}
           </div>
+          <p className="text-center text-[11px] text-amber-700/50 mb-6">
+            ＊ 본인 Gemini API 키(Google AI Studio에서 무료 발급) 등록 시 Free 플랜에서도 이용 가능
+          </p>
           <div className="text-center">
             <button
               onClick={() => navigate('/demo')}
@@ -687,9 +690,11 @@ const Landing = () => {
                   { text: '학생 최대 20명/클래스', ok: true },
                   { text: '학생 관찰 기록 · 교사 메모', ok: true },
                   { text: 'AI 세특 월 20회 체험', ok: true },
-                  { text: '수업 자료 에디터', ok: false },
+                  { text: '수업 자료 에디터', ok: false, byok: true },
                   { text: '퀴즈 (최대 5문항)', ok: true },
-                  { text: '설문 · 화이트보드', ok: false },
+                  { text: '설문', ok: false, byok: true },
+                  { text: '화이트보드', ok: false },
+                  { text: '수업 전사', ok: false, byok: true },
                   { text: '일괄 AI 생성', ok: false },
                   { text: 'NAISS 내보내기', ok: false },
                   { text: '학교 프로젝트', ok: false },
@@ -803,10 +808,16 @@ const Landing = () => {
                 <div className="bg-white px-5 py-4 space-y-2.5">
                   {plan.features.map((f) => (
                     <div key={f.text} className="flex items-center gap-2.5">
-                      <span className={`text-xs font-black shrink-0 ${f.ok ? 'text-emerald-500' : 'text-gray-300'}`}>
-                        {f.ok ? '✓' : '✕'}
+                      <span className={`text-xs font-black shrink-0 ${
+                        f.ok ? 'text-emerald-500' : (f as any).byok ? 'text-amber-500' : 'text-gray-300'
+                      }`}>
+                        {f.ok ? '✓' : (f as any).byok ? '🔑' : '✕'}
                       </span>
-                      <span className={`text-xs ${f.ok ? 'text-gray-700 font-medium' : 'text-gray-300'}`}>{f.text}</span>
+                      <span className={`text-xs ${
+                        f.ok ? 'text-gray-700 font-medium' : (f as any).byok ? 'text-amber-600 font-medium' : 'text-gray-300'
+                      }`}>
+                        {f.text}{(f as any).byok && <span className="text-amber-500 font-bold"> (내 키＊)</span>}
+                      </span>
                     </div>
                   ))}
                   {(plan as any).schoolBadge && (
@@ -824,7 +835,13 @@ const Landing = () => {
 
           <motion.p
             initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
-            className="text-center text-xs text-amber-600/60 mt-8"
+            className="text-center text-[11px] text-amber-600/50 mt-8"
+          >
+            ＊ 내 키: 본인 Gemini API 키(Google AI Studio에서 무료 발급)를 설정 페이지에 등록하면 Free 플랜에서도 이용할 수 있습니다.
+          </motion.p>
+          <motion.p
+            initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
+            className="text-center text-xs text-amber-600/60 mt-2"
           >
             플랜 변경 및 문의: aklabs84@naver.com · 3/6/12개월 선결제 시 할인, 결제 후 7일 이내 전액 환불 (이후 잔여 기간 일할 계산 환불)
           </motion.p>

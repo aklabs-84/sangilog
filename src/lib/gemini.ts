@@ -36,8 +36,13 @@ function getModelId(model: 'pro' | 'flash') {
   return model === 'pro' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
 }
 
-async function callDirect(body: any): Promise<string> {
-  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+// 사용자가 설정 페이지에서 직접 등록한 본인 Gemini API 키 (무료 플랜 한도 우회용)
+export function getUserGeminiKey(): string {
+  return localStorage.getItem('gemini_api_key') ?? '';
+}
+
+async function callDirect(body: any, apiKeyOverride?: string): Promise<string> {
+  const apiKey = apiKeyOverride || (import.meta as any).env?.VITE_GEMINI_API_KEY;
   if (!apiKey) throw new Error('VITE_GEMINI_API_KEY가 .env에 없습니다.');
 
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -55,32 +60,60 @@ async function callDirect(body: any): Promise<string> {
     },
   });
 
-  if (mode === 'generate') {
-    const parts: any[] = [{ text: prompt ?? '' }];
-    if (files?.length) parts.push(...files);
-    const contentParts = systemInstruction ? [{ text: systemInstruction }, ...parts] : parts;
-    const { response } = await generativeModel.generateContent(contentParts);
-    return response.text();
-  }
+  try {
+    if (mode === 'generate') {
+      const parts: any[] = [{ text: prompt ?? '' }];
+      if (files?.length) parts.push(...files);
+      const contentParts = systemInstruction ? [{ text: systemInstruction }, ...parts] : parts;
+      const { response } = await generativeModel.generateContent(contentParts);
+      return response.text();
+    }
 
-  if (mode === 'chat') {
-    const chat = generativeModel.startChat({
-      history: (history ?? []).map((h: any) => ({
-        role: h.role as 'user' | 'model',
-        parts: Array.isArray(h.parts) ? h.parts : [{ text: h.text ?? '' }],
-      })),
-      systemInstruction,
-    });
-    const promptParts: any[] = [{ text: message ?? '' }];
-    if (files?.length) promptParts.push(...files);
-    const { response } = await chat.sendMessage(promptParts);
-    return response.text();
+    if (mode === 'chat') {
+      const chat = generativeModel.startChat({
+        history: (history ?? []).map((h: any) => ({
+          role: h.role as 'user' | 'model',
+          parts: Array.isArray(h.parts) ? h.parts : [{ text: h.text ?? '' }],
+        })),
+        systemInstruction,
+      });
+      const promptParts: any[] = [{ text: message ?? '' }];
+      if (files?.length) promptParts.push(...files);
+      const { response } = await chat.sendMessage(promptParts);
+      return response.text();
+    }
+  } catch (error: any) {
+    if (apiKeyOverride) {
+      throw new Error(classifyByokError(error));
+    }
+    throw error;
   }
 
   throw new Error(`Unknown mode: ${mode}`);
 }
 
+// 사용자가 등록한 본인 Gemini API 키로 직접 호출했을 때의 실패 원인을 구분해
+// "키가 잘못됨"과 "그 키의 무료 사용량 한도 초과"를 서로 다른 안내 문구로 분리한다.
+// (원인을 구분하지 않으면 한도 초과인데도 "키가 틀렸다"고 오해하게 됨)
+function classifyByokError(error: any): string {
+  const raw = String(error?.message ?? error ?? '');
+
+  if (/429|quota|RESOURCE_EXHAUSTED|rate limit/i.test(raw)) {
+    return '내 Gemini API 키의 무료 사용량 한도(분당/일일 요청 수)를 초과했습니다. 잠시 후 다시 시도하거나, Google AI Studio에서 사용량을 확인해주세요.';
+  }
+  if (/API_KEY_INVALID|API key not valid|400|401|403|PERMISSION_DENIED/i.test(raw)) {
+    return '등록하신 Gemini API 키가 유효하지 않습니다. 설정 페이지에서 키를 다시 확인해주세요.';
+  }
+  return '내 Gemini API 키 호출에 실패했습니다. 잠시 후 다시 시도해주세요. (' + raw + ')';
+}
+
 async function callProxy(body: object): Promise<string> {
+  // 사용자가 본인 Gemini API 키를 등록한 경우: 서버를 거치지 않고 브라우저에서 직접 호출 (플랜 한도 무관)
+  const userKey = getUserGeminiKey();
+  if (userKey) {
+    return callDirect(body, userKey);
+  }
+
   // 개발 환경: 브라우저에서 직접 Gemini 호출
   if ((import.meta as any).env?.DEV) {
     return callDirect(body);

@@ -75,9 +75,16 @@ const Settings = () => {
   const [groqKeySaved, setGroqKeySaved] = useState(false);
   const [showGroqKey, setShowGroqKey]   = useState(false);
 
+  // 내 Gemini API Key (localStorage) — 무료 플랜 한도와 무관하게 AI 기능 사용
+  const [geminiKey, setGeminiKey]           = useState('');
+  const [geminiKeySaved, setGeminiKeySaved] = useState(false);
+  const [showGeminiKey, setShowGeminiKey]   = useState(false);
+
   useEffect(() => {
     const saved = localStorage.getItem('groq_api_key') || '';
     setGroqKey(saved);
+    const savedGemini = localStorage.getItem('gemini_api_key') || '';
+    setGeminiKey(savedGemini);
   }, []);
 
   // 내 추천 코드 + 추천 횟수 로드
@@ -169,6 +176,16 @@ const Settings = () => {
     }
     setGroqKeySaved(true);
     setTimeout(() => setGroqKeySaved(false), 2000);
+  };
+
+  const saveGeminiKey = () => {
+    if (geminiKey.trim()) {
+      localStorage.setItem('gemini_api_key', geminiKey.trim());
+    } else {
+      localStorage.removeItem('gemini_api_key');
+    }
+    setGeminiKeySaved(true);
+    setTimeout(() => setGeminiKeySaved(false), 2000);
   };
 
 
@@ -344,6 +361,7 @@ const Settings = () => {
 
   const isBasicOnly = checkIsBasicOrAbove(profile) && !checkIsPro(profile);
   const aiMonthlyLimit = getAiMonthlyLimit(profile);
+  const hasByokKey = !!localStorage.getItem('gemini_api_key');
 
   const PLAN_LABEL: Record<string, string> = {
     free: '무료 플랜',
@@ -440,18 +458,24 @@ const Settings = () => {
           <div className="mt-4 pt-4 border-t border-amber-200 grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-bold text-amber-600 mb-1">이번 달 AI 사용</p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-amber-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-amber-400 rounded-full transition-all"
-                    style={{ width: `${Math.min((aiUsedThisMonth / aiMonthlyLimit) * 100, 100)}%` }}
-                  />
-                </div>
-                <span className="text-sm font-black text-amber-800 whitespace-nowrap">
-                  {aiUsedThisMonth} / {aiMonthlyLimit}
-                </span>
-              </div>
-              <p className="text-[10px] text-amber-500 mt-1">매월 1일 자동 초기화</p>
+              {hasByokKey ? (
+                <p className="text-sm font-black text-green-600">내 API 키 사용 중 · 무제한</p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-amber-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-amber-400 rounded-full transition-all"
+                        style={{ width: `${Math.min((aiUsedThisMonth / aiMonthlyLimit) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-black text-amber-800 whitespace-nowrap">
+                      {aiUsedThisMonth} / {aiMonthlyLimit}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-amber-500 mt-1">매월 1일 자동 초기화</p>
+                </>
+              )}
             </div>
             {!isEffectivelyPro && (
               <div>
@@ -848,6 +872,76 @@ const Settings = () => {
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
                 <span className="text-[11px] text-green-600 font-bold">Groq Whisper 모드 활성화됨</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 내 Gemini API 키 (BYOK) ── */}
+      <div className="surface-card shadow-ambient overflow-hidden">
+        <div className="px-5 md:px-10 py-4 md:py-6 border-b border-surface-container bg-surface-container-low/30 flex items-center gap-3">
+          <Sparkles size={22} className="text-primary" />
+          <div>
+            <h3 className="text-lg font-bold">내 Gemini API 키</h3>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              내 API 키를 등록하면 플랜 월 사용 한도와 무관하게 AI 기능(및 AI가 포함된 Basic 전용 수업 도구)을 사용할 수 있습니다
+            </p>
+          </div>
+        </div>
+        <div className="px-5 md:px-10 py-6 space-y-4">
+          <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/15">
+            <KeyRound size={16} className="text-primary mt-0.5 shrink-0" />
+            <div className="text-xs text-on-surface-variant leading-relaxed">
+              <span className="font-bold text-primary">Google Gemini</span> 사용 — 무료 API Key 발급:{' '}
+              <span className="font-mono text-primary">aistudio.google.com/apikey</span> 에서 발급
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+              Gemini API Key
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showGeminiKey ? 'text' : 'password'}
+                  value={geminiKey}
+                  onChange={e => setGeminiKey(e.target.value)}
+                  placeholder="AIzaxxxxxxxxxxxxxxxxxxxx"
+                  className="w-full px-4 py-3 pr-10 bg-surface-container rounded-xl text-sm font-mono outline-none focus:ring-2 focus:ring-primary/20 border border-transparent focus:border-primary/30"
+                />
+                <button
+                  onClick={() => setShowGeminiKey(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-on-surface-variant transition-colors"
+                >
+                  {showGeminiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+              <button
+                onClick={saveGeminiKey}
+                className={`px-5 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                  geminiKeySaved
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-primary text-white hover:bg-primary/90 active:scale-95'
+                }`}
+              >
+                {geminiKeySaved ? <Check size={15} /> : <KeyRound size={15} />}
+                {geminiKeySaved ? '저장됨' : '저장'}
+              </button>
+            </div>
+            <p className="text-[11px] text-on-surface-variant/60">
+              키는 이 기기의 브라우저에만 저장되며, 등록 시 서버를 거치지 않고 브라우저에서 Gemini로 직접 호출됩니다. AI 호출 비용은 등록한 본인 Google 계정으로 청구됩니다.
+            </p>
+            {geminiKey && !geminiKey.startsWith('AIza') && (
+              <p className="text-[11px] text-amber-600 font-bold">
+                Gemini API Key는 보통 "AIza"로 시작합니다. 키를 다시 확인해주세요.
+              </p>
+            )}
+            {localStorage.getItem('gemini_api_key') && (
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                <span className="text-[11px] text-green-600 font-bold">내 Gemini 키 모드 활성화됨 (한도 무제한)</span>
               </div>
             )}
           </div>

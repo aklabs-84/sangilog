@@ -351,7 +351,7 @@ const NaissWorkstation = ({ classes }: Props) => {
       const result = await seatukDraftAI.generateContent(prompt);
       const content = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: content, status: 'draft' });
-    } catch { alert('AI 생성 중 오류가 발생했습니다.'); }
+    } catch (err: any) { alert(err?.message || 'AI 생성 중 오류가 발생했습니다.'); }
     finally { setGeneratingId(null); }
   };
 
@@ -382,8 +382,8 @@ ${obsText}`;
         ...prev,
         [row.id]: { level: json.level as '상' | '중' | '하', score: Number(json.score), reason: String(json.reason) },
       }));
-    } catch {
-      alert('성취도 추천 중 오류가 발생했습니다.');
+    } catch (err: any) {
+      alert(err?.message || '성취도 추천 중 오류가 발생했습니다.');
     } finally {
       setSuggestingAchievementId(null);
     }
@@ -402,7 +402,7 @@ ${row.setech_content}`;
       const result = await seatukCompressAI.generateContent(prompt);
       const compressed = smartTrim(result.response.text().trim());
       updateRow(row.id, { setech_content: compressed, isDirty: true });
-    } catch { alert('AI 압축 중 오류가 발생했습니다.'); }
+    } catch (err: any) { alert(err?.message || 'AI 압축 중 오류가 발생했습니다.'); }
     finally { setCompressingId(null); }
   };
 

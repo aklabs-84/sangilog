@@ -411,10 +411,10 @@ ${obsText}
       } else {
         aiGenStore.complete(results.length);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       aiGenStore.error();
-      alert('AI 초안 생성 중 오류가 발생했습니다.');
+      alert(err?.message || 'AI 초안 생성 중 오류가 발생했습니다.');
     } finally {
       setIsGenerating(false);
       setGeneratingName('');
@@ -453,9 +453,10 @@ ${obsText}
           .then(() => {}).catch(console.error);
       }
       aiGenStore.endRefine(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       aiGenStore.endRefine(true);
+      alert(err?.message || 'AI 다듬기 중 오류가 발생했습니다.');
     } finally {
       setIsGenerating(false);
     }

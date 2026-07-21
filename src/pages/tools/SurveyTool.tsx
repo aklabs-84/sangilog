@@ -797,8 +797,8 @@ export default function SurveyTool() {
       const prompt = `다음은 학생들의 설문 단답형 응답 ${texts.length}개입니다:\n\n${texts.map((t, i) => `${i + 1}. ${t}`).join('\n')}\n\n위 응답들을 분석하여 다음 형식으로 정리해주세요:\n\n**핵심 키워드**: (3~5개)\n**전반적 요약**: (2~3문장으로 학생들의 전반적 의견 요약)\n**주요 패턴**: (눈에 띄는 공통 의견이나 특이점)\n\n교사에게 유용하고 간결하게 작성해주세요.`;
       const { response } = await surveyAnalysisAI.generateContent(prompt);
       setAiAnalysis(prev => ({ ...prev, [questionId]: { result: response.text(), loading: false } }));
-    } catch {
-      setAiAnalysis(prev => ({ ...prev, [questionId]: { result: '분석 중 오류가 발생했습니다.', loading: false } }));
+    } catch (err: any) {
+      setAiAnalysis(prev => ({ ...prev, [questionId]: { result: err?.message || '분석 중 오류가 발생했습니다.', loading: false } }));
     }
   };
 
