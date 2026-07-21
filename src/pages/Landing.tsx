@@ -690,11 +690,11 @@ const Landing = () => {
                   { text: '학생 최대 20명/클래스', ok: true },
                   { text: '학생 관찰 기록 · 교사 메모', ok: true },
                   { text: 'AI 세특 월 20회 체험', ok: true },
-                  { text: '수업 자료 에디터', ok: false, byok: true },
+                  { text: '수업 자료 에디터 (무제한)', ok: true, byok: true },
                   { text: '퀴즈 (최대 5문항)', ok: true },
-                  { text: '설문', ok: false, byok: true },
+                  { text: '설문 (무제한)', ok: true, byok: true },
                   { text: '화이트보드', ok: false },
-                  { text: '수업 전사', ok: false, byok: true },
+                  { text: '수업 전사 (무제한)', ok: true, byok: true },
                   { text: '일괄 AI 생성', ok: false },
                   { text: 'NAISS 내보내기', ok: false },
                   { text: '학교 프로젝트', ok: false },
@@ -808,15 +808,11 @@ const Landing = () => {
                 <div className="bg-white px-5 py-4 space-y-2.5">
                   {plan.features.map((f) => (
                     <div key={f.text} className="flex items-center gap-2.5">
-                      <span className={`text-xs font-black shrink-0 ${
-                        f.ok ? 'text-emerald-500' : (f as any).byok ? 'text-amber-500' : 'text-gray-300'
-                      }`}>
-                        {f.ok ? '✓' : (f as any).byok ? '🔑' : '✕'}
+                      <span className={`text-xs font-black shrink-0 ${f.ok ? 'text-emerald-500' : 'text-gray-300'}`}>
+                        {f.ok ? '✓' : '✕'}
                       </span>
-                      <span className={`text-xs ${
-                        f.ok ? 'text-gray-700 font-medium' : (f as any).byok ? 'text-amber-600 font-medium' : 'text-gray-300'
-                      }`}>
-                        {f.text}{(f as any).byok && <span className="text-amber-500 font-bold"> (내 키＊)</span>}
+                      <span className={`text-xs ${f.ok ? 'text-gray-700 font-medium' : 'text-gray-300'}`}>
+                        {f.text}{(f as any).byok && '＊'}
                       </span>
                     </div>
                   ))}

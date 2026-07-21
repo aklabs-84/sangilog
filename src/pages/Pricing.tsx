@@ -1,4 +1,4 @@
-import { Check, X, Crown, KeyRound, Mail, School, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { Check, X, Crown, Mail, School, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove } from '../lib/auth';
 
 type FeatureValue = boolean | string;
@@ -137,7 +137,7 @@ const SCHOOL_TIERS = [
 function FeatureCell({ value }: { value: FeatureValue }) {
   if (value === true) return <Check size={16} className="text-green-500 mx-auto" strokeWidth={2.5} />;
   if (value === false) return <X size={16} className="text-gray-300 mx-auto" />;
-  if (value === 'BYOK') return <span className="text-[11px] font-black text-amber-500">내 키＊</span>;
+  if (value === 'BYOK') return <span className="text-xs font-bold text-on-surface">무제한＊</span>;
   return <span className="text-xs font-bold text-on-surface">{value}</span>;
 }
 
@@ -253,10 +253,8 @@ export default function Pricing() {
                   if (val === 'BYOK') {
                     return (
                       <li key={row.key} className="flex items-center gap-2">
-                        <KeyRound size={14} className="text-amber-500" strokeWidth={2.5} />
-                        <span className="text-xs text-on-surface">
-                          {row.label}<span className="text-amber-500 font-bold"> (내 API 키 등록 시)</span>
-                        </span>
+                        <Check size={14} className={plan.highlight ? 'text-amber-500' : 'text-green-500'} strokeWidth={2.5} />
+                        <span className="text-xs text-on-surface">{row.label} (무제한)＊</span>
                       </li>
                     );
                   }
