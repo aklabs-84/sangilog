@@ -123,9 +123,9 @@ const SuggestionsPage = () => {
                 <Megaphone size={20} />
               </div>
               <div>
-                <h1 className="text-2xl font-black">건의사항 관리</h1>
+                <h1 className="text-2xl font-black">질문·건의함 관리</h1>
                 <p className="text-sm text-on-surface-variant font-bold mt-0.5">
-                  학생들의 건의사항을 확인하고 답변해 주세요.
+                  학생들의 질문과 건의를 확인하고 답변해 주세요.
                 </p>
               </div>
             </div>
@@ -202,7 +202,7 @@ const SuggestionsPage = () => {
         <div className="flex flex-col items-center justify-center py-32 space-y-4 opacity-30">
           <Megaphone size={56} />
           <p className="font-black text-lg">
-            {filter === 'pending' ? '미답변 건의사항이 없습니다.' : filter === 'replied' ? '답변한 건의사항이 없습니다.' : '건의사항이 없습니다.'}
+            {filter === 'pending' ? '미답변 내용이 없습니다.' : filter === 'replied' ? '답변한 내용이 없습니다.' : '등록된 질문·건의함 내용이 없습니다.'}
           </p>
         </div>
       ) : (

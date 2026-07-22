@@ -168,7 +168,7 @@ const TABS: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
   { id: 'students',      label: '학생',       icon: GraduationCap },
   { id: 'observations',  label: '활동 기록',  icon: ClipboardList },
   { id: 'results',       label: '결과제출',   icon: FileCheck },
-  { id: 'suggestions',   label: '건의사항',   icon: Megaphone },
+  { id: 'suggestions',   label: '질문·건의함', icon: Megaphone },
   { id: 'announcements', label: '공지사항',   icon: Bell },
   { id: 'bugs',          label: '버그신고',   icon: Bug },
   { id: 'coupons',       label: '쿠폰',       icon: Ticket },
@@ -1228,7 +1228,7 @@ const Admin = () => {
       교사답변: s.teacher_reply ?? '',
       날짜: new Date(s.created_at).toLocaleDateString('ko-KR'),
     })),
-    `건의사항_${new Date().toISOString().slice(0, 10)}.csv`
+    `질문건의함_${new Date().toISOString().slice(0, 10)}.csv`
   );
 
   // 필터 변경 시 페이지 초기화
@@ -2026,7 +2026,7 @@ const Admin = () => {
           </>
         )}
 
-        {/* ── 건의사항 ── */}
+        {/* ── 질문·건의함 ── */}
         {activeTab === 'suggestions' && (
           <>
             <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
@@ -2044,7 +2044,7 @@ const Admin = () => {
               </div>
             </div>
             {sugLoading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-amber-400" size={32} /></div>
-            : filteredSuggestions.length === 0 ? <div className="text-center py-20 text-amber-400"><Megaphone size={40} className="mx-auto mb-3 opacity-40" /><p>건의사항이 없습니다</p></div>
+            : filteredSuggestions.length === 0 ? <div className="text-center py-20 text-amber-400"><Megaphone size={40} className="mx-auto mb-3 opacity-40" /><p>등록된 질문·건의함 내용이 없습니다</p></div>
             : <div className="space-y-3">
               {filteredSuggestions.map((s, i) => (
                 <motion.div key={s.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
@@ -2066,7 +2066,7 @@ const Admin = () => {
                       )}
                       <p className="text-[11px] text-amber-400">{new Date(s.created_at).toLocaleDateString('ko-KR')}</p>
                     </div>
-                    <button onClick={() => setDeleteTarget({ table: 'student_suggestions', id: s.id, label: `건의사항: ${s.student_name ?? '미확인'}` })}
+                    <button onClick={() => setDeleteTarget({ table: 'student_suggestions', id: s.id, label: `질문·건의함: ${s.student_name ?? '미확인'}` })}
                       className="shrink-0 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={16} /></button>
                   </div>
                 </motion.div>

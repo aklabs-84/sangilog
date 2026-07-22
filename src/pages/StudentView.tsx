@@ -1179,7 +1179,7 @@ const StudentView = () => {
         </div>
       </div>
 
-      {/* ─── 결과 제출 / 건의사항 / 단원 마무리 기록 / 나의 노트: 2단 그리드 ─── */}
+      {/* ─── 결과 제출 / 질문·건의함 / 단원 마무리 기록 / 나의 노트: 2단 그리드 ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
       {/* ─── 결과 제출 목록 ─── */}
@@ -1410,12 +1410,12 @@ const StudentView = () => {
         })()}
       </div>
 
-      {/* ─── 건의사항 ─── */}
+      {/* ─── 질문·건의함 ─── */}
       <div className="surface-card p-8 shadow-ambient border border-white/60">
         <div className="flex items-center justify-between mb-6 pb-5 border-b border-surface-container">
           <h2 className="text-xl font-black flex items-center gap-3">
             <Megaphone size={22} className="text-primary" />
-            건의사항
+            질문·건의함
           </h2>
           <span className="px-3 py-1.5 bg-neutral-100 rounded-lg text-xs font-bold text-neutral-500">
             총 {studentSuggestions.length}건
@@ -1427,7 +1427,7 @@ const StudentView = () => {
         ) : studentSuggestions.length === 0 ? (
           <div className="flex flex-col items-center py-12 space-y-3 opacity-30">
             <Megaphone size={48} />
-            <p className="font-black">등록된 건의사항이 없습니다.</p>
+            <p className="font-black">등록된 질문·건의함 내용이 없습니다.</p>
           </div>
         ) : (
           <>

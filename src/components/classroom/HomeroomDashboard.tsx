@@ -263,7 +263,7 @@ const HomeroomDashboard = ({
             className="relative flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm border-2 border-rose-200 text-rose-500 hover:bg-rose-50 transition-all whitespace-nowrap"
           >
             <Megaphone size={16} />
-            <span>건의사항</span>
+            <span>질문·건의함</span>
             {Object.values(suggestionCounts).reduce((a, b) => a + b, 0) > 0 && (
               <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                 {Object.values(suggestionCounts).reduce((a, b) => a + b, 0)}

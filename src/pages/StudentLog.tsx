@@ -102,7 +102,7 @@ const TOUR_STEPS: TourStep[] = [
     targetId: 'tour-tab-more',
     emoji: '⋯',
     title: '더보기',
-    description: '퀴즈, 설문, 수업 자료, 나의 기록, 나의 노트, 단원 마무리, 건의사항 등 더 많은 메뉴가 있어요.',
+    description: '퀴즈, 설문, 수업 자료, 나의 기록, 나의 노트, 단원 마무리, 질문·건의함 등 더 많은 메뉴가 있어요.',
     placement: 'top',
   },
   {
@@ -1557,7 +1557,7 @@ const StudentLog = () => {
 
   const handleSubmitSuggestion = async () => {
     if (!suggestionContent.trim()) {
-      showToast('건의사항 내용을 입력해주세요.', 'error'); return;
+      showToast('질문·건의함 내용을 입력해주세요.', 'error'); return;
     }
     if (!session?.student_id || !session?.class_id || !teacherId) return;
     setSuggestionSubmitting(true);
@@ -1575,14 +1575,14 @@ const StudentLog = () => {
 
       await supabase.from('notifications').insert({
         user_id: teacherId,
-        title: `💬 ${session.student_name}이(가) 건의사항을 등록했습니다`,
+        title: `💬 ${session.student_name}이(가) 질문·건의함에 등록했습니다`,
         content: suggestionContent.trim().slice(0, 80),
         type: 'student_submission',
         link: `/classroom?id=${session.class_id}&student_id=${session.student_id}`
       });
 
       setSuggestionContent('');
-      showToast('건의사항이 등록되었습니다! ✅');
+      showToast('질문·건의함에 등록되었습니다! ✅');
       await fetchSuggestions();
     } catch {
       showToast('등록 중 오류가 발생했습니다.', 'error');
@@ -1625,7 +1625,7 @@ const StudentLog = () => {
   };
 
   const handleDeleteSuggestion = async (id: string) => {
-    if (!confirm('이 건의사항을 삭제하시겠습니까?')) return;
+    if (!confirm('이 내용을 삭제하시겠습니까?')) return;
     setDeletingSuggestionId(id);
     try {
       const { error } = await supabase.from('student_suggestions').delete().eq('id', id);
@@ -2767,7 +2767,7 @@ ${guidePrompt}
                       {[
                         { key: 'materials' as const,   label: '수업 자료', icon: BookOpen,  iconColor: 'text-cyan-600',   bg: 'bg-cyan-50',   border: 'border-cyan-200',   hoverBg: 'hover:bg-cyan-100' },
                         { key: 'history' as const,     label: '나의 기록', icon: History,   iconColor: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', hoverBg: 'hover:bg-violet-100' },
-                        { key: 'suggestions' as const, label: '건의사항',  icon: Megaphone, iconColor: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-200',   hoverBg: 'hover:bg-rose-100' },
+                        { key: 'suggestions' as const, label: '질문·건의함',  icon: Megaphone, iconColor: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-200',   hoverBg: 'hover:bg-rose-100' },
                       ].map(item => (
                         <button key={item.key} onClick={() => handleTabChange(item.key)}
                           className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl border ${item.bg} ${item.border} ${item.hoverBg} active:scale-95 transition-all`}>
@@ -4251,7 +4251,7 @@ ${guidePrompt}
               </motion.div>
             )}
 
-            {/* ─── 건의사항 탭 ─── */}
+            {/* ─── 질문·건의함 탭 ─── */}
             {activeTab === 'suggestions' && (
               <motion.div
                 key="suggestions"
@@ -4265,9 +4265,9 @@ ${guidePrompt}
                     <Megaphone size={24} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black font-manrope">건의사항</h3>
+                    <h3 className="text-2xl font-black font-manrope">질문·건의함</h3>
                     <p className="text-on-surface-variant text-sm font-bold mt-1">
-                      선생님께 자유롭게 의견이나 건의사항을 전달하세요.
+                      선생님께 궁금한 점이나 의견을 자유롭게 전달하세요.
                     </p>
                   </div>
                 </div>
@@ -4288,7 +4288,7 @@ ${guidePrompt}
                   >
                     {suggestionSubmitting
                       ? <Loader2 size={20} className="animate-spin" />
-                      : <><Send size={20} /> 건의사항 전달하기</>
+                      : <><Send size={20} /> 전달하기</>
                     }
                   </button>
                 </div>
@@ -4296,7 +4296,7 @@ ${guidePrompt}
                 {/* 내가 보낸 건의사항 목록 */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between pt-4 border-t border-surface-container">
-                    <h4 className="font-black text-base">내가 보낸 건의사항</h4>
+                    <h4 className="font-black text-base">내가 보낸 질문·건의</h4>
                     <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-3 py-1 rounded-lg">
                       {suggestions.length}개
                     </span>
@@ -4309,7 +4309,7 @@ ${guidePrompt}
                   ) : suggestions.length === 0 ? (
                     <div className="flex flex-col items-center py-16 space-y-3 opacity-30">
                       <Megaphone size={48} />
-                      <p className="font-black">아직 등록한 건의사항이 없습니다.</p>
+                      <p className="font-black">아직 보낸 질문·건의가 없습니다.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -5368,7 +5368,7 @@ ${guidePrompt}
             { key: 'survey' as const,      icon: BarChart2,       label: '설문',      activeColor: 'text-teal-400' },
             { key: 'meeting' as const,     icon: ExternalLink,    label: '온라인수업', activeColor: 'text-rose-400', live: !!activeMeeting },
             { key: 'unit' as const,        icon: ClipboardList,   label: '단원마무리', activeColor: 'text-amber-400', badge: unitPendingCount },
-            { key: 'suggestions' as const, icon: Megaphone,       label: '건의사항',  activeColor: 'text-rose-400', badge: unreadReplyCount },
+            { key: 'suggestions' as const, icon: Megaphone,       label: '질문·건의함',  activeColor: 'text-rose-400', badge: unreadReplyCount },
           ].map((item) => {
             const isActive = activeTab === item.key;
             const isLocked = isClassClosed && (item.key === 'record' || item.key === 'results');
@@ -5506,7 +5506,7 @@ ${guidePrompt}
                   { key: 'survey' as const,    icon: BarChart2,   label: '설문',      color: 'text-teal-600',   activeBg: 'bg-teal-50' },
                   { key: 'meeting' as const,   icon: ExternalLink, label: '온라인수업', color: 'text-rose-600',  activeBg: 'bg-rose-50',  live: !!activeMeeting },
                   { key: 'unit' as const,      icon: ClipboardList, label: '단원마무리', color: 'text-amber-600', activeBg: 'bg-amber-50', badge: unitPendingCount },
-                  { key: 'suggestions' as const, icon: Megaphone, label: '건의사항',  color: 'text-rose-600',   activeBg: 'bg-rose-50',  badge: unreadReplyCount },
+                  { key: 'suggestions' as const, icon: Megaphone, label: '질문·건의함',  color: 'text-rose-600',   activeBg: 'bg-rose-50',  badge: unreadReplyCount },
                 ].map((item) => {
                   const isActive = activeTab === item.key;
                   return (

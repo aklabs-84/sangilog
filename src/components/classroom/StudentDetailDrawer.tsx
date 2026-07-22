@@ -721,7 +721,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-black uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
-                      <Megaphone size={14} /> 건의사항
+                      <Megaphone size={14} /> 질문·건의함
                     </h4>
                     <span className="text-xs font-black text-on-surface-variant/70 bg-surface-container px-2 py-0.5 rounded-md">
                       {suggestions.length}건
@@ -732,7 +732,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                     <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-primary" /></div>
                   ) : suggestions.length === 0 ? (
                     <div className="p-4 text-center border-2 border-dashed border-neutral-200 rounded-2xl">
-                      <p className="text-xs font-bold text-neutral-400">등록된 건의사항이 없습니다.</p>
+                      <p className="text-xs font-bold text-neutral-400">등록된 질문·건의함 내용이 없습니다.</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
