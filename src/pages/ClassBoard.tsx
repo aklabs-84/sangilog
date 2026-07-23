@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { openFile } from '../lib/fileUtils';
+import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import { useTheme } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -70,7 +71,7 @@ const ClassBoard = () => {
           .limit(150),
         supabase
           .from('student_results')
-          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, submission_group, is_group_submission, group_id, created_at')
+          .select('id, student_id, week_number, title, text_content, storage_path, storage_paths, display_name, link_url, result_type, submission_group, is_group_submission, group_id, created_at')
           .in('student_id', studentIds)
           .order('created_at', { ascending: false })
           .limit(300),
@@ -125,9 +126,9 @@ const ClassBoard = () => {
           let image_original_url: string | null = null;
           let file_url: string | null = null;
 
-          if (imageItem?.storage_path) {
-            const { data: urlData } = supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path);
-            image_original_url = urlData?.publicUrl || null;
+          const image_urls = getResultImagePublicUrls(supabase.storage, imageItem);
+          if (image_urls.length > 0) {
+            image_original_url = image_urls[0];
             image_url = image_original_url;
           }
           if (fileItem?.storage_path) {
@@ -146,6 +147,7 @@ const ClassBoard = () => {
             student_name: nameMap[rep.student_id] || '학생',
             image_url,
             image_original_url,
+            image_urls,
             file_url,
             _type: 'result' as const,
             _group: group,
@@ -404,17 +406,24 @@ const ClassBoard = () => {
                             <p className="text-xs text-on-surface-variant font-bold leading-relaxed line-clamp-5">{post.text_content}</p>
                           )}
                           {post.image_url && (
-                            <img
-                              src={post.image_url}
-                              alt=""
-                              className="w-full rounded-xl object-cover max-h-48"
-                              loading="lazy"
-                              onError={e => {
-                                if (post.image_original_url) {
-                                  (e.target as HTMLImageElement).src = post.image_original_url;
-                                }
-                              }}
-                            />
+                            <div className="relative">
+                              <img
+                                src={post.image_url}
+                                alt=""
+                                className="w-full rounded-xl object-cover max-h-48"
+                                loading="lazy"
+                                onError={e => {
+                                  if (post.image_original_url) {
+                                    (e.target as HTMLImageElement).src = post.image_original_url;
+                                  }
+                                }}
+                              />
+                              {post.image_urls?.length > 1 && (
+                                <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                  1/{post.image_urls.length}
+                                </div>
+                              )}
+                            </div>
                           )}
                           {post.link_url && (
                             <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
@@ -572,31 +581,11 @@ const ClassBoard = () => {
                           </div>
                         )}
 
-                        {sub.image_url && (
-                          <a
-                            href={sub.image_original_url || sub.image_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block relative group"
-                          >
-                            <img
-                              src={sub.image_url}
-                              alt=""
-                              className="w-full rounded-2xl object-contain max-h-96 cursor-zoom-in"
-                              loading="lazy"
-                              decoding="async"
-                              onError={e => {
-                                if (sub.image_original_url) {
-                                  (e.target as HTMLImageElement).src = sub.image_original_url;
-                                }
-                              }}
-                            />
-                            <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
-                              <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-black bg-black/40 px-3 py-1.5 rounded-full transition-all">
-                                새 탭에서 보기
-                              </span>
-                            </div>
-                          </a>
+                        {sub.image_urls?.length > 0 && (
+                          <ImageCarousel
+                            urls={sub.image_urls}
+                            thumbClassName="w-full rounded-2xl object-contain max-h-96 cursor-zoom-in"
+                          />
                         )}
 
                         {sub.link_url && (

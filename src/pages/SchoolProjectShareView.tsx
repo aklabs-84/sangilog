@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { animate, AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { GALLERY_PAGE_SIZE, parseVideoUrl } from '../lib/gallery';
+import { getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import { buildXlsxBlob } from '../lib/xlsxBuilder';
 import type { XCell } from '../lib/xlsxBuilder';
 import { BANNER_THEMES } from '../components/classroom/SchoolProjectModal';
@@ -58,6 +59,7 @@ interface ResultRow {
   result_type: string;
   link_url: string | null;
   image_url: string | null;
+  image_urls?: string[];
   file_url: string | null;
   file_name?: string | null;
   created_at: string;
@@ -366,7 +368,7 @@ const SchoolProjectShareView = () => {
           .eq('status', 'approved')
           .order('created_at', { ascending: false }),
         supabase.from('student_results')
-          .select('id, student_id, submission_group, is_group_submission, week_number, title, text_content, result_type, created_at, link_url, storage_path')
+          .select('id, student_id, submission_group, is_group_submission, week_number, title, text_content, result_type, created_at, link_url, storage_path, storage_paths')
           .in('student_id', studentIds).order('created_at', { ascending: false }),
         supabase.from('class_gallery_items')
           .select('id, file_url, file_type, file_name, caption, week_number, created_at')
@@ -381,12 +383,14 @@ const SchoolProjectShareView = () => {
       const resultsWithUrls: ResultRow[] = (resultsRes.data || []).map((r: any) => {
         let image_url: string | null = null;
         let file_url: string | null = null;
-        if (r.result_type === 'image' && r.storage_path) {
-          image_url = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data?.publicUrl || null;
+        let image_urls: string[] = [];
+        if (r.result_type === 'image') {
+          image_urls = getResultImagePublicUrls(supabase.storage, r);
+          image_url = image_urls[0] || null;
         } else if (r.result_type === 'file' && r.storage_path) {
           file_url = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data?.publicUrl || null;
         }
-        return { ...r, image_url, file_url };
+        return { ...r, image_url, image_urls, file_url };
       });
 
       // submission_group 기준 그룹핑 함수
@@ -563,7 +567,7 @@ const SchoolProjectShareView = () => {
               ))}
 
               {modalStudent.resultGroups.map(group => {
-                const imageItem = group.items.find(r => r.image_url);
+                const imageItem = group.items.find(r => r.image_urls && r.image_urls.length > 0);
                 const textItem  = group.items.find(r => r.result_type === 'text');
                 const linkItem  = group.items.find(r => r.result_type === 'link');
                 const fileItem  = group.items.find(r => r.result_type === 'file');
@@ -590,7 +594,16 @@ const SchoolProjectShareView = () => {
                     </div>
                     {group.title && <p className="font-black text-sm text-gray-800 mb-2 group-hover:text-emerald-700 transition-colors">{group.title}</p>}
                     <div className="space-y-2">
-                      {imageItem?.image_url && <img src={imageItem.image_url} alt="" className="rounded-lg w-full max-h-36 object-cover" />}
+                      {imageItem?.image_urls && imageItem.image_urls.length > 0 && (
+                        <div className="relative">
+                          <img src={imageItem.image_urls[0]} alt="" className="rounded-lg w-full max-h-36 object-cover" />
+                          {imageItem.image_urls.length > 1 && (
+                            <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                              1/{imageItem.image_urls.length}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {textItem?.text_content && <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{textItem.text_content}</p>}
                       {linkItem?.link_url && <p className="text-xs text-indigo-500 truncate flex items-center gap-1"><Link2 size={10} />{linkItem.link_url}</p>}
                       {fileItem && <p className="text-xs text-amber-600 flex items-center gap-1"><FileIcon size={10} />첨부파일 있음</p>}
@@ -660,15 +673,20 @@ const SchoolProjectShareView = () => {
                 const linkItem  = items.find(r => r.result_type === 'link');
                 const imageItem = items.find(r => r.result_type === 'image');
                 const fileItem  = items.find(r => r.result_type === 'file');
-                const allImgUrls = items.filter(r => r.image_url).map(r => r.image_url as string);
+                const allImgUrls = items.flatMap(r => r.image_urls || []);
 
                 return (
                   <>
                     {/* 이미지 */}
-                    {imageItem?.image_url && (
+                    {imageItem?.image_urls && imageItem.image_urls.length > 0 && (
                       <div className="relative group cursor-pointer rounded-2xl overflow-hidden"
-                        onClick={() => setLightbox({ urls: allImgUrls, index: 0 })}>
-                        <img src={imageItem.image_url} alt="결과 이미지" className="w-full max-h-64 object-cover group-hover:opacity-90 transition-opacity" />
+                        onClick={() => setLightbox({ urls: allImgUrls, index: allImgUrls.indexOf(imageItem.image_urls![0]) })}>
+                        <img src={imageItem.image_urls[0]} alt="결과 이미지" className="w-full max-h-64 object-cover group-hover:opacity-90 transition-opacity" />
+                        {imageItem.image_urls.length > 1 && (
+                          <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            1/{imageItem.image_urls.length}
+                          </div>
+                        )}
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
                           <ZoomIn size={24} className="text-white" />
                         </div>
@@ -1041,8 +1059,8 @@ const SchoolProjectShareView = () => {
                         const wk = ensureWeek(group.week_number);
                         wk.participants.add(student.id);
                         wk.resultCount += 1;
-                        const imgItem = group.items.find(r => r.image_url);
-                        if (imgItem?.image_url && wk.images.length < 8 && !wk.images.includes(imgItem.image_url)) wk.images.push(imgItem.image_url);
+                        const imgItem = group.items.find(r => r.image_urls && r.image_urls.length > 0);
+                        (imgItem?.image_urls || []).forEach(u => { if (wk.images.length < 8 && !wk.images.includes(u)) wk.images.push(u); });
                         const textItem = group.items.find(r => r.text_content);
                         if (!wk.sampleText && textItem?.text_content) wk.sampleText = textItem.text_content.length > 120 ? `${textItem.text_content.slice(0, 120)}…` : textItem.text_content;
                       });

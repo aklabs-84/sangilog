@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { openFile, downloadFile } from '../lib/fileUtils';
 import AvatarPicker from '../components/AvatarPicker';
+import { ImageCarousel, getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap,
@@ -253,8 +254,8 @@ const StudentLog = () => {
   const [resultText, setResultText] = useState('');
   const [resultUrl, setResultUrl] = useState('');
   const [resultSubmitting, setResultSubmitting] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [resultImageFile, setResultImageFile] = useState<File | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [resultImageFiles, setResultImageFiles] = useState<File[]>([]);
   const [resultFileUpload, setResultFileUpload] = useState<File | null>(null);
   const resultImageInputRef = useRef<HTMLInputElement | null>(null);
   const resultFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1066,14 +1067,24 @@ const StudentLog = () => {
     }
   };
 
+  const MAX_RESULT_IMAGES = 10;
+
   const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 20 * 1024 * 1024) { alert('파일 크기는 20MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
-    setResultImageFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    if (files.length > MAX_RESULT_IMAGES) {
+      alert(`이미지는 최대 ${MAX_RESULT_IMAGES}장까지 선택할 수 있습니다.`);
+      e.target.value = '';
+      return;
+    }
+    const oversized = files.find(f => f.size > 20 * 1024 * 1024);
+    if (oversized) { alert('파일 크기는 각각 20MB를 초과할 수 없습니다.'); e.target.value = ''; return; }
+    setResultImageFiles(files);
+    Promise.all(files.map(file => new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => resolve(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    }))).then(setImagePreviews);
   };
 
   const handleUploadFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1085,7 +1096,7 @@ const StudentLog = () => {
 
   const resetResultForm = () => {
     setResultTitle(''); setResultText(''); setResultUrl('');
-    setResultImageFile(null); setResultFileUpload(null); setImagePreview(null);
+    setResultImageFiles([]); setResultFileUpload(null); setImagePreviews([]);
     setEditingResult(null); setEditingGroupResults([]); setIsGroupSubmission(false);
     if (resultImageInputRef.current) resultImageInputRef.current.value = '';
     if (resultFileInputRef.current) resultFileInputRef.current.value = '';
@@ -1093,11 +1104,14 @@ const StudentLog = () => {
 
   const uploadFile = async (file: File, type: 'image' | 'file') => {
     const ext = file.name.split('.').pop() || '';
-    const path = `results/${session.student_id}/${type}-${Date.now()}.${ext}`;
+    const rand = Math.random().toString(36).slice(2, 8);
+    const path = `results/${session.student_id}/${type}-${Date.now()}-${rand}.${ext}`;
     const { error } = await supabase.storage.from('student-attachments').upload(path, file);
     if (error) throw error;
     return { path, displayName: file.name, fileSize: file.size, fileType: file.type };
   };
+
+  const uploadImageFiles = async (files: File[]) => Promise.all(files.map(f => uploadFile(f, 'image')));
 
   const handleSubmitResult = async () => {
     if (!session?.student_id || !session?.class_id) return;
@@ -1109,9 +1123,9 @@ const StudentLog = () => {
       }
       const hasText  = resultText.trim() !== '';
       const hasLink  = resultUrl.trim() !== '';
-      const hasImage = resultImageFile !== null;
+      const hasImage = resultImageFiles.length > 0;
       const hasFile  = resultFileUpload !== null;
-      const keepImg  = imagePreview !== null && !hasImage; // 기존 이미지 유지 여부
+      const keepImg  = imagePreviews.length > 0 && !hasImage; // 기존 이미지 유지 여부
 
       setResultSubmitting(true);
       try {
@@ -1160,13 +1174,15 @@ const StudentLog = () => {
 
         // ── 이미지 ──
         if (hasImage) {
-          if (existingImage?.storage_path) await supabase.storage.from('student-attachments').remove([existingImage.storage_path]);
-          const up = await uploadFile(resultImageFile!, 'image');
+          const oldPaths = existingImage?.storage_paths?.length ? existingImage.storage_paths : (existingImage?.storage_path ? [existingImage.storage_path] : []);
+          if (oldPaths.length > 0) await supabase.storage.from('student-attachments').remove(oldPaths);
+          const ups = await uploadImageFiles(resultImageFiles);
+          const imgPayload = { title: base.title, week_number: base.week_number, storage_paths: ups.map(u => u.path), storage_path: ups[0].path, display_name: ups[0].displayName, file_size: ups.reduce((s, u) => s + u.fileSize, 0), file_type: ups[0].fileType };
           if (existingImage) {
-            const { error } = await supabase.from('student_results').update({ title: base.title, week_number: base.week_number, storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType }).eq('id', existingImage.id);
+            const { error } = await supabase.from('student_results').update(imgPayload).eq('id', existingImage.id);
             if (error) throw error;
           } else {
-            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'image', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
+            const { error } = await supabase.from('student_results').insert({ ...base, result_type: 'image', ...imgPayload });
             if (error) throw error;
           }
         } else if (existingImage && keepImg) {
@@ -1255,7 +1271,7 @@ const StudentLog = () => {
     // 신규 제출 모드
     const hasText = resultText.trim() !== '';
     const hasLink = resultUrl.trim() !== '';
-    const hasImage = resultImageFile !== null;
+    const hasImage = resultImageFiles.length > 0;
     const hasFile = resultFileUpload !== null;
     if (!hasText && !hasLink && !hasImage && !hasFile) {
       showToast('하나 이상의 항목을 입력해주세요.', 'error'); return;
@@ -1273,8 +1289,8 @@ const StudentLog = () => {
       if (hasText) rows.push({ ...base, result_type: 'text', text_content: resultText.trim() });
       if (hasLink) rows.push({ ...base, result_type: 'link', link_url: resultUrl.trim() });
       if (hasImage) {
-        const up = await uploadFile(resultImageFile!, 'image');
-        rows.push({ ...base, result_type: 'image', storage_path: up.path, display_name: up.displayName, file_size: up.fileSize, file_type: up.fileType });
+        const ups = await uploadImageFiles(resultImageFiles);
+        rows.push({ ...base, result_type: 'image', storage_paths: ups.map(u => u.path), storage_path: ups[0].path, display_name: ups[0].displayName, file_size: ups.reduce((s, u) => s + u.fileSize, 0), file_type: ups[0].fileType });
       }
       if (hasFile) {
         const up = await uploadFile(resultFileUpload!, 'file');
@@ -1343,7 +1359,7 @@ const StudentLog = () => {
     setEditingResult(result);
     setIsGroupSubmission(!!result.is_group_submission);
     setResultTitle(result.title || '');
-    setResultImageFile(null); setResultFileUpload(null); setImagePreview(null);
+    setResultImageFiles([]); setResultFileUpload(null); setImagePreviews([]);
     if (resultImageInputRef.current) resultImageInputRef.current.value = '';
     if (resultFileInputRef.current) resultFileInputRef.current.value = '';
 
@@ -1366,9 +1382,8 @@ const StudentLog = () => {
     setResultText(textRow?.text_content || '');
     setResultUrl(linkRow?.link_url || '');
 
-    if (imageRow?.storage_path) {
-      const { data } = supabase.storage.from('student-attachments').getPublicUrl(imageRow.storage_path);
-      setImagePreview(data.publicUrl);
+    if (imageRow) {
+      setImagePreviews(getResultImagePublicUrls(supabase.storage, imageRow));
     }
 
     // 수정 중인 주차 고정
@@ -1392,7 +1407,7 @@ const StudentLog = () => {
       : '이 결과물을 삭제하시겠습니까?';
     if (!confirm(confirmMsg)) return;
     try {
-      const storagePaths = groupRows.filter(r => r.storage_path).map(r => r.storage_path);
+      const storagePaths = Array.from(new Set(groupRows.flatMap(r => [r.storage_path, ...(r.storage_paths || [])].filter(Boolean))));
       if (storagePaths.length > 0) {
         await supabase.storage.from('student-attachments').remove(storagePaths);
       }
@@ -1817,7 +1832,7 @@ const StudentLog = () => {
           .limit(100),
         supabase
           .from('student_results')
-          .select('id, student_id, week_number, title, text_content, storage_path, display_name, link_url, result_type, submission_group, is_group_submission, group_id, created_at')
+          .select('id, student_id, week_number, title, text_content, storage_path, storage_paths, display_name, link_url, result_type, submission_group, is_group_submission, group_id, created_at')
           .in('student_id', studentIds)
           .order('created_at', { ascending: false })
           .limit(300),
@@ -1872,9 +1887,9 @@ const StudentLog = () => {
         let image_original_url = null;
         let file_url = null;
 
-        if (imageItem?.storage_path) {
-          const { data: orig } = supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path);
-          image_original_url = orig?.publicUrl || null;
+        const image_urls = getResultImagePublicUrls(supabase.storage, imageItem);
+        if (image_urls.length > 0) {
+          image_original_url = image_urls[0];
           image_url = image_original_url;
         }
         if (fileItem?.storage_path) {
@@ -1889,6 +1904,7 @@ const StudentLog = () => {
           display_name: fileItem?.display_name || rep.display_name,
           image_url,
           image_original_url,
+          image_urls,
           file_url,
           student_name: nameMap[rep.student_id] || '학생',
           _type: 'result' as const,
@@ -3719,13 +3735,17 @@ ${guidePrompt}
                       onClick={() => resultImageInputRef.current?.click()}
                       className="border-2 border-dashed border-emerald-200 rounded-2xl p-6 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-all text-center group"
                     >
-                      {imagePreview ? (
+                      {imagePreviews.length > 0 ? (
                         <div>
-                          <img src={imagePreview} alt="preview" className="max-h-36 mx-auto rounded-xl object-contain" />
+                          <div className="flex flex-wrap justify-center gap-2">
+                            {imagePreviews.map((src, i) => (
+                              <img key={i} src={src} alt={`preview-${i}`} className="h-20 w-20 rounded-xl object-cover" />
+                            ))}
+                          </div>
                           <p className="text-xs font-bold text-emerald-600 mt-2">
-                            {resultImageFile
-                              ? resultImageFile.name
-                              : (editingGroupResults.find((r: any) => r.result_type === 'image')?.display_name || '현재 이미지') + ' — 새 이미지 선택 시 교체'}
+                            {resultImageFiles.length > 0
+                              ? `이미지 ${resultImageFiles.length}장 선택됨`
+                              : `현재 이미지 ${imagePreviews.length}장 — 새로 선택 시 전체 교체`}
                           </p>
                         </div>
                       ) : (
@@ -3734,13 +3754,13 @@ ${guidePrompt}
                             <ImageIcon size={20} className="text-emerald-500" />
                           </div>
                           <div className="text-left">
-                            <p className="font-black text-emerald-600 text-sm">이미지 선택</p>
-                            <p className="text-xs font-bold text-emerald-400">JPG, PNG, GIF, WEBP (최대 20MB)</p>
+                            <p className="font-black text-emerald-600 text-sm">이미지 선택 (여러 장 가능)</p>
+                            <p className="text-xs font-bold text-emerald-400">JPG, PNG, GIF, WEBP · 장당 최대 20MB · 최대 {MAX_RESULT_IMAGES}장</p>
                           </div>
                         </div>
                       )}
                     </div>
-                    <input ref={resultImageInputRef} type="file" className="hidden" accept="image/*" onChange={handleImageFileSelect} />
+                    <input ref={resultImageInputRef} type="file" multiple className="hidden" accept="image/*" onChange={handleImageFileSelect} />
                   </div>
 
                   {/* 파일 */}
@@ -3934,6 +3954,7 @@ ${guidePrompt}
                                   const publicUrl = r.storage_path
                                     ? supabase.storage.from('student-attachments').getPublicUrl(r.storage_path).data.publicUrl
                                     : null;
+                                  const imageUrls = r.result_type === 'image' ? getResultImagePublicUrls(supabase.storage, r) : [];
                                   const isEditing = editingResult?.id === r.id;
                                   return (
                                     <motion.div
@@ -3956,8 +3977,10 @@ ${guidePrompt}
                                               <ExternalLink size={11} />{r.link_url}
                                             </a>
                                           )}
-                                          {r.result_type === 'image' && publicUrl && (
-                                            <img src={publicUrl} alt={r.title || '이미지'} className="max-h-24 rounded-xl object-cover mt-1 cursor-pointer" onClick={() => window.open(publicUrl, '_blank')} />
+                                          {imageUrls.length > 0 && (
+                                            <div className="mt-1">
+                                              <ImageCarousel urls={imageUrls} alt={r.title || '이미지'} thumbClassName="max-h-24 rounded-xl object-cover" />
+                                            </div>
                                           )}
                                           {r.result_type === 'file' && (
                                             <p className="text-xs font-bold text-amber-600 flex items-center gap-1">
@@ -4994,15 +5017,22 @@ ${guidePrompt}
                                     </p>
                                   )}
                                   {post.image_url && (
-                                    <img
-                                      src={post.image_url}
-                                      alt="결과 이미지"
-                                      className="w-full rounded-xl object-cover max-h-40"
-                                      loading="lazy"
-                                      onError={e => {
-                                        if (post.image_original_url) (e.target as HTMLImageElement).src = post.image_original_url;
-                                      }}
-                                    />
+                                    <div className="relative">
+                                      <img
+                                        src={post.image_url}
+                                        alt="결과 이미지"
+                                        className="w-full rounded-xl object-cover max-h-40"
+                                        loading="lazy"
+                                        onError={e => {
+                                          if (post.image_original_url) (e.target as HTMLImageElement).src = post.image_original_url;
+                                        }}
+                                      />
+                                      {post.image_urls?.length > 1 && (
+                                        <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                          1/{post.image_urls.length}
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
                                   {post.link_url && (
                                     <a
@@ -5686,9 +5716,9 @@ ${guidePrompt}
             weekLabel = topic ? `${detailItem.week_number}주차 · ${topic}` : `${detailItem.week_number}주차`;
           }
 
-          const imagePublicUrl = !isObs && (detailItem.result_type === 'image' || detailItem.submission_type === 'image') && detailItem.storage_path
-            ? supabase.storage.from('student-attachments').getPublicUrl(detailItem.storage_path).data.publicUrl
-            : null;
+          const imagePublicUrls = !isObs && (detailItem.result_type === 'image' || detailItem.submission_type === 'image')
+            ? getResultImagePublicUrls(supabase.storage, detailItem)
+            : [];
 
           return (
             <div
@@ -5800,17 +5830,15 @@ ${guidePrompt}
                               )}
                               {groupRows.find((r: any) => r.result_type === 'image') && (() => {
                                 const imgRow = groupRows.find((r: any) => r.result_type === 'image');
-                                const imgUrl = imgRow.storage_path
-                                  ? supabase.storage.from('student-attachments').getPublicUrl(imgRow.storage_path).data.publicUrl
-                                  : null;
+                                const imgUrls = getResultImagePublicUrls(supabase.storage, imgRow);
                                 return (
                                   <div className="space-y-2">
                                     <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
-                                    {imgUrl ? (
-                                      <img
-                                        src={imgUrl}
+                                    {imgUrls.length > 0 ? (
+                                      <ImageCarousel
+                                        urls={imgUrls}
                                         alt={imgRow.display_name || '제출 이미지'}
-                                        className="w-full rounded-2xl object-contain max-h-[50vh] border border-surface-container bg-surface-container"
+                                        thumbClassName="w-full rounded-2xl object-contain max-h-[50vh] border border-surface-container bg-surface-container"
                                       />
                                     ) : (
                                       <p className="text-sm text-on-surface-variant">{imgRow.display_name}</p>
@@ -5869,11 +5897,11 @@ ${guidePrompt}
                           {(detailItem.result_type === 'image' || detailItem.submission_type === 'image') && (
                             <div className="space-y-2">
                               <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">이미지</p>
-                              {imagePublicUrl ? (
-                                <img
-                                  src={imagePublicUrl}
+                              {imagePublicUrls.length > 0 ? (
+                                <ImageCarousel
+                                  urls={imagePublicUrls}
                                   alt={detailItem.display_name || '제출 이미지'}
-                                  className="w-full rounded-2xl object-contain max-h-[50vh] border border-surface-container bg-surface-container"
+                                  thumbClassName="w-full rounded-2xl object-contain max-h-[50vh] border border-surface-container bg-surface-container"
                                 />
                               ) : (
                                 <p className="text-sm text-on-surface-variant">{detailItem.display_name}</p>
@@ -6074,29 +6102,11 @@ ${guidePrompt}
                             <p className="text-sm text-on-surface-variant font-bold leading-relaxed whitespace-pre-wrap">{sub.text_content}</p>
                           </div>
                         )}
-                        {sub.image_url && (
-                          <a
-                            href={sub.image_original_url || sub.image_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block relative group"
-                          >
-                            <img
-                              src={sub.image_url}
-                              alt=""
-                              className="w-full rounded-2xl object-contain max-h-72 cursor-zoom-in"
-                              loading="lazy"
-                              decoding="async"
-                              onError={e => {
-                                if (sub.image_original_url) (e.target as HTMLImageElement).src = sub.image_original_url;
-                              }}
-                            />
-                            <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
-                              <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-black bg-black/50 px-3 py-1.5 rounded-full transition-all">
-                                새 탭에서 보기
-                              </span>
-                            </div>
-                          </a>
+                        {sub.image_urls?.length > 0 && (
+                          <ImageCarousel
+                            urls={sub.image_urls}
+                            thumbClassName="w-full rounded-2xl object-contain max-h-72 cursor-zoom-in"
+                          />
                         )}
                         {sub.link_url && (
                           <a href={sub.link_url} target="_blank" rel="noopener noreferrer"

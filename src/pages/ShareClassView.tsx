@@ -7,6 +7,7 @@ import type { XCell } from '../lib/xlsxBuilder';
 import { supabase } from '../lib/supabase';
 import { fetchPublicDriveFolderItems, driveItemToPublicGalleryItem, parseVideoUrl, isVerticalVideoUrl } from '../lib/gallery';
 import Pagination from '../components/Pagination';
+import { getResultImagePublicUrls } from '../components/common/ImageCarousel';
 import {
   GraduationCap,
   RefreshCw,
@@ -134,6 +135,7 @@ interface ResultRow {
   link_url?: string | null;
   file_url?: string | null;
   image_url?: string | null;
+  image_urls?: string[];
 }
 
 interface StudentData {
@@ -259,7 +261,7 @@ const ShareClassView = () => {
             .order('created_at', { ascending: false }),
           supabase
             .from('student_results')
-            .select('id, student_id, week_number, title, text_content, result_type, created_at, link_url, storage_path')
+            .select('id, student_id, week_number, title, text_content, result_type, created_at, link_url, storage_path, storage_paths')
             .in('student_id', studentIds)
             .order('created_at', { ascending: false }),
         ]);
@@ -272,14 +274,15 @@ const ShareClassView = () => {
         const resultsWithUrls: ResultRow[] = (results || []).map((r: any) => {
           let image_url: string | null = null;
           let file_url: string | null = null;
-          if (r.result_type === 'image' && r.storage_path) {
-            const { data } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
-            image_url = data?.publicUrl || null;
+          let image_urls: string[] = [];
+          if (r.result_type === 'image') {
+            image_urls = getResultImagePublicUrls(supabase.storage, r);
+            image_url = image_urls[0] || null;
           } else if (r.result_type === 'file' && r.storage_path) {
             const { data } = supabase.storage.from('student-attachments').getPublicUrl(r.storage_path);
             file_url = data?.publicUrl || null;
           }
-          return { ...r, image_url, file_url };
+          return { ...r, image_url, image_urls, file_url };
         });
 
           setStudentData(
@@ -1510,9 +1513,9 @@ const ShareClassView = () => {
                   )}
 
                   {subTab === 'results' && pagedResults.map((r) => {
-                    const allImgResults = results.filter((x) => x.image_url);
-                    const allImgUrls = allImgResults.map((x) => x.image_url as string);
-                    const allImgNames = allImgResults.map((x) => `${x.title || '결과물'}.webp`);
+                    const allImgResults = results.filter((x) => x.image_urls && x.image_urls.length > 0);
+                    const allImgUrls = allImgResults.flatMap((x) => x.image_urls as string[]);
+                    const allImgNames = allImgResults.flatMap((x) => (x.image_urls as string[]).map((_, i) => `${x.title || '결과물'}-${i + 1}.webp`));
                     const typeBadge = RESULT_TYPE_BADGE[r.result_type];
                     return (
                       <div key={r.id} className="bg-white rounded-xl border border-emerald-100 p-4">
@@ -1530,9 +1533,14 @@ const ShareClassView = () => {
                         {r.text_content && r.result_type !== 'link' && r.result_type !== 'file' && (
                           <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>
                         )}
-                        {r.image_url && (
-                          <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, names: allImgNames, index: allImgUrls.indexOf(r.image_url as string) })}>
-                            <img src={r.image_url} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
+                        {r.image_urls && r.image_urls.length > 0 && (
+                          <div className="mt-2 relative group cursor-pointer" onClick={() => setLightbox({ urls: allImgUrls, names: allImgNames, index: allImgUrls.indexOf(r.image_urls![0]) })}>
+                            <img src={r.image_urls[0]} alt="결과물 이미지" className="rounded-lg max-h-56 object-cover w-full transition-opacity group-hover:opacity-90" />
+                            {r.image_urls.length > 1 && (
+                              <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                1/{r.image_urls.length}
+                              </div>
+                            )}
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                               <div className="bg-black/50 rounded-full p-2"><ZoomIn size={20} className="text-white" /></div>
                             </div>
@@ -1686,7 +1694,13 @@ const ShareClassView = () => {
                         <span className="text-[9px] text-gray-400 ml-auto">{new Date(r.created_at).toLocaleDateString('ko-KR')}</span>
                       </div>
                       {r.text_content && <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{r.text_content}</p>}
-                      {r.image_url && <img src={r.image_url} alt="결과물" className="mt-1.5 max-h-44 rounded-lg object-contain border border-gray-100" />}
+                      {r.image_urls && r.image_urls.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {r.image_urls.map((u, i) => (
+                            <img key={i} src={u} alt={`결과물 ${i + 1}`} className="max-h-44 rounded-lg object-contain border border-gray-100" />
+                          ))}
+                        </div>
+                      )}
                       {r.link_url && <p className="text-[10px] text-indigo-500 mt-1 font-medium break-all">{r.link_url}</p>}
                       {r.file_url && <p className="text-[10px] text-emerald-600 mt-1 font-medium">첨부 파일 포함</p>}
                     </div>

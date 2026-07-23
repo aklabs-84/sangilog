@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { downloadFile } from '../../lib/fileUtils';
+import { ImageCarousel, getResultImagePublicUrls } from '../common/ImageCarousel';
 
 interface StudentDetailDrawerProps {
   isOpen: boolean;
@@ -602,9 +603,7 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                           const fileItem = groupItems.find(r => r.result_type === 'file');
                           const types = [...new Set(groupItems.map(r => r.result_type as string))];
                           const teacherFeedback = groupItems.find(r => r.teacher_feedback)?.teacher_feedback;
-                          const imagePublicUrl = imageItem?.storage_path
-                            ? supabase.storage.from('student-attachments').getPublicUrl(imageItem.storage_path).data.publicUrl
-                            : null;
+                          const imagePublicUrls = getResultImagePublicUrls(supabase.storage, imageItem);
 
                           return (
                             <div key={groupId} className="p-3.5 bg-white rounded-xl border border-neutral-100 hover:border-primary/20 transition-colors group">
@@ -630,13 +629,12 @@ const StudentDetailDrawer = ({ isOpen, onClose, studentId, fromClassId }: Studen
                                       <ExternalLink size={10} />{linkItem.link_url}
                                     </a>
                                   )}
-                                  {imageItem && imagePublicUrl && (
+                                  {imageItem && imagePublicUrls.length > 0 && (
                                     <div className="flex items-center gap-2 mt-1 mb-1">
-                                      <img
-                                        src={imagePublicUrl}
+                                      <ImageCarousel
+                                        urls={imagePublicUrls}
                                         alt={title || '이미지'}
-                                        className="max-h-20 rounded-lg object-cover cursor-pointer hover:opacity-80"
-                                        onClick={() => window.open(imagePublicUrl, '_blank')}
+                                        thumbClassName="max-h-20 rounded-lg object-cover hover:opacity-80"
                                       />
                                       <button
                                         onClick={() => handleDownloadResult(imageItem)}
