@@ -97,16 +97,48 @@ export const ClassAlarmProvider = ({ children }: { children: ReactNode }) => {
       const hasStartAlarm = !!c.class_start_time;
       const hasEndAlarm = !!c.class_end_time && (c.end_alarm_minutes || []).length > 0;
       const hasBreakAlarm = (c.break_times || []).length > 0;
-      return hasStartAlarm || hasEndAlarm || hasBreakAlarm;
+      // 알람 소리 설정과 무관하게, 학기 자동 종료(end_date)·출석 세션 자동 종료(class_end_time)
+      // 대상이 되는 클래스도 폴링 목록에 포함시켜야 함
+      const needsAutoClose = !!c.end_date;
+      const needsAutoSessionEnd = !!c.class_end_time;
+      return hasStartAlarm || hasEndAlarm || hasBreakAlarm || needsAutoClose || needsAutoSessionEnd;
     }));
   }, [user]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 최초 로드 + 5분 주기 재조회
     fetchClasses();
     const refreshInterval = setInterval(fetchClasses, 5 * 60 * 1000);
     return () => clearInterval(refreshInterval);
   }, [fetchClasses]);
+
+  // 학기 종료(is_closed)·출석 세션 종료(today_ended_at) 자동 처리 — 동일 클래스에 대해
+  // 다음 5분 주기 재조회 전까지 중복 write가 발생하지 않도록 처리 중 여부를 추적
+  const autoProcessingRef = useRef<Set<string>>(new Set());
+
+  const autoCloseClass = useCallback(async (classId: string) => {
+    const key = `close_${classId}`;
+    if (autoProcessingRef.current.has(key)) return;
+    autoProcessingRef.current.add(key);
+    try {
+      await supabase.from('classes').update({ is_closed: true }).eq('id', classId);
+      setClasses((prev) => prev.filter((c) => c.id !== classId));
+    } finally {
+      autoProcessingRef.current.delete(key);
+    }
+  }, []);
+
+  const autoEndSession = useCallback(async (classId: string) => {
+    const key = `end_${classId}`;
+    if (autoProcessingRef.current.has(key)) return;
+    autoProcessingRef.current.add(key);
+    try {
+      const now = new Date().toISOString();
+      await supabase.from('classes').update({ today_ended_at: now }).eq('id', classId);
+      setClasses((prev) => prev.map((c) => (c.id === classId ? { ...c, today_ended_at: now } : c)));
+    } finally {
+      autoProcessingRef.current.delete(key);
+    }
+  }, []);
 
   const dismissAlert = useCallback((key: string) => {
     setActiveAlerts((prev) => prev.filter((a) => a.key !== key));
@@ -215,6 +247,26 @@ export const ClassAlarmProvider = ({ children }: { children: ReactNode }) => {
           triggerAlarm(triggerKey, { key: triggerKey, classId: cls.id, className: cls.name, type: 'break', minutesLeft: BREAK_ALARM_MINUTES });
         });
       });
+
+      // 자동 처리(알람 소리 설정 여부와 무관하게 항상 체크) ─────────────────
+      classes.forEach((cls) => {
+        // 1) 학기 종료: end_date의 class_end_time(없으면 그날 23:59:59)이 지나면 is_closed 자동 처리
+        if (cls.end_date) {
+          const cutoff = new Date(`${cls.end_date}T${cls.class_end_time || '23:59:59'}`);
+          if (now >= cutoff) {
+            autoCloseClass(cls.id);
+          }
+        }
+
+        // 2) 출석 세션 종료: 오늘 수업을 시작했고 아직 안 끝났는데 class_end_time이 지나면 자동 종료
+        if (cls.class_end_time && isSessionActiveToday(cls, todayStr)) {
+          const [endH, endM] = cls.class_end_time.split(':').map((v) => parseInt(v, 10));
+          const endTotalMin = endH * 60 + endM;
+          if (nowTotalMin >= endTotalMin) {
+            autoEndSession(cls.id);
+          }
+        }
+      });
     };
 
     const interval = setInterval(checkAlarms, 20 * 1000);
@@ -231,7 +283,7 @@ export const ClassAlarmProvider = ({ children }: { children: ReactNode }) => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [classes, getAudioCtx]);
+  }, [classes, getAudioCtx, autoCloseClass, autoEndSession]);
 
   return (
     <ClassAlarmContext.Provider value={{ activeAlerts, dismissAlert }}>
