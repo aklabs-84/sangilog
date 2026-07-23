@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video } from 'lucide-react';
+import { Shuffle, Timer, ClipboardCheck, Dices, ChevronRight, ArrowLeft, BookOpen, Mic, LayoutPanelTop, BarChart2, Lock, Crown, X, HelpCircle, Zap, Layers, Video, StickyNote } from 'lucide-react';
 import { useAuth, checkIsPro, checkIsBasicOrAbove, getAiMonthlyLimit } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import GroupPicker from './tools/GroupPicker';
@@ -13,6 +13,7 @@ import WhiteboardList from '../components/whiteboard/WhiteboardList';
 import SurveyTool from './tools/SurveyTool';
 import SlideDeckEditor from './tools/SlideDeckEditor';
 import OnlineMeeting from './tools/OnlineMeeting';
+import MyNotes from './tools/MyNotes';
 
 const CONTACT_ROLES = ['담임 선생님', '교과 선생님', '학원 강사', '개인 강사', '교육 행정직', '기타'];
 
@@ -84,6 +85,25 @@ const tools: Tool[] = [
         { title: '전체화면 발표 모드', desc: '⬜ 확대 버튼으로 전체화면 전환. TV·프로젝터에 띄울 때 사용합니다.' },
       ],
       tip: '타이머는 다른 도구 사용 중에도 우측 하단 플로팅 버튼으로 빠르게 접근할 수 있습니다.',
+    },
+  },
+  {
+    id: 'my-notes',
+    icon: <StickyNote size={28} />,
+    label: '나의 노트',
+    description: '학생 선택 없이 수업 준비나 간단한 생각을 자유롭게 기록하는 개인 메모장입니다',
+    newSince: '2026-07-23',
+    available: true,
+    planRequired: 'free',
+    limits: { freeDesc: '무제한', proDesc: '무제한' },
+    component: <MyNotes />,
+    quickGuide: {
+      steps: [
+        { title: '클래스 선택 (선택사항)', desc: '메모를 특정 클래스와 연결하고 싶다면 클래스를 선택하고, 아니면 "클래스 없음"으로 둡니다.' },
+        { title: '자유롭게 작성', desc: '제목은 선택사항이며, 학생 지정 없이 내용란에 자유롭게 적으면 됩니다.' },
+        { title: '저장 및 필터링', desc: '노트 저장을 누르면 아래 목록에 즉시 추가되고, 상단 필터 칩으로 클래스별로 모아볼 수 있습니다.' },
+      ],
+      tip: '학생 기록·생기부용 "교사 메모"와는 완전히 별개인, 나만 보는 개인 메모입니다.',
     },
   },
   {
